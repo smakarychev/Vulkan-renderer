@@ -15,9 +15,9 @@ Scene Scene::CreateEmpty(DeletionQueue& deletionQueue)
     return scene;
 }
 
-SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, const SceneInstantiationData& instantiationData)
+SceneInstanceHandle Scene::Instantiate(const SceneInfo& sceneInfo, const SceneInstantiationData& instantiationData)
 {
-    const SceneInstance instance = RegisterSceneInstance(sceneInfo);
+    const SceneInstanceHandle instance = RegisterSceneInstance(sceneInfo);
     m_NewInstances.push_back({
         .Instance = instance,
         .InstantiationData = instantiationData
@@ -26,10 +26,10 @@ SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, const SceneInstanti
     return instance;
 }
 
-void Scene::Delete(SceneInstance instance)
+void Scene::Delete(SceneInstanceHandle instance)
 {
     auto it = std::ranges::find_if(m_NewInstances, [&instance](auto& newInstance) {
-        return newInstance.Instance.m_InstanceId == instance.m_InstanceId;
+        return instance == newInstance.Instance;
     });
     const bool isJustAdded = it != m_NewInstances.end();
     if (isJustAdded)
@@ -38,7 +38,7 @@ void Scene::Delete(SceneInstance instance)
         return;
     }
 
-    m_InstanceIsAlive[instance.m_InstanceId] = false;
+    m_InstanceIsAlive[instance] = false;
     m_DeletedInstances.push_back(instance);
 }
 
@@ -51,24 +51,25 @@ void Scene::OnUpdate(FrameContext& ctx)
     m_Lights.OnUpdate(ctx);
 }
 
-SceneInstance Scene::RegisterSceneInstance(const SceneInfo& sceneInfo)
+SceneInstanceHandle Scene::RegisterSceneInstance(const SceneInfo& sceneInfo)
 {
-    m_SceneInstancesMap[&sceneInfo] += 1;
     SceneInstance instance = {};
-    instance.m_InstanceId = m_ActiveInstancesIndices.insert(0);
     instance.m_SceneInfo = &sceneInfo;
     
-    return instance;
+    SceneInstanceHandle handle = m_ActiveInstances.insert(instance);
+    m_SceneInstancesMap[&sceneInfo].Instances.insert(handle);
+    
+    return handle;
 }
 
-Scene::NewInstanceData Scene::AddToHierarchy(SceneInstance instance, const Transform3d& baseTransform,
+Scene::NewInstanceData Scene::AddToHierarchy(SceneInstanceHandle instance, const Transform3d& baseTransform,
     FrameContext& ctx)
 {
-    const SceneInfo& sceneInfo = *instance.m_SceneInfo;
+    const SceneInfo& sceneInfo = *m_ActiveInstances[instance].m_SceneInfo;
     const SceneHierarchyInfo& instanceHierarchy = sceneInfo.m_Hierarchy; 
     const u32 firstNode = (u32)m_HierarchyInfo.Nodes.size();
     
-    const SceneGeometry::AddRenderObjectsResult addResult = m_Geometry.AddRenderObjects(instance, ctx);
+    const SceneGeometry::AddRenderObjectsResult addResult = m_Geometry.AddRenderObjects(sceneInfo, instance, ctx);
     m_MaxRenderObjectIndex = std::max(
         m_MaxRenderObjectIndex, addResult.FirstRenderObject + (u32)sceneInfo.m_Geometry.RenderObjects.size());
 
@@ -103,6 +104,7 @@ Scene::NewInstanceData Scene::AddToHierarchy(SceneInstance instance, const Trans
     m_HierarchyInfo.MaxDepth = std::max(m_HierarchyInfo.MaxDepth, instanceHierarchy.MaxDepth);
 
     return {
+        .SceneInfo = &sceneInfo,
         .Instance = instance,
         .RenderObjectsOffset = addResult.FirstRenderObject,
     };
@@ -110,15 +112,19 @@ Scene::NewInstanceData Scene::AddToHierarchy(SceneInstance instance, const Trans
 
 void Scene::Spawn(FrameContext& ctx)
 {
-    for (auto&& [instance, instantiationData] : m_NewInstances)
+    for (auto&& [instanceHandle, instantiationData] : m_NewInstances)
     {
-        if (m_SceneInstancesMap[instance.m_SceneInfo] == 1)
-            m_Geometry.Add(instance, ctx);
+        auto& instance = m_ActiveInstances[instanceHandle];
+        if (!m_SceneInstancesMap[instance.m_SceneInfo].HasGeometry)
+        {
+            m_Geometry.Add(*instance.m_SceneInfo, ctx);
+            m_SceneInstancesMap[instance.m_SceneInfo].HasGeometry = true;
+        }
 
-        if (instance.m_InstanceId >= m_InstanceIsAlive.size())
-            m_InstanceIsAlive.resize(instance.m_InstanceId + 1);
-        m_InstanceIsAlive[instance.m_InstanceId] = true;
-        m_InstanceAddedSignal.Emit(AddToHierarchy(instance, instantiationData.Transform, ctx));
+        if (instanceHandle >= m_InstanceIsAlive.size())
+            m_InstanceIsAlive.resize(instanceHandle + 1);
+        m_InstanceIsAlive[instanceHandle] = true;
+        m_InstanceAddedSignal.Emit(AddToHierarchy(instanceHandle, instantiationData.Transform, ctx));
     }
     m_NewInstances.clear();
 }
@@ -132,7 +138,7 @@ void Scene::Sweep()
         SceneHierarchyHandle parent = node.Parent;
         while (
             parent != SceneHierarchyHandle::INVALID &&
-            !m_InstanceIsAlive[m_HierarchyInfo.Nodes[parent].Instance.m_InstanceId])
+            !m_InstanceIsAlive[m_HierarchyInfo.Nodes[parent].Instance])
         {
             parent = m_HierarchyInfo.Nodes[parent].Parent;
         }
@@ -147,8 +153,7 @@ void Scene::Sweep()
     {
         SceneHierarchyNode& node = m_HierarchyInfo.Nodes[i];
         
-        const SceneInstance& instance = node.Instance;
-        if (m_InstanceIsAlive[instance.m_InstanceId])
+        if (m_InstanceIsAlive[node.Instance])
         {
             reparentToValid(node);
             continue;
@@ -170,16 +175,19 @@ void Scene::Sweep()
     for (auto&& [i, isAlive] : std::views::enumerate(m_InstanceIsAlive))
     {
         if (!isAlive)
-            m_ActiveInstancesIndices.erase((u32)i);
+            m_ActiveInstances.erase((u32)i);
         m_InstanceIsAlive[i] = true;
     }
 
-    for (auto& instance : m_DeletedInstances)
+    for (auto& instanceHandle : m_DeletedInstances)
     {
-        m_Geometry.DeleteRenderObjects(instance);
-
+        auto& instance = m_ActiveInstances[instanceHandle];
+        m_Geometry.DeleteRenderObjects(instanceHandle);
+        m_SceneInstancesMap[instance.m_SceneInfo].Instances.erase(instanceHandle);
+        
         m_InstanceDeletedSignal.Emit({
-            .Instance = instance,
+            .SceneInfo = instance.m_SceneInfo,
+            .Instance = instanceHandle,
         });
     }
     m_DeletedInstances.clear();

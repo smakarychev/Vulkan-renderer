@@ -33,9 +33,10 @@ public:
     };
 public:
     static SceneGeometry CreateEmpty(DeletionQueue& deletionQueue);
-    void Add(SceneInstance instance, FrameContext& ctx);
-    AddRenderObjectsResult AddRenderObjects(SceneInstance instance, FrameContext& ctx);
-    void DeleteRenderObjects(SceneInstance instance);
+    void Add(const SceneInfo& sceneInfo, FrameContext& ctx);
+    AddRenderObjectsResult AddRenderObjects(const SceneInfo& sceneInfo, SceneInstanceHandle instance,
+        FrameContext& ctx);
+    void DeleteRenderObjects(SceneInstanceHandle instance);
 
     void SetScene(Scene& scene) { m_Scene = &scene; }
 public:

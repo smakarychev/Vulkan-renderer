@@ -107,11 +107,9 @@ SceneGeometry SceneGeometry::CreateEmpty(DeletionQueue& deletionQueue)
     return geometry;
 }
 
-void SceneGeometry::Add(SceneInstance instance, FrameContext& ctx)
+void SceneGeometry::Add(const SceneInfo& sceneInfo, FrameContext& ctx)
 {
     using enum SceneInfoOffsetType;
-
-    auto& sceneInfo = *instance.m_SceneInfo;
 
     SceneInfoOffsets sceneInfoOffsets = {};
     writeSuballocation(Attributes, sceneInfo.m_Geometry.Positions, Position, sceneInfoOffsets, ctx);
@@ -156,9 +154,9 @@ void SceneGeometry::Add(SceneInstance instance, FrameContext& ctx)
     m_SceneInfoOffsets[&sceneInfo] = sceneInfoOffsets;
 }
 
-SceneGeometry::AddRenderObjectsResult SceneGeometry::AddRenderObjects(SceneInstance instance, FrameContext& ctx)
+SceneGeometry::AddRenderObjectsResult SceneGeometry::AddRenderObjects(const SceneInfo& sceneInfo,
+    SceneInstanceHandle instance, FrameContext& ctx)
 {
-    auto& sceneInfo = *instance.m_SceneInfo;
     if (sceneInfo.m_Geometry.RenderObjects.empty())
         return {.FirstRenderObject = 0};
         
@@ -169,7 +167,7 @@ SceneGeometry::AddRenderObjectsResult SceneGeometry::AddRenderObjects(SceneInsta
     SceneInstanceInfo instanceInfo = {};
     instanceInfo.RenderObjectsSuballocation = suballocateResizeIfFailed(RenderObjects,
         renderObjectsSizeBytes, 0, ctx.CommandList);
-    m_InstancesInfo.emplace(instance.m_InstanceId, instanceInfo);
+    m_InstancesInfo.emplace(instance, instanceInfo);
     
     RenderObjectGPU* renderObjects = ctx.ResourceUploader->MapBuffer<RenderObjectGPU>({
         .Buffer = Device::GetBufferArenaUnderlyingBuffer(RenderObjects),
@@ -211,9 +209,9 @@ SceneGeometry::AddRenderObjectsResult SceneGeometry::AddRenderObjects(SceneInsta
     };
 }
 
-void SceneGeometry::DeleteRenderObjects(SceneInstance instance)
+void SceneGeometry::DeleteRenderObjects(SceneInstanceHandle instance)
 {
-    auto& instanceInfo = m_InstancesInfo.at(instance.m_InstanceId);
+    auto& instanceInfo = m_InstancesInfo.at(instance);
     Device::BufferArenaFree(RenderObjects, instanceInfo.RenderObjectsSuballocation.Handle);
-    m_InstancesInfo.erase(instance.m_InstanceId);
+    m_InstancesInfo.erase(instance);
 }

@@ -72,7 +72,7 @@ struct SceneHierarchyNode
     SceneHierarchyHandle Parent{};
     Transform3d LocalTransform{};
     u32 PayloadIndex{0};
-    SceneInstance Instance{};
+    SceneInstanceHandle Instance{};
 };
 
 struct SceneHierarchyInfo

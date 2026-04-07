@@ -74,7 +74,7 @@ const ScenePass* SceneRenderObjectSet::TryFindPass(StringId name) const
 
 void SceneRenderObjectSet::OnNewSceneInstance(const NewInstanceData& instanceData)
 {
-    const SceneGeometryInfo& geometry = instanceData.Instance.m_SceneInfo->m_Geometry;
+    const SceneGeometryInfo& geometry = instanceData.SceneInfo->m_Geometry;
 
     static constexpr u32 INVALID_ID = ~0u;
     SceneInstanceInfo addedInstanceInfo = {.FirstRenderObject = INVALID_ID};
@@ -114,12 +114,12 @@ void SceneRenderObjectSet::OnNewSceneInstance(const NewInstanceData& instanceDat
         }
     }
 
-    m_InstancesInfo.emplace(instanceData.Instance.m_InstanceId, addedInstanceInfo);
+    m_InstancesInfo.emplace(instanceData.Instance, addedInstanceInfo);
 }
 
 void SceneRenderObjectSet::OnDeletedSceneInstance(const DeletedInstanceData& instanceData)
 {
-    const SceneInstanceInfo& sceneInstance = m_InstancesInfo.at(instanceData.Instance.m_InstanceId);
+    const SceneInstanceInfo& sceneInstance = m_InstancesInfo.at(instanceData.Instance);
 
     m_RenderObjectsCpu.erase(
         m_RenderObjectsCpu.begin() + sceneInstance.FirstRenderObject,
@@ -134,5 +134,5 @@ void SceneRenderObjectSet::OnDeletedSceneInstance(const DeletedInstanceData& ins
         if (instanceInfo.FirstRenderObject > sceneInstance.FirstRenderObject)
             instanceInfo.FirstRenderObject -= sceneInstance.RenderObjectCount;
     
-    m_InstancesInfo.erase(instanceData.Instance.m_InstanceId);
+    m_InstancesInfo.erase(instanceData.Instance);
 }

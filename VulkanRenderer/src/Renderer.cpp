@@ -263,7 +263,7 @@ void Renderer::InitRenderGraph()
             *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/dragon/scene.scene",
             *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue(),
             m_AssetSystem, *m_ImageAssetManager, *m_MaterialAssetManager));
-        SceneInstance instance = m_Scene.Instantiate(*m_Scenes.front(), {
+        SceneInstanceHandle instance = m_Scene.Instantiate(*m_Scenes.front(), {
             .Transform = {
                 //.Position = glm::vec3{1500.0f, -500.0f, -7.0f},
                 .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
@@ -1554,7 +1554,7 @@ void Renderer::Run()
 
 namespace 
 {
-SceneInstance spawnRandomScene(Scene& scene, const std::vector<SceneInfo*>& scenes, const Camera& camera)
+SceneInstanceHandle spawnRandomScene(Scene& scene, const std::vector<SceneInfo*>& scenes, const Camera& camera)
 {
     if (scenes.empty())
         return {};
@@ -1593,7 +1593,7 @@ void Renderer::OnUpdate()
 
     struct InstanceWithLife
     {
-        SceneInstance Instance;
+        SceneInstanceHandle Instance;
         i32 LifeTimeMs{2000};
     };
     static std::vector<InstanceWithLife> instances;
