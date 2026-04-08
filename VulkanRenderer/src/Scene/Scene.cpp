@@ -152,14 +152,20 @@ void Scene::HandleReplacements(FrameContext& ctx)
     {
         auto& originalInstances = m_SceneInstancesMap[original].Instances;
         for (auto& node : m_HierarchyInfo.Nodes)
+        {
             if (originalInstances.contains(node.Instance) && !reinstantiationData.contains(node.Instance))
+            {
+                const Transform3d topNodeOriginalTransform = original->m_Hierarchy.Nodes.front().LocalTransform;
+                
                 reinstantiationData.emplace(
                     node.Instance, ReinstantiationData{
                         .Replacement = replacement,
                         .InstantiationData = {
-                            .Transform = getTopNodeLevelTransform(node)
+                            .Transform = getTopNodeLevelTransform(node).Combine(topNodeOriginalTransform.Inverse())
                         }
                     });
+            }
+        }
     }
     auto nodesBackup = m_HierarchyInfo.Nodes;
     for (const auto& instance : reinstantiationData | std::views::keys)
