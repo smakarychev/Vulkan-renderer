@@ -322,7 +322,16 @@ SceneInfo* SceneInfo::LoadFromAsset(std::string_view assetPath,
     lux::ImageAssetManager& imageAssetManager,
     lux::MaterialAssetManager& materialAssetManager)
 {
-    if (SceneInfo* cached = AssetManager::GetSceneInfo(assetPath))
+    return LoadFromAsset(assetPath, assetPath, texturesRingBuffer, deletionQueue, assetSystem, imageAssetManager,
+        materialAssetManager);
+}
+
+SceneInfo* SceneInfo::LoadFromAsset(std::string_view assetPath, std::string_view name,
+    BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue,
+    lux::AssetSystem& assetSystem, lux::ImageAssetManager& imageAssetManager,
+    lux::MaterialAssetManager& materialAssetManager)
+{
+    if (SceneInfo* cached = AssetManager::GetSceneInfo(name))
         return cached;
     
     SceneInfo scene = {};
@@ -340,7 +349,7 @@ SceneInfo* SceneInfo::LoadFromAsset(std::string_view assetPath,
     scene.m_Lights = SceneLightInfo::FromAsset(*sceneAsset);
     scene.m_Hierarchy = SceneHierarchyInfo::FromAsset(*sceneAsset);
 
-    return AssetManager::AddSceneInfo(assetPath, std::move(scene));
+    return AssetManager::AddSceneInfo(name, std::move(scene));
 }
 
 void SceneInfo::AddLight(const DirectionalLight& light)

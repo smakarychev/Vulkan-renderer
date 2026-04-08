@@ -129,9 +129,15 @@ class SceneInfo
 public:
     static SceneInfo* LoadFromAsset(std::string_view assetPath,
         BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue,
-    lux::AssetSystem& assetSystem,
-    lux::ImageAssetManager& imageAssetManager,
-    lux::MaterialAssetManager& materialAssetManager);
+        lux::AssetSystem& assetSystem,
+        lux::ImageAssetManager& imageAssetManager,
+        lux::MaterialAssetManager& materialAssetManager);
+    // todo: delete once managed
+    static SceneInfo* LoadFromAsset(std::string_view assetPath, std::string_view name,
+        BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue,
+        lux::AssetSystem& assetSystem,
+        lux::ImageAssetManager& imageAssetManager,
+        lux::MaterialAssetManager& materialAssetManager);
     
     void AddLight(const DirectionalLight& light);
     void AddLight(const PointLight& light);

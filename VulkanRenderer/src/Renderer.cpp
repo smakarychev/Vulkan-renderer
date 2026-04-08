@@ -78,6 +78,7 @@
 #include <AssetLib/Io/IoInterface/CombinedAssetIoInterface.h>
 #include <AssetLib/Io/IoInterface/SeparateAssetIoInterface.h>
 #include <AssetLib/Materials/MaterialAsset.h>
+#include <AssetBakerLib/Bakers/Scenes/SceneBaker.h>
 #include <CoreLib/Math/Random.h>
 #include <CoreLib/String/StringId.h>
 
@@ -256,7 +257,7 @@ void Renderer::InitRenderGraph()
         FrameContext ctx = GetFrameContext();
         ctx.CommandList = cmdList;
         m_Scenes.push_back(SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/flight_helmet/FlightHelmet.scene",
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/armor/scene.scene",
             *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue(),
             m_AssetSystem, *m_ImageAssetManager, *m_MaterialAssetManager));
         m_Scenes.push_back(SceneInfo::LoadFromAsset(
@@ -276,7 +277,7 @@ void Renderer::InitRenderGraph()
             .Color = glm::vec3(1.0f, 1.0f, 1.0f),
             .Intensity = 2.5f,
         }});
-        constexpr u32 POINT_LIGHT_COUNT = 64;
+        constexpr u32 POINT_LIGHT_COUNT = 0;
         for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
         {
             const auto pos =
@@ -1597,27 +1598,54 @@ void Renderer::OnUpdate()
         i32 LifeTimeMs{2000};
     };
     static std::vector<InstanceWithLife> instances;
+    static bool swapped = false;
 
     static auto lastTime = std::chrono::steady_clock::now();
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastTime).count();
-    if (elapsed > 10)
+    if (!swapped && Input::GetKey(Key::R))
     {
-        instances.push_back({spawnRandomScene(m_Scene, m_Scenes, *m_Camera)});
-        LUX_LOG_TRACE("Meshes: {}\tMeshlets: {}\tTriangles: {}",
-            m_OpaqueSet.RenderObjectCount(), m_OpaqueSet.MeshletCount(), m_OpaqueSet.TriangleCount());
-        lastTime = now;
-    }
-    for (i32 i = (i32)instances.size() - 1; i >= 0; i--)
-    {
-        auto& instanceInfo = instances[i];
-        instanceInfo.LifeTimeMs -= (i32)elapsed;
-        if (instanceInfo.LifeTimeMs <= 0)
+        if (elapsed > 10)
         {
-            m_Scene.Delete(instanceInfo.Instance);
-            std::swap(instances[i], instances.back());
-            instances.pop_back();
+            instances.push_back({spawnRandomScene(m_Scene, m_Scenes, *m_Camera)});
+            LUX_LOG_TRACE("Meshes: {}\tMeshlets: {}\tTriangles: {}",
+                m_OpaqueSet.RenderObjectCount(), m_OpaqueSet.MeshletCount(), m_OpaqueSet.TriangleCount());
+            lastTime = now;
         }
+        for (i32 i = (i32)instances.size() - 1; i >= 0; i--)
+        {
+            auto& instanceInfo = instances[i];
+            instanceInfo.LifeTimeMs -= (i32)elapsed;
+            if (instanceInfo.LifeTimeMs <= 0)
+            {
+                m_Scene.Delete(instanceInfo.Instance);
+                std::swap(instances[i], instances.back());
+                instances.pop_back();
+            }
+        }
+    }
+
+    ImGui::Begin("RELOAD");
+    if (ImGui::Button("Reload scene"))
+    {
+        lux::bakers::SceneBaker baker;
+        static u32 version = 0;
+        static SceneInfo* toReplace = m_Scenes[0];
+        version++;
+        baker.BakeToFile(*CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/hotReloadTest/scene.gltf", {}, m_BakerCtx);
+        m_Scenes.push_back(SceneInfo::LoadFromAsset(
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/hotReloadTest/scene.scene",
+            "scene" + std::to_string(version),
+            *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue(),
+            m_AssetSystem, *m_ImageAssetManager, *m_MaterialAssetManager));
+        m_Scene.ReplaceScene(*toReplace, *m_Scenes.back());
+        toReplace = m_Scenes.back();
+    }
+    ImGui::End();
+    if (Input::GetKey(Key::T))
+    {
+        m_Scene.ReplaceScene(*m_Scenes[0], *m_Scenes[1]);
+        swapped = true;
     }
 }
 
