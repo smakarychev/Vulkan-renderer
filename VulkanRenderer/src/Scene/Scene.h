@@ -39,6 +39,7 @@ public:
     
     SceneInstanceHandle Instantiate(const SceneInfo& sceneInfo, const SceneInstantiationData& instantiationData);
     void Delete(SceneInstanceHandle instance);
+    void ReplaceScene(const SceneInfo& original, const SceneInfo& replacement);
 
     void OnUpdate(FrameContext& ctx);
     
@@ -50,10 +51,13 @@ public:
     void IterateLights(LightType lightType, Fn&& callback);
 private:
     SceneInstanceHandle RegisterSceneInstance(const SceneInfo& sceneInfo);
+    void MapSceneInstanceToSceneInfo(const SceneInfo& sceneInfo, SceneInstanceHandle handle);
+    void InstantiateHandle(SceneInstanceHandle handle, const SceneInstantiationData& instantiationData);
     NewInstanceData AddToHierarchy(SceneInstanceHandle instance, const Transform3d& baseTransform, FrameContext& ctx);
-    void HandleReplacements();
+    void HandleReplacements(FrameContext& ctx);
+    void HandleSpawnAndSweep(FrameContext& ctx, bool reclaimHandles);
     void Spawn(FrameContext& ctx);
-    void Sweep();
+    void Sweep(bool reclaimHandles);
     void UpdateHierarchy(FrameContext& ctx);
 private:
     SceneGeometry m_Geometry{};
@@ -82,6 +86,13 @@ private:
     };
     std::vector<InstantiationInfo> m_NewInstances;
     std::vector<SceneInstanceHandle> m_DeletedInstances;
+
+    struct ReplacementsInfo
+    {
+        const SceneInfo* Original{nullptr};
+        const SceneInfo* Replacement{nullptr};
+    };
+    std::vector<ReplacementsInfo> m_ReplacedScenes;
 };
 
 template <typename Fn>
