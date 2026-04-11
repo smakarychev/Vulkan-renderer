@@ -8,9 +8,6 @@
 template <typename T>
 class DeviceSparseSet
 {
-    using OnResizeCallback = void (*)(T* oldMem, T* newMem);
-    using OnSwapCallback = void (*)(T& a, T& b);
-
     using Handle = GenerationalResourceHandle<typename T::ObjectType>;
     using HandleSparseSet = lux::SparseSetType<u32, Handle>;
     using Traits = lux::SparseSetGenerationTraits<Handle>;
@@ -19,11 +16,11 @@ public:
     using ValueType = T;
     
     template <typename ... Args>
-    constexpr GenerationalResourceHandle<typename T::ObjectType> Add(Args&&... args);
-    constexpr void Remove(GenerationalResourceHandle<typename T::ObjectType> handle);
+    constexpr Handle Insert(Args&&... args);
+    constexpr void Erase(Handle handle);
 
-    constexpr const T& operator[](GenerationalResourceHandle<typename T::ObjectType> handle) const;
-    constexpr T& operator[](GenerationalResourceHandle<typename T::ObjectType> handle);
+    constexpr const T& operator[](Handle handle) const;
+    constexpr T& operator[](Handle handle);
     
     constexpr u32 Count() const { return (u32)m_Resources.Size(); }
     constexpr u32 Capacity() const { return (u32)m_Resources.Capacity(); }
@@ -38,7 +35,7 @@ private:
 
 template <typename T>
 template <typename ... Args>
-constexpr GenerationalResourceHandle<typename T::ObjectType> DeviceSparseSet<T>::Add(Args&&... args)
+constexpr DeviceSparseSet<T>::Handle DeviceSparseSet<T>::Insert(Args&&... args)
 {
     Handle handle = {};
 
@@ -60,7 +57,7 @@ constexpr GenerationalResourceHandle<typename T::ObjectType> DeviceSparseSet<T>:
 }
 
 template <typename T>
-constexpr void DeviceSparseSet<T>::Remove(GenerationalResourceHandle<typename T::ObjectType> handle)
+constexpr void DeviceSparseSet<T>::Erase(Handle handle)
 {
     auto&& [gen, index] = Traits::Decompose(handle);
 
@@ -71,7 +68,7 @@ constexpr void DeviceSparseSet<T>::Remove(GenerationalResourceHandle<typename T:
 }
 
 template <typename T>
-constexpr const T& DeviceSparseSet<T>::operator[](GenerationalResourceHandle<typename T::ObjectType> handle) const
+constexpr const T& DeviceSparseSet<T>::operator[](Handle handle) const
 {
     std::lock_guard lock(m_Mutex);
     u32 index = m_SparseSet.indexOf(handle);
@@ -80,7 +77,7 @@ constexpr const T& DeviceSparseSet<T>::operator[](GenerationalResourceHandle<typ
 }
 
 template <typename T>
-constexpr T& DeviceSparseSet<T>::operator[](GenerationalResourceHandle<typename T::ObjectType> handle)
+constexpr T& DeviceSparseSet<T>::operator[](Handle handle)
 {
     return const_cast<T&>(const_cast<const DeviceSparseSet&>(*this)[handle]);
 }
@@ -88,6 +85,7 @@ constexpr T& DeviceSparseSet<T>::operator[](GenerationalResourceHandle<typename 
 template <typename T>
 constexpr void DeviceSparseSet<T>::Clear()
 {
+    std::lock_guard lock(m_Mutex);
     m_Resources.Clear();
     m_SparseSet.Clear();
     m_FreeElements.clear();

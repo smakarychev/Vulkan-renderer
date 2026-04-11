@@ -13,29 +13,23 @@
 template <typename T>
 class DeviceFreelist
 {
-    using OnResizeCallback = void (*)(T* oldMem, T* newMem);
-    using OnSwapCallback = void (*)(T& a, T& b);
-    
     static constexpr u32 NON_INDEX = std::numeric_limits<u32>::max();
     static_assert(sizeof(T) >= sizeof(u32), "Cannot use this type in the freelist");
+    using Handle = ResourceHandleType<typename T::ObjectType>;
 public:
     using ValueType = T;
-
     ~DeviceFreelist();
     
     template <typename ... Args>
-    constexpr ResourceHandleType<typename T::ObjectType> Add(Args&&... args);
-    constexpr void Remove(ResourceHandleType<typename T::ObjectType> handle);
+    constexpr Handle Insert(Args&&... args);
+    constexpr void Erase(Handle handle);
 
     // size of elements array, including the deleted ones
     constexpr u32 Capacity() const { return u32(m_DataCurrent - m_DataStart); }
     constexpr u32 Size() const { return m_Size; }
     
-    constexpr const T& operator[](ResourceHandleType<typename T::ObjectType> handle) const;
-    constexpr T& operator[](ResourceHandleType<typename T::ObjectType> handle);
-
-    constexpr void SetOnResizeCallback(OnResizeCallback callback) { m_OnResizeCallback = callback; }
-    constexpr void SetOnSwapCallback(OnSwapCallback) {}
+    constexpr const T& operator[](Handle handle) const;
+    constexpr T& operator[](Handle handle);
 private:
     template <typename ... Args>
     constexpr void EmplaceBack(Args&&... args);
@@ -48,8 +42,6 @@ private:
     
     u32 m_FirstFree{NON_INDEX};
     u32 m_Size{0};
-
-    OnResizeCallback m_OnResizeCallback = [](T*, T*){};
 };
 
 template <typename T>
@@ -60,7 +52,7 @@ DeviceFreelist<T>::~DeviceFreelist()
 }
 
 template <typename T>
-constexpr const T& DeviceFreelist<T>::operator[](ResourceHandleType<typename T::ObjectType> handle) const
+constexpr const T& DeviceFreelist<T>::operator[](Handle handle) const
 {
     ASSERT(handle.m_Id < Capacity(), "Element handle out of bounds")
 
@@ -68,14 +60,14 @@ constexpr const T& DeviceFreelist<T>::operator[](ResourceHandleType<typename T::
 }
 
 template <typename T>
-constexpr T& DeviceFreelist<T>::operator[](ResourceHandleType<typename T::ObjectType> handle)
+constexpr T& DeviceFreelist<T>::operator[](Handle handle)
 {
     return const_cast<T&>(const_cast<const DeviceFreelist&>(*this)[handle.m_Id]);
 }
 
 template <typename T>
 template <typename ... Args>
-constexpr ResourceHandleType<typename T::ObjectType> DeviceFreelist<T>::Add(Args&&... args)
+constexpr DeviceFreelist<T>::Handle DeviceFreelist<T>::Insert(Args&&... args)
 {
     u32 index;  
     if (m_FirstFree != NON_INDEX)
@@ -94,7 +86,7 @@ constexpr ResourceHandleType<typename T::ObjectType> DeviceFreelist<T>::Add(Args
 
     m_Size++;
     
-    return ResourceHandleType<typename T::ObjectType>{index};
+    return Handle{index};
 }
 
 template <typename T>
@@ -117,8 +109,6 @@ constexpr void DeviceFreelist<T>::Resize(u32 oldSize, u32 newSize)
     // remember: if you silence an UB warning then it is UB no longer
     std::memcpy((void*)newData, (void*)m_DataStart, sizeof(T) * oldSize);
     
-    m_OnResizeCallback(m_DataStart, newData);
-    
     delete[] (u8*)m_DataStart;
     m_DataStart = newData;
     m_DataCurrent = m_DataStart + oldSize;
@@ -126,7 +116,7 @@ constexpr void DeviceFreelist<T>::Resize(u32 oldSize, u32 newSize)
 }
 
 template <typename T>
-constexpr void DeviceFreelist<T>::Remove(ResourceHandleType<typename T::ObjectType> handle)
+constexpr void DeviceFreelist<T>::Erase(Handle handle)
 {
     ASSERT(handle.m_Id < Capacity(), "Element handle out of bounds")
 

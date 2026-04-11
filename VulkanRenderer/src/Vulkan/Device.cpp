@@ -1302,7 +1302,7 @@ template <typename ResourceList, typename Resource>
 constexpr auto DeviceResources::AddToResourceList(ResourceList& list, Resource&& value)
 {
     static_assert(std::is_same_v<std::decay_t<Resource>, typename ResourceList::ValueType>);
-    return list.Add(std::forward<typename ResourceList::ValueType>(value));
+    return list.Insert(std::forward<typename ResourceList::ValueType>(value));
 }
 
 template <typename Resource>
@@ -1365,45 +1365,45 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
     using Decayed = std::decay_t<Type>;
 
     if constexpr(std::is_same_v<Decayed, SwapchainTag>)
-        m_Swapchains.Remove(handle);
+        m_Swapchains.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, BufferTag>)
-        m_Buffers.Remove(handle);
+        m_Buffers.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, BufferArenaTag>)
-        m_BufferArenas.Remove(handle);
+        m_BufferArenas.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, ImageTag>)
-        m_Images.Remove(handle);
+        m_Images.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, SamplerTag>)
-        m_Samplers.Remove(handle);
+        m_Samplers.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, CommandPoolTag>)
-        m_CommandPools.Remove(handle);
+        m_CommandPools.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, CommandBufferTag>)
-        m_CommandBuffers.Remove(handle);
+        m_CommandBuffers.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, DescriptorsLayoutTag>)
-        m_DescriptorLayouts.Remove(handle);
+        m_DescriptorLayouts.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, DescriptorsTag>)
-        m_Descriptors.Remove(handle);
+        m_Descriptors.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, DescriptorArenaAllocatorTag>)
-        m_DescriptorArenaAllocators.Remove(handle);
+        m_DescriptorArenaAllocators.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, PipelineLayoutTag>)
-        m_PipelineLayouts.Remove(handle);
+        m_PipelineLayouts.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, PipelineTag>)
-        m_Pipelines.Remove(handle);
+        m_Pipelines.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, ShaderModuleTag>)
-        m_ShaderModules.Remove(handle);
+        m_ShaderModules.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, RenderingAttachmentTag>)
-        m_RenderingAttachments.Remove(handle);
+        m_RenderingAttachments.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, RenderingInfoTag>)
-        m_RenderingInfos.Remove(handle);
+        m_RenderingInfos.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, FenceTag>)
-        m_Fences.Remove(handle);
+        m_Fences.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, SemaphoreTag>)
-        m_Semaphores.Remove(handle);
+        m_Semaphores.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, TimelineSemaphoreTag>)
-        m_TimelineSemaphores.Remove(handle);
+        m_TimelineSemaphores.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, DependencyInfoTag>)
-        m_DependencyInfos.Remove(handle);
+        m_DependencyInfos.Erase(handle);
     else if constexpr(std::is_same_v<Decayed, SplitBarrierTag>)
-        m_SplitBarriers.Remove(handle);
+        m_SplitBarriers.Erase(handle);
     else 
         static_assert(!sizeof(Type), "No match for type");
 }
@@ -1512,7 +1512,7 @@ void DeviceResources::MapCmdToPool(CommandBuffer cmd, CommandPool pool)
 void DeviceResources::DestroyCmdsOfPool(CommandPool pool)
 {
     for (auto index : m_CommandPoolToBuffersMap[pool.m_Id])
-        m_CommandBuffers.Remove(index);
+        m_CommandBuffers.Erase(index);
     m_DeallocatedCount += (u32)m_CommandPoolToBuffersMap[pool.m_Id].size(); 
     m_CommandPoolToBuffersMap[pool.m_Id].clear();
 }
