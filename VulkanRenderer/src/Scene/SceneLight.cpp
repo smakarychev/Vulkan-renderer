@@ -68,9 +68,8 @@ void SceneLight::OnUpdate(FrameContext& ctx)
 {
     u32 directionalLightIndex = 0;
     u32 pointLightIndex = 0;
-    for (u32 lightIndex : m_VisibleLights)
+    for (auto& light : m_VisibleLights)
     {
-        auto& light = m_Lights[lightIndex];
         switch (light.Type)
         {
         case LightType::Directional:

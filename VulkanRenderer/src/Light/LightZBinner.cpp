@@ -15,9 +15,8 @@ ZBins LightZBinner::ZBinLights(SceneLight& light, const Camera& camera)
     const FrustumPlanes frustum = camera.GetFrustumPlanes(maxLightCullDistance);
     f32 zSpan = frustum.Far - frustum.Near;
     u16 pointLightIndex = 0;
-    for (u32 visibleLight : light.VisibleLights())
+    for (auto& commonLight : light.VisibleLights())
     {
-        auto& commonLight = light.Get(visibleLight);
         switch (commonLight.Type)
         {
         case LightType::Point:

@@ -2,6 +2,7 @@
 
 #include "SceneGeometry.h"
 #include "SceneLight.h"
+#include "CoreLib/Containers/FreeList.h"
 
 #include <CoreLib/Signals/Signal.h>
 

@@ -3,7 +3,7 @@
 #include "SceneInfo.h"
 #include "Light/Light.h"
 
-#include <CoreLib/Containers/FreeList.h>
+#include <CoreLib/Containers/SlotMapType.h>
 
 struct FrameContext;
 
@@ -23,24 +23,27 @@ public:
     
     void SetScene(Scene& scene) { m_Scene = &scene; }
 
-    void SetVisibleLights(const std::vector<u32>& visibleLights) { m_VisibleLights = visibleLights; }
+    void SetVisibleLights(const std::vector<CommonLight>& visibleLights) { m_VisibleLights = visibleLights; }
 
     u32 Count() const { return m_Lights.size(); }
     CommonLight& Get(u32 index) { return m_Lights[index]; }
     const CommonLight& Get(u32 index) const { return m_Lights[index]; }
     const Buffers& GetBuffers() const { return m_Buffers; }
-    const std::vector<u32>& VisibleLights() const { return m_VisibleLights; }
+    const std::vector<CommonLight>& VisibleLights() const { return m_VisibleLights; }
 
     u32 DirectionalLightCount() const { return m_CachedLightsInfo.DirectionalLightCount; }
     u32 PointLightCount() const { return m_CachedLightsInfo.PointLightCount; }
+    
+    auto begin() const { return m_Lights.begin(); }
+    auto end() const { return m_Lights.end(); }
 private:
     void OnUpdate(FrameContext& ctx);
     void UpdateDirectionalLight(CommonLight& light, u32 lightIndex, FrameContext& ctx);
     void UpdatePointLight(CommonLight& light, u32 lightIndex, FrameContext& ctx);
 private:
-    lux::FreeList<CommonLight> m_Lights;
+    lux::SlotMap<CommonLight> m_Lights;
     
-    std::vector<u32> m_VisibleLights;
+    std::vector<CommonLight> m_VisibleLights;
     std::vector<DirectionalLight> m_CachedDirectionalLights;
     std::vector<PointLight> m_CachedPointLights;
     LightsInfo m_CachedLightsInfo{};

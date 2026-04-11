@@ -19,9 +19,10 @@ static const u32 SPARSE_SET_PAGE_SIZE_LOG = Math::log2(SPARSE_SET_PAGE_SIZE);
 template <typename St, typename Dt>
 class SparseSetType
 {
-    using Traits = SparseSetGenerationTraits<Dt>;
     using SparseSetPage = std::vector<St>;
-
+public:
+    static constexpr St INVALID_INDEX = std::numeric_limits<St>::max();
+    using Traits = SparseSetGenerationTraits<Dt>;
     struct Iterator
     {
         using iterator_category = std::forward_iterator_tag;
@@ -51,10 +52,6 @@ class SparseSetType
         u32 m_Index;
         std::vector<Dt>* m_Dense;
     };
-
-public:
-    static constexpr St NON_ELEMENT = std::numeric_limits<St>::max();
-
 public:
     constexpr SparseSetType() = default;
 
@@ -69,7 +66,7 @@ public:
     constexpr bool has(Dt value) const { return Has(value); }
 
     constexpr St IndexOf(Dt value) const;
-    constexpr St indexOf(Dt value) const { return IndexOf(value); }
+    constexpr St index_of(Dt value) const { return IndexOf(value); }
 
     constexpr Dt& operator[](Dt value);
     constexpr const Dt& operator[](Dt value) const;
@@ -104,7 +101,7 @@ constexpr St SparseSetType<St, Dt>::Insert(Dt value)
     auto& sparseSet = GetOrCreate(index);
     auto mappedIndex = Math::fastMod(index, SPARSE_SET_PAGE_SIZE);
     ASSERT(!Has(value), "Value is already set")
-    ASSERT(sparseSet[mappedIndex] == NON_ELEMENT, "Catastrophic failure")
+    ASSERT(sparseSet[mappedIndex] == INVALID_INDEX, "Catastrophic failure")
     sparseSet[mappedIndex] = (St)m_Dense.size();
     m_Dense.emplace_back(value);
 
@@ -120,7 +117,7 @@ constexpr St SparseSetType<St, Dt>::Erase(Dt value)
     St& denseToErase = (*sparseSet)[mappedIndex];
     const St erasedIndex = denseToErase;
     ASSERT(sparseSet, "Invalid value")
-    ASSERT(erasedIndex != NON_ELEMENT, "No such value")
+    ASSERT(erasedIndex != INVALID_INDEX, "No such value")
     /* we keep the continuous layout, w/o need to maintain original order,
      * so instead of classic ordered remove operation,
      * we swap with the last and pop the last
@@ -131,13 +128,13 @@ constexpr St SparseSetType<St, Dt>::Erase(Dt value)
         auto&& [lvGen, lvIndex] = Traits::Decompose(lastVal);
         auto* lvSparseSet = TryGet(lvIndex);
         auto mappedLvIndex = Math::fastMod(lvIndex, SPARSE_SET_PAGE_SIZE);
-        ASSERT((*lvSparseSet)[mappedLvIndex] != NON_ELEMENT, "Catastrophic failure")
+        ASSERT((*lvSparseSet)[mappedLvIndex] != INVALID_INDEX, "Catastrophic failure")
         std::swap(m_Dense[denseToErase], m_Dense.back());
         std::swap(denseToErase, (*lvSparseSet)[mappedLvIndex]);
     }
     ASSERT(!m_Dense.empty(), "Set is empty")
     /* double delete protection */
-    denseToErase = NON_ELEMENT;
+    denseToErase = INVALID_INDEX;
     m_Dense.pop_back();
 
     return erasedIndex;
@@ -177,7 +174,7 @@ constexpr Dt& SparseSetType<St, Dt>::operator[](Dt value)
 template <typename St, typename Dt>
 constexpr const Dt& SparseSetType<St, Dt>::operator[](Dt value) const
 {
-    return indexOf(value);
+    return index_of(value);
 }
 
 template <typename St, typename Dt>
@@ -185,7 +182,7 @@ constexpr std::vector<St>& SparseSetType<St, Dt>::GetOrCreate(u32 index)
 {
     u32 pageNum = index >> SPARSE_SET_PAGE_SIZE_LOG;
     if (pageNum >= m_SparsePaged.size())
-        m_SparsePaged.resize(pageNum + 1, std::vector<St>(SPARSE_SET_PAGE_SIZE, NON_ELEMENT));
+        m_SparsePaged.resize(pageNum + 1, std::vector<St>(SPARSE_SET_PAGE_SIZE, INVALID_INDEX));
 
     return m_SparsePaged[pageNum];
 }
