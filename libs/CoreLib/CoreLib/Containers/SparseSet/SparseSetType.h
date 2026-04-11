@@ -59,16 +59,7 @@ public:
     constexpr SparseSetType() = default;
 
     constexpr St Insert(Dt value);
-    template <typename PushCallback>
-    constexpr St Insert(Dt value, PushCallback callback = [](St)
-    {
-    });
     constexpr St insert(Dt value) { return Insert(value); }
-
-    template <typename PushCallback>
-    constexpr St insert(Dt value, PushCallback callback = [](St)
-    {
-    }) { return Insert(value, std::move(callback)); }
 
     constexpr St Erase(Dt value);
     constexpr St erase(Dt value) { return Erase(value); }
@@ -90,12 +81,12 @@ public:
     void clear() { Clear(); }
 
 private:
-    constexpr std::vector<St>* GetOrCreate(u32 index);
+    constexpr std::vector<St>& GetOrCreate(u32 index);
     constexpr const std::vector<St>* TryGet(u32 index) const;
     constexpr std::vector<St>* TryGet(u32 index);
 
 private:
-    std::vector<std::unique_ptr<std::vector<St>>> m_SparsePaged;
+    std::vector<std::vector<St>> m_SparsePaged;
     std::vector<Dt> m_Dense;
 };
 
@@ -110,30 +101,14 @@ template <typename St, typename Dt>
 constexpr St SparseSetType<St, Dt>::Insert(Dt value)
 {
     auto&& [gen, index] = Traits::Decompose(value);
-    auto* sparseSet = GetOrCreate(index);
+    auto& sparseSet = GetOrCreate(index);
     auto mappedIndex = Math::fastMod(index, SPARSE_SET_PAGE_SIZE);
     ASSERT(!Has(value), "Value is already set")
-    ASSERT((*sparseSet)[mappedIndex] == NON_ELEMENT, "Catastrophic failure")
-    (*sparseSet)[mappedIndex] = static_cast<St>(m_Dense.size());
+    ASSERT(sparseSet[mappedIndex] == NON_ELEMENT, "Catastrophic failure")
+    sparseSet[mappedIndex] = static_cast<St>(m_Dense.size());
     m_Dense.emplace_back(value);
 
-    return (*sparseSet)[mappedIndex];
-}
-
-template <typename St, typename Dt>
-template <typename PushCallback>
-constexpr St SparseSetType<St, Dt>::Insert(Dt value, PushCallback callback)
-{
-    auto&& [gen, index] = Traits::Decompose(value);
-    auto* sparseSet = GetOrCreate(index);
-    auto mappedIndex = Math::fastMod(index, SPARSE_SET_PAGE_SIZE);
-    ASSERT(!Has(value), "Value is already set")
-    ASSERT((*sparseSet)[mappedIndex] == NON_ELEMENT, "Catastrophic failure")
-    (*sparseSet)[mappedIndex] = static_cast<St>(m_Dense.size());
-    m_Dense.emplace_back(value);
-    callback((*sparseSet)[mappedIndex]);
-
-    return (*sparseSet)[mappedIndex];
+    return sparseSet[mappedIndex];
 }
 
 template <typename St, typename Dt>
@@ -209,15 +184,13 @@ constexpr const Dt& SparseSetType<St, Dt>::operator[](Dt value) const
 }
 
 template <typename St, typename Dt>
-constexpr std::vector<St>* SparseSetType<St, Dt>::GetOrCreate(u32 index)
+constexpr std::vector<St>& SparseSetType<St, Dt>::GetOrCreate(u32 index)
 {
     u32 pageNum = index >> SPARSE_SET_PAGE_SIZE_LOG;
     if (pageNum >= m_SparsePaged.size())
-        m_SparsePaged.resize(pageNum + 1);
-    if (!m_SparsePaged[pageNum])
-        m_SparsePaged[pageNum] = std::make_unique<std::vector<St>>(SPARSE_SET_PAGE_SIZE, NON_ELEMENT);
+        m_SparsePaged.resize(pageNum + 1, std::vector<St>(SPARSE_SET_PAGE_SIZE, NON_ELEMENT));
 
-    return m_SparsePaged[pageNum].get();
+    return m_SparsePaged[pageNum];
 }
 
 template <typename St, typename Dt>
@@ -225,7 +198,7 @@ constexpr const std::vector<St>* SparseSetType<St, Dt>::TryGet(u32 index) const
 {
     u32 pageNum = index >> SPARSE_SET_PAGE_SIZE_LOG;
 
-    return pageNum < m_SparsePaged.size() ? m_SparsePaged[pageNum].get() : nullptr;
+    return pageNum < m_SparsePaged.size() ? &m_SparsePaged[pageNum] : nullptr;
 }
 
 template <typename St, typename Dt>
