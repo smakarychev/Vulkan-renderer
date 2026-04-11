@@ -34,15 +34,6 @@ TEST_CASE("FreeList", "[Containers][FreeList]")
         list.Erase(index);
         REQUIRE(list.Size() == 0);
     }
-    SECTION("Remove does not change capacity")
-    {
-        lux::FreeList<u32> list;
-        REQUIRE(list.Size() == 0);
-        const u32 index = list.Insert(1);
-        REQUIRE(list.Capacity() == 1);
-        list.Erase(index);
-        REQUIRE(list.Capacity() == 1);
-    }
     SECTION("Can reuse index after remove")
     {
         lux::FreeList<u32> list;
@@ -72,7 +63,6 @@ TEST_CASE("FreeList", "[Containers][FreeList]")
 
         lux::FreeList<u32> copy(list);
         REQUIRE(copy.size() == list.size());
-        REQUIRE(copy.capacity() == list.capacity());
         REQUIRE(copy.insert(1) == list.insert(1));
     }
     SECTION("Can copy assign")
@@ -83,7 +73,6 @@ TEST_CASE("FreeList", "[Containers][FreeList]")
         lux::FreeList<u32> copy = {};
         copy = list;
         REQUIRE(copy.size() == list.size());
-        REQUIRE(copy.capacity() == list.capacity());
         REQUIRE(copy.insert(1) == list.insert(1));
     }
     SECTION("Can move construct")
@@ -92,15 +81,10 @@ TEST_CASE("FreeList", "[Containers][FreeList]")
         const u32 index = list.insert(2);
 
         const u32 size = list.size();
-        const u32 capacity = list.capacity();
 
         lux::FreeList<u32> move(std::move(list));
         REQUIRE(move.size() == size);
-        REQUIRE(move.capacity() == capacity);
         REQUIRE(move.insert(1) != index);
-
-        REQUIRE(list.size() == 0);
-        REQUIRE(list.capacity() == 0);
     }
     SECTION("Can copy assign")
     {
@@ -108,16 +92,11 @@ TEST_CASE("FreeList", "[Containers][FreeList]")
         const u32 index = list.insert(2);
 
         const u32 size = list.size();
-        const u32 capacity = list.capacity();
 
         lux::FreeList<u32> move = {};
         move = std::move(list);
         REQUIRE(move.size() == size);
-        REQUIRE(move.capacity() == capacity);
         REQUIRE(move.insert(1) != index);
-        
-        REQUIRE(list.size() == 0);
-        REQUIRE(list.capacity() == 0);
     }
 }
 

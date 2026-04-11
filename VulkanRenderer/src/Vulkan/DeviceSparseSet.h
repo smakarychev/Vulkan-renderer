@@ -2,7 +2,7 @@
 
 #include "Rendering/ResourceHandle.h"
 
-#include <CoreLib/Containers/DenseSetPaged.h>
+#include <CoreLib/Containers/PagedArray.h>
 #include <CoreLib/Containers/SparseSet/SparseSetType.h>
 
 template <typename T>
@@ -14,7 +14,7 @@ class DeviceSparseSet
     using Handle = GenerationalResourceHandle<typename T::ObjectType>;
     using HandleSparseSet = lux::SparseSetType<u32, Handle>;
     using Traits = lux::SparseSetGenerationTraits<Handle>;
-    using ResourceSet = lux::DenseSetPaged<T>;
+    using ResourceSet = lux::PagedArray<T>;
 public:
     using ValueType = T;
     

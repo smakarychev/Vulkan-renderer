@@ -4141,22 +4141,6 @@ void Device::Init(DeviceCreateInfo&& createInfo)
 
     s_State.DummyDeletionQueue.m_IsDummy = true;
 
-    if constexpr(std::is_same_v<DeviceFreelist<Image>, DeviceResources::ResourceContainerType<Image>>)
-    {
-        Resources().m_Images.SetOnResizeCallback(
-            [](DeviceResources::ImageResource* oldMem, DeviceResources::ImageResource* newMem)
-            {
-                u32 imageCount = Resources().m_Images.Capacity();
-                for (u32 imageIndex = 0; imageIndex < imageCount; imageIndex++)
-                {
-                    auto& resource = Resources().m_Images[imageIndex];
-                    if (resource.Views.ViewList == &resource.Views.ViewType.View)
-                        *(VkImageView**)((u8*)newMem + ((u8*)&resource.Views.ViewList - (u8*)oldMem)) =
-                            (VkImageView*)((u8*)newMem + ((u8*)&resource.Views.ViewType.View - (u8*)oldMem));
-                }
-            });
-    }
-
     if (s_State.Surface != VK_NULL_HANDLE)
         InitImGuiUI();
 }
