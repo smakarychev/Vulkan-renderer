@@ -3,7 +3,7 @@
 #include "Rendering/ResourceHandle.h"
 
 #include <CoreLib/Containers/DenseSetPaged.h>
-#include <CoreLib/Containers/SparseSet.h>
+#include <CoreLib/Containers/SparseSetType.h>
 
 template <typename T>
 class DeviceSparseSet
@@ -12,7 +12,7 @@ class DeviceSparseSet
     using OnSwapCallback = void (*)(T& a, T& b);
 
     using Handle = GenerationalResourceHandle<typename T::ObjectType>;
-    using HandleSparseSet = SparseSet<u32, Handle>;
+    using HandleSparseSet = SparseSetType<u32, Handle>;
     using Traits = SparseSetGenerationTraits<Handle>;
     using ResourceSet = DenseSetPaged<T>;
 public:
@@ -57,7 +57,7 @@ constexpr GenerationalResourceHandle<typename T::ObjectType> DeviceSparseSet<T>:
     {
         handle = Traits::Compose(0, m_Resources.Size());
     }
-    m_SparseSet.Push(handle);
+    m_SparseSet.insert(handle);
     m_Resources.Push(std::forward<Args>(args)...);
 
     return handle;
@@ -82,14 +82,14 @@ constexpr void DeviceSparseSet<T>::Remove(GenerationalResourceHandle<typename T:
     };
 
     std::lock_guard lock(m_Mutex);
-    m_SparseSet.Pop(handle, popCallback, swapCallback);
+    m_SparseSet.erase(handle, popCallback, swapCallback);
 }
 
 template <typename T>
 constexpr const T& DeviceSparseSet<T>::operator[](GenerationalResourceHandle<typename T::ObjectType> handle) const
 {
     std::lock_guard lock(m_Mutex);
-    u32 index = m_SparseSet.GetIndexOf(handle);
+    u32 index = m_SparseSet.indexOf(handle);
     
     return m_Resources[index];
 }
