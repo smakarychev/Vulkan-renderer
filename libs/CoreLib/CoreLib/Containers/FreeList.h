@@ -12,6 +12,11 @@ class FreeList
     static_assert(sizeof(T) >= sizeof(FreeIndexType), "Cannot use this type in the freelist");
     static_assert(std::is_trivially_destructible_v<T>, "Type must be trivially destructible");
 public:
+    FreeList() = default;
+    FreeList(const FreeList& other);
+    FreeList& operator=(const FreeList& other);
+    FreeList(FreeList&& other) noexcept;
+    FreeList& operator=(FreeList&& other) noexcept;
     ~FreeList();
     
     template <typename ... Args>
@@ -42,6 +47,53 @@ private:
     u32 m_FirstFree{NO_FREE};
     u32 m_Size{0};
 };
+
+template <typename T>
+FreeList<T>::FreeList(const FreeList& other)
+    : m_FirstFree(other.m_FirstFree), m_Size(other.m_Size)
+{
+    Resize(0, other.m_DataEnd - other.m_DataStart);
+    m_DataCurrent = m_DataStart + other.capacity();
+}
+
+template <typename T>
+FreeList<T>& FreeList<T>::operator=(const FreeList& other)
+{
+    if (&other == this)
+        return *this;
+
+    Resize(0, other.m_DataEnd - other.m_DataStart);
+    m_DataCurrent = m_DataStart + other.capacity();
+    m_FirstFree = other.m_FirstFree;
+    m_Size = other.m_Size;
+
+    return *this;
+}
+
+template <typename T>
+FreeList<T>::FreeList(FreeList&& other) noexcept
+    : m_DataStart(std::exchange(other.m_DataStart, nullptr)),
+      m_DataEnd(std::exchange(other.m_DataEnd, nullptr)),
+      m_DataCurrent(std::exchange(other.m_DataCurrent, nullptr)),
+      m_FirstFree(std::exchange(other.m_FirstFree, NO_FREE)),
+      m_Size(std::exchange(other.m_Size, 0))
+{
+}
+
+template <typename T>
+FreeList<T>& FreeList<T>::operator=(FreeList&& other) noexcept
+{
+    if (&other == this)
+        return *this;
+
+    m_DataStart = std::exchange(other.m_DataStart, nullptr);
+    m_DataEnd = std::exchange(other.m_DataEnd, nullptr);
+    m_DataCurrent = std::exchange(other.m_DataCurrent, nullptr);
+    m_FirstFree = std::exchange(other.m_FirstFree, NO_FREE);
+    m_Size = std::exchange(other.m_Size, 0);
+    
+    return *this;
+}
 
 template <typename T>
 FreeList<T>::~FreeList()

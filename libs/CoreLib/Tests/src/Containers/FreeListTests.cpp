@@ -65,6 +65,60 @@ TEST_CASE("FreeList", "[Containers][FreeList]")
         u32 index = list.Insert(13);
         REQUIRE(list[index] == 13);
     }
+    SECTION("Can copy construct")
+    {
+        lux::FreeList<u32> list;
+        list.insert(2);
+
+        lux::FreeList<u32> copy(list);
+        REQUIRE(copy.size() == list.size());
+        REQUIRE(copy.capacity() == list.capacity());
+        REQUIRE(copy.insert(1) == list.insert(1));
+    }
+    SECTION("Can copy assign")
+    {
+        lux::FreeList<u32> list;
+        list.insert(2);
+
+        lux::FreeList<u32> copy = {};
+        copy = list;
+        REQUIRE(copy.size() == list.size());
+        REQUIRE(copy.capacity() == list.capacity());
+        REQUIRE(copy.insert(1) == list.insert(1));
+    }
+    SECTION("Can move construct")
+    {
+        lux::FreeList<u32> list;
+        const u32 index = list.insert(2);
+
+        const u32 size = list.size();
+        const u32 capacity = list.capacity();
+
+        lux::FreeList<u32> move(std::move(list));
+        REQUIRE(move.size() == size);
+        REQUIRE(move.capacity() == capacity);
+        REQUIRE(move.insert(1) != index);
+
+        REQUIRE(list.size() == 0);
+        REQUIRE(list.capacity() == 0);
+    }
+    SECTION("Can copy assign")
+    {
+        lux::FreeList<u32> list;
+        const u32 index = list.insert(2);
+
+        const u32 size = list.size();
+        const u32 capacity = list.capacity();
+
+        lux::FreeList<u32> move = {};
+        move = std::move(list);
+        REQUIRE(move.size() == size);
+        REQUIRE(move.capacity() == capacity);
+        REQUIRE(move.insert(1) != index);
+        
+        REQUIRE(list.size() == 0);
+        REQUIRE(list.capacity() == 0);
+    }
 }
 
 // NOLINTEND
