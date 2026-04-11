@@ -77,6 +77,7 @@ public:
 private:
     PagedArray<Element> m_Elements;
     HandleSparseSet m_SparseSet;
+    // todo: store as embedded freelist somewhere?
     std::vector<Handle> m_FreeElements;
 };
 
