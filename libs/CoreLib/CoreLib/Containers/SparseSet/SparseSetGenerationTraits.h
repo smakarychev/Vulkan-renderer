@@ -4,6 +4,8 @@
 
 #include <utility>
 
+namespace lux
+{
 template <typename T>
 struct SparseSetGenerationTraits
 {
@@ -23,8 +25,10 @@ struct SparseSetGenerationTraits<u32>
     {
         return std::make_pair((val & GENERATION_MASK) >> GENERATION_SHIFT, val & INDEX_MASK);
     }
+
     static constexpr u32 Compose(u32 generation, u32 value)
     {
         return ((generation << GENERATION_SHIFT) & GENERATION_MASK) | value;
     }
 };
+}

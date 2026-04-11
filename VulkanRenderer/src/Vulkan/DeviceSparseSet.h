@@ -3,7 +3,7 @@
 #include "Rendering/ResourceHandle.h"
 
 #include <CoreLib/Containers/DenseSetPaged.h>
-#include <CoreLib/Containers/SparseSetType.h>
+#include <CoreLib/Containers/SparseSet/SparseSetType.h>
 
 template <typename T>
 class DeviceSparseSet
@@ -12,8 +12,8 @@ class DeviceSparseSet
     using OnSwapCallback = void (*)(T& a, T& b);
 
     using Handle = GenerationalResourceHandle<typename T::ObjectType>;
-    using HandleSparseSet = SparseSetType<u32, Handle>;
-    using Traits = SparseSetGenerationTraits<Handle>;
+    using HandleSparseSet = lux::SparseSetType<u32, Handle>;
+    using Traits = lux::SparseSetGenerationTraits<Handle>;
     using ResourceSet = DenseSetPaged<T>;
 public:
     using ValueType = T;

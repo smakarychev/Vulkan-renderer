@@ -3,7 +3,7 @@
 #include <limits>
 
 #include "RenderingCommon.h"
-#include <CoreLib/Containers/SparseSetGenerationTraits.h>
+#include <CoreLib/Containers/SparseSet/SparseSetGenerationTraits.h>
 
 template <typename T>
 class DeviceFreelist;
@@ -49,9 +49,9 @@ template <typename T>
 class GenerationalResourceHandle;
 
 template <typename T>
-struct SparseSetGenerationTraits<GenerationalResourceHandle<T>>
+struct lux::SparseSetGenerationTraits<GenerationalResourceHandle<T>>
 {
-    using Base = SparseSetGenerationTraits<u32>;
+    using Base = lux::SparseSetGenerationTraits<u32>;
     using Handle = GenerationalResourceHandle<T>;
     static constexpr std::pair<u32, u32> Decompose(const Handle& val);
     static constexpr Handle Compose(u32 generation, u32 value);
@@ -61,10 +61,10 @@ template <typename T>
 class GenerationalResourceHandle
 {
     FRIEND_INTERNAL
-    friend struct SparseSetGenerationTraits<GenerationalResourceHandle>;
+    friend struct lux::SparseSetGenerationTraits<GenerationalResourceHandle>;
     friend struct std::hash<GenerationalResourceHandle>;
     
-    using Traits = SparseSetGenerationTraits<GenerationalResourceHandle>;
+    using Traits = lux::SparseSetGenerationTraits<GenerationalResourceHandle>;
 public:
     friend auto constexpr operator<=>(const GenerationalResourceHandle& a,
         const GenerationalResourceHandle& b) = default;
@@ -97,14 +97,14 @@ struct hash<GenerationalResourceHandle<T>>
 }
 
 template <typename T>
-constexpr std::pair<u32, u32> SparseSetGenerationTraits<GenerationalResourceHandle<T>>::Decompose(
+constexpr std::pair<u32, u32> lux::SparseSetGenerationTraits<GenerationalResourceHandle<T>>::Decompose(
     const GenerationalResourceHandle<T>& val)
 {
     return Base::Decompose(val.m_Id);
 }
 
 template <typename T>
-constexpr GenerationalResourceHandle<T> SparseSetGenerationTraits<GenerationalResourceHandle<T>>::Compose(
+constexpr GenerationalResourceHandle<T> lux::SparseSetGenerationTraits<GenerationalResourceHandle<T>>::Compose(
     u32 generation, u32 value)
 {
     return Handle(Base::Compose(generation, value));
