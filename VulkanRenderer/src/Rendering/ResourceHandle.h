@@ -51,12 +51,8 @@ class GenerationalResourceHandle;
 template <typename T>
 struct SparseSetGenerationTraits<GenerationalResourceHandle<T>>
 {
+    using Base = SparseSetGenerationTraits<u32>;
     using Handle = GenerationalResourceHandle<T>;
-    static constexpr u32 GENERATION_BITS = 8;
-    static constexpr u32 GENERATION_SHIFT = 32 - GENERATION_BITS;
-    static constexpr u32 GENERATION_MASK = (u32)((1 << GENERATION_BITS) - 1) << GENERATION_SHIFT;
-    static constexpr u32 INDEX_MASK = ~GENERATION_MASK;
-    
     static constexpr std::pair<u32, u32> Decompose(const Handle& val);
     static constexpr Handle Compose(u32 generation, u32 value);
 };
@@ -104,16 +100,14 @@ template <typename T>
 constexpr std::pair<u32, u32> SparseSetGenerationTraits<GenerationalResourceHandle<T>>::Decompose(
     const GenerationalResourceHandle<T>& val)
 {
-    return std::make_pair(
-        (val.m_Id & GENERATION_MASK) >> GENERATION_SHIFT,
-         val.m_Id & INDEX_MASK);
+    return Base::Decompose(val.m_Id);
 }
 
 template <typename T>
 constexpr GenerationalResourceHandle<T> SparseSetGenerationTraits<GenerationalResourceHandle<T>>::Compose(
     u32 generation, u32 value)
 {
-    return Handle(((generation << GENERATION_SHIFT) & GENERATION_MASK) | value);
+    return Handle(Base::Compose(generation, value));
 }
 
 /* this can be either GenerationalResourceHandle or just ResourceHandle */
