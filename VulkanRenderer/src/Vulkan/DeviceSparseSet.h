@@ -29,14 +29,10 @@ public:
     constexpr u32 Capacity() const { return (u32)m_Resources.Capacity(); }
 
     constexpr void Clear();
-    
-    constexpr void SetOnResizeCallback(OnResizeCallback) {}
-    constexpr void SetOnSwapCallback(OnSwapCallback callback) { m_SwapCallback = callback; }
 private:
     ResourceSet m_Resources;
     std::vector<Handle> m_FreeElements;
     HandleSparseSet m_SparseSet;
-    OnSwapCallback m_SwapCallback = [](T&, T&){};
     mutable std::mutex m_Mutex;
 };
 
@@ -66,23 +62,12 @@ constexpr GenerationalResourceHandle<typename T::ObjectType> DeviceSparseSet<T>:
 template <typename T>
 constexpr void DeviceSparseSet<T>::Remove(GenerationalResourceHandle<typename T::ObjectType> handle)
 {
-    
     auto&& [gen, index] = Traits::Decompose(handle);
-    auto popCallback = [this, gen, index]()
-    {
-        m_FreeElements.push_back(Traits::Compose(gen + 1, index));
-        m_Resources.erase();
-    };
-    auto swapCallback = [this](u32 a, u32 b)
-    {
-        auto& resourceA = m_Resources[a];
-        auto& resourceB = m_Resources[b];
-        m_SwapCallback(resourceA, resourceB);
-        std::swap(resourceA, resourceB);
-    };
 
     std::lock_guard lock(m_Mutex);
-    m_SparseSet.erase(handle, popCallback, swapCallback);
+    const u32 deletedIndex = m_SparseSet.erase(handle);
+    m_Resources.erase(deletedIndex);
+    m_FreeElements.push_back(Traits::Compose(gen + 1, index));
 }
 
 template <typename T>

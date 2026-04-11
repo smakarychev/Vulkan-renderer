@@ -18,12 +18,15 @@ public:
     DenseSetPaged();
 
     template <typename... Args>
-    constexpr void Insert(Args&&... args);
+    constexpr u32 Insert(Args&&... args);
     template <typename... Args>
-    constexpr void insert(Args&&... args) { return Insert(std::forward<Args>(args)...); }
+    constexpr u32 insert(Args&&... args) { return Insert(std::forward<Args>(args)...); }
 
-    constexpr void Erase();
-    constexpr void erase() { Erase(); }
+    constexpr void Erase(u32 index);
+    constexpr void erase(u32 index) { Erase(index); }
+    
+    constexpr void PopBack();
+    constexpr void pop_back() { PopBack(); }
 
     constexpr const T& operator[](u32 index) const;
     constexpr T& operator[](u32 index);
@@ -44,7 +47,6 @@ private:
 private:
     std::vector<std::vector<T>> m_Pages;
     u32 m_Size{0};
-    u32 m_LastNonEmptyPage{0};
 };
 
 template <typename T>
@@ -62,29 +64,42 @@ void DenseSetPaged<T>::Clear()
 
 template <typename T>
 template <typename... Args>
-constexpr void DenseSetPaged<T>::Insert(Args&&... args)
+constexpr u32 DenseSetPaged<T>::Insert(Args&&... args)
 {
     std::vector<T>& page = GetOrCreatePage(m_Size);
     page.emplace_back(std::forward<Args>(args)...);
+    const u32 oldSize = m_Size;
     m_Size++;
 
-    if ((m_Size >> DENSE_SET_PAGE_SIZE_LOG) >= m_LastNonEmptyPage)
-        m_LastNonEmptyPage++;
+    return oldSize;
 }
 
 template <typename T>
-constexpr void DenseSetPaged<T>::Erase()
+constexpr void DenseSetPaged<T>::Erase(u32 index)
+{
+    ASSERT(m_Size > 0, "Cannot erase from empty set")
+    m_Size--;
+
+    auto& page = GetPage(m_Size);
+    if (m_Size != 0)
+    {
+        using std::swap;
+        swap((*this)[index], page.back());
+    }
+    
+    page.back().~T();
+    page.pop_back();
+}
+
+template <typename T>
+constexpr void DenseSetPaged<T>::PopBack()
 {
     ASSERT(m_Size > 0, "Cannot Pop from empty set")
     m_Size--;
 
-    m_LastNonEmptyPage = (m_Size >> DENSE_SET_PAGE_SIZE_LOG);
-
-    m_Pages[m_LastNonEmptyPage].back().~T();
-    m_Pages[m_LastNonEmptyPage].pop_back();
-
-    for (u32 i = m_LastNonEmptyPage + 1; i < m_Pages.size(); i++)
-        ASSERT(m_Pages[i].empty())
+    auto& page = GetPage(m_Size);
+    page.back().~T();
+    page.pop_back();
 }
 
 template <typename T>
@@ -130,6 +145,6 @@ constexpr const std::vector<T>& DenseSetPaged<T>::GetPage(u32 index) const
 template <typename T>
 constexpr std::vector<T>& DenseSetPaged<T>::GetPage(u32 index)
 {
-    return const_cast<std::vector<T>&>(const_cast<DenseSetPaged<T>&>(*this).GetPage(index));
+    return const_cast<std::vector<T>&>(const_cast<const DenseSetPaged&>(*this).GetPage(index));
 }
 }

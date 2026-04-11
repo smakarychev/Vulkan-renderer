@@ -1111,6 +1111,24 @@ private:
         ViewsInfo Views{};
         ImageDescription Description{};
         VmaAllocation Allocation{VK_NULL_HANDLE};
+
+        friend void swap(ImageResource& a, ImageResource& b) noexcept
+        {
+            std::swap(a.Image, b.Image);
+            std::swap(a.Description, b.Description);
+            std::swap(a.Allocation, b.Allocation);
+
+            const bool aSelfPointer = a.Views.ViewList == &a.Views.ViewType.View;
+            const bool bSelfPointer = b.Views.ViewList == &b.Views.ViewType.View;
+
+            std::swap(a.Views.ViewType, b.Views.ViewType);
+            std::swap(a.Views.ViewList, b.Views.ViewList);
+            /* swap is intentional */
+            if (aSelfPointer)
+                b.Views.ViewList = &b.Views.ViewType.View;
+            if (bSelfPointer)
+                a.Views.ViewList = &a.Views.ViewType.View;
+        }
     };
     struct SamplerResource
     {
@@ -4136,16 +4154,6 @@ void Device::Init(DeviceCreateInfo&& createInfo)
                         *(VkImageView**)((u8*)newMem + ((u8*)&resource.Views.ViewList - (u8*)oldMem)) =
                             (VkImageView*)((u8*)newMem + ((u8*)&resource.Views.ViewType.View - (u8*)oldMem));
                 }
-            });
-    }
-    if constexpr(std::is_same_v<DeviceSparseSet<Image>, DeviceResources::ResourceContainerType<Image>>)
-    {
-        Resources().m_Images.SetOnSwapCallback(
-            [](DeviceResources::ImageResource& a, DeviceResources::ImageResource& b)
-            {
-                /* resource `a` will be deleted right after, so we just do not touch it*/
-                if (b.Views.ViewList == &b.Views.ViewType.View)
-                    b.Views.ViewList = &a.Views.ViewType.View;
             });
     }
 
