@@ -14,7 +14,7 @@ class DeviceSparseSet
     using Handle = GenerationalResourceHandle<typename T::ObjectType>;
     using HandleSparseSet = lux::SparseSetType<u32, Handle>;
     using Traits = lux::SparseSetGenerationTraits<Handle>;
-    using ResourceSet = DenseSetPaged<T>;
+    using ResourceSet = lux::DenseSetPaged<T>;
 public:
     using ValueType = T;
     
@@ -58,7 +58,7 @@ constexpr GenerationalResourceHandle<typename T::ObjectType> DeviceSparseSet<T>:
         handle = Traits::Compose(0, m_Resources.Size());
     }
     m_SparseSet.insert(handle);
-    m_Resources.Push(std::forward<Args>(args)...);
+    m_Resources.insert(std::forward<Args>(args)...);
 
     return handle;
 }
@@ -71,7 +71,7 @@ constexpr void DeviceSparseSet<T>::Remove(GenerationalResourceHandle<typename T:
     auto popCallback = [this, gen, index]()
     {
         m_FreeElements.push_back(Traits::Compose(gen + 1, index));
-        m_Resources.Pop();
+        m_Resources.erase();
     };
     auto swapCallback = [this](u32 a, u32 b)
     {

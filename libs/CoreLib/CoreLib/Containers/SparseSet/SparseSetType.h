@@ -277,4 +277,6 @@ constexpr std::vector<St>* SparseSetType<St, Dt>::TryGet(u32 index)
 {
     return const_cast<std::vector<St>*>(const_cast<const SparseSetType&>(*this).TryGet(index));
 }
+
+using SparseSet = SparseSetType<u32, u32>;
 }
