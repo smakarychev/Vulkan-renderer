@@ -12,11 +12,6 @@
 
 namespace lux
 {
-namespace 
-{
-
-}
-
 bool MaterialAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
 {
     if (path.extension() != bakers::MATERIAL_ASSET_EXTENSION)

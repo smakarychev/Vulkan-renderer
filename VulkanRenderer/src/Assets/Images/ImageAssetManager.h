@@ -5,7 +5,6 @@
 #include "Assets/Common/AssetFreeListMap.h"
 
 #include <AssetBakerLib/Bakers/BakerContext.h>
-#include <CoreLib/String/StringHeterogeneousHasher.h>
 
 struct FrameContext;
 
