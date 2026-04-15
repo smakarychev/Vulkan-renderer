@@ -16,6 +16,13 @@ class AssetIoInterface;
 class AssetManager;
 struct AssetLoadParameters;
 
+struct AssetUpdatedInfo
+{
+    AssetHandleBase AssetHandle{};
+};
+using AssetUpdatedSignal = Signal<AssetUpdatedInfo>;
+using AssetUpdatedHandler = SignalHandler<AssetUpdatedInfo>;
+
 class AssetSystem
 {
 public:
@@ -24,6 +31,9 @@ public:
     void RegisterAssetManager(assetlib::AssetType type, AssetManager& manager);
     void SetAssetsDirectory(const std::filesystem::path& path);
     void ScanAssetsDirectory();
+    
+    void SubscribeOnAssetUpdate(assetlib::AssetType type, AssetUpdatedHandler& handler);
+    void NotifyAssetUpdate(assetlib::AssetType type, const AssetUpdatedInfo& assetInfo);
 
     template <typename ResourceAssetManager>
     requires std::is_base_of_v<AssetManager, ResourceAssetManager>
@@ -47,6 +57,8 @@ private:
     std::filesystem::path m_AssetsDirectory{};
     assetlib::io::AssetIoInterface* m_Io{nullptr};
     assetlib::io::AssetCompressor* m_Compressor{nullptr};
+    
+    std::unordered_map<assetlib::AssetType, AssetUpdatedSignal> m_AssetUpdatedSignals;
 
     AssetBakery m_Bakery;
 };

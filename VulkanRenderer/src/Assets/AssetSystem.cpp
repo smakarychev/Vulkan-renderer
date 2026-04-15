@@ -49,6 +49,16 @@ void AssetSystem::ScanAssetsDirectory()
     }
 }
 
+void AssetSystem::SubscribeOnAssetUpdate(assetlib::AssetType type, AssetUpdatedHandler& handler)
+{
+    handler.Connect(m_AssetUpdatedSignals[type]);
+}
+
+void AssetSystem::NotifyAssetUpdate(assetlib::AssetType type, const AssetUpdatedInfo& assetInfo)
+{
+    m_AssetUpdatedSignals[type].Emit(assetInfo);
+}
+
 const AssetIdResolver::AssetInfo* AssetSystem::Resolve(assetlib::AssetId id) const
 {
     return m_IdResolver.Resolve(id);
