@@ -3,7 +3,11 @@
 #include "ViewInfoGPU.h"
 #include "RenderGraph/RGResource.h"
 
+namespace lux
+{
 struct CommonLight;
+}
+
 class Camera;
 
 namespace Passes::Clouds::VP::Shadow
@@ -18,7 +22,7 @@ struct ExecutionInfo
     RG::Resource CloudShapeHighFrequencyMap{};
     RG::Resource CloudCurlNoise{};
     RG::Resource CloudParameters{};
-    const CommonLight* Light{nullptr};
+    const lux::CommonLight* Light{nullptr};
 };
 
 struct PassData

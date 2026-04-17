@@ -8,9 +8,6 @@
 #include "FrameContext.h"
 #include "ResourceUploader.h"
 #include "Scene.h"
-#include "Assets/Images/ImageAssetManager.h"
-#include "Rendering/Buffer/BufferUtility.h"
-#include "Rendering/Image/ImageUtility.h"
 
 #include <AssetLib/Materials/MaterialAsset.h>
 
@@ -18,7 +15,7 @@ namespace
 {
 void growBufferArena(BufferArena arena, u64 newMinSize, RenderCommandList& cmdList)
 {
-    static constexpr f32 GROWTH_RATE = 1.5;
+    static constexpr f32 GROWTH_RATE = 1.5f;
 
     const u64 newSize = std::max(newMinSize, (u64)GROWTH_RATE * Device::GetBufferArenaSizeBytesPhysical(arena));
     Device::ResizeBufferArenaPhysical(arena, newSize, cmdList);
@@ -50,6 +47,7 @@ void writeSuballocation(BufferArena arena, const std::vector<T>& data,
     const BufferSuballocation suballocation = suballocateResizeIfFailed(arena,
         data.size() * sizeof(T), sizeof(T), ctx.CommandList);
     offsets.ElementOffsets[(u32)bufferType] = (u32)(suballocation.Description.Offset / sizeof(T));
+    offsets.Suballocations[(u32)bufferType] = suballocation.Handle;
     ctx.ResourceUploader->UpdateBuffer(suballocation.Buffer, data, suballocation.Description.Offset);
 }
 }
@@ -97,32 +95,38 @@ SceneGeometry SceneGeometry::CreateEmpty(DeletionQueue& deletionQueue)
             .VirtualSizeBytes = DEFAULT_ARENA_VIRTUAL_SIZE_BYTES
         },
         deletionQueue);
-    geometry.Materials.Buffer = Device::CreateBuffer({
-        .Description = {
-            .SizeBytes = DEFAULT_MATERIALS_BUFFER_SIZE_BYTES,
-            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
+    geometry.Materials = Device::CreateBufferArena({
+            .Buffer = Device::CreateBuffer({
+                .Description = {
+                    .SizeBytes = DEFAULT_MATERIALS_BUFFER_ARENA_SIZE_BYTES,
+                    .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
+                },
+            }, deletionQueue),
+            .VirtualSizeBytes = DEFAULT_ARENA_VIRTUAL_SIZE_BYTES
         },
-    }, deletionQueue);
+        deletionQueue);
 
     return geometry;
 }
 
-void SceneGeometry::Add(const SceneInfo& sceneInfo, FrameContext& ctx)
+void SceneGeometry::Add(const lux::SceneAsset& scene, FrameContext& ctx)
 {
     using enum SceneInfoOffsetType;
+    
+    auto& geometry = scene.Geometry;
 
     SceneInfoOffsets sceneInfoOffsets = {};
-    writeSuballocation(Attributes, sceneInfo.m_Geometry.Positions, Position, sceneInfoOffsets, ctx);
-    writeSuballocation(Attributes, sceneInfo.m_Geometry.Normals, Normal, sceneInfoOffsets, ctx);
-    writeSuballocation(Attributes, sceneInfo.m_Geometry.Tangents, Tangent, sceneInfoOffsets, ctx);
-    writeSuballocation(Attributes, sceneInfo.m_Geometry.UVs, Uv, sceneInfoOffsets, ctx);
-    writeSuballocation(Indices, sceneInfo.m_Geometry.Indices, Index, sceneInfoOffsets, ctx);
+    writeSuballocation(Attributes, geometry.Positions, Position, sceneInfoOffsets, ctx);
+    writeSuballocation(Attributes, geometry.Normals, Normal, sceneInfoOffsets, ctx);
+    writeSuballocation(Attributes, geometry.Tangents, Tangent, sceneInfoOffsets, ctx);
+    writeSuballocation(Attributes, geometry.UVs, Uv, sceneInfoOffsets, ctx);
+    writeSuballocation(Indices, geometry.Indices, Index, sceneInfoOffsets, ctx);
 
     std::vector<MeshletBoundsGPU> meshletBounds;
     std::vector<MeshletGPU> meshlets;
-    meshletBounds.reserve(sceneInfo.m_Geometry.Meshlets.size());
-    meshlets.reserve(sceneInfo.m_Geometry.Meshlets.size());
-    for (auto& meshlet : sceneInfo.m_Geometry.Meshlets)
+    meshletBounds.reserve(geometry.Meshlets.size());
+    meshlets.reserve(geometry.Meshlets.size());
+    for (auto& meshlet : geometry.Meshlets)
     {
         meshletBounds.push_back({{
             .ConeX = meshlet.Cone.AxisX,
@@ -144,25 +148,26 @@ void SceneGeometry::Add(const SceneInfo& sceneInfo, FrameContext& ctx)
     writeSuballocation(this->Meshlets, meshletBounds, MeshletBounds, sceneInfoOffsets, ctx);
     writeSuballocation(this->Meshlets, meshlets, Meshlets, sceneInfoOffsets, ctx);
 
-    sceneInfoOffsets.MaterialOffset = (u32)(Materials.Offset / sizeof(MaterialGPU));
-    PushBuffers::push<BufferAsymptoticGrowthPolicy>(Materials,
-        sceneInfo.m_Geometry.Materials, ctx.CommandList, *ctx.ResourceUploader);
-    MaterialsCpu.reserve(MaterialsCpu.size() + (u32)sceneInfo.m_Geometry.MaterialsCpu.size());
-    for (auto& material : sceneInfo.m_Geometry.MaterialsCpu)
-        MaterialsCpu.push_back(material);
+    writeSuballocation(this->Materials, geometry.Materials, Materials, sceneInfoOffsets, ctx);
+    
+    MaterialsCpu.reserve(MaterialsCpu.size() + (u32)geometry.MaterialsCpu.size());
+    for (auto& material : geometry.MaterialsCpu)
+        MaterialsCpu.push_back(material.Handle);
 
-    m_SceneInfoOffsets[&sceneInfo] = sceneInfoOffsets;
+    m_SceneInfoOffsets[&scene] = sceneInfoOffsets;
 }
 
-SceneGeometry::AddRenderObjectsResult SceneGeometry::AddRenderObjects(const SceneInfo& sceneInfo,
-    SceneInstanceHandle instance, FrameContext& ctx)
+SceneGeometry::AddRenderObjectsResult SceneGeometry::AddRenderObjects(const lux::SceneAsset& scene,
+    lux::SceneInstanceHandle instance, FrameContext& ctx)
 {
-    if (sceneInfo.m_Geometry.RenderObjects.empty())
+    auto& geometry = scene.Geometry;
+    
+    if (geometry.RenderObjects.empty())
         return {.FirstRenderObject = 0};
         
-    const SceneInfoOffsets& sceneInfoOffsets = m_SceneInfoOffsets[&sceneInfo];
+    const SceneInfoOffsets& sceneInfoOffsets = m_SceneInfoOffsets[&scene];
 
-    const u64 renderObjectsSizeBytes = sceneInfo.m_Geometry.RenderObjects.size() * sizeof(RenderObjectGPU);
+    const u64 renderObjectsSizeBytes = geometry.RenderObjects.size() * sizeof(RenderObjectGPU);
 
     SceneInstanceInfo instanceInfo = {};
     instanceInfo.RenderObjectsSuballocation = suballocateResizeIfFailed(RenderObjects,
@@ -177,13 +182,13 @@ SceneGeometry::AddRenderObjectsResult SceneGeometry::AddRenderObjects(const Scen
         }
     });
 
-    for (auto&& [renderObjectIndex, renderObject] : std::views::enumerate(sceneInfo.m_Geometry.RenderObjects))
+    for (auto&& [renderObjectIndex, renderObject] : std::views::enumerate(geometry.RenderObjects))
     {
         using enum SceneInfoOffsetType;
         
         const u32 renderObjectFirstIndex = renderObject.FirstIndex;
         const u32 renderObjectFirstVertex = renderObject.FirstVertex;
-        const u32 renderObjectMaterial = renderObject.Material + sceneInfoOffsets.MaterialOffset;
+        const u32 renderObjectMaterial = renderObject.Material + sceneInfoOffsets.ElementOffsets[(u32)Materials];
 
         renderObjects[renderObjectIndex] = {
             {
@@ -209,7 +214,42 @@ SceneGeometry::AddRenderObjectsResult SceneGeometry::AddRenderObjects(const Scen
     };
 }
 
-void SceneGeometry::DeleteRenderObjects(SceneInstanceHandle instance)
+void SceneGeometry::UpdateMaterials(const lux::SceneAsset& scene, FrameContext& ctx)
+{
+    using enum SceneInfoOffsetType;
+    
+    auto it = m_SceneInfoOffsets.find(&scene);
+    if (it == m_SceneInfoOffsets.end())
+        return;
+    const auto& suballocations = it->second.Suballocations;
+    Device::BufferArenaFree(this->Materials, suballocations[(u32)Materials]);
+    
+    writeSuballocation(this->Materials, scene.Geometry.Materials, Materials, it->second, ctx);
+}
+
+void SceneGeometry::Delete(const lux::SceneAsset& scene)
+{
+    using enum SceneInfoOffsetType;
+    
+    auto it = m_SceneInfoOffsets.find(&scene);
+    if (it == m_SceneInfoOffsets.end())
+        return;
+    
+    const auto& suballocations = it->second.Suballocations;
+    
+    Device::BufferArenaFree(Attributes, suballocations[(u32)Position]);
+    Device::BufferArenaFree(Attributes, suballocations[(u32)Normal]);
+    Device::BufferArenaFree(Attributes, suballocations[(u32)Tangent]);
+    Device::BufferArenaFree(Attributes, suballocations[(u32)Uv]);
+    Device::BufferArenaFree(Indices, suballocations[(u32)Index]);
+    Device::BufferArenaFree(this->Meshlets, suballocations[(u32)Meshlets]);
+    Device::BufferArenaFree(this->Meshlets, suballocations[(u32)MeshletBounds]);
+    Device::BufferArenaFree(this->Materials, suballocations[(u32)Materials]);
+    
+    m_SceneInfoOffsets.erase(it);
+}
+
+void SceneGeometry::DeleteRenderObjects(lux::SceneInstanceHandle instance)
 {
     auto& instanceInfo = m_InstancesInfo.at(instance);
     Device::BufferArenaFree(RenderObjects, instanceInfo.RenderObjectsSuballocation.Handle);

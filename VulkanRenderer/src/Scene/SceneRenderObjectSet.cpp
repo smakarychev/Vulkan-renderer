@@ -74,7 +74,7 @@ const ScenePass* SceneRenderObjectSet::TryFindPass(StringId name) const
 
 void SceneRenderObjectSet::OnNewSceneInstance(const NewInstanceData& instanceData)
 {
-    const SceneGeometryInfo& geometry = instanceData.SceneInfo->m_Geometry;
+    const lux::SceneGeometryInfo& geometry = instanceData.Scene->Geometry;
 
     static constexpr u32 INVALID_ID = ~0u;
     SceneInstanceInfo addedInstanceInfo = {.FirstRenderObject = INVALID_ID};

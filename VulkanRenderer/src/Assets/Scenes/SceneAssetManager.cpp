@@ -2,7 +2,6 @@
 #include "SceneAssetManager.h"
 
 #include "SceneAsset.h"
-#include "Assets/AssetSystem.h"
 #include "Assets/Images/ImageAssetManager.h"
 #include "Assets/Materials/MaterialAssetManager.h"
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
@@ -15,6 +14,16 @@
 
 namespace lux
 {
+void SceneAssetManager::OnAssetSystemInit()
+{
+    m_TextureAssetManager = m_AssetSystem->GetAssetManagerFor<ImageAssetManager>(assetlib::image::getMetadata().Type);
+    ASSERT(m_TextureAssetManager)
+    
+    m_MaterialAssetManager =
+        m_AssetSystem->GetAssetManagerFor<MaterialAssetManager>(assetlib::material::getMetadata().Type);
+    ASSERT(m_MaterialAssetManager)    
+}
+
 bool SceneAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
 {
     if (path.extension() != bakers::SCENE_ASSET_EXTENSION)
@@ -60,11 +69,30 @@ void SceneAssetManager::Init(const bakers::SceneBakeSettings& bakeSettings)
     };
 
     m_BakeSettings = &bakeSettings;
+    m_MaterialUpdatedHandler = AssetUpdatedHandler([this](const AssetUpdatedInfo& updatedMaterial) {
+        OnMaterialUpdated(updatedMaterial.AssetHandle);
+    });
+    m_TextureUpdatedHandler = AssetUpdatedHandler([this](const AssetUpdatedInfo& updatedTexture) {
+        OnTextureUpdated(updatedTexture.AssetHandle);
+    });
+    m_AssetSystem->SubscribeOnAssetUpdate(assetlib::material::getMetadata().Type, m_MaterialUpdatedHandler);
+    m_AssetSystem->SubscribeOnAssetUpdate(assetlib::image::getMetadata().Type, m_TextureUpdatedHandler);
 }
 
 void SceneAssetManager::SetTextureRingBuffer(BindlessTextureDescriptorsRingBuffer& ringBuffer)
 {
     m_TexturesRingBuffer = &ringBuffer;
+}
+
+SceneHandle SceneAssetManager::AddExternalScene(SceneAsset&& scene)
+{
+    static u32 externalScenesCount = 0;
+    static const std::string externalPath = "__external__";
+    
+    Lock lock(m_ResourceAccessMutex);
+    externalScenesCount += 1;
+    
+    return m_Scenes.Add(std::move(scene), externalPath + std::to_string(externalScenesCount));
 }
 
 void SceneAssetManager::OnFrameBegin(FrameContext&)
@@ -75,13 +103,7 @@ void SceneAssetManager::OnFrameBegin(FrameContext&)
     auto& toUnload = m_ToUnload[(u32)UnloadState::Unload];
 
     for (SceneHandle toUnloadScene : toUnload)
-    {
-        const std::filesystem::path* path = m_Scenes.Find(toUnloadScene);
-        if (path == nullptr)
-            continue;
-        
-        m_Scenes.Erase(toUnloadScene, *path);
-    }
+        m_Scenes.Erase(toUnloadScene, {});
     toUnload.clear();
     
     for (SceneHandle queuedScene : queued)
@@ -97,7 +119,10 @@ SceneHandle SceneAssetManager::LoadAsset(const SceneLoadParameters& parameters)
     if (cached.IsValid())
         return cached;
     
-    return m_Scenes.Add(DoLoad(parameters), path);
+    const SceneHandle newScene = m_Scenes.Add(std::move(*DoLoad(parameters)), path);
+    RegisterMaterials(newScene);
+    
+    return newScene;
 }
 
 void SceneAssetManager::UnloadAsset(SceneHandle handle)
@@ -109,12 +134,13 @@ void SceneAssetManager::UnloadAsset(SceneHandle handle)
     LUX_LOG_INFO("Unloading scene: {}", path->string());
 
     m_ToUnload[(u32)UnloadState::Queued].push_back(handle);
+    UnregisterMaterials(handle);
     m_SceneDeletedSignal.Emit({.Scene = handle});
 }
 
 const SceneAsset* SceneAssetManager::GetAsset(SceneHandle handle) const
 {
-    return handle.IsValid() ? &m_Scenes[handle.Index()] : nullptr;
+    return handle.IsValid() ? &m_Scenes[handle] : nullptr;
 }
 
 void SceneAssetManager::OnRawFileModified(const std::filesystem::path& path)
@@ -132,6 +158,7 @@ void SceneAssetManager::OnRawFileModified(const std::filesystem::path& path)
                 return;
             }
             
+            m_AssetSystem->ScanAssetsDirectory(path.parent_path());
             OnBakedFileModified(*bakedPath);
         }
     });
@@ -139,19 +166,89 @@ void SceneAssetManager::OnRawFileModified(const std::filesystem::path& path)
 
 void SceneAssetManager::OnBakedFileModified(const std::filesystem::path& path)
 {
+    SceneHandle cached;
+    
+    {
+        Lock lock(m_ResourceAccessMutex);
+
+        cached = m_Scenes.Find(weakly_canonical(path).generic_string());
+        if (!cached.IsValid())
+            return;
+
+        UnregisterMaterials(cached);
+        std::optional<SceneAsset> newScene = DoLoad({.Path = path});
+        if (!newScene.has_value())
+            return;
+        
+        m_Scenes[cached] = std::move(*newScene);
+        RegisterMaterials(cached);
+        m_SceneReplacedSignal.Emit({.Scene = cached});
+    }
+    
+    m_AssetSystem->NotifyAssetUpdate(assetlib::scene::getMetadata().Type, {.AssetHandle = cached});
+}
+
+void SceneAssetManager::OnMaterialUpdated(MaterialHandle material)
+{
     Lock lock(m_ResourceAccessMutex);
-
-    const SceneHandle cached = m_Scenes.Find(weakly_canonical(path).generic_string());
-    if (!cached.IsValid())
-        return;
-
-    const SceneHandle newScene = m_Scenes.Add(DoLoad({.Path = path}), path);
-    if (!newScene.IsValid())
+    
+    auto& scenes = m_MaterialToScenes[material];
+    if (scenes.empty())
         return;
     
-    m_ToUnload[(u32)UnloadState::Queued].push_back(cached);
-    m_SceneReplacedSignal.Emit({.Original = cached, .Replaced = newScene});
+    const MaterialAsset* materialAsset = m_MaterialAssetManager->Get(material);
+    
+    for (const SceneHandle sceneHandle : scenes)
+    {
+        SceneAsset& scene = m_Scenes[sceneHandle];
+        auto it = std::ranges::find_if(scene.Geometry.MaterialsCpu, [&material](const auto& materialCpu) {
+            return materialCpu.Handle == material;
+        });
+        ASSERT(it != scene.Geometry.MaterialsCpu.end())
+        if (it == scene.Geometry.MaterialsCpu.end())
+            continue;
+        
+        const u32 materialIndex = (u32)std::distance(scene.Geometry.MaterialsCpu.begin(), it);
+        scene.Geometry.Materials[materialIndex] = LoadMaterial(*it, *materialAsset);
+        m_MaterialUpdatedSignal.Emit({.Scene = sceneHandle});
+    }
 }
+
+void SceneAssetManager::OnTextureUpdated(ImageHandle texture)
+{
+    auto it = m_LoadedTextures.find(texture);
+    if (it == m_LoadedTextures.end())
+        return;
+    
+    const ImageAsset textureAsset = m_TextureAssetManager->Get(texture);
+    if (!textureAsset.HasValue())
+        return;
+    
+    m_TexturesRingBuffer->SetTexture(it->second, textureAsset);
+}
+
+void SceneAssetManager::RegisterMaterials(SceneHandle sceneHandle)
+{
+    const SceneAsset& scene = *GetAsset(sceneHandle);
+    for (auto& material : scene.Geometry.MaterialsCpu)
+        m_MaterialToScenes[material.Handle].push_back(sceneHandle);
+}
+
+void SceneAssetManager::UnregisterMaterials(SceneHandle sceneHandle)
+{
+    const SceneAsset& scene = *GetAsset(sceneHandle);
+    for (auto& material : scene.Geometry.MaterialsCpu)
+    {
+        auto& scenes = m_MaterialToScenes[material.Handle];
+        auto it = std::ranges::find(scenes, sceneHandle);
+        ASSERT(it != scenes.end())
+        if (it == scenes.end())
+            continue;
+        
+        scenes.erase(it);
+    }
+}
+
 
 namespace 
 {
@@ -185,77 +282,6 @@ void loadBuffers(SceneGeometryInfo& geometry, assetlib::SceneAsset& scene)
         bufferData + views[(u32)Uv].OffsetBytes, views[(u32)Uv].LengthBytes);
     copyToVector(geometry.Meshlets,
         bufferData + views[(u32)Meshlet].OffsetBytes, views[(u32)Meshlet].LengthBytes);
-}
-
-void loadMaterials(SceneGeometryInfo& geometry, assetlib::SceneAsset& scene,
-    BindlessTextureDescriptorsRingBuffer& texturesRingBuffer,
-    AssetSystem& assetSystem,
-    ImageAssetManager& imageAssetManager,
-    MaterialAssetManager& materialAssetManager)
-{
-    std::unordered_map<ImageAsset, TextureHandle> loadedTextures;
-
-    auto get = [&](ImageHandle image) -> Image{
-        return image.IsValid() ? imageAssetManager.Get(image) : Image{};
-    };
-
-    auto processTexture = [&](const assetlib::SceneAssetTextureSample& sample,
-        ImageAsset image, TextureHandle fallback) -> TextureHandle
-    {
-        if (!image.HasValue())
-            return fallback;
-        if (sample.UvIndex > 0)
-        {
-            LUX_LOG_WARN("Skipping texture {}, as it uses uv set other than 0", sample.UvIndex);
-            return fallback;
-        }
-        
-        if (!loadedTextures.contains(image))
-            loadedTextures[image] = texturesRingBuffer.AddTexture(image);
-
-        return loadedTextures[image];
-    };
-    geometry.Materials.reserve(scene.Header.Materials.size());
-    geometry.MaterialsCpu.reserve(scene.Header.Materials.size());
-    for (auto& material : scene.Header.Materials)
-    {
-        auto* materialAssetInfo = assetSystem.Resolve(material.MaterialAsset);
-        if (!materialAssetInfo)
-            continue;
-        
-        auto materialHandle = materialAssetManager.LoadResource({.Path = materialAssetInfo->Path});
-        if (!materialHandle.IsValid())
-            continue;
-
-        auto* materialAsset = materialAssetManager.Get(materialHandle);
-        if (!materialAsset)
-            continue;
-        
-        geometry.Materials.push_back({
-            {
-                .Albedo = materialAsset->BaseColor,
-                .Metallic = materialAsset->Metallic,
-                .Roughness = materialAsset->Roughness,
-                .AlbedoTexture = processTexture(
-                    material.BaseColorSample, get(materialAsset->BaseColorTexture),
-                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::White)),
-                .NormalTexture = processTexture(
-                    material.NormalSample, get(materialAsset->NormalTexture),
-                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::NormalMap)),
-                .MetallicRoughnessTexture = processTexture(
-                    material.MetallicRoughnessSample, get(materialAsset->MetallicRoughnessTexture),
-                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::White)),
-                .AmbientOcclusionTexture = processTexture(
-                    material.OcclusionSample, get(materialAsset->OcclusionTexture),
-                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::White)),
-                .EmissiveTexture = processTexture(
-                    material.EmissiveSample, get(materialAsset->EmissiveTexture),
-                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::Black))
-            }
-        });
-
-        geometry.MaterialsCpu.push_back(materialHandle);
-    }
 }
 
 void loadRenderObjects(SceneGeometryInfo& geometry, assetlib::SceneAsset& scene)
@@ -292,20 +318,6 @@ void loadRenderObjects(SceneGeometryInfo& geometry, assetlib::SceneAsset& scene)
     }
 }
 
-SceneGeometryInfo loadGeometryInfo(assetlib::SceneAsset& scene,
-    BindlessTextureDescriptorsRingBuffer& texturesRingBuffer,
-    AssetSystem& assetSystem,
-    ImageAssetManager& imageAssetManager,
-    MaterialAssetManager& materialAssetManager)
-{
-    SceneGeometryInfo geometryInfo = {};
-    loadBuffers(geometryInfo, scene);
-    loadMaterials(geometryInfo, scene, texturesRingBuffer, assetSystem, imageAssetManager, materialAssetManager);
-    loadRenderObjects(geometryInfo, scene);
-    
-    return geometryInfo;
-}
-
 LightType lightTypeAssetLightType(assetlib::SceneAssetLightType lightType)
 {
     static_assert((u32)assetlib::SceneAssetLightType::Directional == (u32)LightType::Directional);
@@ -314,8 +326,41 @@ LightType lightTypeAssetLightType(assetlib::SceneAssetLightType lightType)
 
     return (LightType)lightType;
 }
+}
 
-SceneLightInfo loadLightInfo(const assetlib::SceneAsset& scene)
+std::optional<SceneAsset> SceneAssetManager::DoLoad(const SceneLoadParameters& parameters)
+{
+    LUX_LOG_INFO("Loading scene: {}", parameters.Path.string());
+    
+    const auto assetFile = m_AssetSystem->GetIo().ReadHeader(parameters.Path);
+    if (!assetFile.has_value())
+        return std::nullopt;
+    
+    auto sceneAsset = assetlib::scene::readScene(*assetFile, m_AssetSystem->GetIo(), m_AssetSystem->GetCompressor());
+    if (!sceneAsset.has_value())
+        return std::nullopt;
+    
+    ASSERT(m_TextureAssetManager)
+    ASSERT(m_MaterialAssetManager)
+
+    return SceneAsset{
+        .Geometry = LoadGeometryInfo(*sceneAsset),
+        .Lights = LoadLightsInfo(*sceneAsset),
+        .Hierarchy = LoadHierarchyInfo(*sceneAsset)
+    };
+}
+
+SceneGeometryInfo SceneAssetManager::LoadGeometryInfo(assetlib::SceneAsset& scene)
+{ 
+    SceneGeometryInfo geometryInfo = {};
+    loadBuffers(geometryInfo, scene);
+    LoadMaterials(geometryInfo, scene);
+    loadRenderObjects(geometryInfo, scene);
+    
+    return geometryInfo;
+}
+
+SceneLightInfo SceneAssetManager::LoadLightsInfo(assetlib::SceneAsset& scene)
 {
     SceneLightInfo sceneLightInfo = {};
     sceneLightInfo.Lights.reserve(scene.Header.Lights.size());
@@ -335,7 +380,7 @@ SceneLightInfo loadLightInfo(const assetlib::SceneAsset& scene)
     return sceneLightInfo;
 }
 
-SceneHierarchyInfo loadHierarchyInfo(const assetlib::SceneAsset& scene)
+SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(assetlib::SceneAsset& scene)
 {
     SceneHierarchyInfo sceneHierarchy = {};
 
@@ -360,10 +405,10 @@ SceneHierarchyInfo loadHierarchyInfo(const assetlib::SceneAsset& scene)
         u16 Depth{0};
     };
     std::queue<NodeInfo> nodesToProcess;
-    for (auto& node : subscene.Nodes)
+    for (const u32 node : subscene.Nodes)
         nodesToProcess.push({
             .ParentIndex = needDummyParentNode ? 0 : SceneHierarchyHandle::INVALID,
-            .NodeIndex = (u32)node,
+            .NodeIndex = node,
             .Depth = needDummyParentNode ? (u16)1 : (u16)0
         });
 
@@ -414,33 +459,74 @@ SceneHierarchyInfo loadHierarchyInfo(const assetlib::SceneAsset& scene)
     
     return sceneHierarchy;
 }
+
+void SceneAssetManager::LoadMaterials(SceneGeometryInfo& geometry, assetlib::SceneAsset& scene)
+{
+    geometry.Materials.reserve(scene.Header.Materials.size());
+    geometry.MaterialsCpu.reserve(scene.Header.Materials.size());
+    for (auto& material : scene.Header.Materials)
+    {
+        auto* materialAssetInfo = m_AssetSystem->Resolve(material.MaterialAsset);
+        if (!materialAssetInfo)
+            continue;
+        
+        auto materialHandle = m_MaterialAssetManager->LoadResource({.Path = materialAssetInfo->Path});
+        if (!materialHandle.IsValid())
+            continue;
+
+        auto* materialAsset = m_MaterialAssetManager->Get(materialHandle);
+        if (!materialAsset)
+            continue;
+        
+        SceneGeometryInfo::MaterialInfo materialInfo = {
+            .Handle = materialHandle,
+            .BaseColorUvIndex = material.BaseColorSample.UvIndex,
+            .EmissiveUvIndex = material.EmissiveSample.UvIndex,
+            .NormalUvIndex = material.NormalSample.UvIndex,
+            .MetallicRoughnessUvIndex = material.MetallicRoughnessSample.UvIndex,
+            .OcclusionUvIndex = material.OcclusionSample.UvIndex
+        };
+        geometry.MaterialsCpu.push_back(materialInfo);
+        
+        geometry.Materials.push_back(LoadMaterial(materialInfo, *materialAsset));
+    }
 }
 
-SceneAsset SceneAssetManager::DoLoad(const SceneLoadParameters& parameters) const
+MaterialGPU SceneAssetManager::LoadMaterial(const SceneGeometryInfo::MaterialInfo& materialInfo, 
+    const MaterialAsset& materialAsset)
 {
-    LUX_LOG_INFO("Loading scene: {}", parameters.Path.string());
-    
-    const auto assetFile = m_AssetSystem->GetIo().ReadHeader(parameters.Path);
-    if (!assetFile.has_value())
-        return {};
-    
-    auto sceneAsset = assetlib::scene::readScene(*assetFile, m_AssetSystem->GetIo(), m_AssetSystem->GetCompressor());
-    if (!sceneAsset.has_value())
-        return {};
-    
-    ImageAssetManager* imageAssetManager =
-        m_AssetSystem->GetAssetManagerFor<ImageAssetManager>(assetlib::image::getMetadata().Type);
-    ASSERT(imageAssetManager)
-    
-    MaterialAssetManager* materialAssetManager =
-        m_AssetSystem->GetAssetManagerFor<MaterialAssetManager>(assetlib::material::getMetadata().Type);
-    ASSERT(materialAssetManager)
+    return {{
+        .Albedo = materialAsset.BaseColor,
+        .Metallic = materialAsset.Metallic,
+        .Roughness = materialAsset.Roughness,
+        .AlbedoTexture = LoadTexture(materialInfo.BaseColorUvIndex, materialAsset.BaseColorTexture,
+            m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::White)),
+        .NormalTexture = LoadTexture(materialInfo.NormalUvIndex, materialAsset.NormalTexture,
+            m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::NormalMap)),
+        .MetallicRoughnessTexture = LoadTexture(materialInfo.MetallicRoughnessUvIndex, materialAsset.MetallicRoughnessTexture,
+            m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::White)),
+        .AmbientOcclusionTexture = LoadTexture(materialInfo.OcclusionUvIndex, materialAsset.OcclusionTexture,
+            m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::White)),
+        .EmissiveTexture = LoadTexture(materialInfo.EmissiveUvIndex, materialAsset.EmissiveTexture,
+            m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::Black))
+    }};
+}
 
-    return SceneAsset{
-        .Geometry = loadGeometryInfo(*sceneAsset, *m_TexturesRingBuffer, 
-            *m_AssetSystem, *imageAssetManager, *materialAssetManager),
-        .Lights = loadLightInfo(*sceneAsset),
-        .Hierarchy = loadHierarchyInfo(*sceneAsset)
-    };
+TextureHandle SceneAssetManager::LoadTexture(u32 uvIndex, ImageHandle image, TextureHandle fallback)
+{
+    if (m_LoadedTextures.contains(image))
+        return m_LoadedTextures[image];
+    
+    ImageAsset imageAsset = image.IsValid() ? m_TextureAssetManager->Get(image) : ImageAsset{};
+    if (!imageAsset.HasValue())
+        return fallback;
+    
+    if (uvIndex > 0)
+    {
+        LUX_LOG_WARN("Skipping texture {}, as it uses uv set other than 0", uvIndex);
+        return fallback;
+    }
+
+    return m_LoadedTextures[image] = m_TexturesRingBuffer->AddTexture(imageAsset);
 }
 }

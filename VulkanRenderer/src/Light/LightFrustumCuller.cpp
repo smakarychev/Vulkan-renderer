@@ -38,7 +38,7 @@ bool isVisibleOrthographic(const Sphere& sphere, const FrustumPlanes& frustum,
     return visible;
 }
 
-std::vector<CommonLight> getVisibleLights(const SceneLight& light, const Camera& camera)
+std::vector<lux::CommonLight> getVisibleLights(const SceneLight& light, const Camera& camera)
 {
     const u32 maxLightsPerFrustum = (u32)*CVars::Get().GetI32CVar("Lights.FrustumMax"_hsv);
     const f32 maxLightCullDistance = *CVars::Get().GetF32CVar("Renderer.Limits.MaxLightCullDistance"_hsv);
@@ -46,13 +46,13 @@ std::vector<CommonLight> getVisibleLights(const SceneLight& light, const Camera&
     const FrustumPlanes frustum = camera.GetFrustumPlanes(maxLightCullDistance);
     const ProjectionData projection = camera.GetProjectionData();
 
-    std::vector<CommonLight> visibleLights;
+    std::vector<lux::CommonLight> visibleLights;
     visibleLights.reserve(light.Count());
     for (const auto& commonLight : light)
     {
         switch (commonLight.Type)
         {
-        case LightType::Point:
+        case lux::LightType::Point:
             {
                 Sphere sphere = {
                     .Center = commonLight.PositionDirection,
@@ -69,8 +69,8 @@ std::vector<CommonLight> getVisibleLights(const SceneLight& light, const Camera&
                     break;
             }
             break;
-        case LightType::Directional:
-        case LightType::Spot:
+        case lux::LightType::Directional:
+        case lux::LightType::Spot:
         default:
             visibleLights.push_back(commonLight);
             break;
@@ -80,19 +80,19 @@ std::vector<CommonLight> getVisibleLights(const SceneLight& light, const Camera&
     return visibleLights;
 }
 
-void sortByDepth(std::vector<CommonLight>& visibleLights, const Camera& camera)
+void sortByDepth(std::vector<lux::CommonLight>& visibleLights, const Camera& camera)
 {
     Plane sortPlane = camera.GetNearViewPlane();
 
-    std::ranges::sort(visibleLights, std::less<>{}, [&sortPlane](const CommonLight& commonLight) -> f32
+    std::ranges::sort(visibleLights, std::less<>{}, [&sortPlane](const lux::CommonLight& commonLight) -> f32
     {
         switch (commonLight.Type)
         {
-        case LightType::Directional:
+        case lux::LightType::Directional:
             return 0.0f;
-        case LightType::Point:
+        case lux::LightType::Point:
             return sortPlane.SignedDistance(commonLight.PositionDirection);
-        case LightType::Spot:
+        case lux::LightType::Spot:
         default:
             ASSERT(false, "Unsupported light type")
             break;

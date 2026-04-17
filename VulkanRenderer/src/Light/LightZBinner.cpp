@@ -19,7 +19,7 @@ ZBins LightZBinner::ZBinLights(SceneLight& light, const Camera& camera)
     {
         switch (commonLight.Type)
         {
-        case LightType::Point:
+        case lux::LightType::Point:
             {
                 Sphere sphere = {
                     .Center = commonLight.PositionDirection,
@@ -42,8 +42,8 @@ ZBins LightZBinner::ZBinLights(SceneLight& light, const Camera& camera)
                 pointLightIndex++;
             }
             break;
-        case LightType::Directional:
-        case LightType::Spot:
+        case lux::LightType::Directional:
+        case lux::LightType::Spot:
         default:
             break;
         }

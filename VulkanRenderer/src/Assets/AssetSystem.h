@@ -31,6 +31,7 @@ public:
     void RegisterAssetManager(assetlib::AssetType type, AssetManager& manager);
     void SetAssetsDirectory(const std::filesystem::path& path);
     void ScanAssetsDirectory();
+    void ScanAssetsDirectory(const std::filesystem::path& path);
     
     void SubscribeOnAssetUpdate(assetlib::AssetType type, AssetUpdatedHandler& handler);
     void NotifyAssetUpdate(assetlib::AssetType type, const AssetUpdatedInfo& assetInfo);

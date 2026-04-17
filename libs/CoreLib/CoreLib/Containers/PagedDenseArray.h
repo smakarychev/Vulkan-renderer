@@ -10,7 +10,7 @@ namespace lux
 static constexpr u32 DEFAULT_PAGE_SIZE_LOG = 8;
 
 template <typename T, u32 PageSizeLog = DEFAULT_PAGE_SIZE_LOG>
-class PagedArray
+class PagedDenseArray
 {
 public:
     template <typename... Args>
@@ -47,14 +47,14 @@ private:
 };
 
 template <typename T, u32 PageSizeLog>
-void PagedArray<T, PageSizeLog>::Clear()
+void PagedDenseArray<T, PageSizeLog>::Clear()
 {
     m_Pages.clear();
 }
 
 template <typename T, u32 PageSizeLog>
 template <typename... Args>
-constexpr u32 PagedArray<T, PageSizeLog>::Insert(Args&&... args)
+constexpr u32 PagedDenseArray<T, PageSizeLog>::Insert(Args&&... args)
 {
     std::vector<T>& page = GetOrCreatePage(m_Size);
     page.emplace_back(std::forward<Args>(args)...);
@@ -65,7 +65,7 @@ constexpr u32 PagedArray<T, PageSizeLog>::Insert(Args&&... args)
 }
 
 template <typename T, u32 PageSizeLog>
-constexpr void PagedArray<T, PageSizeLog>::Erase(u32 index)
+constexpr void PagedDenseArray<T, PageSizeLog>::Erase(u32 index)
 {
     ASSERT(m_Size > 0, "Cannot erase from empty set")
 
@@ -83,7 +83,7 @@ constexpr void PagedArray<T, PageSizeLog>::Erase(u32 index)
 }
 
 template <typename T, u32 PageSizeLog>
-constexpr void PagedArray<T, PageSizeLog>::PopBack()
+constexpr void PagedDenseArray<T, PageSizeLog>::PopBack()
 {
     ASSERT(m_Size > 0, "Cannot Pop from empty set")
 
@@ -95,7 +95,7 @@ constexpr void PagedArray<T, PageSizeLog>::PopBack()
 }
 
 template <typename T, u32 PageSizeLog>
-constexpr const T& PagedArray<T, PageSizeLog>::operator[](u32 index) const
+constexpr const T& PagedDenseArray<T, PageSizeLog>::operator[](u32 index) const
 {
     ASSERT(index < size(), "No element at index {}", index)
     u32 indexMinor = Math::fastMod(index, PAGE_SIZE);
@@ -105,13 +105,13 @@ constexpr const T& PagedArray<T, PageSizeLog>::operator[](u32 index) const
 }
 
 template <typename T, u32 PageSizeLog>
-constexpr T& PagedArray<T, PageSizeLog>::operator[](u32 index)
+constexpr T& PagedDenseArray<T, PageSizeLog>::operator[](u32 index)
 {
-    return const_cast<T&>(const_cast<const PagedArray&>(*this)[index]);
+    return const_cast<T&>(const_cast<const PagedDenseArray&>(*this)[index]);
 }
 
 template <typename T, u32 PageSizeLog>
-constexpr std::vector<T>& PagedArray<T, PageSizeLog>::GetOrCreatePage(u32 index)
+constexpr std::vector<T>& PagedDenseArray<T, PageSizeLog>::GetOrCreatePage(u32 index)
 {
     u32 pageNum = index >> PageSizeLog;
     if (pageNum >= m_Pages.size())
@@ -124,7 +124,7 @@ constexpr std::vector<T>& PagedArray<T, PageSizeLog>::GetOrCreatePage(u32 index)
 }
 
 template <typename T, u32 PageSizeLog>
-constexpr const std::vector<T>& PagedArray<T, PageSizeLog>::GetPage(u32 index) const
+constexpr const std::vector<T>& PagedDenseArray<T, PageSizeLog>::GetPage(u32 index) const
 {
     u32 pageNum = index >> PageSizeLog;
     ASSERT(pageNum < m_Pages.size() && m_Pages[pageNum].capacity() != 0, "No page at index {}", index)
@@ -133,8 +133,8 @@ constexpr const std::vector<T>& PagedArray<T, PageSizeLog>::GetPage(u32 index) c
 }
 
 template <typename T, u32 PageSizeLog>
-constexpr std::vector<T>& PagedArray<T, PageSizeLog>::GetPage(u32 index)
+constexpr std::vector<T>& PagedDenseArray<T, PageSizeLog>::GetPage(u32 index)
 {
-    return const_cast<std::vector<T>&>(const_cast<const PagedArray&>(*this).GetPage(index));
+    return const_cast<std::vector<T>&>(const_cast<const PagedDenseArray&>(*this).GetPage(index));
 }
 }

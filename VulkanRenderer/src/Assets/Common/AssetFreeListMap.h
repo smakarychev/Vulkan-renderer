@@ -55,7 +55,7 @@ constexpr AssetFreeListMap<Asset>::Handle AssetFreeListMap<Asset>::Add(Asset&& a
 {
     const u32 index = m_Assets.insert(std::move(asset));
     const Handle handle(index, 0);
-    m_AssetsMap.emplace(path, handle);
+    m_AssetsMap[path] = handle;
     if (m_HandlesToPaths.size() <= handle.Index())
         m_HandlesToPaths.resize(handle.Index() + 1);
     m_HandlesToPaths[handle.Index()] = path;

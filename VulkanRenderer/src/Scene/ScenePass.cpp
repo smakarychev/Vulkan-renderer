@@ -3,7 +3,6 @@
 #include "ScenePass.h"
 
 #include "ResourceUploader.h"
-#include "SceneInfo.h"
 
 ScenePass::ScenePass(const ScenePassCreateInfo& createInfo, SceneBucketList& bucketList)
     : m_BucketList(&bucketList), m_Name(createInfo.Name)
@@ -24,7 +23,7 @@ void ScenePass::AddBuckets(Span<const SceneBucketCreateInfo> buckets)
         MAX_BUCKETS_PER_SET, maxHandle - minHandle)
 }
 
-SceneBucketHandle ScenePass::Filter(const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject)
+SceneBucketHandle ScenePass::Filter(const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject)
 {
     SceneBucketHandle bucketToAssignTo = INVALID_SCENE_BUCKET;
     for (auto bucketHandle : m_BucketHandles)

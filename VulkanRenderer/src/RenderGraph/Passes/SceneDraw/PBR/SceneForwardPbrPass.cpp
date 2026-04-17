@@ -47,7 +47,8 @@ Passes::SceneForwardPbr::PassData& Passes::SceneForwardPbr::addToGraph(StringId 
             passData.Resources.VisibleMeshlets =
                 passData.BindGroup.SetResourcesVisibleMeshlets(passData.Resources.VisibleMeshlets);
             passData.Resources.ViewInfo = passData.BindGroup.SetResourcesView(info.DrawInfo.ViewInfo);
-            passData.BindGroup.SetResourcesMaterials(graph.Import("Materials"_hsv, info.Geometry->Materials.Buffer));
+            passData.BindGroup.SetResourcesMaterials(graph.Import("Materials"_hsv,
+                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Materials)));
 
             passData.BindGroup.SetResourcesCsmData(info.CsmData.CsmInfo);
             passData.BindGroup.SetResourcesCsmTexture(info.CsmData.ShadowMap);

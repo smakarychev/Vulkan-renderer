@@ -22,6 +22,7 @@ class MaterialAssetManager final : public ResourceAssetManager<MaterialAsset, Re
 public:
     LUX_ASSET_MANAGER(MaterialAssetManager, "627a4f5c-3219-4a25-89f7-763e0517d0af"_guid)
 
+    void OnAssetSystemInit() override;
     bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) override;
     bool Bakes(const std::filesystem::path& path) override;
     void OnFileModified(const std::filesystem::path& path) override;
@@ -37,5 +38,6 @@ private:
 
 private:
     AssetFreeListMap<MaterialAsset> m_Materials;
+    ImageAssetManager* m_ImageAssetManager{nullptr};
 };
 }

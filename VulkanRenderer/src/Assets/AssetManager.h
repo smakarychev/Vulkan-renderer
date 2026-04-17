@@ -30,6 +30,8 @@ public:
     virtual const std::string& GetName() const = 0;
     virtual const Guid& GetGuid() const = 0;
 
+    /* is called by `AssetSystem` when all managers are registered and before the directory scan is performed */
+    virtual void OnAssetSystemInit() {}
     virtual bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) = 0;
     virtual bool Bakes(const std::filesystem::path& path) = 0;
     virtual void OnFileModified(const std::filesystem::path& path) = 0;

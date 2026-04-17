@@ -4,14 +4,12 @@
 
 #include "RenderHandleArray.h"
 #include "RenderObject.h"
-#include "SceneInfo.h"
 #include "SceneInstance.h"
-#include "Rendering/Buffer/PushBuffer.h"
-
-#include <AssetLib/Scenes/SceneAsset.h>
+#include "Assets/Materials/MaterialAsset.h"
 
 namespace lux
 {
+struct SceneAsset;
 class ImageAssetManager;
 class AssetSystem;
 }
@@ -33,12 +31,12 @@ public:
     };
 public:
     static SceneGeometry CreateEmpty(DeletionQueue& deletionQueue);
-    void Add(const SceneInfo& sceneInfo, FrameContext& ctx);
-    AddRenderObjectsResult AddRenderObjects(const SceneInfo& sceneInfo, SceneInstanceHandle instance,
+    void Add(const lux::SceneAsset& scene, FrameContext& ctx);
+    AddRenderObjectsResult AddRenderObjects(const lux::SceneAsset& scene, lux::SceneInstanceHandle instance,
         FrameContext& ctx);
-    void DeleteRenderObjects(SceneInstanceHandle instance);
-
-    void SetScene(Scene& scene) { m_Scene = &scene; }
+    void UpdateMaterials(const lux::SceneAsset& scene, FrameContext& ctx);
+    void Delete(const lux::SceneAsset& scene);
+    void DeleteRenderObjects(lux::SceneInstanceHandle instance);
 public:
     enum class SceneInfoOffsetType : u8
     {
@@ -54,25 +52,26 @@ public:
         /* per instance data */
         MeshletBounds = 5,
         Meshlets = 6,
+        
+        Materials = 7,
             
-        MaxVal = 7,
+        MaxVal = 8,
     };
     struct SceneInfoOffsets
     {
         std::array<u32, (u32)SceneInfoOffsetType::MaxVal> ElementOffsets;
-        u32 MaterialOffset{0};
+        std::array<BufferSuballocationHandle, (u32)SceneInfoOffsetType::MaxVal> Suballocations;
     };
 public:
     BufferArena Indices{};
     BufferArena Attributes{};
     BufferArena Meshlets{};
     BufferArena RenderObjects{};
-    PushBuffer Materials{};
+    BufferArena Materials{};
 
-    RenderHandleArray<Material> MaterialsCpu;
+    RenderHandleArray<lux::MaterialHandle> MaterialsCpu;
 private:
-    std::unordered_map<const SceneInfo*, SceneInfoOffsets> m_SceneInfoOffsets{};
-    Scene* m_Scene{nullptr};
+    std::unordered_map<const lux::SceneAsset*, SceneInfoOffsets> m_SceneInfoOffsets{};
 
     struct SceneInstanceInfo
     {
@@ -87,5 +86,5 @@ private:
     static constexpr u64 DEFAULT_INDICES_BUFFER_ARENA_SIZE_BYTES = 4llu * 1024 * 1024;
     static constexpr u64 DEFAULT_MESHLETS_BUFFER_ARENA_SIZE_BYTES = 4llu * 1024 * 1024;
     static constexpr u64 DEFAULT_RENDER_OBJECTS_BUFFER_ARENA_SIZE_BYTES = 1llu * 1024 * 1024;
-    static constexpr u64 DEFAULT_MATERIALS_BUFFER_SIZE_BYTES = 1llu * 512 * 1024;
+    static constexpr u64 DEFAULT_MATERIALS_BUFFER_ARENA_SIZE_BYTES = 1llu * 512 * 1024;
 };

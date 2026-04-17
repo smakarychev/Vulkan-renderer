@@ -2,10 +2,9 @@
 
 #include "Scene.h"
 #include "ScenePass.h"
+#include "Rendering/Buffer/PushBuffer.h"
 
 #include <CoreLib/String/StringId.h>
-
-class SceneInfo;
 
 class SceneRenderObjectSet
 {

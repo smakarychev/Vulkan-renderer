@@ -1,14 +1,8 @@
 #pragma once
 
-#include <CoreLib/types.h>
+#include "Assets/Scenes/SceneAsset.h"
 
-class SceneInfo;
-
-class SceneInstance
+struct SceneInstance
 {
-    friend class Scene;
-private:
-    const SceneInfo* m_SceneInfo{};
+    lux::SceneHandle Scene{};
 };
-
-using SceneInstanceHandle = u32;

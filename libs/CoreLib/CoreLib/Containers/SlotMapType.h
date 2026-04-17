@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "PagedArray.h"
+#include "PagedDenseArray.h"
 #include "SparseSet/SparseSetType.h"
 
 namespace lux
@@ -20,7 +20,7 @@ public:
         using pointer = std::conditional_t<IsConst, const value_type*, value_type*>;
         using reference = std::conditional_t<IsConst, const value_type&, value_type&>;
 
-        Iterator(const PagedArray<Element>& dense, u32 index)
+        Iterator(const PagedDenseArray<Element>& dense, u32 index)
             : m_Index(index), m_Dense(&dense)
         {
         }
@@ -44,7 +44,7 @@ public:
         friend bool operator!=(const Iterator& a, const Iterator<OtherConst>& b) { return !(a == b); }
     private:
         u32 m_Index;
-        std::conditional_t<IsConst, const PagedArray<Element>*, PagedArray<Element>*> m_Dense;
+        std::conditional_t<IsConst, const PagedDenseArray<Element>*, PagedDenseArray<Element>*> m_Dense;
     };
 public:
     using iterator = Iterator<false>;
@@ -75,7 +75,7 @@ public:
     constexpr const_iterator begin() const { return const_iterator(m_Elements, (u32)(m_Elements.size() - 1)); }
     constexpr const_iterator end() const { return const_iterator(m_Elements, -1); }
 private:
-    PagedArray<Element> m_Elements;
+    PagedDenseArray<Element> m_Elements;
     HandleSparseSet m_SparseSet;
     // todo: store as embedded freelist somewhere?
     std::vector<Handle> m_FreeElements;

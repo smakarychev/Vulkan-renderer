@@ -4,12 +4,12 @@
 
 #include <tracy/Tracy.hpp>
 
-#include "AssetManager.h"
 #include "ViewInfoGPU.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Images/ImageAssetManager.h"
 #include "Assets/Materials/MaterialAsset.h"
 #include "Assets/Materials/MaterialAssetManager.h"
+#include "Assets/Scenes/SceneAssetManager.h"
 #include "Assets/Shaders/ShaderAssetManager.h"
 #include "Core/Input.h"
 #include "cvars/CVarSystem.h"
@@ -123,6 +123,10 @@ void Renderer::Init()
     m_MaterialAssetManager = std::make_unique<lux::MaterialAssetManager>(m_AssetSystem);
     m_AssetSystem.RegisterAssetManager(lux::assetlib::material::getMetadata().Type, *m_MaterialAssetManager);
 
+    m_SceneAssetManager = std::make_unique<lux::SceneAssetManager>(m_AssetSystem);
+    m_AssetSystem.RegisterAssetManager(lux::assetlib::scene::getMetadata().Type, *m_SceneAssetManager);
+    m_SceneAssetManager->Init(m_SceneBakeSettings);
+
     m_AssetSystem.ScanAssetsDirectory();
     
     InitRenderingStructures();
@@ -175,6 +179,7 @@ void Renderer::InitRenderGraph()
     
     m_BindlessTextureDescriptorsRingBuffer = std::make_unique<BindlessTextureDescriptorsRingBuffer>(
         TEXTURE_HEAP_SIZE, m_TextureHeap);
+    m_SceneAssetManager->SetTextureRingBuffer(*m_BindlessTextureDescriptorsRingBuffer);
     m_TransmittanceLutBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
         Images::Default::GetCopy(Images::DefaultKind::White, Device::DeletionQueue()));
     m_SkyViewLutBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
@@ -196,18 +201,21 @@ void Renderer::InitRenderGraph()
     //    *CVars::Get().GetStringCVar("Path.Assets"_hsv),
     //    *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/lights_test/scene.gltf");
     
-    m_Scene = Scene::CreateEmpty(Device::DeletionQueue());
-    m_SceneBucketList.Init(m_Scene);
-    m_OpaqueSet.Init("Opaque"_hsv, m_Scene, m_SceneBucketList, {
+    m_Scene = std::make_unique<Scene>(Device::DeletionQueue(), *m_SceneAssetManager);
+    m_SceneBucketList.Init(*m_Scene);
+    m_OpaqueSet.Init("Opaque"_hsv, *m_Scene, m_SceneBucketList, {
         ScenePassCreateInfo{
             .Name = "DepthPrepass"_hsv,
             .BucketCreateInfos = {
                 {
                     .Name = "Opaque material"_hsv,
-                    .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
-                        const Material& material = geometry.MaterialsCpu[
-                            geometry.RenderObjects[renderObject.Index].Material];
-                        return enumHasAny(material.Flags, MaterialFlags::Opaque);
+                    .Filter = [this](const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
+                        const lux::MaterialAsset* materialAsset = m_MaterialAssetManager->Get(geometry.MaterialsCpu[
+                            geometry.RenderObjects[renderObject.Index].Material].Handle);
+                        if (materialAsset == nullptr)
+                            return false;
+                        
+                        return materialAsset->AlphaMode == lux::MaterialAlphaMode::Opaque;
                     }
                 }
             }
@@ -217,10 +225,13 @@ void Renderer::InitRenderGraph()
             .BucketCreateInfos = {
                 {
                     .Name = "Opaque material"_hsv,
-                    .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
-                        const Material& material = geometry.MaterialsCpu[
-                            geometry.RenderObjects[renderObject.Index].Material];
-                        return enumHasAny(material.Flags, MaterialFlags::Opaque);
+                    .Filter = [this](const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
+                        const lux::MaterialAsset* materialAsset = m_MaterialAssetManager->Get(geometry.MaterialsCpu[
+                            geometry.RenderObjects[renderObject.Index].Material].Handle);
+                        if (materialAsset == nullptr)
+                            return false;
+                        
+                        return materialAsset->AlphaMode == lux::MaterialAlphaMode::Opaque;
                     }
                 }
             }
@@ -230,22 +241,25 @@ void Renderer::InitRenderGraph()
             .BucketCreateInfos = {
                 {
                     .Name = "Opaque material"_hsv,
-                    .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
+                    .Filter = [](const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
                         return renderObject.Index < 1;
                     },
                 },
                 {
                     .Name = "Opaque material2"_hsv,
-                    .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
-                        const Material& material = geometry.MaterialsCpu[
-                            geometry.RenderObjects[renderObject.Index].Material];
-                        return renderObject.Index >= 1;
+                    .Filter = [this](const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
+                        const lux::MaterialAsset* materialAsset = m_MaterialAssetManager->Get(geometry.MaterialsCpu[
+                            geometry.RenderObjects[renderObject.Index].Material].Handle);
+                        if (materialAsset == nullptr)
+                            return false;
+                        
+                        return materialAsset->AlphaMode == lux::MaterialAlphaMode::Opaque && renderObject.Index > 1;
                     },
                     .ShaderOverrides = ShaderDefines({ShaderDefine("TEST"_hsv)})
                 }
             }
         },
-        Passes::SceneCsm::getScenePassCreateInfo("Shadow"_hsv),
+        Passes::SceneCsm::getScenePassCreateInfo("Shadow"_hsv, *m_MaterialAssetManager),
     }, Device::DeletionQueue());
 
     m_ShadowMultiviewVisibility.Init(m_OpaqueSet);
@@ -256,15 +270,14 @@ void Renderer::InitRenderGraph()
     {
         FrameContext ctx = GetFrameContext();
         ctx.CommandList = cmdList;
-        m_Scenes.push_back(SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/armor/scene.scene",
-            *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue(),
-            m_AssetSystem, *m_ImageAssetManager, *m_MaterialAssetManager));
-        m_Scenes.push_back(SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/dragon/scene.scene",
-            *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue(),
-            m_AssetSystem, *m_ImageAssetManager, *m_MaterialAssetManager));
-        SceneInstanceHandle instance = m_Scene.Instantiate(*m_Scenes.front(), {
+        m_Scenes.push_back(
+            m_SceneAssetManager->LoadResource(
+                {.Path = *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/hotReloadTest/scene.scene"}));
+        m_Scenes.push_back(
+            m_SceneAssetManager->LoadResource(
+                {.Path = *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/dragon/scene.scene"}));
+        
+        lux::SceneInstanceHandle instance = m_Scene->Instantiate(m_Scenes.front(), {
             .Transform = {
                 //.Position = glm::vec3{1500.0f, -500.0f, -7.0f},
                 .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
@@ -272,33 +285,28 @@ void Renderer::InitRenderGraph()
                 //.Scale = glm::vec3{1.0f},
                 }});
 
-        m_Lights.AddLight({{
+        lux::SceneAsset lights = {};
+        lights.AddLight({{
             .Direction = glm::normalize(glm::vec3(0.3f, -1.0f, 0.1f)),
             .Color = glm::vec3(1.0f, 1.0f, 1.0f),
             .Intensity = 2.5f,
         }});
-        constexpr u32 POINT_LIGHT_COUNT = 0;
+        constexpr u32 POINT_LIGHT_COUNT = 32;
         for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
         {
             const auto pos =
                 glm::vec3{Random::Float(-5.0f, 5.0f), Random::Float(0.0f, 2.0f), Random::Float(-5.0f, 5.0f)};
             const float rad = Random::Float(0.5f, 8.6f);
-            m_Lights.AddLight({{
+            lights.AddLight({{
                 //.Position = glm::vec3{Random::Float(-39.0f, 39.0f), Random::Float(0.0f, 4.0f), Random::Float(-19.0f, 19.0f)},
                 .Position = pos,
                 .Color = Random::Float3(0.0f, 1.0f),
                 .Intensity = Random::Float(0.5f, 3.7f),
                 .Radius = rad
             }});
-            /*m_Scene.Instantiate(*m_TestScene, {
-                .Transform = {
-                    .Position = pos,
-                    .Scale = glm::vec3{rad},
-                    //.Scale = glm::vec3{1.0f},
-                }},
-                ctx);*/
         }
-        m_Scene.Instantiate(m_Lights, {});
+        m_Lights = m_SceneAssetManager->AddExternalScene(std::move(lights));
+        m_Scene->Instantiate(m_Lights, {});
 
         ctx.ResourceUploader->SubmitUpload(ctx);
     });
@@ -406,17 +414,18 @@ void Renderer::SetupRenderGraph()
     
     std::vector<SceneDrawPassDescription> drawPasses;
     
-    m_Scene.IterateLights(LightType::Directional, [this](CommonLight& commonLight, Transform3d& localTransform) {
-        m_SunLight = &commonLight;
-        ImGui::Begin("Directional Light");
-        glm::vec3 euler = glm::eulerAngles(localTransform.Orientation) * 180.0f / glm::pi<f32>();
-        ImGui::DragFloat3("Direction", &euler[0], 1e-1f);
-        ImGui::ColorEdit3("Color", &commonLight.Color[0]);
-        ImGui::DragFloat("Intensity", &commonLight.Intensity, 1e-2f, 0.0f);
-        ImGui::End();
-        localTransform.Orientation = glm::quat(euler * glm::pi<f32>() / 180.0f);
-        
-        return true;
+    m_Scene->IterateLights(lux::LightType::Directional, 
+        [this](lux::CommonLight& commonLight, Transform3d& localTransform) {
+            m_SunLight = &commonLight;
+            ImGui::Begin("Directional Light");
+            glm::vec3 euler = glm::eulerAngles(localTransform.Orientation) * 180.0f / glm::pi<f32>();
+            ImGui::DragFloat3("Direction", &euler[0], 1e-1f);
+            ImGui::ColorEdit3("Color", &commonLight.Color[0]);
+            ImGui::DragFloat("Intensity", &commonLight.Intensity, 1e-2f, 0.0f);
+            ImGui::End();
+            localTransform.Orientation = glm::quat(euler * glm::pi<f32>() / 180.0f);
+            
+            return true;
     });
 
     
@@ -621,8 +630,8 @@ void Renderer::UpdateGlobalRenderGraphResources() const
     primaryView.Shading.BlueNoise128 = m_BlueNoiseBindlessIndex;
     primaryView.Shading.MaxLightCullDistance =
         *CVars::Get().GetF32CVar("Renderer.Limits.MaxLightCullDistance"_hsv);
-    primaryView.Shading.DirectionalLightCount = m_Scene.Lights().DirectionalLightCount();
-    primaryView.Shading.PointLightCount = m_Scene.Lights().PointLightCount();
+    primaryView.Shading.DirectionalLightCount = m_Scene->Lights().DirectionalLightCount();
+    primaryView.Shading.PointLightCount = m_Scene->Lights().PointLightCount();
     // todo: toC VAR
     primaryView.Shading.LightCullingUseZBins = true;
     primaryView.Shading.LightCullTileCount =
@@ -676,7 +685,7 @@ void Renderer::UpdateGlobalRenderGraphResources() const
         "Upload.GlobalGraphData"_hsv, *m_Graph, primaryView);
 }
 
-RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass, const CommonLight& directionalLight)
+RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass, const lux::CommonLight& directionalLight)
 {
     using namespace RG;
 
@@ -706,7 +715,7 @@ RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass, const Commo
     auto& csmInit = Passes::SceneCsm::addToGraph("CSM"_hsv,
         *m_Graph, {
             .Pass = &scenePass,
-            .Geometry = &m_Scene.Geometry(),
+            .Geometry = &m_Scene->Geometry(),
             .MultiviewVisibility = &m_ShadowMultiviewVisibility,
             .MainCamera = m_Camera.get(),
             .DirectionalLight = DirectionalLight{{
@@ -763,7 +772,7 @@ SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::Resour
         auto& pass = Passes::SceneDepthPrepass::addToGraph(
             name.Concatenate(".DepthPrepass"), graph, {
                 .DrawInfo = info,
-                .Geometry = &m_Scene.Geometry()});
+                .Geometry = &m_Scene->Geometry()});
 
         return pass.Resources.Attachments;
     };
@@ -798,8 +807,8 @@ SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource
         
         Passes::SceneForwardPbr::ExecutionInfo executionInfo = {
             .DrawInfo = info,
-            .Geometry = &m_Scene.Geometry(),
-            .Light = &m_Scene.Lights(),
+            .Geometry = &m_Scene->Geometry(),
+            .Light = &m_Scene->Lights(),
             .SSAO = {.SSAO = m_Ssao},
             .IBL = {
                 .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
@@ -866,7 +875,7 @@ SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::Resource vb
     {
         Passes::SceneVBuffer::ExecutionInfo executionInfo = {
             .DrawInfo = info,
-            .Geometry = &m_Scene.Geometry()
+            .Geometry = &m_Scene->Geometry()
         };
         
         auto& pass = Passes::SceneVBuffer::addToGraph(name.Concatenate(".VBuffer"), graph, executionInfo);
@@ -908,11 +917,11 @@ RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource 
     const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
     
     auto& pbr = Passes::SceneVBufferPbr::addToGraph("VBufferPbr"_hsv, *m_Graph, {
-        .Geometry = &m_Scene.Geometry(),
+        .Geometry = &m_Scene->Geometry(),
         .VisibleMeshlets = visibleMeshlets,
         .VisibilityTexture = vbuffer,
         .ViewInfo = viewInfo,
-        .Light = &m_Scene.Lights(),
+        .Light = &m_Scene->Lights(),
         .SSAO = {.SSAO = m_Ssao},
         .IBL = {
             .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
@@ -1035,7 +1044,7 @@ Renderer::TileLightsInfo Renderer::RenderGraphCullLightsTiled(StringId baseName,
         Resource ZBins{};
     };
 
-    auto zbins = LightZBinner::ZBinLights(m_Scene.Lights(), *GetFrameContext().PrimaryCamera);
+    auto zbins = LightZBinner::ZBinLights(m_Scene->Lights(), *GetFrameContext().PrimaryCamera);
     Resource zbinsResource = Passes::Upload::addToGraph(baseName.Concatenate("Upload.Light.ZBins"), *m_Graph,
         zbins.Bins);
     auto& tilesSetup = Passes::LightTilesSetup::addToGraph(baseName.Concatenate("Tiles.Setup"), *m_Graph, {
@@ -1045,7 +1054,7 @@ Renderer::TileLightsInfo Renderer::RenderGraphCullLightsTiled(StringId baseName,
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .Tiles = tilesSetup.Tiles, 
         .Depth = depth,
-        .Light = &m_Scene.Lights()});
+        .Light = &m_Scene->Lights()});
     auto& visualizeTiles = Passes::LightTilesVisualize::addToGraph(baseName.Concatenate("Tiles.Visualize"), *m_Graph, {
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .Tiles = binLightsTiles.Tiles,
@@ -1078,7 +1087,7 @@ Renderer::ClusterLightsInfo Renderer::RenderGraphCullLightsClustered(StringId ba
         .Clusters = clustersSetup.Clusters,
         .ClusterVisibility = clustersSetup.ClusterVisibility,
         .Depth = depth,
-        .Light = &m_Scene.Lights()
+        .Light = &m_Scene->Lights()
     });
 
     auto& visualizeClusters = Passes::LightClustersVisualize::addToGraph(baseName.Concatenate("Clusters.Visualize"),
@@ -1555,20 +1564,21 @@ void Renderer::Run()
 
 namespace 
 {
-SceneInstanceHandle spawnRandomScene(Scene& scene, const std::vector<SceneInfo*>& scenes, const Camera& camera)
+lux::SceneInstanceHandle spawnRandomScene(Scene& scene, const std::vector<lux::SceneHandle>& scenes,
+    const Camera& camera)
 {
     if (scenes.empty())
         return {};
     
     u32 sceneIndex = Random::UInt32(0u, (u32)scenes.size() - 1);
-    SceneInfo* sceneInfo = scenes[sceneIndex];
+    lux::SceneHandle sceneHandle = scenes[sceneIndex];
     
     glm::vec3 position = camera.GetPosition() +
         camera.GetForward() * 15.0f +
         camera.GetRight() * Random::Float(-2.0f, 2.0f) +
         camera.GetUp() * Random::Float(-2.0f, 2.0f);
     
-    return scene.Instantiate(*sceneInfo, {
+    return scene.Instantiate(sceneHandle, {
         .Transform = {
             .Position = position,
             .Orientation = glm::angleAxis(
@@ -1585,8 +1595,8 @@ void Renderer::OnUpdate()
 
     m_CameraController->OnUpdate(1.0f / 60.0f);
 
-    LightFrustumCuller::CullDepthSort(m_Scene.Lights(), *GetFrameContext().PrimaryCamera);
-    m_Scene.OnUpdate(GetFrameContext());
+    LightFrustumCuller::CullDepthSort(m_Scene->Lights(), *GetFrameContext().PrimaryCamera);
+    m_Scene->OnUpdate(GetFrameContext());
     m_OpaqueSet.OnUpdate(GetFrameContext());
 
     m_ShadowMultiviewVisibility.OnUpdate(GetFrameContext());
@@ -1594,7 +1604,7 @@ void Renderer::OnUpdate()
 
     struct InstanceWithLife
     {
-        SceneInstanceHandle Instance;
+        lux::SceneInstanceHandle Instance;
         i32 LifeTimeMs{2000};
     };
     static std::vector<InstanceWithLife> instances;
@@ -1607,7 +1617,7 @@ void Renderer::OnUpdate()
     {
         if (elapsed > 10)
         {
-            instances.push_back({spawnRandomScene(m_Scene, m_Scenes, *m_Camera)});
+            instances.push_back({spawnRandomScene(*m_Scene, m_Scenes, *m_Camera)});
             LUX_LOG_TRACE("Meshes: {}\tMeshlets: {}\tTriangles: {}",
                 m_OpaqueSet.RenderObjectCount(), m_OpaqueSet.MeshletCount(), m_OpaqueSet.TriangleCount());
             lastTime = now;
@@ -1618,34 +1628,11 @@ void Renderer::OnUpdate()
             instanceInfo.LifeTimeMs -= (i32)elapsed;
             if (instanceInfo.LifeTimeMs <= 0)
             {
-                m_Scene.Delete(instanceInfo.Instance);
+                m_Scene->Delete(instanceInfo.Instance);
                 std::swap(instances[i], instances.back());
                 instances.pop_back();
             }
         }
-    }
-
-    ImGui::Begin("RELOAD");
-    if (ImGui::Button("Reload scene"))
-    {
-        lux::bakers::SceneBaker baker;
-        static u32 version = 0;
-        static SceneInfo* toReplace = m_Scenes[0];
-        version++;
-        baker.BakeToFile(*CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/hotReloadTest/scene.gltf", {}, m_BakerCtx);
-        m_Scenes.push_back(SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/hotReloadTest/scene.scene",
-            "scene" + std::to_string(version),
-            *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue(),
-            m_AssetSystem, *m_ImageAssetManager, *m_MaterialAssetManager));
-        m_Scene.ReplaceScene(*toReplace, *m_Scenes.back());
-        toReplace = m_Scenes.back();
-    }
-    ImGui::End();
-    if (Input::GetKey(Key::T))
-    {
-        m_Scene.ReplaceScene(*m_Scenes[0], *m_Scenes[1]);
-        swapped = true;
     }
 }
 
@@ -1735,6 +1722,7 @@ void Renderer::BeginFrame()
     m_Graph->OnFrameBegin(GetFrameContext());
     m_ShaderAssetManager->OnFrameBegin(GetFrameContext());
     m_ImageAssetManager->OnFrameBegin(GetFrameContext());
+    m_SceneAssetManager->OnFrameBegin(GetFrameContext());
     ImGuiUI::BeginFrame(GetFrameContext().CommandList, GetFrameContext().FrameNumber);
 }
 
@@ -1876,7 +1864,6 @@ void Renderer::Shutdown()
         ctx.DeletionQueue.Flush();
     ProfilerContext::Get()->Shutdown();
 
-    AssetManager::Shutdown();
     Device::Shutdown();
     glfwDestroyWindow(m_Window); // optional (glfwTerminate does same thing)
     glfwTerminate();

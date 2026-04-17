@@ -1,8 +1,6 @@
 ﻿#include "rendererpch.h"
 #include "AssetSystem.h"
 
-#include "cvars/CVarSystem.h"
-
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <CoreLib/Platform/FileWatcher.h>
 
@@ -39,13 +37,21 @@ void AssetSystem::SetAssetsDirectory(const std::filesystem::path& path)
 
 void AssetSystem::ScanAssetsDirectory()
 {
-    for (const auto& file : fs::recursive_directory_iterator(m_AssetsDirectory))
+    for (auto& manager : m_Managers | std::views::values)
+        manager->OnAssetSystemInit();
+    
+    ScanAssetsDirectory(m_AssetsDirectory);
+}
+
+void AssetSystem::ScanAssetsDirectory(const std::filesystem::path& path)
+{
+    for (const auto& file : fs::recursive_directory_iterator(path))
     {
         if (file.is_directory())
             continue;
 
         for (auto& manager : m_Managers | std::views::values)
-            manager->AddManaged(file, m_IdResolver);
+            manager->AddManaged(std::filesystem::weakly_canonical(file), m_IdResolver);
     }
 }
 

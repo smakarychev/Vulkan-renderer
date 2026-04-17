@@ -3,6 +3,7 @@
 #include "SceneCsmPass.h"
 
 #include "SceneDirectionalShadowPass.h"
+#include "Assets/Materials/MaterialAssetManager.h"
 #include "Core/Camera.h"
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/RGCommon.h"
@@ -213,17 +214,21 @@ void Passes::SceneCsm::mergeCsm(RG::Graph& renderGraph, PassData& passData, cons
 }
 
 
-ScenePassCreateInfo Passes::SceneCsm::getScenePassCreateInfo(StringId name)
+ScenePassCreateInfo Passes::SceneCsm::getScenePassCreateInfo(StringId name, 
+    const lux::MaterialAssetManager& materialAssetManager)
 {
     return ScenePassCreateInfo{
         .Name = name,
         .BucketCreateInfos = {
             {
                 .Name = "Opaque material"_hsv,
-                .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
-                    const Material& material = geometry.MaterialsCpu[
-                        geometry.RenderObjects[renderObject.Index].Material];
-                    return enumHasAny(material.Flags, MaterialFlags::Opaque);
+                .Filter = [&](const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
+                    const lux::MaterialAsset* materialAsset = materialAssetManager.Get(geometry.MaterialsCpu[
+                        geometry.RenderObjects[renderObject.Index].Material].Handle);
+                    if (materialAsset == nullptr)
+                        return false;
+                    
+                    return materialAsset->AlphaMode == lux::MaterialAlphaMode::Opaque;
                 },
             }
         },

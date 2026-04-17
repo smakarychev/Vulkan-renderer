@@ -4,26 +4,41 @@
 
 #include "FrameContext.h"
 #include "ResourceUploader.h"
+#include "Assets/Materials/MaterialAssetManager.h"
 
-Scene Scene::CreateEmpty(DeletionQueue& deletionQueue)
+Scene::Scene(DeletionQueue& deletionQueue, lux::SceneAssetManager& sceneAssetManager)
+    : m_SceneAssetManager(&sceneAssetManager)
 {
-    Scene scene = {};
-
-    scene.m_Geometry = SceneGeometry::CreateEmpty(deletionQueue);
-    scene.m_Lights = SceneLight::CreateEmpty(deletionQueue);
-
-    return scene;
+    using SceneDeletedInfo = lux::SceneAssetManager::SceneDeletedInfo;
+    using SceneReplacedInfo = lux::SceneAssetManager::SceneReplacedInfo;
+    using MaterialUpdatedInfo = lux::SceneAssetManager::MaterialUpdatedInfo;
+    m_Geometry = SceneGeometry::CreateEmpty(deletionQueue);
+    m_Lights = SceneLight::CreateEmpty(deletionQueue);
+    m_SceneDeletedHandler = SignalHandler<SceneDeletedInfo>([this](const SceneDeletedInfo& sceneDeletedInfo) {
+        DeleteScene(sceneDeletedInfo.Scene);
+    });
+    m_SceneReplacedHandler = SignalHandler<SceneReplacedInfo>([this](const SceneReplacedInfo& sceneReplacedInfo) {
+        ReplaceScene(sceneReplacedInfo.Scene, sceneReplacedInfo.Scene);
+    });
+    m_MaterialUpdatedHandler = SignalHandler<MaterialUpdatedInfo>([this](
+        const MaterialUpdatedInfo& materialUpdatedInfo) {
+        UpdateMaterial(materialUpdatedInfo.Scene);   
+    });
+    m_SceneDeletedHandler.Connect(sceneAssetManager.GetSceneDeletedSignal());
+    m_SceneReplacedHandler.Connect(sceneAssetManager.GetSceneReplacedSignal());
+    m_MaterialUpdatedHandler.Connect(sceneAssetManager.GetMaterialUpdatedSignal());
 }
 
-SceneInstanceHandle Scene::Instantiate(const SceneInfo& sceneInfo, const SceneInstantiationData& instantiationData)
+
+lux::SceneInstanceHandle Scene::Instantiate(lux::SceneHandle scene, const SceneInstantiationData& instantiationData)
 {
-    const SceneInstanceHandle instance = RegisterSceneInstance(sceneInfo);
+    const lux::SceneInstanceHandle instance = RegisterSceneInstance(scene);
     InstantiateHandle(instance, instantiationData);
     
     return instance;
 }
 
-void Scene::InstantiateHandle(SceneInstanceHandle handle, const SceneInstantiationData& instantiationData)
+void Scene::InstantiateHandle(lux::SceneInstanceHandle handle, const SceneInstantiationData& instantiationData)
 {
     m_NewInstances.push_back({
         .Instance = handle,
@@ -31,7 +46,7 @@ void Scene::InstantiateHandle(SceneInstanceHandle handle, const SceneInstantiati
     });
 }
 
-void Scene::Delete(SceneInstanceHandle instance)
+void Scene::Delete(lux::SceneInstanceHandle instance)
 {
     auto it = std::ranges::find_if(m_NewInstances, [&instance](auto& newInstance) {
         return instance == newInstance.Instance;
@@ -47,65 +62,61 @@ void Scene::Delete(SceneInstanceHandle instance)
     m_DeletedInstances.push_back(instance);
 }
 
-void Scene::ReplaceScene(const SceneInfo& original, const SceneInfo& replacement)
-{
-    m_ReplacedScenes.push_back({.Original = &original, .Replacement = &replacement});
-}
-
 void Scene::OnUpdate(FrameContext& ctx)
 {
     HandleSpawnAndSweep(ctx, /*reclaimHandles*/true);
     HandleReplacements(ctx);
+    HandleMaterialUpdates(ctx);
     
     UpdateHierarchy(ctx);
     m_Lights.OnUpdate(ctx);
 }
 
-SceneInstanceHandle Scene::RegisterSceneInstance(const SceneInfo& sceneInfo)
+lux::SceneInstanceHandle Scene::RegisterSceneInstance(lux::SceneHandle scene)
 {
-    SceneInstanceHandle handle = m_ActiveInstances.insert(SceneInstance{});
-    MapSceneInstanceToSceneInfo(sceneInfo, handle);
+    lux::SceneInstanceHandle handle = m_ActiveInstances.insert(SceneInstance{});
+    MapSceneInstanceToSceneInfo(scene, handle);
     
     return handle;
 }
 
-void Scene::MapSceneInstanceToSceneInfo(const SceneInfo& sceneInfo, SceneInstanceHandle handle)
+void Scene::MapSceneInstanceToSceneInfo(lux::SceneHandle scene, lux::SceneInstanceHandle handle)
 {
-    m_SceneInstancesMap[&sceneInfo].Instances.insert(handle);
-    m_ActiveInstances[handle].m_SceneInfo = &sceneInfo;
+    m_ScenesMap[scene].Instances.insert(handle);
+    m_ActiveInstances[handle].Scene = scene;
 }
 
-Scene::NewInstanceData Scene::AddToHierarchy(SceneInstanceHandle instance, const Transform3d& baseTransform,
+Scene::NewInstanceData Scene::AddToHierarchy(lux::SceneInstanceHandle instance, const Transform3d& baseTransform,
     FrameContext& ctx)
 {
-    const SceneInfo& sceneInfo = *m_ActiveInstances[instance].m_SceneInfo;
-    const SceneHierarchyInfo& instanceHierarchy = sceneInfo.m_Hierarchy; 
+    const lux::SceneAsset& sceneAsset = *m_SceneAssetManager->Get(m_ActiveInstances[instance].Scene);
+    const lux::SceneHierarchyInfo& instanceHierarchy = sceneAsset.Hierarchy; 
     const u32 firstNode = (u32)m_HierarchyInfo.Nodes.size();
     
-    const SceneGeometry::AddRenderObjectsResult addResult = m_Geometry.AddRenderObjects(sceneInfo, instance, ctx);
+    const SceneGeometry::AddRenderObjectsResult addResult = m_Geometry.AddRenderObjects(sceneAsset, instance, ctx);
     m_MaxRenderObjectIndex = std::max(
-        m_MaxRenderObjectIndex, addResult.FirstRenderObject + (u32)sceneInfo.m_Geometry.RenderObjects.size());
+        m_MaxRenderObjectIndex, addResult.FirstRenderObject + (u32)sceneAsset.Geometry.RenderObjects.size());
 
     for (auto& node : instanceHierarchy.Nodes)
     {
-        const bool isTopLevel = node.Parent == SceneHierarchyHandle::INVALID;
+        const bool isTopLevel = node.Parent == lux::SceneHierarchyHandle::INVALID;
         u32 payloadIndex = node.PayloadIndex;
         switch (node.Type)
         {
-        case SceneHierarchyNodeType::Mesh:
+        case lux::SceneHierarchyNodeType::Mesh:
             payloadIndex += addResult.FirstRenderObject;
             break;
-        case SceneHierarchyNodeType::Light:
-            payloadIndex = m_Lights.Add(sceneInfo.m_Lights.Lights[payloadIndex]);
+        case lux::SceneHierarchyNodeType::Light:
+            payloadIndex = m_Lights.Add(sceneAsset.Lights.Lights[payloadIndex]);
             break;
-        case SceneHierarchyNodeType::Dummy:
+        case lux::SceneHierarchyNodeType::Dummy:
         default:
             break;
         }
         m_HierarchyInfo.Nodes.push_back({
             .Type = node.Type,
             .Depth = node.Depth,
-            .Parent = isTopLevel ? SceneHierarchyHandle::INVALID : node.Parent + firstNode,
+            .Parent = isTopLevel ? lux::SceneHierarchyHandle::INVALID : node.Parent + firstNode,
             .LocalTransform = isTopLevel ?
                 baseTransform.Combine(node.LocalTransform) :
                 node.LocalTransform,
@@ -117,24 +128,39 @@ Scene::NewInstanceData Scene::AddToHierarchy(SceneInstanceHandle instance, const
     m_HierarchyInfo.MaxDepth = std::max(m_HierarchyInfo.MaxDepth, instanceHierarchy.MaxDepth);
 
     return {
-        .SceneInfo = &sceneInfo,
+        .Scene = &sceneAsset,
         .Instance = instance,
         .RenderObjectsOffset = addResult.FirstRenderObject,
     };
 }
 
+void Scene::DeleteScene(lux::SceneHandle scene)
+{
+    m_ReplacedScenes.push_back({.Original = scene, .Replacement = {}});
+}
+
+void Scene::ReplaceScene(lux::SceneHandle original, lux::SceneHandle replacement)
+{
+    m_ReplacedScenes.push_back({.Original = original, .Replacement = replacement});
+}
+
+void Scene::UpdateMaterial(lux::SceneHandle scene)
+{
+    m_UpdatedMaterials.push_back({.Scene = scene});
+}
+
 void Scene::HandleReplacements(FrameContext& ctx)
 {
-    auto getTopNodeLevelTransform = [&](const SceneHierarchyNode& node) -> Transform3d {
-        SceneHierarchyHandle parent = node.Parent;
-        if (parent == SceneHierarchyHandle::INVALID)
+    auto getTopNodeLevelTransform = [&](const lux::SceneHierarchyNode& node) -> Transform3d {
+        lux::SceneHierarchyHandle parent = node.Parent;
+        if (parent == lux::SceneHierarchyHandle::INVALID)
             return node.LocalTransform;
 
         for (;;)
         {
-            SceneHierarchyHandle current = parent;
+            lux::SceneHierarchyHandle current = parent;
             parent = m_HierarchyInfo.Nodes[parent.Handle].Parent;
-            if (parent == SceneHierarchyHandle::INVALID)
+            if (parent == lux::SceneHierarchyHandle::INVALID)
                 return m_HierarchyInfo.Nodes[current.Handle].LocalTransform;
         }
     };
@@ -144,18 +170,19 @@ void Scene::HandleReplacements(FrameContext& ctx)
 
     struct ReinstantiationData
     {
-        const SceneInfo* Replacement{nullptr};
+        lux::SceneHandle Replacement{};
         SceneInstantiationData InstantiationData{};
     };
-    std::unordered_map<SceneInstanceHandle, ReinstantiationData> reinstantiationData;
+    std::unordered_map<lux::SceneInstanceHandle, ReinstantiationData> reinstantiationData;
     for (auto&& [original, replacement] : m_ReplacedScenes)
     {
-        auto& originalInstances = m_SceneInstancesMap[original].Instances;
+        auto& originalInstances = m_ScenesMap[original].Instances;
         for (auto& node : m_HierarchyInfo.Nodes)
         {
             if (originalInstances.contains(node.Instance) && !reinstantiationData.contains(node.Instance))
             {
-                const Transform3d topNodeOriginalTransform = original->m_Hierarchy.Nodes.front().LocalTransform;
+                const lux::SceneAsset& originalScene = *m_SceneAssetManager->Get(original);
+                const Transform3d topNodeOriginalTransform = originalScene.Hierarchy.Nodes.front().LocalTransform;
                 
                 reinstantiationData.emplace(
                     node.Instance, ReinstantiationData{
@@ -171,9 +198,17 @@ void Scene::HandleReplacements(FrameContext& ctx)
     for (const auto& instance : reinstantiationData | std::views::keys)
         Delete(instance);
     Sweep(/*reclaimHandles*/false);
+
+    for (auto&& [original, _] : m_ReplacedScenes)
+    {
+        m_Geometry.Delete(*m_SceneAssetManager->Get(original));
+        m_ScenesMap[original].HasGeometry = false;
+    }
     
     for (auto&& [instance, reinstantiationInfo] : reinstantiationData) {
-        MapSceneInstanceToSceneInfo(*reinstantiationInfo.Replacement, instance);
+        if (!reinstantiationInfo.Replacement.IsValid())
+            continue;
+        MapSceneInstanceToSceneInfo(reinstantiationInfo.Replacement, instance);
         InstantiateHandle(instance, reinstantiationInfo.InstantiationData);
     }
     Spawn(ctx);
@@ -192,10 +227,10 @@ void Scene::Spawn(FrameContext& ctx)
     for (auto&& [instanceHandle, instantiationData] : m_NewInstances)
     {
         auto& instance = m_ActiveInstances[instanceHandle];
-        if (!m_SceneInstancesMap[instance.m_SceneInfo].HasGeometry)
+        if (!m_ScenesMap[instance.Scene].HasGeometry)
         {
-            m_Geometry.Add(*instance.m_SceneInfo, ctx);
-            m_SceneInstancesMap[instance.m_SceneInfo].HasGeometry = true;
+            m_Geometry.Add(*m_SceneAssetManager->Get(instance.Scene), ctx);
+            m_ScenesMap[instance.Scene].HasGeometry = true;
         }
 
         if (instanceHandle >= m_InstanceIsAlive.size())
@@ -211,10 +246,10 @@ void Scene::Sweep(bool reclaimHandles)
     if (m_DeletedInstances.empty())
         return;
     
-    auto reparentToValid = [&](SceneHierarchyNode& node) {
-        SceneHierarchyHandle parent = node.Parent;
+    auto reparentToValid = [&](lux::SceneHierarchyNode& node) {
+        lux::SceneHierarchyHandle parent = node.Parent;
         while (
-            parent != SceneHierarchyHandle::INVALID &&
+            parent != lux::SceneHierarchyHandle::INVALID &&
             !m_InstanceIsAlive[m_HierarchyInfo.Nodes[parent].Instance])
         {
             parent = m_HierarchyInfo.Nodes[parent].Parent;
@@ -234,12 +269,12 @@ void Scene::Sweep(bool reclaimHandles)
     u32 currentLast = (u32)m_HierarchyInfo.Nodes.size() - 1;
     for (i32 i = (i32)currentLast; i >= 0; i--)
     {
-        SceneHierarchyNode& node = m_HierarchyInfo.Nodes[i];
+        lux::SceneHierarchyNode& node = m_HierarchyInfo.Nodes[i];
         
         if (m_InstanceIsAlive[node.Instance])
             continue;
         
-        if (node.Type == SceneHierarchyNodeType::Light)
+        if (node.Type == lux::SceneHierarchyNodeType::Light)
             m_Lights.Delete(node.PayloadIndex);
 
         reorder[currentLast] = i;
@@ -249,7 +284,7 @@ void Scene::Sweep(bool reclaimHandles)
 
     for (auto& node : m_HierarchyInfo.Nodes)
     {
-        if (node.Parent != SceneHierarchyHandle::INVALID)
+        if (node.Parent != lux::SceneHierarchyHandle::INVALID)
         {
             u32 order = node.Parent.Handle;
             u32 reordered = reorder[order];
@@ -268,10 +303,9 @@ void Scene::Sweep(bool reclaimHandles)
     {
         auto& instance = m_ActiveInstances[instanceHandle];
         m_Geometry.DeleteRenderObjects(instanceHandle);
-        m_SceneInstancesMap[instance.m_SceneInfo].Instances.erase(instanceHandle);
-        
+        m_ScenesMap[instance.Scene].Instances.erase(instanceHandle);
         m_InstanceDeletedSignal.Emit({
-            .SceneInfo = instance.m_SceneInfo,
+            .Scene = m_SceneAssetManager->Get(instance.Scene),
             .Instance = instanceHandle,
         });
     }
@@ -297,17 +331,17 @@ void updateRenderObject(Buffer renderObjects, u32 renderObjectIndex,
         renderObjectIndex * sizeof(RenderObjectGPU) + offsetof(RenderObjectGPU, Transform));
 }
 
-void updateLight(CommonLight& light, const glm::mat4& transform)
+void updateLight(lux::CommonLight& light, const glm::mat4& transform)
 {
     switch (light.Type)
     {
-    case LightType::Directional:
+    case lux::LightType::Directional:
         light.PositionDirection = glm::normalize(transform * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f));
         break;
-    case LightType::Point:
+    case lux::LightType::Point:
         light.PositionDirection = transform * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
         break;
-    case LightType::Spot:
+    case lux::LightType::Spot:
         ASSERT(false, "Spot light is not implemented")
         break;
     }
@@ -321,7 +355,7 @@ void Scene::UpdateHierarchy(FrameContext& ctx)
     m_RenderObjectPreviousTransforms.resize(m_MaxRenderObjectIndex);
 
     for (u32 i = 0; i < nodes.size(); i++)
-        transforms[i] = nodes[i].Parent == SceneHierarchyHandle::INVALID ?
+        transforms[i] = nodes[i].Parent == lux::SceneHierarchyHandle::INVALID ?
             nodes[i].LocalTransform.ToMatrix() :
             transforms[nodes[i].Parent.Handle] * nodes[i].LocalTransform.ToMatrix();
 
@@ -329,7 +363,7 @@ void Scene::UpdateHierarchy(FrameContext& ctx)
     {
         switch (node.Type)
         {
-        case SceneHierarchyNodeType::Mesh:
+        case lux::SceneHierarchyNodeType::Mesh:
             {
                 auto& previousTransform = m_RenderObjectPreviousTransforms[node.PayloadIndex];
                 updateRenderObject(Device::GetBufferArenaUnderlyingBuffer(Geometry().RenderObjects), node.PayloadIndex,
@@ -337,12 +371,29 @@ void Scene::UpdateHierarchy(FrameContext& ctx)
                 m_RenderObjectPreviousTransforms[node.PayloadIndex] = transforms[i];
             }
             break;
-        case SceneHierarchyNodeType::Light:
+        case lux::SceneHierarchyNodeType::Light:
             updateLight(Lights().Get(node.PayloadIndex), transforms[i]);
             break;
-        case SceneHierarchyNodeType::Dummy:
+        case lux::SceneHierarchyNodeType::Dummy:
         default:
             break;
         }
     }
+}
+
+void Scene::HandleMaterialUpdates(FrameContext& ctx)
+{
+    if (m_UpdatedMaterials.empty())
+        return;
+    
+    for (auto& updateInfo : m_UpdatedMaterials)
+    {
+        const lux::SceneHandle sceneHandle = updateInfo.Scene;
+        if (!m_ScenesMap.contains(sceneHandle))
+            continue;
+        
+        m_Geometry.UpdateMaterials(*m_SceneAssetManager->Get(sceneHandle), ctx);
+    }
+    
+    m_UpdatedMaterials.clear();
 }

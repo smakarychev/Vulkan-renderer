@@ -12,6 +12,12 @@
 
 namespace lux
 {
+void MaterialAssetManager::OnAssetSystemInit()
+{
+    m_ImageAssetManager = m_AssetSystem->GetAssetManagerFor<ImageAssetManager>(assetlib::image::getMetadata().Type);
+    ASSERT(m_ImageAssetManager)
+}
+
 bool MaterialAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
 {
     if (path.extension() != bakers::MATERIAL_ASSET_EXTENSION)
@@ -43,15 +49,21 @@ void MaterialAssetManager::OnFileModified(const std::filesystem::path& path)
     if (path.extension() != bakers::MATERIAL_ASSET_EXTENSION)
         return;
 
-    Lock lock(m_ResourceAccessMutex);
+    MaterialHandle cached;
+    
+    {
+        Lock lock(m_ResourceAccessMutex);
 
-    const MaterialHandle cached = m_Materials.Find(weakly_canonical(path).generic_string());
-    if (!cached.IsValid())
-        return;
+        cached = m_Materials.Find(weakly_canonical(path).generic_string());
+        if (!cached.IsValid())
+            return;
 
-    auto newMaterial = DoLoad({.Path = path});
-    if (newMaterial.has_value())
-        m_Materials[cached.Index()] = std::move(*newMaterial);
+        auto newMaterial = DoLoad({.Path = path});
+        if (newMaterial.has_value())
+            m_Materials[cached.Index()] = std::move(*newMaterial);
+    }
+    
+    m_AssetSystem->NotifyAssetUpdate(assetlib::material::getMetadata().Type, {.AssetHandle = cached});
 }
 
 MaterialHandle MaterialAssetManager::LoadAsset(const MaterialLoadParameters& parameters)
@@ -96,9 +108,7 @@ std::optional<MaterialAsset> MaterialAssetManager::DoLoad(const MaterialLoadPara
     if (!materialAsset.has_value())
         return std::nullopt;
 
-    ImageAssetManager* imageAssetManager =
-        m_AssetSystem->GetAssetManagerFor<ImageAssetManager>(assetlib::image::getMetadata().Type);
-    ASSERT(imageAssetManager)
+    ASSERT(m_ImageAssetManager)
 
     MaterialAsset material = {
         .Name = StringId::FromString(materialAsset->Name),
@@ -110,11 +120,11 @@ std::optional<MaterialAsset> MaterialAssetManager::DoLoad(const MaterialLoadPara
         .AlphaCutoff = materialAsset->AlphaCutoff,
         .DoubleSided = materialAsset->DoubleSided,
         .OcclusionStrength = materialAsset->OcclusionStrength,
-        .BaseColorTexture = LoadTexture(imageAssetManager, materialAsset->BaseColorTexture),
-        .EmissiveTexture = LoadTexture(imageAssetManager, materialAsset->EmissiveTexture),
-        .NormalTexture = LoadTexture(imageAssetManager, materialAsset->NormalTexture),
-        .MetallicRoughnessTexture = LoadTexture(imageAssetManager, materialAsset->MetallicRoughnessTexture),
-        .OcclusionTexture = LoadTexture(imageAssetManager, materialAsset->OcclusionTexture),
+        .BaseColorTexture = LoadTexture(m_ImageAssetManager, materialAsset->BaseColorTexture),
+        .EmissiveTexture = LoadTexture(m_ImageAssetManager, materialAsset->EmissiveTexture),
+        .NormalTexture = LoadTexture(m_ImageAssetManager, materialAsset->NormalTexture),
+        .MetallicRoughnessTexture = LoadTexture(m_ImageAssetManager, materialAsset->MetallicRoughnessTexture),
+        .OcclusionTexture = LoadTexture(m_ImageAssetManager, materialAsset->OcclusionTexture),
     };
 
     return material;

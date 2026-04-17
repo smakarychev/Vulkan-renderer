@@ -2,7 +2,6 @@
 
 #include "ShaderReflection.h"
 
-#include "AssetManager.h"
 #include "ShaderPipelineTemplate.h"
 #include "Vulkan/Device.h"
 #include "Rendering/DeletionQueue.h"

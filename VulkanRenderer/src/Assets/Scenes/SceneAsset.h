@@ -6,6 +6,9 @@
 #include <AssetLib/Scenes/SceneAsset.h>
 #include <CoreLib/Math/Transform.h>
 
+struct PointLight;
+struct DirectionalLight;
+
 namespace lux
 {
 struct SceneRenderObject;
@@ -24,12 +27,24 @@ struct SceneGeometryInfo
     std::vector<MaterialGPU> Materials;
     std::vector<assetlib::SceneAssetMeshlet> Meshlets;
     
-    std::vector<MaterialHandle> MaterialsCpu;
+    struct MaterialInfo
+    {
+        MaterialHandle Handle{};
+        u32 BaseColorUvIndex{0};
+        u32 EmissiveUvIndex{0};
+        u32 NormalUvIndex{0};
+        u32 MetallicRoughnessUvIndex{0};
+        u32 OcclusionUvIndex{0};
+    };
+    std::vector<MaterialInfo> MaterialsCpu;
 };
 
 struct SceneLightInfo
 {
     std::vector<CommonLight> Lights;
+    
+    void AddLight(const DirectionalLight& light);
+    void AddLight(const PointLight& light);
 };
 
 struct SceneHierarchyInfo
@@ -43,9 +58,13 @@ struct SceneAsset
     SceneGeometryInfo Geometry{};
     SceneLightInfo Lights{};
     SceneHierarchyInfo Hierarchy{};
+    
+    void AddLight(const DirectionalLight& light);
+    void AddLight(const PointLight& light);
 };
 
 using SceneHandle = AssetHandle<SceneAsset>;
+using SceneInstanceHandle = u32;
 
 struct SceneRenderObject
 {
@@ -106,6 +125,6 @@ struct SceneHierarchyNode
     SceneHierarchyHandle Parent{};
     Transform3d LocalTransform{};
     u32 PayloadIndex{0};
-    SceneHandle Instance{};
+    SceneInstanceHandle Instance{};
 };
 }

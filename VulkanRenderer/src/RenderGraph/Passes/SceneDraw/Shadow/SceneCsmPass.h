@@ -47,5 +47,5 @@ struct PassData
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 void mergeCsm(RG::Graph& renderGraph, PassData& passData, const ScenePass& scenePass,
     const SceneDrawPassViewAttachments& attachments);
-ScenePassCreateInfo getScenePassCreateInfo(StringId name);
+ScenePassCreateInfo getScenePassCreateInfo(StringId name, const lux::MaterialAssetManager& materialAssetManager);
 }

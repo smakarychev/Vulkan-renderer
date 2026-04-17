@@ -33,3 +33,23 @@ public:
     auto operator<=>(const AssetHandle&) const = default;
 };
 }
+
+namespace std
+{
+template <>
+struct hash<lux::AssetHandleBase>
+{
+    usize operator()(const lux::AssetHandleBase handle) const noexcept
+    {
+        return std::hash<u64>{}((u64)handle.Index() | ((u64)handle.Version() << 32u));
+    }
+};
+template <typename Resource>
+struct hash<lux::AssetHandle<Resource>>
+{
+    usize operator()(const lux::AssetHandle<Resource> handle) const noexcept
+    {
+        return std::hash<lux::AssetHandleBase>{}(std::bit_cast<lux::AssetHandleBase>(handle));
+    }
+};
+}

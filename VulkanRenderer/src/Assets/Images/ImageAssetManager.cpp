@@ -128,16 +128,22 @@ void ImageAssetManager::OnRawFileModified(const std::filesystem::path& path)
 
 void ImageAssetManager::OnBakedFileModified(const std::filesystem::path& path)
 {
-    Lock lock(m_ResourceAccessMutex);
+    ImageHandle cached;
+    
+    {
+        Lock lock(m_ResourceAccessMutex);
 
-    const ImageHandle cached = m_Images.Find(weakly_canonical(path).generic_string());
-    if (!cached.IsValid())
-        return;
+        cached = m_Images.Find(weakly_canonical(path).generic_string());
+        if (!cached.IsValid())
+            return;
 
-    m_FrameDeletionQueue->Enqueue(GetAsset(cached));
-    const ImageAsset newImage = DoLoad({.Path = path});
-    if (newImage.HasValue())
-        m_Images[cached.Index()] = newImage;
+        m_FrameDeletionQueue->Enqueue(GetAsset(cached));
+        const ImageAsset newImage = DoLoad({.Path = path});
+        if (newImage.HasValue())
+            m_Images[cached.Index()] = newImage;
+    }
+    
+    m_AssetSystem->NotifyAssetUpdate(assetlib::image::getMetadata().Type, {.AssetHandle = cached});
 }
 
 ImageAsset ImageAssetManager::DoLoad(const ImageLoadParameters& parameters) const

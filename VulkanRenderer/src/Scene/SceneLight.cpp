@@ -9,31 +9,6 @@
 #include "Rendering/Buffer/BufferUtility.h"
 #include "Vulkan/Device.h"
 
-#include <AssetLib/Scenes/SceneAsset.h>
-
-Transform3d CommonLight::GetTransform() const
-{
-    switch (Type)
-    {
-    case LightType::Directional:
-        return Transform3d {
-            .Orientation = glm::quatLookAt(PositionDirection, glm::vec3(0.0f, 1.0f, 0.0f)),
-        };
-    case LightType::Point:
-        return Transform3d {
-            .Position = PositionDirection,
-        };
-    case LightType::Spot:
-        ASSERT(false, "Spot light is not supported")
-        break;
-    default:
-        ASSERT(false, "Light type is not supported")
-        break;
-    }
-    
-    std::unreachable();
-}
-
 SceneLight SceneLight::CreateEmpty(DeletionQueue& deletionQueue)
 {
     SceneLight light = {};
@@ -54,7 +29,7 @@ SceneLight SceneLight::CreateEmpty(DeletionQueue& deletionQueue)
     return light;
 }
 
-u32 SceneLight::Add(CommonLight light)
+u32 SceneLight::Add(lux::CommonLight light)
 {
     return m_Lights.insert(light);
 }
@@ -72,15 +47,15 @@ void SceneLight::OnUpdate(FrameContext& ctx)
     {
         switch (light.Type)
         {
-        case LightType::Directional:
+        case lux::LightType::Directional:
             UpdateDirectionalLight(light, directionalLightIndex, ctx);
             directionalLightIndex++;
             break;
-        case LightType::Point:
+        case lux::LightType::Point:
             UpdatePointLight(light, pointLightIndex, ctx);
             pointLightIndex++;
             break;
-        case LightType::Spot:
+        case lux::LightType::Spot:
             ASSERT(false, "Spot light is not supported")
             break;
         }
@@ -92,7 +67,7 @@ void SceneLight::OnUpdate(FrameContext& ctx)
     };
 }
 
-void SceneLight::UpdateDirectionalLight(CommonLight& light, u32 lightIndex, FrameContext& ctx)
+void SceneLight::UpdateDirectionalLight(lux::CommonLight& light, u32 lightIndex, FrameContext& ctx)
 {
     const DirectionalLight directionalLight = {{
         .Direction = light.PositionDirection,
@@ -111,7 +86,7 @@ void SceneLight::UpdateDirectionalLight(CommonLight& light, u32 lightIndex, Fram
         lightIndex * sizeof(directionalLight));
 }
 
-void SceneLight::UpdatePointLight(CommonLight& light, u32 lightIndex, FrameContext& ctx)
+void SceneLight::UpdatePointLight(lux::CommonLight& light, u32 lightIndex, FrameContext& ctx)
 {
     const PointLight pointLight = {{
         .Position = light.PositionDirection,

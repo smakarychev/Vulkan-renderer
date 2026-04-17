@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include <CoreLib/core.h>
 #include <CoreLib/types.h>
-#include <CoreLib/Containers/PagedArray.h>
+#include <CoreLib/Containers/PagedDenseArray.h>
 
 namespace lux
 {
@@ -29,7 +29,7 @@ public:
     constexpr const T& operator[](u32 index) const;
     constexpr T& operator[](u32 index);
 private:
-    PagedArray<T> m_Elements;
+    PagedDenseArray<T> m_Elements;
     
     u32 m_FirstFree{NO_FREE};
     u32 m_Size{0};

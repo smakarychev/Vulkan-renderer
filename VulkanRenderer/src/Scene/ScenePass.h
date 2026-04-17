@@ -4,8 +4,6 @@
 
 #include <CoreLib/String/StringId.h>
 
-struct SceneGeometryInfo;
-
 struct ScenePassCreateInfo
 {
     StringId Name{};
@@ -22,7 +20,7 @@ public:
     StringId Name() const { return m_Name; }
     
     void AddBuckets(Span<const SceneBucketCreateInfo> buckets);
-    SceneBucketHandle Filter(const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject);
+    SceneBucketHandle Filter(const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject);
 
     u32 BucketCount() const { return (u32)m_BucketHandles.size(); }
     const std::vector<SceneBucketHandle>& BucketHandles() const { return m_BucketHandles; }

@@ -14,7 +14,6 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <GLFW/glfw3.h>
 
-#include "AssetManager.h"
 #include "FrameContext.h"
 #include "Rendering/Buffer/Buffer.h"
 #include "Core/ProfilerContext.h"

@@ -10,7 +10,7 @@ class DeviceSparseSet
     using Handle = GenerationalResourceHandle<typename T::ObjectType>;
     using HandleSparseSet = lux::SparseSetType<u32, Handle>;
     using Traits = lux::SparseSetGenerationTraits<Handle>;
-    using ResourceSet = lux::PagedArray<T>;
+    using ResourceSet = lux::PagedDenseArray<T>;
 public:
     using ValueType = T;
     

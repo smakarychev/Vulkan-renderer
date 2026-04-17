@@ -1,13 +1,14 @@
 #pragma once
 
 #include "SceneGeometry.h"
-#include "SceneInfo.h"
 #include "RenderGraph/Passes/Generated/Types/DrawInfoUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/MeshletBucketInfoUniform.generated.h"
 #include "Rendering/Commands/RenderCommands.h"
 #include "Rendering/Shader/ShaderOverrides.h"
 
 #include <CoreLib/String/StringId.h>
+
+class Scene;
 
 struct SceneRenderObjectHandle
 {
@@ -34,7 +35,7 @@ static constexpr SceneBucketHandle INVALID_SCENE_BUCKET{~0u};
 
 struct SceneBucketCreateInfo
 {
-    using FilterFn = std::function<bool(const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject)>;
+    using FilterFn = std::function<bool(const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject)>;
     StringId Name{};
     FilterFn Filter{};
     ShaderOverrides ShaderOverrides{};

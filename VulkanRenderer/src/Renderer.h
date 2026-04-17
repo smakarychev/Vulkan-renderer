@@ -9,6 +9,7 @@
 #include "Core/Camera.h"
 #include "RenderGraph/RGGraph.h"
 #include "FrameContext.h"
+#include "AssetBakerLib/Bakers/Scenes/SceneBaker.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Images/ImageAssetManager.h"
 #include "RenderGraph/Passes/Clouds/CloudCommon.h"
@@ -30,6 +31,7 @@
 
 namespace lux
 {
+class SceneAssetManager;
 class MaterialAssetManager;
 class ImageAssetManager;
 }
@@ -84,7 +86,7 @@ private:
     void UpdateGlobalRenderGraphResources() const;
 
     RG::CsmData RenderGraphShadows(const ScenePass& scenePass,
-        const CommonLight& directionalLight);
+        const lux::CommonLight& directionalLight);
     Passes::SceneMetaDraw::PassData& RenderGraphDepthPrepass(RG::Resource depth, const ScenePass& scenePass);
     SceneDrawPassDescription RenderGraphDepthPrepassDescription(RG::Resource depth, const ScenePass& scenePass);
     SceneDrawPassDescription RenderGraphForwardPbrDescription(RG::Resource color, RG::Resource depth,
@@ -192,11 +194,13 @@ private:
     lux::bakers::Context m_BakerCtx{};
     lux::bakers::SlangBakeSettings m_SlangBakeSettings{};
     lux::bakers::ImageBakeSettings m_ImageBakeSettings{};
+    lux::bakers::SceneBakeSettings m_SceneBakeSettings{};
 
     lux::AssetSystem m_AssetSystem;
     std::unique_ptr<lux::ShaderAssetManager> m_ShaderAssetManager;
     std::unique_ptr<lux::ImageAssetManager> m_ImageAssetManager;
     std::unique_ptr<lux::MaterialAssetManager> m_MaterialAssetManager;
+    std::unique_ptr<lux::SceneAssetManager> m_SceneAssetManager;
     
     std::unique_ptr<RG::Graph> m_Graph;
     std::unique_ptr<RG::RGMermaidExporter> m_MermaidExporter;
@@ -237,13 +241,13 @@ private:
     Passes::Clouds::VP::CloudParameters m_CloudParameters{};
     RG::Resource m_CloudParametersResource{};
     bool m_CloudsReprojectionEnabled{true};
-    CommonLight* m_SunLight{nullptr};
+    lux::CommonLight* m_SunLight{nullptr};
     
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
 
-    std::vector<SceneInfo*> m_Scenes;
-    SceneInfo m_Lights{};
-    Scene m_Scene;
+    std::vector<lux::SceneHandle> m_Scenes;
+    lux::SceneHandle m_Lights{};
+    std::unique_ptr<Scene> m_Scene;
     SceneBucketList m_SceneBucketList;
     SceneRenderObjectSet m_OpaqueSet;
     SceneVisibilityHandle m_OpaqueSetPrimaryVisibility{};
