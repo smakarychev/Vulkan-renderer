@@ -182,7 +182,9 @@ constexpr std::vector<St>& SparseSetType<St, Dt>::GetOrCreate(u32 index)
 {
     u32 pageNum = index >> SPARSE_SET_PAGE_SIZE_LOG;
     if (pageNum >= m_SparsePaged.size())
-        m_SparsePaged.resize(pageNum + 1, std::vector<St>(SPARSE_SET_PAGE_SIZE, INVALID_INDEX));
+        m_SparsePaged.resize(pageNum + 1);
+    if (m_SparsePaged[pageNum].empty())
+        m_SparsePaged[pageNum].resize(SPARSE_SET_PAGE_SIZE, INVALID_INDEX);
 
     return m_SparsePaged[pageNum];
 }
