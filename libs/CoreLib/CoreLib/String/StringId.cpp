@@ -6,6 +6,7 @@
 #include <unordered_map>
 
 std::unordered_map<u64, std::string> StringIdRegistry::s_Strings;
+std::shared_mutex StringIdRegistry::s_Mutex;
 
 static_assert(std::is_trivially_move_constructible_v<StringId>);
 static_assert(std::is_trivially_move_assignable_v<StringId>);
@@ -18,13 +19,20 @@ static_assert(std::_Is_trivially_swappable_v<StringId>);
 StringId::StringId(const HashedStringView& string)
     : m_Hash(string.Hash())
 {
-    if (StringIdRegistry::s_Strings.contains(m_Hash))
     {
-        ASSERT(StringIdRegistry::s_Strings.at(m_Hash) == string.String(), "Hash collision for StringId {} and {}",
-            StringIdRegistry::s_Strings.at(m_Hash), string.String())
-        return;
+        std::shared_lock lock(StringIdRegistry::s_Mutex);
+        if (StringIdRegistry::s_Strings.contains(m_Hash))
+        {
+            ASSERT(StringIdRegistry::s_Strings.at(m_Hash) == string.String(), "Hash collision for StringId {} and {}",
+                StringIdRegistry::s_Strings.at(m_Hash), string.String())
+            return;
+        }
     }
-    StringIdRegistry::s_Strings[m_Hash] = string.String();
+    
+    {
+        std::scoped_lock lock(StringIdRegistry::s_Mutex);
+        StringIdRegistry::s_Strings[m_Hash] = string.String();
+    }
 }
 
 StringId StringId::FromString(std::string_view string)
@@ -49,11 +57,15 @@ StringId StringId::Concatenate(std::string_view other) const
 
 const std::string& StringId::AsString() const
 {
+    std::shared_lock lock(StringIdRegistry::s_Mutex);
+    
     return StringIdRegistry::s_Strings.at(m_Hash);
 }
 
 std::string_view StringId::AsStringView() const
 {
+    std::shared_lock lock(StringIdRegistry::s_Mutex);
+    
     return StringIdRegistry::s_Strings.at(m_Hash);
 }
 

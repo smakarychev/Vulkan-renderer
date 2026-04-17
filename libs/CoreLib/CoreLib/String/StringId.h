@@ -5,6 +5,7 @@
 #include <CoreLib/types.h>
 
 #include <format>
+#include <shared_mutex>
 #include <string>
 #include <unordered_map>
 
@@ -59,6 +60,7 @@ public:
     static void Init();
 private:
     static std::unordered_map<u64, std::string> s_Strings;
+    static std::shared_mutex s_Mutex;
 };
 
 
