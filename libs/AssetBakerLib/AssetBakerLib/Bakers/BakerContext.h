@@ -19,6 +19,7 @@ using IoResult = assetlib::io::IoResult<T>;
 struct Context
 {
     std::filesystem::path InitialDirectory{};
+    std::filesystem::path BakedDirectory{};
     assetlib::io::AssetIoInterface* Io{nullptr};
     assetlib::io::AssetCompressor* Compressor{nullptr};
 };

@@ -16,8 +16,9 @@ struct AssetPaths
     std::filesystem::path HeaderPath{};
     std::filesystem::path BinaryPath{};
 };
-std::filesystem::path getPostBakePath(const std::filesystem::path& path, const Context& ctx);
-AssetPaths getPostBakePaths(const std::filesystem::path& path, const Context& ctx, std::string_view postBakeExtension,
-    const assetlib::io::AssetIoInterface& io);
-assetlib::AssetId getBakedAssetId(const std::filesystem::path& bakedPath, assetlib::io::AssetIoInterface& io);
+
+std::filesystem::path getPostBakePath(const assetlib::AssetMetadata& metadata, std::string_view postBakeExtension,
+    const Context& ctx);
+AssetPaths getPostBakePaths(const assetlib::AssetMetadata& metadata, std::string_view postBakeExtension,
+    const Context& ctx);
 }

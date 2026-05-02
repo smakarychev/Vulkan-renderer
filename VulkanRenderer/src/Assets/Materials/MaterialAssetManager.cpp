@@ -5,41 +5,43 @@
 #include "Assets/Enums/ConvertAssetEnums.h"
 #include "Assets/Images/ImageAssetManager.h"
 
+#include <AssetLib/Images/ImageMeta.h>
 #include <AssetLib/Materials/MaterialAsset.h>
-#include <AssetLib/Images/ImageAsset.h>
-#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
+#include <AssetLib/Materials/MaterialMeta.h>
 #include <AssetBakerLib/Bakers/Bakers.h>
+#include <AssetBakerLib/Importers/Materials/MaterialImporter.h>
 
 namespace lux
 {
 void MaterialAssetManager::OnAssetSystemInit()
 {
-    m_ImageAssetManager = m_AssetSystem->GetAssetManagerFor<ImageAssetManager>(assetlib::image::getMetadata().Type);
+    m_ImageAssetManager = m_AssetSystem->GetAssetManagerFor<ImageAssetManager>(assetlib::image::ASSET_TYPE);
     ASSERT(m_ImageAssetManager)
 }
 
 bool MaterialAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
 {
-    if (path.extension() != bakers::MATERIAL_ASSET_EXTENSION)
+    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || 
+        assetlib::getMetadataRawExtension(path) != bakers::MATERIAL_ASSET_EXTENSION)
+        return false;
+    
+    auto metadataRead = assetlib::io::readBaseAssetMetadata(path);
+    if (!metadataRead.has_value())
+        return false;
+    
+    if (metadataRead->Type.Type != assetlib::material::ASSET_TYPE)
         return false;
 
-    auto assetFile = m_AssetSystem->GetIo().ReadHeader(path);
-    if (!assetFile.has_value())
-        return false;
-
-    auto material = assetlib::material::readMaterial(*assetFile);
-    if (!material.has_value())
-        return false;
-
-    resolver.RegisterId(assetFile->Metadata.AssetId, {
-        .Path = path,
-        .AssetType = assetFile->Metadata.Type
+    resolver.RegisterId(metadataRead->AssetId, {
+        .Path = metadataRead->Io.OriginalFile,
+        .MetaPath = path,
+        .AssetType = metadataRead->Type.Type
     });
 
     return true;
 }
 
-bool MaterialAssetManager::Bakes(const std::filesystem::path& path)
+bool MaterialAssetManager::Bakes(std::string_view extension)
 {
     return false;
 }
@@ -50,45 +52,54 @@ void MaterialAssetManager::OnFileModified(const std::filesystem::path& path)
         return;
 
     MaterialHandle cached;
-    
+    bakers::MaterialImporter importer(m_Ctx);
+    const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
     {
         Lock lock(m_ResourceAccessMutex);
-
-        cached = m_Materials.Find(weakly_canonical(path).generic_string());
+        cached = m_Materials.Find(id);
         if (!cached.IsValid())
             return;
-
-        auto newMaterial = DoLoad({.Path = path});
+    }
+    auto newMaterial = DoLoad(importer, path);
+    {
+        Lock lock(m_ResourceAccessMutex);
         if (newMaterial.has_value())
             m_Materials[cached.Index()] = std::move(*newMaterial);
     }
     
-    m_AssetSystem->NotifyAssetUpdate(assetlib::material::getMetadata().Type, {.AssetHandle = cached});
+    m_AssetSystem->NotifyAssetUpdate(assetlib::material::ASSET_TYPE, {.AssetHandle = cached});
 }
 
 MaterialHandle MaterialAssetManager::LoadAsset(const MaterialLoadParameters& parameters)
 {
     const std::filesystem::path path = weakly_canonical(parameters.Path).generic_string();
-    const MaterialHandle cached = m_Materials.Find(path);
+    bakers::MaterialImporter importer(m_Ctx);
+    const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
+    
+    const MaterialHandle cached = m_Materials.Find(id);
     if (cached.IsValid())
         return cached;
 
-    auto material = DoLoad(parameters);
+    auto material = DoLoad(importer, path);
     if (!material.has_value())
         return {};
 
-    return m_Materials.Add(std::move(*material), path);
+    return m_Materials.Add(std::move(*material), id);
 }
 
 void MaterialAssetManager::UnloadAsset(MaterialHandle handle)
 {
-    const std::filesystem::path* path = m_Materials.Find(handle);
-    if (path == nullptr)
+    const assetlib::AssetId id = m_Materials.Find(handle);
+    if (!id.HasValue())
+        return;
+    
+    const auto* assetInfo = m_AssetSystem->Resolve(id);
+    if (!assetInfo)
         return;
 
-    LUX_LOG_INFO("Unloading material: {}", path->string());
+    LUX_LOG_INFO("Unloading material: {}", assetInfo->Path.string());
 
-    m_Materials.Erase(handle, *path);
+    m_Materials.Erase(handle, id);
 }
 
 const MaterialAsset* MaterialAssetManager::GetAsset(MaterialHandle handle) const
@@ -96,35 +107,36 @@ const MaterialAsset* MaterialAssetManager::GetAsset(MaterialHandle handle) const
     return &m_Materials[handle.Index()];
 }
 
-std::optional<MaterialAsset> MaterialAssetManager::DoLoad(const MaterialLoadParameters& parameters) const
+std::optional<MaterialAsset> MaterialAssetManager::DoLoad(bakers::MaterialImporter& importer, 
+    const std::filesystem::path& path) const
 {
-    LUX_LOG_INFO("Loading material: {}", parameters.Path.string());
+    LUX_LOG_INFO("Loading material: {}", path.string());
     
-    const auto assetFile = m_AssetSystem->GetIo().ReadHeader(parameters.Path);
-    if (!assetFile.has_value())
+    auto imported = importer.Import(path);
+    if (!imported.has_value())
+    {
+        LUX_LOG_ERROR("Failed to load material: {} ({})", imported.error(), path.string());
         return std::nullopt;
-
-    auto materialAsset = assetlib::material::readMaterial(*assetFile);
-    if (!materialAsset.has_value())
-        return std::nullopt;
-
+    }
+    auto& materialAsset = importer.GetImportedMaterial().Asset;
+    
     ASSERT(m_ImageAssetManager)
 
     MaterialAsset material = {
-        .Name = StringId::FromString(materialAsset->Name),
-        .BaseColor = materialAsset->BaseColor,
-        .Metallic = materialAsset->Metallic,
-        .Roughness = materialAsset->Roughness,
-        .EmissiveFactor = materialAsset->EmissiveFactor,
-        .AlphaMode = materialAlphaModeFromAssetAlphaMode(materialAsset->AlphaMode),
-        .AlphaCutoff = materialAsset->AlphaCutoff,
-        .DoubleSided = materialAsset->DoubleSided,
-        .OcclusionStrength = materialAsset->OcclusionStrength,
-        .BaseColorTexture = LoadTexture(m_ImageAssetManager, materialAsset->BaseColorTexture),
-        .EmissiveTexture = LoadTexture(m_ImageAssetManager, materialAsset->EmissiveTexture),
-        .NormalTexture = LoadTexture(m_ImageAssetManager, materialAsset->NormalTexture),
-        .MetallicRoughnessTexture = LoadTexture(m_ImageAssetManager, materialAsset->MetallicRoughnessTexture),
-        .OcclusionTexture = LoadTexture(m_ImageAssetManager, materialAsset->OcclusionTexture),
+        .Name = StringId::FromString(materialAsset.Name),
+        .BaseColor = materialAsset.BaseColor,
+        .Metallic = materialAsset.Metallic,
+        .Roughness = materialAsset.Roughness,
+        .EmissiveFactor = materialAsset.EmissiveFactor,
+        .AlphaMode = materialAlphaModeFromAssetAlphaMode(materialAsset.AlphaMode),
+        .AlphaCutoff = materialAsset.AlphaCutoff,
+        .DoubleSided = materialAsset.DoubleSided,
+        .OcclusionStrength = materialAsset.OcclusionStrength,
+        .BaseColorTexture = LoadTexture(m_ImageAssetManager, materialAsset.BaseColorTexture),
+        .EmissiveTexture = LoadTexture(m_ImageAssetManager, materialAsset.EmissiveTexture),
+        .NormalTexture = LoadTexture(m_ImageAssetManager, materialAsset.NormalTexture),
+        .MetallicRoughnessTexture = LoadTexture(m_ImageAssetManager, materialAsset.MetallicRoughnessTexture),
+        .OcclusionTexture = LoadTexture(m_ImageAssetManager, materialAsset.OcclusionTexture),
     };
 
     return material;

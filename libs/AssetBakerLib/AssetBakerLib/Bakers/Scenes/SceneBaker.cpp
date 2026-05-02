@@ -5,9 +5,13 @@
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetLib/Materials/MaterialAsset.h>
+#include <AssetLib/Scenes/SceneMeta.h>
 #include <AssetBakerLib/utils.h>
 #include <AssetBakerLib/Bakers/BakersUtils.h>
 #include <AssetBakerLib/Bakers/Images/ImageBaker.h>
+#include <AssetBakerLib/Importers/Images/ImageImporter.h>
+#include <AssetBakerLib/Importers/Materials/MaterialImporter.h>
+#include <CoreLib/Utils/FileUtils.h>
 
 #define TINYGLTF_NO_EXTERNAL_IMAGE
 #define TINYGLTF_NO_STB_IMAGE
@@ -23,91 +27,100 @@
 
 
 #define CHECK_RETURN_IO_ERROR(x, error, ...) \
-    ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, __VA_ARGS__)
+ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, __VA_ARGS__)
+
+#define CHECK_RETURN_IO_ERROR_PROPAGATE(result) \
+ASSETLIB_CHECK_RETURN_IO_ERROR_PROPAGATE(result)
 
 static_assert(lux::assetlib::SCENE_UNSET_INDEX == (u32)(-1), "gltf absent nodes have value of -1");
 
 namespace lux::bakers
 {
-namespace 
+std::filesystem::path SceneBaker::GetBakedPath(const std::filesystem::path& metaPath) const
 {
-bool requiresBaking(const std::filesystem::path& path, const std::filesystem::path& bakedPath, const Context& ctx)
-{
-    namespace fs = std::filesystem;
-    if (!fs::exists(bakedPath))
-        return true;
+    auto metaRead = assetlib::scene::readMeta(metaPath);
+    ASSERT(metaRead.has_value())
+    if (!metaRead.has_value())
+        return {};
 
-    const auto lastBaked = fs::last_write_time(bakedPath);
-    if (lastBaked < fs::last_write_time(path))
-        return true;
+    return GetBakedPath(*metaRead);
+}
+
+std::filesystem::path SceneBaker::GetBakedPath(const assetlib::SceneMeta& meta) const
+{
+    return getPostBakePath(meta.Metadata, POST_BAKE_EXTENSION, *m_Ctx);
+}
+
+IoResult<std::filesystem::path> SceneBaker::BakeToFile(assetlib::SceneMeta& meta, 
+    const std::filesystem::path& metaPath)
+{
+    ASSERT(!meta.Metadata.Io.OriginalFile.empty())
+
+    const AssetPaths paths = getPostBakePaths(meta.Metadata, POST_BAKE_EXTENSION, *m_Ctx);
+    auto baked = Bake(meta);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(baked)
     
-    IoResult<assetlib::AssetFile> assetFileRead = ctx.Io->ReadHeader(bakedPath);
-    if (!assetFileRead.has_value())
-        return true;
-
-    const auto unpackHeader = assetlib::scene::readHeader(*assetFileRead);
-    if (!unpackHeader.has_value())
-        return true;
-
-    return false; 
-}
-}
-
-std::filesystem::path SceneBaker::GetBakedPath(const std::filesystem::path& originalFile,
-    const SceneBakeSettings&, const Context& ctx)
-{
-    std::filesystem::path path = getPostBakePath(originalFile, ctx);
-    path.replace_extension(POST_BAKE_EXTENSION);
-
-    return path;
-}
-
-IoResult<std::filesystem::path> SceneBaker::BakeToFile(const std::filesystem::path& path,
-    const SceneBakeSettings& settings, const Context& ctx)
-{
-    const AssetPaths paths = getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, *ctx.Io);
-    if (!requiresBaking(path, paths.HeaderPath, ctx))
-        return paths.HeaderPath;
-
-    auto baked = Bake(path, settings, ctx);
-    CHECK_RETURN_IO_ERROR(baked.has_value(), baked.error().Code, "{} ({})", baked.error().Message, path.string())
-
     u64 binarySizeBytes = 0;
     for (auto& buffer : baked->Header.Buffers)
         binarySizeBytes += buffer.SizeBytes;
+    
+    auto packedScene = assetlib::scene::pack(*baked, *m_Ctx->Compressor);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(packedScene)
 
-    auto packedScene = assetlib::scene::pack(*baked, *ctx.Compressor);
-    if (!packedScene.has_value())
-        return std::unexpected(packedScene.error());
-
-    auto existingAssetId = getBakedAssetId(paths.HeaderPath, *ctx.Io);
-    if (existingAssetId.HasValue())
-        packedScene->Metadata.AssetId = existingAssetId;
-
-    assetlib::AssetFile assetFile = {
-        .Metadata = std::move(packedScene->Metadata),
-        .AssetSpecificInfo = std::move(packedScene->AssetSpecificInfo)
-    };
-    assetFile.IoInfo = {
-        .OriginalFile = std::filesystem::weakly_canonical(path).generic_string(),
+    meta.Metadata.Io = {
+        .OriginalFile = meta.Metadata.Io.OriginalFile,
         .HeaderFile = std::filesystem::weakly_canonical(paths.HeaderPath).generic_string(),
         .BinaryFile = std::filesystem::weakly_canonical(paths.BinaryPath).generic_string(),
         .BinarySizeBytes = binarySizeBytes,
         .BinarySizeBytesCompressed = packedScene->PackedBinaries.size(),
         .BinarySizeBytesChunksCompressed = std::move(packedScene->PackedBinarySizeBytesChunks),
-        .CompressionMode = ctx.Compressor->GetName(),
-        .CompressionGuid = ctx.Compressor->GetGuid()
+        .IoMode = m_Ctx->Io->GetName(),
+        .CompressionMode = m_Ctx->Compressor->GetName(),
+        .IoGuid = m_Ctx->Io->GetGuid(),
+        .CompressionGuid = m_Ctx->Compressor->GetGuid()
     };
+    {
+        auto updatedMeta = assetlib::scene::packMeta(meta);
+        CHECK_RETURN_IO_ERROR_PROPAGATE(updatedMeta)
+        auto writeResult = writeStringToFile(metaPath, assetlib::io::getAssetHeaderFormatted(*updatedMeta));
+        CHECK_RETURN_IO_ERROR(writeResult.has_value(), IoError::ErrorCode::GeneralError,
+            "Failed to update meta file for {}", metaPath.string())
+    }
+    
+    IoResult<void> saveResult = m_Ctx->Io->WriteHeader(meta.Metadata, packedScene->Header);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(saveResult)
 
-    IoResult<void> saveResult = ctx.Io->WriteHeader(assetFile);
-    CHECK_RETURN_IO_ERROR(saveResult.has_value(), saveResult.error().Code, "{} ({})",
-        saveResult.error().Message, path.string())
-
-    IoResult<u64> binarySaveResult = ctx.Io->WriteBinaryChunk(assetFile, packedScene->PackedBinaries);
-    CHECK_RETURN_IO_ERROR(binarySaveResult.has_value(), binarySaveResult.error().Code, "{} ({})",
-        binarySaveResult.error().Message, path.string())
+    IoResult<u64> binarySaveResult = m_Ctx->Io->WriteBinaryChunk(meta.Metadata, packedScene->PackedBinaries);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(binarySaveResult)
 
     return paths.HeaderPath;
+}
+
+bool SceneBaker::ShouldBake(const std::filesystem::path& metaPath) const
+{
+    namespace fs = std::filesystem;
+
+    ASSERT(metaPath.extension().string() == assetlib::ASSETLIB_METADATA_EXTENSION)
+
+    auto metaRead = assetlib::scene::readMeta(metaPath);
+    if (!metaRead.has_value())
+        return true;
+
+    const std::filesystem::path rawPath = metaRead->Metadata.Io.OriginalFile;
+    const std::filesystem::path bakedPath = GetBakedPath(*metaRead);
+
+    if (!fs::exists(bakedPath))
+        return true;
+
+    const auto lastBaked = fs::last_write_time(bakedPath);
+    if (lastBaked < fs::last_write_time(metaPath) || lastBaked < fs::last_write_time(rawPath))
+        return true;
+
+    const auto readHeader = assetlib::scene::readHeader(metaRead->Metadata);
+    if (!readHeader.has_value())
+        return true;
+
+    return false;
 }
 
 namespace
@@ -116,6 +129,7 @@ struct WriteResult
 {
     u64 Offset{};
 };
+
 template <usize Alignment>
 WriteResult writeAligned(std::vector<std::byte>& destination, const void* data, u64 size)
 {
@@ -136,6 +150,7 @@ struct AccessorDataTypeTraits
 {
     static_assert(sizeof(T) == 0, "No match for type");
 };
+
 template <>
 struct AccessorDataTypeTraits<glm::vec4>
 {
@@ -143,6 +158,7 @@ struct AccessorDataTypeTraits<glm::vec4>
     static constexpr assetlib::SceneAssetAccessorComponentType COMPONENT_TYPE =
         assetlib::SceneAssetAccessorComponentType::F32;
 };
+
 template <>
 struct AccessorDataTypeTraits<glm::vec3>
 {
@@ -150,6 +166,7 @@ struct AccessorDataTypeTraits<glm::vec3>
     static constexpr assetlib::SceneAssetAccessorComponentType COMPONENT_TYPE =
         assetlib::SceneAssetAccessorComponentType::F32;
 };
+
 template <>
 struct AccessorDataTypeTraits<glm::vec2>
 {
@@ -157,6 +174,7 @@ struct AccessorDataTypeTraits<glm::vec2>
     static constexpr assetlib::SceneAssetAccessorComponentType COMPONENT_TYPE =
         assetlib::SceneAssetAccessorComponentType::F32;
 };
+
 template <>
 struct AccessorDataTypeTraits<u8>
 {
@@ -164,6 +182,7 @@ struct AccessorDataTypeTraits<u8>
     static constexpr assetlib::SceneAssetAccessorComponentType COMPONENT_TYPE =
         assetlib::SceneAssetAccessorComponentType::U8;
 };
+
 template <>
 struct AccessorDataTypeTraits<assetlib::SceneAssetMeshlet>
 {
@@ -180,6 +199,7 @@ struct ProcessContext
         u32 ViewIndex{0};
         std::vector<T> Data{};
     };
+
     AccessorProxy<glm::vec3> Positions{.ViewIndex = (u32)assetlib::SceneAssetBufferViewType::Position};
     AccessorProxy<glm::vec3> Normals{.ViewIndex = (u32)assetlib::SceneAssetBufferViewType::Normal};
     AccessorProxy<glm::vec4> Tangents{.ViewIndex = (u32)assetlib::SceneAssetBufferViewType::Tangent};
@@ -191,15 +211,12 @@ struct ProcessContext
     std::vector<std::byte> SceneBufferData{};
 
     std::filesystem::path ScenePath{};
-    std::filesystem::path InitialDirectory{};
-    assetlib::io::AssetIoInterface& Io;
-    assetlib::io::AssetCompressor& Compressor;
-
+    std::shared_ptr<Context> Ctx{nullptr};
 public:
     template <typename T>
     assetlib::SceneAssetAccessor CreateAccessor(const std::vector<T>& data, AccessorProxy<T>& accessorProxy)
     {
-        assetlib::SceneAssetAccessor accessor {};
+        assetlib::SceneAssetAccessor accessor{};
         accessor.ComponentType = AccessorDataTypeTraits<T>::COMPONENT_TYPE;
         accessor.Type = AccessorDataTypeTraits<T>::TYPE;
         accessor.Count = (u32)data.size();
@@ -222,10 +239,11 @@ public:
         SceneAssetHeader.BufferViews[(u32)assetlib::SceneAssetBufferViewType::Index].Name = "Indices";
         SceneAssetHeader.BufferViews[(u32)assetlib::SceneAssetBufferViewType::Meshlet].Name = "Meshlet";
 
-        auto writeAndUpdateView = [this](auto accessorProxy) {
+        auto writeAndUpdateView = [this](auto accessorProxy)
+        {
             const u64 sizeBytes = accessorProxy.Data.size() * sizeof(accessorProxy.Data[0]);
             WriteResult write = writeAligned<ALIGNMENT>(SceneBufferData, accessorProxy.Data.data(), sizeBytes);
-            
+
             SceneAssetHeader.BufferViews[accessorProxy.ViewIndex].Buffer = 0;
             SceneAssetHeader.BufferViews[accessorProxy.ViewIndex].OffsetBytes = write.Offset;
             SceneAssetHeader.BufferViews[accessorProxy.ViewIndex].LengthBytes = sizeBytes;
@@ -348,7 +366,7 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
     {
         CHECK_RETURN_IO_ERROR(primitive.mode == TINYGLTF_MODE_TRIANGLES, IoError::ErrorCode::GeneralError,
             "Failed to process mesh {}. The mesh mode is not triangles", mesh.name)
-        
+
         tinygltf::Accessor& indexAccessor = gltf.accessors[primitive.indices];
         std::vector<u32> indices(indexAccessor.count);
         switch (indexAccessor.componentType)
@@ -399,7 +417,7 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
         const bool hasNormals = !normals.empty();
         const bool hasTangents = !tangents.empty();
         const bool hasUVs = !uvs.empty();
-            
+
         if (!hasNormals)
             generateTriangleNormals(normals, positions, indices);
         if (!hasTangents && hasUVs)
@@ -409,7 +427,7 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
         if (!hasUVs)
             uvs.resize(positions.size(), glm::vec2{0.0});
 
-        utils::Attributes attributes {
+        utils::Attributes attributes{
             .Positions = &positions,
             .Normals = &normals,
             .Tangents = &tangents,
@@ -453,7 +471,7 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
             .Material = (u32)primitive.material,
             .IndicesAccessor = lastAccessor + (u32)assetlib::SceneAssetBufferViewType::Index,
             .BoundingSphere = sphere,
-            .BoundingBox = box, 
+            .BoundingBox = box,
         };
         ctx.SceneAssetHeader.Meshes.push_back({
             .Primitives = {bakedPrimitive}
@@ -469,7 +487,8 @@ std::string decodeUri(const std::string& uri)
     std::string decoded;
     decoded.reserve(uri.size());
 
-    static constexpr auto LUT = []() consteval {
+    static constexpr auto LUT = []() consteval
+    {
         std::array<char, std::numeric_limits<char>::max()> array{};
         array.fill(~0);
         array['0'] = 0x0; array['1'] = 0x1; array['2'] = 0x2;
@@ -483,7 +502,7 @@ std::string decodeUri(const std::string& uri)
 
         return array;
     }();
-    
+
     for (u32 i = 0; i < uri.size(); i++)
     {
         const char c = uri[i];
@@ -512,11 +531,11 @@ std::string decodeUri(const std::string& uri)
         }
     }
     decoded.shrink_to_fit();
-    
+
     return decoded;
 }
 
-IoResult<assetlib::AssetId> bakeMaterialImage(ProcessContext& ctx, tinygltf::Model& gltf, i32 textureIndex,
+IoResult<assetlib::AssetId> importMaterialImage(ProcessContext& ctx, tinygltf::Model& gltf, i32 textureIndex,
     assetlib::ImageFormat imageFormat)
 {
     if (textureIndex < 0)
@@ -529,29 +548,20 @@ IoResult<assetlib::AssetId> bakeMaterialImage(ProcessContext& ctx, tinygltf::Mod
     const tinygltf::Image& image = gltf.images[texture.source];
 
     CHECK_RETURN_IO_ERROR(image.bufferView == -1, IoError::ErrorCode::GeneralError,
-        "Failed to bake: image must be external", image.name)
+        "Failed to import image: image must be external", image.name)
 
     const std::filesystem::path imagePath = ctx.ScenePath.parent_path() / decodeUri(image.uri);
-    ImageBaker baker = {};
-    auto bakedImagePath = baker.BakeToFile(imagePath, {.BakedFormat = imageFormat}, {
-        .InitialDirectory = ctx.InitialDirectory,
-        .Io = &ctx.Io,
-        .Compressor = &ctx.Compressor
-    });
-        
-    CHECK_RETURN_IO_ERROR(bakedImagePath.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to bake image {}", image.uri)
+    ImageImporter importer(ctx.Ctx, {.BakedFormat = imageFormat, .Overwrite = true});
+    auto importResult = importer.Import(imagePath);
+    CHECK_RETURN_IO_ERROR(importResult.has_value(), IoError::ErrorCode::GeneralError,
+        "Failed to import image: {}: {}", image.uri, importResult.error())
 
-    LUX_LOG_INFO("Baked image file: {}, for scene {}", imagePath.string(), ctx.ScenePath.string());
+    LUX_LOG_INFO("Imported image file: {}, for scene {}", imagePath.string(), ctx.ScenePath.string());
 
-    auto imageAsset = ctx.Io.ReadHeader(*bakedImagePath);
-    CHECK_RETURN_IO_ERROR(bakedImagePath.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to read baked image {}", image.uri)
-
-    return imageAsset->Metadata.AssetId;
+    return importer.GetImportedAssetMetadata().AssetId;
 }
 
-IoResult<assetlib::AssetId> bakeMaterial(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Material& material)
+IoResult<assetlib::AssetId> importMaterial(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Material& material)
 {
     assetlib::MaterialAlphaMode alphaMode = assetlib::MaterialAlphaMode::Opaque;
     if (material.alphaMode == "MASK")
@@ -559,33 +569,28 @@ IoResult<assetlib::AssetId> bakeMaterial(ProcessContext& ctx, tinygltf::Model& g
     else if (material.alphaMode == "BLEND")
         alphaMode = assetlib::MaterialAlphaMode::Translucent;
 
-    auto bakedBaseColor = bakeMaterialImage(ctx, gltf, material.pbrMetallicRoughness.baseColorTexture.index,
+    auto importedBaseColor = importMaterialImage(ctx, gltf, material.pbrMetallicRoughness.baseColorTexture.index,
         assetlib::ImageFormat::RGBA8_SRGB);
-    CHECK_RETURN_IO_ERROR(bakedBaseColor.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to bake material: {} ({})", bakedBaseColor.error(), material.name)
-    
-    auto bakedEmissive = bakeMaterialImage(ctx, gltf, material.emissiveTexture.index,
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedBaseColor)
+
+    auto importedEmissive = importMaterialImage(ctx, gltf, material.emissiveTexture.index,
         assetlib::ImageFormat::RGBA8_SRGB);
-    CHECK_RETURN_IO_ERROR(bakedEmissive.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to bake material: {} ({})", bakedEmissive.error(), material.name)
-    
-    auto bakedNormal = bakeMaterialImage(ctx, gltf, material.normalTexture.index,
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedEmissive)
+
+    auto importedNormal = importMaterialImage(ctx, gltf, material.normalTexture.index,
         assetlib::ImageFormat::RGBA8_UNORM);
-    CHECK_RETURN_IO_ERROR(bakedNormal.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to bake material: {} ({})", bakedNormal.error(), material.name)
-    
-    auto bakedMetallicRoughness = bakeMaterialImage(ctx, gltf,
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedNormal)
+
+    auto importedMetallicRoughness = importMaterialImage(ctx, gltf,
         material.pbrMetallicRoughness.metallicRoughnessTexture.index,
         assetlib::ImageFormat::RGBA8_UNORM);
-    CHECK_RETURN_IO_ERROR(bakedMetallicRoughness.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to bake material: {} ({})", bakedMetallicRoughness.error(), material.name)
-    
-    auto bakedOcclusion = bakeMaterialImage(ctx, gltf,
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedMetallicRoughness)
+
+    auto importedOcclusion = importMaterialImage(ctx, gltf,
         material.occlusionTexture.index,
         assetlib::ImageFormat::RGBA8_UNORM);
-    CHECK_RETURN_IO_ERROR(bakedOcclusion.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to bake material: {} ({})", bakedOcclusion.error(), material.name)
-
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedOcclusion)
+    
     const assetlib::MaterialAsset bakedMaterial = {
         .Name = material.name,
         .BaseColor = glm::vec4{*(glm::dvec4*)material.pbrMetallicRoughness.baseColorFactor.data()},
@@ -596,46 +601,26 @@ IoResult<assetlib::AssetId> bakeMaterial(ProcessContext& ctx, tinygltf::Model& g
         .AlphaCutoff = (f32)material.alphaCutoff,
         .DoubleSided = material.doubleSided,
         .OcclusionStrength = (f32)material.occlusionTexture.strength,
-        .BaseColorTexture = *bakedBaseColor,
-        .EmissiveTexture = *bakedEmissive,
-        .NormalTexture = *bakedNormal,
-        .MetallicRoughnessTexture = *bakedMetallicRoughness,
-        .OcclusionTexture = *bakedOcclusion
+        .BaseColorTexture = *importedBaseColor,
+        .EmissiveTexture = *importedEmissive,
+        .NormalTexture = *importedNormal,
+        .MetallicRoughnessTexture = *importedMetallicRoughness,
+        .OcclusionTexture = *importedOcclusion
     };
-
-    std::filesystem::path bakedMaterialPath = ctx.ScenePath.parent_path() /
-        (material.name + std::string(MATERIAL_ASSET_EXTENSION));
-
-    auto packedMaterial = assetlib::material::pack(bakedMaterial);
-    if (!packedMaterial.has_value())
-        return std::unexpected(packedMaterial.error());
-
-    auto existingAssetId = getBakedAssetId(bakedMaterialPath, ctx.Io);
-    if (existingAssetId.HasValue())
-        packedMaterial->Metadata.AssetId = existingAssetId;
     
-    assetlib::AssetFile assetFile = {
-        .Metadata = std::move(packedMaterial->Metadata),
-        .AssetSpecificInfo = std::move(packedMaterial->AssetSpecificInfo)
-    };
-    assetFile.IoInfo = {
-        .OriginalFile = std::filesystem::weakly_canonical(bakedMaterialPath).generic_string(),
-        .HeaderFile = std::filesystem::weakly_canonical(bakedMaterialPath).generic_string(),
-        .BinaryFile = std::filesystem::weakly_canonical(bakedMaterialPath).generic_string(),
-        .CompressionMode = ctx.Compressor.GetName(),
-        .CompressionGuid = ctx.Compressor.GetGuid()
-    };
+    const std::filesystem::path materialPath = ctx.ScenePath.parent_path() /
+        (material.name + std::string(MATERIAL_ASSET_EXTENSION));
+    MaterialImporter importer(ctx.Ctx);
+    auto exportResult = importer.Export(bakedMaterial, materialPath);
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(exportResult)
 
-    IoResult<void> saveResult = ctx.Io.WriteHeader(assetFile);
-    CHECK_RETURN_IO_ERROR(bakedOcclusion.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to bake material: {} ({})", saveResult.error(), material.name)
-
-    return assetFile.Metadata.AssetId;
+    return *exportResult;
 }
 
 IoResult<void> processMaterial(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Material& material)
 {
-    auto convertSampleInfo = [&](i32 textureIndex, i32 uvIndex) -> assetlib::SceneAssetTextureSample {
+    auto convertSampleInfo = [&](i32 textureIndex, i32 uvIndex) -> assetlib::SceneAssetTextureSample
+    {
         if (textureIndex < 0)
             return {};
 
@@ -652,20 +637,20 @@ IoResult<void> processMaterial(ProcessContext& ctx, tinygltf::Model& gltf, tinyg
         default:
             break;
         }
-        
+
         return {
             .UvIndex = (u32)uvIndex,
             .Filter = filter
         };
     };
 
-    auto bakedMaterial = bakeMaterial(ctx, gltf, material);
-    if (!bakedMaterial)
-        return std::unexpected(bakedMaterial.error());
+    auto importedMaterial = importMaterial(ctx, gltf, material);
+    CHECK_RETURN_IO_ERROR(importedMaterial.has_value(), IoError::ErrorCode::GeneralError,
+        "Failed to import material: {} ({})", importedMaterial.error(), material.name)
 
     ctx.SceneAssetHeader.Materials.push_back({
         .Name = material.name,
-        .MaterialAsset = *bakedMaterial,
+        .MaterialAsset = *importedMaterial,
         .BaseColorSample = convertSampleInfo(
             material.pbrMetallicRoughness.baseColorTexture.index,
             material.pbrMetallicRoughness.baseColorTexture.texCoord),
@@ -719,7 +704,7 @@ void processLight(ProcessContext& ctx, tinygltf::Model&, tinygltf::Light& light)
         lightType = assetlib::SceneAssetLightType::Spot;
 
     static constexpr f32 UNLIMITED_RANGE = 1e+5f;
-    
+
     ctx.SceneAssetHeader.Lights.push_back({
         .Type = lightType,
         .Color = (glm::vec3)*(glm::dvec3*)light.color.data(),
@@ -730,11 +715,12 @@ void processLight(ProcessContext& ctx, tinygltf::Model&, tinygltf::Light& light)
 
 void processNode(ProcessContext& ctx, tinygltf::Model&, tinygltf::Node& node)
 {
-    auto getTransform = [](tinygltf::Node& node) {
+    auto getTransform = [](tinygltf::Node& node)
+    {
         glm::dvec3 translation{0.0f};
         glm::dquat rotation{1.0f, 0.0f, 0.0f, 0.0f};
         glm::dvec3 scale{1.0f};
-        
+
         if (!node.matrix.empty())
         {
             glm::dvec3 scew;
@@ -762,18 +748,18 @@ void processNode(ProcessContext& ctx, tinygltf::Model&, tinygltf::Node& node)
             .Scale = scale
         };
     };
-    
+
     assetlib::SceneAssetNode bakedNode = {
         .Name = node.name,
         .Camera = (u32)node.camera,
         .Light = (u32)node.light,
         .Mesh = (u32)node.mesh,
-        .Transform = getTransform(node)      
+        .Transform = getTransform(node)
     };
     bakedNode.Children.reserve(node.children.size());
     for (i32 child : node.children)
         bakedNode.Children.push_back((u32)child);
-    
+
     ctx.SceneAssetHeader.Nodes.push_back(std::move(bakedNode));
 }
 
@@ -790,14 +776,14 @@ void processSubscene(ProcessContext& ctx, tinygltf::Model&, tinygltf::Scene& sub
 }
 }
 
-IoResult<assetlib::SceneAsset> SceneBaker::Bake(const std::filesystem::path& path, const SceneBakeSettings& settings,
-    const Context& ctx)
+IoResult<assetlib::SceneAsset> SceneBaker::Bake(const assetlib::SceneMeta& meta)
 {
     tinygltf::Model gltf;
     tinygltf::TinyGLTF loader;
 
     std::string errors;
     std::string warnings;
+    const std::filesystem::path path = meta.Metadata.Io.OriginalFile;
     const bool success = loader.LoadASCIIFromFile(&gltf, &errors, &warnings, path.string());
 
     CHECK_RETURN_IO_ERROR(errors.empty() && success, IoError::ErrorCode::GeneralError,
@@ -811,11 +797,9 @@ IoResult<assetlib::SceneAsset> SceneBaker::Bake(const std::filesystem::path& pat
 
     ProcessContext processCtx = {
         .ScenePath = path,
-        .InitialDirectory = ctx.InitialDirectory,
-        .Io = *ctx.Io,
-        .Compressor = *ctx.Compressor 
+        .Ctx = m_Ctx
     };
-    
+
     for (auto& material : gltf.materials)
     {
         auto materialProcessResult = processMaterial(processCtx, gltf, material);
@@ -831,7 +815,7 @@ IoResult<assetlib::SceneAsset> SceneBaker::Bake(const std::filesystem::path& pat
 
     for (auto& camera : gltf.cameras)
         processCamera(processCtx, gltf, camera);
-    
+
     for (auto& light : gltf.lights)
         processLight(processCtx, gltf, light);
 
@@ -847,12 +831,5 @@ IoResult<assetlib::SceneAsset> SceneBaker::Bake(const std::filesystem::path& pat
         .Header = std::move(processCtx.SceneAssetHeader),
         .BuffersData = {std::move(processCtx.SceneBufferData)}
     };
-}
-
-bool SceneBaker::ShouldBake(const std::filesystem::path& path, const SceneBakeSettings& settings, const Context& ctx)
-{
-    const AssetPaths paths = getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, *ctx.Io);
-    
-    return requiresBaking(path, paths.HeaderPath, ctx);
 }
 }

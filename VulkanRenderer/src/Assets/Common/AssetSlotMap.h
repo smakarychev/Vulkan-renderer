@@ -20,11 +20,11 @@ class AssetSlotMap
 {
 public:
     using Handle = AssetHandle<Asset>;
-    constexpr Handle Find(const std::filesystem::path& path) const;
-    constexpr const std::filesystem::path* Find(Handle handle) const;
+    constexpr Handle Find(assetlib::AssetId id) const;
+    constexpr assetlib::AssetId Find(Handle handle) const;
 
-    constexpr Handle Add(Asset&& asset, const std::filesystem::path& path);
-    constexpr void Erase(Handle handle, const std::filesystem::path& path);
+    constexpr Handle Add(Asset&& asset, assetlib::AssetId id);
+    constexpr void Erase(Handle handle, assetlib::AssetId id);
 
     constexpr const Asset& operator[](Handle handle) const;
     constexpr Asset& operator[](Handle handle);
@@ -33,8 +33,8 @@ public:
     constexpr auto end() const { return m_AssetsMap.end(); }
 private:
     SlotMapType<Asset, Handle> m_Assets;
-    std::unordered_map<std::filesystem::path, AssetHandle<Asset>> m_AssetsMap;
-    std::vector<std::filesystem::path> m_HandlesToPaths;
+    std::unordered_map<assetlib::AssetId, AssetHandle<Asset>> m_AssetsMap;
+    std::vector<assetlib::AssetId> m_HandlesToIds;
 };
 
 template <typename Asset>
@@ -51,9 +51,9 @@ constexpr SparseSetGenerationTraits<AssetHandle<Asset>>::Handle
 }
 
 template <typename Asset>
-constexpr AssetSlotMap<Asset>::Handle AssetSlotMap<Asset>::Find(const std::filesystem::path& path) const
+constexpr AssetSlotMap<Asset>::Handle AssetSlotMap<Asset>::Find(assetlib::AssetId id) const
 {
-    auto it = m_AssetsMap.find(path);
+    auto it = m_AssetsMap.find(id);
     if (it == m_AssetsMap.end())
         return {};
     
@@ -61,35 +61,35 @@ constexpr AssetSlotMap<Asset>::Handle AssetSlotMap<Asset>::Find(const std::files
 }
 
 template <typename Asset>
-constexpr const std::filesystem::path* AssetSlotMap<Asset>::Find(Handle handle) const
+constexpr assetlib::AssetId AssetSlotMap<Asset>::Find(Handle handle) const
 {
-    if (handle.Index() >= m_HandlesToPaths.size())
-        return nullptr;
+    if (handle.Index() >= m_HandlesToIds.size())
+        return assetlib::AssetId::CreateEmpty();
 
-    const auto& path = m_HandlesToPaths[handle.Index()];
-    if (path.empty())
-        return nullptr;
+    const assetlib::AssetId id = m_HandlesToIds[handle.Index()];
+    if (!id.HasValue())
+        return assetlib::AssetId::CreateEmpty();
 
-    return &path;
+    return id;
 }
 
 template <typename Asset>
-constexpr AssetSlotMap<Asset>::Handle AssetSlotMap<Asset>::Add(Asset&& asset, const std::filesystem::path& path)
+constexpr AssetSlotMap<Asset>::Handle AssetSlotMap<Asset>::Add(Asset&& asset, assetlib::AssetId id)
 {
     const Handle handle = m_Assets.insert(std::move(asset));
-    m_AssetsMap[path] = handle;
-    if (m_HandlesToPaths.size() <= handle.Index())
-        m_HandlesToPaths.resize(handle.Index() + 1);
-    m_HandlesToPaths[handle.Index()] = path;
+    m_AssetsMap[id] = handle;
+    if (m_HandlesToIds.size() <= handle.Index())
+        m_HandlesToIds.resize(handle.Index() + 1);
+    m_HandlesToIds[handle.Index()] = id;
 
     return handle;
 }
 
 template <typename Asset>
-constexpr void AssetSlotMap<Asset>::Erase(Handle handle, const std::filesystem::path& path)
+constexpr void AssetSlotMap<Asset>::Erase(Handle handle, assetlib::AssetId id)
 {
-    m_AssetsMap.erase(path);
-    m_HandlesToPaths[handle.Index()] = std::filesystem::path{};
+    m_AssetsMap.erase(id);
+    m_HandlesToIds[handle.Index()] = assetlib::AssetId::CreateEmpty();
     m_Assets.erase(handle);
 }
 

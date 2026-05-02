@@ -9,11 +9,11 @@ class AssetIoInterface
 {
 public:
     virtual ~AssetIoInterface() = default;
-    virtual IoResult<void> WriteHeader(const AssetFile& file) = 0;
-    virtual IoResult<u64> WriteBinaryChunk(const AssetFile& file, Span<const std::byte> binaryDataChunk) = 0;
+    virtual IoResult<void> WriteHeader(const AssetMetadata& metadata, const AssetCustomHeaderType& header) = 0;
+    virtual IoResult<u64> WriteBinaryChunk(const AssetMetadata& metadata, Span<const std::byte> binaryDataChunk) = 0;
 
-    virtual IoResult<AssetFile> ReadHeader(const std::filesystem::path& headerPath) = 0;
-    virtual IoResult<void> ReadBinaryChunk(const AssetFile& file, std::byte* destination, u64 offsetBytes,
+    virtual IoResult<AssetCustomHeaderType> ReadHeader(const AssetMetadata& metadata) = 0;
+    virtual IoResult<void> ReadBinaryChunk(const AssetMetadata& metadata, std::byte* destination, u64 offsetBytes,
         u64 sizeBytes) = 0;
 
     virtual std::string GetHeaderExtension(std::string_view preferred) const = 0;

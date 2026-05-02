@@ -1,9 +1,10 @@
 #include "ShaderAsset.h"
 
-#include <AssetLib/utils.h>
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetLib/Reflection/AssetlibReflectionUtility.inl>
+
+#include <CoreLib/Utils/FileUtils.h>
 
 template <> struct ::glz::meta<lux::assetlib::ShaderBinding> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::ShaderBindingSet> : lux::assetlib::reflection::CamelCase {
@@ -25,43 +26,30 @@ template <> struct ::glz::meta<lux::assetlib::ShaderHeader> : lux::assetlib::ref
 
 namespace lux::assetlib::shader
 {
-io::IoResult<ShaderHeader> readHeader(const AssetFile& assetFile)
+io::IoResult<ShaderHeader> readHeader(const AssetMetadata& metadata)
 {
-    const auto result = glz::read_json<ShaderHeader>(assetFile.AssetSpecificInfo);
+    auto headerRead = readFileToString(metadata.Io.HeaderFile);
+    ASSETLIB_CHECK_RETURN_IO_ERROR(headerRead.has_value(), io::IoError::ErrorCode::GeneralError,
+        "Assetlib: Failed to read header file: {}", metadata.Io.HeaderFile.string())
+    
+    const auto result = glz::read_json<ShaderHeader>(*headerRead);
     ASSETLIB_CHECK_RETURN_IO_ERROR(result.has_value(), io::IoError::ErrorCode::GeneralError,
-        "Assetlib: Failed to read: {}", glz::format_error(result.error(), assetFile.AssetSpecificInfo))
+        "Assetlib: Failed to read: {}", glz::format_error(result.error(), *headerRead))
 
     return *result;
 }
 
-io::IoResult<std::vector<std::byte>> readSpirv(const ShaderHeader&, const AssetFile& assetFile,
+io::IoResult<std::vector<std::byte>> readSpirv(const ShaderHeader&, const AssetMetadata& metadata,
     io::AssetIoInterface& io, io::AssetCompressor& compressor)
 {
-    std::vector<std::byte> spirv(assetFile.IoInfo.BinarySizeBytesCompressed);
-    auto result = io.ReadBinaryChunk(assetFile, spirv.data(), 0, spirv.size());
+    std::vector<std::byte> spirv(metadata.Io.BinarySizeBytesCompressed);
+    auto result = io.ReadBinaryChunk(metadata, spirv.data(), 0, spirv.size());
     ASSETLIB_CHECK_RETURN_IO_ERROR(result.has_value(), io::IoError::ErrorCode::FailedToLoad,
-        "Assetlib: Failed to read: {} ({})", result.error(), assetFile.IoInfo.BinaryFile.string())
+        "Assetlib: Failed to read: {} ({})", result.error(), metadata.Io.BinaryFile.string())
 
-    spirv = compressor.Decompress(spirv, assetFile.IoInfo.BinarySizeBytes);
+    spirv = compressor.Decompress(spirv, metadata.Io.BinarySizeBytes);
     
     return spirv;
-}
-
-io::IoResult<ShaderAsset> readShader(const AssetFile& assetFile, io::AssetIoInterface& io,
-    io::AssetCompressor& compressor)
-{
-    auto header = readHeader(assetFile);
-    if (!header.has_value())
-        return std::unexpected(header.error());
-
-    auto binary = readSpirv(*header, assetFile, io, compressor);
-    ASSETLIB_CHECK_RETURN_IO_ERROR(binary.has_value(), io::IoError::ErrorCode::FailedToLoad,
-        "Assetlib: Failed to read: {} ({})", binary.error(), assetFile.IoInfo.BinaryFile.string())
-
-    return ShaderAsset{
-        .Header = std::move(*header),
-        .Spirv = std::move(*binary),
-    };
 }
 
 io::IoResult<AssetPacked> pack(const ShaderAsset& shader, io::AssetCompressor& compressor)
@@ -74,21 +62,9 @@ io::IoResult<AssetPacked> pack(const ShaderAsset& shader, io::AssetCompressor& c
     const u64 spirvSize = spirv.size();
 
     return AssetPacked{
-        .Metadata = getMetadata(),
-        .AssetSpecificInfo = std::move(*header),
+        .Header = std::move(*header),
         .PackedBinaries = std::move(spirv),
         .PackedBinarySizeBytesChunks = {spirvSize}
-    };
-}
-
-AssetMetadata getMetadata()
-{
-    static constexpr u32 SHADER_ASSET_VERSION = 1;
-    
-    return {
-        .Type = "fb8f866d-d436-48d3-beef-2cd3dca6e0c8"_guid,
-        .TypeName = "shader",
-        .Version = SHADER_ASSET_VERSION,
     };
 }
 }

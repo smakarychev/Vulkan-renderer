@@ -1,5 +1,6 @@
 {
   "initialDirectory": "../../../assets",
+  "bakedDirectory": "../../../assets/baked",
   "shadersPath": "../../../assets/shaders",
   "generationPath": "../../../VulkanRenderer/src/RenderGraph/Passes/Generated/",
   "uniformSearchPath": "../../../assets/uniform_types",

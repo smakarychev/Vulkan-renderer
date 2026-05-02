@@ -8,6 +8,11 @@
 
 namespace lux
 {
+namespace bakers
+{
+struct Context;
+}
+
 class AssetIdResolver;
 }
 
@@ -25,7 +30,7 @@ class AssetManager
 public:
     using IoError = assetlib::io::IoError;
 public:
-    AssetManager(AssetSystem& system) : m_AssetSystem(&system) {}
+    AssetManager(AssetSystem& system);
     virtual ~AssetManager() = default;
     virtual const std::string& GetName() const = 0;
     virtual const Guid& GetGuid() const = 0;
@@ -33,13 +38,14 @@ public:
     /* is called by `AssetSystem` when all managers are registered and before the directory scan is performed */
     virtual void OnAssetSystemInit() {}
     virtual bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) = 0;
-    virtual bool Bakes(const std::filesystem::path& path) = 0;
+    virtual bool Bakes(std::string_view extension) = 0;
     virtual void OnFileModified(const std::filesystem::path& path) = 0;
     
     virtual AssetHandleBase Load(const AssetLoadParameters& parameters) = 0;
     virtual void Unload(AssetHandleBase handle) = 0;
 protected:
     AssetSystem* m_AssetSystem{nullptr};
+    std::shared_ptr<bakers::Context> m_Ctx{nullptr};
 };
 
 template <typename Resource>

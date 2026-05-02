@@ -79,7 +79,7 @@ enum class ImageSizeType
     Absolute, Relative,
 };
 
-using ImageDataSource = std::variant<Span<const std::byte>, lux::assetlib::ImageAsset*, Image>;
+using ImageDataSource = std::variant<Span<const std::byte>, const lux::assetlib::ImageAsset*, Image>;
 
 struct ImageCreateInfo
 {

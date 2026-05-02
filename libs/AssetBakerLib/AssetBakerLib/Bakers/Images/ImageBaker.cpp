@@ -1,217 +1,127 @@
 ﻿#include "ImageBaker.h"
 
+#include <AssetLib/Images/ImageMeta.h>
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetBakerLib/Bakers/BakersUtils.h>
+#include <CoreLib/Utils/FileUtils.h>
 
-#include <fstream>
 #include <glaze/glaze.hpp>
 #include <ktx.h>
 #define STB_IMAGE_IMPLEMENTATION
+
 #include <stb_image.h>
 #include <ktx/command_create.h>
 
 #define CHECK_RETURN_IO_ERROR(x, error, ...) \
-    ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, __VA_ARGS__)
+ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, __VA_ARGS__)
+
+#define CHECK_RETURN_IO_ERROR_PROPAGATE(result) \
+ASSETLIB_CHECK_RETURN_IO_ERROR_PROPAGATE(result)
 
 namespace lux::bakers
 {
-namespace 
+std::filesystem::path ImageBaker::GetBakedPath(const std::filesystem::path& metaPath) const
 {
-struct ImageLoadInfoRead
-{
-    IoResult<assetlib::ImageLoadInfo> LoadInfo;
-    std::filesystem::path LoadInfoPath;
-};
-assetlib::ImageFormat chooseImageFormat(const std::filesystem::path& path, ImageBakeNameHeuristics heuristics)
-{
-    if (heuristics != ImageBakeNameHeuristics::Gltf)
-        return assetlib::ImageFormat::Undefined;
-
-    std::string filename = path.filename().string();
-    std::ranges::transform(filename, filename.begin(), [](char c){ return std::tolower(c); });
-
-    if (filename.contains("_basecolor") ||
-        filename.contains("_emissive"))
-        return assetlib::ImageFormat::RGBA8_SRGB;
-    if (filename.contains("_norm") ||
-        filename.contains("_rough") ||
-        filename.contains("_metal") ||
-        filename.contains("_occlusion"))
-        return assetlib::ImageFormat::RGBA8_UNORM;
-
-    return assetlib::ImageFormat::RGBA8_SRGB;
-}
-ImageLoadInfoRead createAndWriteImageLoadInfo(const std::filesystem::path& path, const ImageBakeSettings& settings)
-{
-    auto loadInfoPath = path;
-    loadInfoPath.replace_extension(ImageBaker::IMAGE_LOAD_INFO_EXTENSION);
+    auto metaRead = assetlib::image::readMeta(metaPath);
+    ASSERT(metaRead.has_value())
+    if (!metaRead.has_value())
+        return {};
     
-    if (std::filesystem::exists(loadInfoPath))
-        return {.LoadInfo = assetlib::image::readLoadInfo(loadInfoPath), .LoadInfoPath = loadInfoPath};
-
-    assetlib::ImageFormat format = path.extension() == IMAGE_ASSET_RAW_HDR_EXTENSION ?
-        assetlib::ImageFormat::RGBA32_FLOAT : assetlib::ImageFormat::RGBA8_SRGB;
-    if (settings.BakedFormat != assetlib::ImageFormat::Undefined)
-    {
-        format = settings.BakedFormat;
-    }
-    else if (settings.NameHeuristics != ImageBakeNameHeuristics::None)
-    {
-        const assetlib::ImageFormat inferred = chooseImageFormat(path, settings.NameHeuristics);
-        format = inferred != assetlib::ImageFormat::Undefined ? inferred : format;
-    }
-    const assetlib::ImageLoadInfo imageLoadInfo = {
-        .ImagePath = std::filesystem::weakly_canonical(path).generic_string(),
-        .PregeneratedMipmaps =
-            path.extension() != IMAGE_ASSET_RAW_HDR_EXTENSION &&
-            path.extension() != IMAGE_ASSET_RAW_JPG_EXTENSION &&
-            path.extension() != IMAGE_ASSET_RAW_JPEG_EXTENSION,
-        .BakedFormat = format
-    };
-
-    auto packed = assetlib::image::packLoadInfo(imageLoadInfo);
-    if (!packed.has_value())
-        return {
-            .LoadInfo = std::unexpected(assetlib::io::IoError{
-                .Code = IoError::ErrorCode::GeneralError,
-                .Message = std::format("Failed to pack image load info for {}", path.generic_string())
-            }),
-            .LoadInfoPath = loadInfoPath
-        };
-    
-    std::ofstream imageLoadInfoOut(loadInfoPath, std::ios::binary);
-    if (!imageLoadInfoOut.good())
-        return {
-            .LoadInfo = std::unexpected(assetlib::io::IoError{
-                .Code = IoError::ErrorCode::FailedToCreate,
-                .Message = std::format("Failed to create image load info for {}", path.generic_string())
-            }),
-            .LoadInfoPath = loadInfoPath
-        };
-
-    imageLoadInfoOut << glz::prettify_json(*packed);
-
-    return {.LoadInfo = imageLoadInfo, .LoadInfoPath = loadInfoPath};
+    return GetBakedPath(*metaRead);
 }
 
-ImageLoadInfoRead readImageLoadInfo(const std::filesystem::path& path, const ImageBakeSettings& settings)
+std::filesystem::path ImageBaker::GetBakedPath(const assetlib::ImageMeta& meta) const
 {
-    if (path.extension() == ImageBaker::IMAGE_LOAD_INFO_EXTENSION)
-        return {.LoadInfo = assetlib::image::readLoadInfo(path), .LoadInfoPath = path};
-
-    return createAndWriteImageLoadInfo(path, settings);
+    return getPostBakePath(meta.Metadata, POST_BAKE_EXTENSION, *m_Ctx);
 }
 
-bool requiresBaking(const assetlib::ImageLoadInfo& imageLoadInfo, const std::filesystem::path& path,
-    const std::filesystem::path& bakedPath, const Context& ctx)
+IoResult<std::filesystem::path> ImageBaker::BakeToFile(assetlib::ImageMeta& meta, 
+    const std::filesystem::path& metaPath)
 {
-    namespace fs = std::filesystem;
-    if (!fs::exists(bakedPath))
-        return true;
+    ASSERT(!meta.Metadata.Io.OriginalFile.empty())
 
-    const auto lastBaked = fs::last_write_time(bakedPath);
-    if (lastBaked < fs::last_write_time(path))
-        return true;
-
-    if (lastBaked < fs::last_write_time(imageLoadInfo.ImagePath))
-        return true;
-    
-    IoResult<assetlib::AssetFile> assetFileRead = ctx.Io->ReadHeader(bakedPath);
-    if (!assetFileRead.has_value())
-        return true;
-
-    const auto unpackHeader = assetlib::image::readHeader(*assetFileRead);
-    if (!unpackHeader.has_value())
-        return true;
-
-    return false; 
-}
-}
-
-std::filesystem::path ImageBaker::GetBakedPath(const std::filesystem::path& originalFile,
-    const ImageBakeSettings&, const Context& ctx)
-{
-    std::filesystem::path path = getPostBakePath(originalFile, ctx);
-    path.replace_extension(POST_BAKE_EXTENSION);
-
-    return path;
-}
-
-IoResult<std::filesystem::path> ImageBaker::BakeToFile(const std::filesystem::path& path,
-    const ImageBakeSettings& settings, const Context& ctx)
-{
-    const auto&& [loadInfo, loadInfoPath] = readImageLoadInfo(path, settings);
-    if (!loadInfo.has_value())
-        return std::unexpected(loadInfo.error());
-
-    const AssetPaths paths = getPostBakePaths(loadInfoPath, ctx, POST_BAKE_EXTENSION, *ctx.Io);
-    if (!requiresBaking(*loadInfo, loadInfoPath, paths.HeaderPath, ctx))
-        return paths.HeaderPath;
-    
-    auto baked = Bake(*loadInfo, settings, ctx);
-    CHECK_RETURN_IO_ERROR(baked.has_value(), baked.error().Code, "{} ({})", baked.error().Message, path.string())
+    const AssetPaths paths = getPostBakePaths(meta.Metadata, POST_BAKE_EXTENSION, *m_Ctx);
+    auto baked = Bake(meta);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(baked)
 
     u64 binarySizeBytes = 0;
     for (auto& mip : baked->Header.MipmapSizes)
         for (u32 layer = 0; layer < baked->Header.Layers; layer++)
             binarySizeBytes += mip[layer];
     
-    auto packedImage = assetlib::image::pack(*baked, *ctx.Compressor);
-    if (!packedImage.has_value())
-        return std::unexpected(packedImage.error());
+    auto packedImage = assetlib::image::pack(*baked, *m_Ctx->Compressor);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(packedImage)
 
-    auto existingAssetId = getBakedAssetId(paths.HeaderPath, *ctx.Io);
-    if (existingAssetId.HasValue())
-        packedImage->Metadata.AssetId = existingAssetId;
-
-    assetlib::AssetFile assetFile = {
-        .Metadata = std::move(packedImage->Metadata),
-        .AssetSpecificInfo = std::move(packedImage->AssetSpecificInfo)
-    };
-    assetFile.IoInfo = {
-        .OriginalFile = std::filesystem::weakly_canonical(loadInfoPath).generic_string(),
+    meta.Metadata.Io = {
+        .OriginalFile = meta.Metadata.Io.OriginalFile,
         .HeaderFile = std::filesystem::weakly_canonical(paths.HeaderPath).generic_string(),
         .BinaryFile = std::filesystem::weakly_canonical(paths.BinaryPath).generic_string(),
         .BinarySizeBytes = binarySizeBytes,
         .BinarySizeBytesCompressed = packedImage->PackedBinaries.size(),
         .BinarySizeBytesChunksCompressed = std::move(packedImage->PackedBinarySizeBytesChunks),
-        .CompressionMode = ctx.Compressor->GetName(),
-        .CompressionGuid = ctx.Compressor->GetGuid()
+        .IoMode = m_Ctx->Io->GetName(),
+        .CompressionMode = m_Ctx->Compressor->GetName(),
+        .IoGuid = m_Ctx->Io->GetGuid(),
+        .CompressionGuid = m_Ctx->Compressor->GetGuid()
     };
+    {
+        auto updatedMeta = assetlib::image::packMeta(meta);
+        CHECK_RETURN_IO_ERROR_PROPAGATE(updatedMeta)
+        auto writeResult = writeStringToFile(metaPath, assetlib::io::getAssetHeaderFormatted(*updatedMeta));
+        CHECK_RETURN_IO_ERROR(writeResult.has_value(), IoError::ErrorCode::GeneralError,
+            "Failed to update meta file for {}", metaPath.string())
+    }
 
-    IoResult<void> saveResult = ctx.Io->WriteHeader(assetFile);
-    CHECK_RETURN_IO_ERROR(saveResult.has_value(), saveResult.error().Code, "{} ({})",
-        saveResult.error().Message, path.string())
+    IoResult<void> saveResult = m_Ctx->Io->WriteHeader(meta.Metadata, packedImage->Header);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(saveResult)
 
-    IoResult<u64> binarySaveResult = ctx.Io->WriteBinaryChunk(assetFile, packedImage->PackedBinaries);
-    CHECK_RETURN_IO_ERROR(binarySaveResult.has_value(), binarySaveResult.error().Code, "{} ({})",
-        binarySaveResult.error().Message, path.string())
+    IoResult<u64> binarySaveResult = m_Ctx->Io->WriteBinaryChunk(meta.Metadata, packedImage->PackedBinaries);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(binarySaveResult)
 
     return paths.HeaderPath;
 }
 
-IoResult<assetlib::ImageAsset> ImageBaker::Bake(const assetlib::ImageLoadInfo& loadInfo,
-    const ImageBakeSettings&, const Context&)
+bool ImageBaker::ShouldBake(const std::filesystem::path& metaPath) const
 {
-    const std::filesystem::path imagePath = loadInfo.ImagePath;
-    if (imagePath.extension() == IMAGE_ASSET_RAW_HDR_EXTENSION)
-        return BakeHDR(loadInfo);
-    if (imagePath.extension() == IMAGE_ASSET_RAW_JPG_EXTENSION ||
-        imagePath.extension() == IMAGE_ASSET_RAW_JPEG_EXTENSION)
-        return BakeLDRJpg(loadInfo);
-    return BakeLDRKtx(loadInfo);
-}
-
-bool ImageBaker::ShouldBake(const std::filesystem::path& path, const ImageBakeSettings& settings, const Context& ctx)
-{
-    const auto&& [loadInfo, loadInfoPath] = readImageLoadInfo(path, settings);
-    if (!loadInfo.has_value())
+    namespace fs = std::filesystem;
+    
+    ASSERT(metaPath.extension().string() == assetlib::ASSETLIB_METADATA_EXTENSION)
+    
+    auto metaRead = assetlib::image::readMeta(metaPath);
+    if (!metaRead.has_value())
+        return true;
+    
+    const std::filesystem::path rawPath = metaRead->Metadata.Io.OriginalFile;
+    const std::filesystem::path bakedPath = GetBakedPath(*metaRead);
+    
+    if (!fs::exists(bakedPath))
         return true;
 
-    const AssetPaths paths = getPostBakePaths(loadInfoPath, ctx, POST_BAKE_EXTENSION, *ctx.Io);
-    
-    return requiresBaking(*loadInfo, loadInfoPath, paths.HeaderPath, ctx);
+    const auto lastBaked = fs::last_write_time(bakedPath);
+    if (lastBaked < fs::last_write_time(metaPath) || lastBaked < fs::last_write_time(rawPath))
+        return true;
+
+    IoResult<assetlib::AssetCustomHeaderType> assetFileRead = m_Ctx->Io->ReadHeader(metaRead->Metadata);
+    if (!assetFileRead.has_value())
+        return true;
+
+    const auto unpackHeader = assetlib::image::readHeader(metaRead->Metadata);
+    if (!unpackHeader.has_value())
+        return true;
+
+    return false; 
+}
+
+IoResult<assetlib::ImageAsset> ImageBaker::Bake(const assetlib::ImageMeta& meta)
+{
+    const std::filesystem::path imagePath = meta.Metadata.Io.OriginalFile;
+    if (imagePath.extension() == IMAGE_ASSET_RAW_HDR_EXTENSION)
+        return BakeHDR(meta);
+    if (imagePath.extension() == IMAGE_ASSET_RAW_JPG_EXTENSION ||
+        imagePath.extension() == IMAGE_ASSET_RAW_JPEG_EXTENSION)
+        return BakeLDRJpg(meta);
+    return BakeLDRKtx(meta);
 }
 
 namespace 
@@ -498,78 +408,78 @@ VkFormat vkFormatFromImageFormat(assetlib::ImageFormat format)
     return (VkFormat)(u32)format;
 }
 
-IoResult<assetlib::ImageAsset> readUncompressedHdr(const assetlib::ImageLoadInfo& loadInfo)
+IoResult<assetlib::ImageAsset> readUncompressedHdr(const assetlib::ImageMeta& meta)
 {
     i32 width, height, channels;
     u8* pixels{nullptr};
-    pixels = (u8*)stbi_loadf(loadInfo.ImagePath.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+    pixels = (u8*)stbi_loadf(meta.Metadata.Io.OriginalFile.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     const u64 sizeBytes = (u64)width * (u64)height * 4llu * sizeof(f32);
     std::vector imageData((std::byte*)pixels, (std::byte*)pixels + sizeBytes);
     stbi_image_free(pixels);
 
     return assetlib::ImageAsset{
         .Header = {
-            .Format = loadInfo.BakedFormat,
-            .Kind = loadInfo.IsCubemap ? assetlib::ImageKind::ImageCubemap : assetlib::ImageKind::Image2d,
+            .Format = meta.BakedFormat,
+            .Kind = meta.IsCubemap ? assetlib::ImageKind::ImageCubemap : assetlib::ImageKind::Image2d,
             .Width = (u32)width,
             .Height = (u32)height,
             .Layers = 1,
             .Mipmaps = 1,
-            .GenerateMipmaps = loadInfo.RuntimeMipmaps && !loadInfo.PregeneratedMipmaps,
-            .MipmapSizes = {{{(u32)sizeBytes}}}
+            .GenerateMipmaps = meta.RuntimeMipmaps && !meta.PregeneratedMipmaps,
+            .MipmapSizes = {{(u32)sizeBytes}}
         },
         .MipmapsImageData = {{{std::move(imageData)}}}
     };
 }
 
-IoResult<assetlib::ImageAsset> readUncompressedLdr(const assetlib::ImageLoadInfo& loadInfo)
+IoResult<assetlib::ImageAsset> readUncompressedLdr(const assetlib::ImageMeta& meta)
 {
     i32 width, height, channels;
     u8* pixels{nullptr};
-    pixels = (u8*)stbi_load(loadInfo.ImagePath.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+    pixels = (u8*)stbi_load(meta.Metadata.Io.OriginalFile.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     const u64 sizeBytes = (u64)width * (u64)height * 4llu;
     std::vector imageData((std::byte*)pixels, (std::byte*)pixels + sizeBytes);
     stbi_image_free(pixels);
 
     return assetlib::ImageAsset{
         .Header = {
-            .Format = loadInfo.BakedFormat,
-            .Kind = loadInfo.IsCubemap ? assetlib::ImageKind::ImageCubemap : assetlib::ImageKind::Image2d,
+            .Format = meta.BakedFormat,
+            .Kind = meta.IsCubemap ? assetlib::ImageKind::ImageCubemap : assetlib::ImageKind::Image2d,
             .Width = (u32)width,
             .Height = (u32)height,
             .Layers = 1,
             .Mipmaps = 1,
-            .GenerateMipmaps = loadInfo.RuntimeMipmaps && !loadInfo.PregeneratedMipmaps,
-            .MipmapSizes = {{{(u32)sizeBytes}}}
+            .GenerateMipmaps = meta.RuntimeMipmaps && !meta.PregeneratedMipmaps,
+            .MipmapSizes = {{(u32)sizeBytes}}
         },
         .MipmapsImageData = {{{std::move(imageData)}}}
     };
 }
 }
 
-IoResult<assetlib::ImageAsset> ImageBaker::BakeHDR(const assetlib::ImageLoadInfo& loadInfo)
+IoResult<assetlib::ImageAsset> ImageBaker::BakeHDR(const assetlib::ImageMeta& meta)
 {
-    CHECK_RETURN_IO_ERROR(!loadInfo.PregeneratedMipmaps, IoError::ErrorCode::GeneralError,
-        "Pregenerated mipmaps are currently not supported for hdr images ({})", loadInfo.ImagePath)
-    CHECK_RETURN_IO_ERROR(!loadInfo.IsCubemap, IoError::ErrorCode::GeneralError,
-        "Cubemaps are currently not supported for hdr images ({})", loadInfo.ImagePath)
+    CHECK_RETURN_IO_ERROR(!meta.PregeneratedMipmaps, IoError::ErrorCode::GeneralError,
+        "Pregenerated mipmaps are currently not supported for hdr images ({})", meta.Metadata.Io.OriginalFile)
+    CHECK_RETURN_IO_ERROR(!meta.IsCubemap, IoError::ErrorCode::GeneralError,
+        "Cubemaps are currently not supported for hdr images ({})", meta.Metadata.Io.OriginalFile)
 
     std::vector<assetlib::ImageAsset::LayerImageData> imageData;
 
-    CHECK_RETURN_IO_ERROR(loadInfo.BakedFormat == assetlib::ImageFormat::RGBA32_FLOAT,
+    CHECK_RETURN_IO_ERROR(meta.BakedFormat == assetlib::ImageFormat::RGBA32_FLOAT,
         IoError::ErrorCode::GeneralError,
-        "Only uncompressed hdr format (RGBA32_FLOAT) is supported ({})", loadInfo.ImagePath)
+        "Only uncompressed hdr format (RGBA32_FLOAT) is supported ({})", meta.Metadata.Io.OriginalFile)
     
-    return readUncompressedHdr(loadInfo);
+    return readUncompressedHdr(meta);
 }
 
-IoResult<assetlib::ImageAsset> ImageBaker::BakeLDRKtx(const assetlib::ImageLoadInfo& loadInfo)
+IoResult<assetlib::ImageAsset> ImageBaker::BakeLDRKtx(const assetlib::ImageMeta& meta)
 {
     ktx::CreateCommandOptions options = {};
-    options.inputFilepaths = {loadInfo.ImagePath};
-    options.vkFormat = vkFormatFromImageFormat(loadInfo.BakedFormat);
-    options.cubemap = loadInfo.IsCubemap;
-    options.mipmapGenerate = loadInfo.PregeneratedMipmaps;
+    options.inputFilepaths = {meta.Metadata.Io.OriginalFile};
+    options.vkFormat = vkFormatFromImageFormat(meta.BakedFormat);
+    options.cubemap = meta.IsCubemap;
+    options.mipmapGenerate = meta.PregeneratedMipmaps;
     options.defaultMipmapWrap = basisu::Resampler::BOUNDARY_CLAMP;
     options.codec = ktx::BasisCodec::NONE;
     options.encodeASTC = false;
@@ -577,18 +487,18 @@ IoResult<assetlib::ImageAsset> ImageBaker::BakeLDRKtx(const assetlib::ImageLoadI
     ktx::CommandCreate create(options);
     const ktx::KTXTexture2 texture = create.execute();
     CHECK_RETURN_IO_ERROR(texture.handle() != nullptr, IoError::ErrorCode::GeneralError,
-        "Failed to create image ({})", loadInfo.ImagePath)
+        "Failed to create image ({})", meta.Metadata.Io.OriginalFile)
 
     assetlib::ImageAsset imageAsset = {
         .Header = {
-            .Format = loadInfo.BakedFormat,
-            .Kind = loadInfo.IsCubemap ? assetlib::ImageKind::ImageCubemap : assetlib::ImageKind::Image2d,
+            .Format = meta.BakedFormat,
+            .Kind = meta.IsCubemap ? assetlib::ImageKind::ImageCubemap : assetlib::ImageKind::Image2d,
             .Width = texture->baseWidth,
             .Height = texture->baseHeight,
             .Depth = texture->baseDepth,
             .Layers = texture->numFaces,
             .Mipmaps = texture->numLevels,
-            .GenerateMipmaps = loadInfo.RuntimeMipmaps && !loadInfo.PregeneratedMipmaps,
+            .GenerateMipmaps = meta.RuntimeMipmaps && !meta.PregeneratedMipmaps,
         }
     };
     imageAsset.Header.MipmapSizes.resize(texture->numLevels);
@@ -610,21 +520,21 @@ IoResult<assetlib::ImageAsset> ImageBaker::BakeLDRKtx(const assetlib::ImageLoadI
         return KTX_SUCCESS;
     }, &imageAsset);
     CHECK_RETURN_IO_ERROR(error == KTX_SUCCESS, IoError::ErrorCode::GeneralError,
-        "Failed to get image data ({})", loadInfo.ImagePath)
+        "Failed to get image data ({})", meta.Metadata.Io.OriginalFile)
 
     return imageAsset;
 }
 
-IoResult<assetlib::ImageAsset> ImageBaker::BakeLDRJpg(const assetlib::ImageLoadInfo& loadInfo)
+IoResult<assetlib::ImageAsset> ImageBaker::BakeLDRJpg(const assetlib::ImageMeta& meta)
 {
-    CHECK_RETURN_IO_ERROR(!loadInfo.PregeneratedMipmaps, IoError::ErrorCode::GeneralError,
+    CHECK_RETURN_IO_ERROR(!meta.PregeneratedMipmaps, IoError::ErrorCode::GeneralError,
         "Pregenerated mipmaps for .jpg are not supported")
     CHECK_RETURN_IO_ERROR(
-        loadInfo.BakedFormat == assetlib::ImageFormat::RGBA8_SRGB ||
-        loadInfo.BakedFormat == assetlib::ImageFormat::RGBA8_UNORM
+        meta.BakedFormat == assetlib::ImageFormat::RGBA8_SRGB ||
+        meta.BakedFormat == assetlib::ImageFormat::RGBA8_UNORM
         , IoError::ErrorCode::GeneralError,
         "Only uncompressed image formats are supported for .jpg are")
     
-    return readUncompressedLdr(loadInfo);
+    return readUncompressedLdr(meta);
 }
 }

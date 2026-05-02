@@ -6,77 +6,68 @@
 #include "Assets/Materials/MaterialAssetManager.h"
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 
-#include <AssetLib/Images/ImageAsset.h>
+#include <AssetLib/Images/ImageMeta.h>
 #include <AssetLib/Materials/MaterialAsset.h>
+#include <AssetLib/Materials/MaterialMeta.h>
 #include <AssetLib/Scenes/SceneAsset.h>
-#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
-#include <AssetBakerLib/Bakers/Scenes/SceneBaker.h>
+#include <AssetLib/Scenes/SceneMeta.h>
+#include <AssetBakerLib/Importers/Scenes/SceneImporter.h>
 
 namespace lux
 {
 void SceneAssetManager::OnAssetSystemInit()
 {
-    m_TextureAssetManager = m_AssetSystem->GetAssetManagerFor<ImageAssetManager>(assetlib::image::getMetadata().Type);
+    m_TextureAssetManager = m_AssetSystem->GetAssetManagerFor<ImageAssetManager>(assetlib::image::ASSET_TYPE);
     ASSERT(m_TextureAssetManager)
     
     m_MaterialAssetManager =
-        m_AssetSystem->GetAssetManagerFor<MaterialAssetManager>(assetlib::material::getMetadata().Type);
+        m_AssetSystem->GetAssetManagerFor<MaterialAssetManager>(assetlib::material::ASSET_TYPE);
     ASSERT(m_MaterialAssetManager)    
-}
-
-bool SceneAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
-{
-    if (path.extension() != bakers::SCENE_ASSET_EXTENSION)
-        return false;
-
-    auto assetFile = m_AssetSystem->GetIo().ReadHeader(path);
-    if (!assetFile.has_value())
-        return false;
-
-    auto header = assetlib::scene::readHeader(*assetFile);
-    if (!header.has_value())
-        return false;
-
-    resolver.RegisterId(assetFile->Metadata.AssetId, {
-        .Path = path,
-        .AssetType = assetFile->Metadata.Type
-    });
-
-    return true;
-}
-
-bool SceneAssetManager::Bakes(const std::filesystem::path& path)
-{
-    bool bakes = false;
-    for (auto& extension : bakers::SCENE_ASSET_RAW_EXTENSIONS)
-        bakes = bakes || path.extension() == extension;
-
-    return bakes;
-}
-
-void SceneAssetManager::OnFileModified(const std::filesystem::path& path)
-{
-    if (Bakes(path))
-        OnRawFileModified(path);
-}
-
-void SceneAssetManager::Init(const bakers::SceneBakeSettings& bakeSettings)
-{
-    m_Context = {
-        .InitialDirectory = m_AssetSystem->GetAssetsDirectory(),
-        .Io = &m_AssetSystem->GetIo(),
-        .Compressor = &m_AssetSystem->GetCompressor()
-    };
-
-    m_BakeSettings = &bakeSettings;
+    
     m_MaterialUpdatedHandler = AssetUpdatedHandler([this](const AssetUpdatedInfo& updatedMaterial) {
         OnMaterialUpdated(updatedMaterial.AssetHandle);
     });
     m_TextureUpdatedHandler = AssetUpdatedHandler([this](const AssetUpdatedInfo& updatedTexture) {
         OnTextureUpdated(updatedTexture.AssetHandle);
     });
-    m_AssetSystem->SubscribeOnAssetUpdate(assetlib::material::getMetadata().Type, m_MaterialUpdatedHandler);
-    m_AssetSystem->SubscribeOnAssetUpdate(assetlib::image::getMetadata().Type, m_TextureUpdatedHandler);
+    m_AssetSystem->SubscribeOnAssetUpdate(assetlib::material::ASSET_TYPE, m_MaterialUpdatedHandler);
+    m_AssetSystem->SubscribeOnAssetUpdate(assetlib::image::ASSET_TYPE, m_TextureUpdatedHandler);
+}
+
+bool SceneAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
+{
+    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || !Bakes(assetlib::getMetadataRawExtension(path)))
+        return false;
+
+    auto metadataRead = assetlib::io::readBaseAssetMetadata(path);
+    if (!metadataRead.has_value())
+        return false;
+    
+    if (metadataRead->Type.Type != assetlib::scene::ASSET_TYPE)
+        return false;
+
+    resolver.RegisterId(metadataRead->AssetId, {
+        .Path = metadataRead->Io.OriginalFile,
+        .MetaPath = path,
+        .AssetType = metadataRead->Type.Type
+    });
+
+    return true;
+}
+
+bool SceneAssetManager::Bakes(std::string_view extension)
+{
+    bool bakes = false;
+    for (auto& rawExtension : bakers::SCENE_ASSET_RAW_EXTENSIONS)
+        bakes = bakes || extension == rawExtension;
+
+    return bakes;
+}
+
+void SceneAssetManager::OnFileModified(const std::filesystem::path& path)
+{
+    if (Bakes(path.extension().string()) || Bakes(assetlib::getMetadataRawExtension(path)))
+        OnRawFileModified(path);
 }
 
 void SceneAssetManager::SetTextureRingBuffer(BindlessTextureDescriptorsRingBuffer& ringBuffer)
@@ -86,13 +77,9 @@ void SceneAssetManager::SetTextureRingBuffer(BindlessTextureDescriptorsRingBuffe
 
 SceneHandle SceneAssetManager::AddExternalScene(SceneAsset&& scene)
 {
-    static u32 externalScenesCount = 0;
-    static const std::string externalPath = "__external__";
-    
     Lock lock(m_ResourceAccessMutex);
-    externalScenesCount += 1;
     
-    return m_Scenes.Add(std::move(scene), externalPath + std::to_string(externalScenesCount));
+    return m_Scenes.Add(std::move(scene), {});
 }
 
 void SceneAssetManager::OnFrameBegin(FrameContext&)
@@ -114,12 +101,18 @@ void SceneAssetManager::OnFrameBegin(FrameContext&)
 SceneHandle SceneAssetManager::LoadAsset(const SceneLoadParameters& parameters)
 {
     const std::filesystem::path path = weakly_canonical(parameters.Path).generic_string();
+    bakers::SceneImporter importer(m_Ctx);
+    const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
     
-    const SceneHandle cached = m_Scenes.Find(path);
+    const SceneHandle cached = m_Scenes.Find(id);
     if (cached.IsValid())
         return cached;
     
-    const SceneHandle newScene = m_Scenes.Add(std::move(*DoLoad(parameters)), path);
+    auto sceneAsset = DoLoad(importer, path);
+    if (!sceneAsset.has_value())
+        return {};
+    
+    const SceneHandle newScene = m_Scenes.Add(std::move(*sceneAsset), id);
     RegisterMaterials(newScene);
     
     return newScene;
@@ -127,11 +120,15 @@ SceneHandle SceneAssetManager::LoadAsset(const SceneLoadParameters& parameters)
 
 void SceneAssetManager::UnloadAsset(SceneHandle handle)
 {
-    const std::filesystem::path* path = m_Scenes.Find(handle);
-    if (path == nullptr)
+    const assetlib::AssetId id = m_Scenes.Find(handle);
+    if (!id.HasValue())
         return;
 
-    LUX_LOG_INFO("Unloading scene: {}", path->string());
+    const auto* assetInfo = m_AssetSystem->Resolve(id);
+    if (!assetInfo)
+        return;
+    
+    LUX_LOG_INFO("Unloading scene: {}", assetInfo->Path.string());
 
     m_ToUnload[(u32)UnloadState::Queued].push_back(handle);
     UnregisterMaterials(handle);
@@ -148,44 +145,31 @@ void SceneAssetManager::OnRawFileModified(const std::filesystem::path& path)
     m_AssetSystem->AddBakeRequest({
         .BakeFn = [this, path]()
         {
-            bakers::SceneBaker baker;
-
-            LUX_LOG_INFO("Baking scene file: {}", path.string());
-            auto bakedPath = baker.BakeToFile(path, *m_BakeSettings, m_Context);
-            if (!bakedPath)
+            bakers::SceneImporter importer(m_Ctx);
+            const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
+            SceneHandle cached;
             {
-                LUX_LOG_WARN("Bake request failed {} ({})", bakedPath.error(), path.string());
-                return;
+                Lock lock(m_ResourceAccessMutex);
+                cached = m_Scenes.Find(id);
+                if (!cached.IsValid())
+                    return;
+
+                UnregisterMaterials(cached);
             }
             
-            m_AssetSystem->ScanAssetsDirectory(path.parent_path());
-            OnBakedFileModified(*bakedPath);
+            auto sceneAsset = DoLoad(importer, path);
+            if (!sceneAsset.has_value())
+                return;
+            {
+                Lock lock(m_ResourceAccessMutex);
+                m_Scenes[cached] = std::move(*sceneAsset);
+                RegisterMaterials(cached);
+                m_SceneReplacedSignal.Emit({.Scene = cached});
+            }
+            
+            m_AssetSystem->NotifyAssetUpdate(assetlib::scene::ASSET_TYPE, {.AssetHandle = cached});
         }
     });
-}
-
-void SceneAssetManager::OnBakedFileModified(const std::filesystem::path& path)
-{
-    SceneHandle cached;
-    
-    {
-        Lock lock(m_ResourceAccessMutex);
-
-        cached = m_Scenes.Find(weakly_canonical(path).generic_string());
-        if (!cached.IsValid())
-            return;
-
-        UnregisterMaterials(cached);
-        std::optional<SceneAsset> newScene = DoLoad({.Path = path});
-        if (!newScene.has_value())
-            return;
-        
-        m_Scenes[cached] = std::move(*newScene);
-        RegisterMaterials(cached);
-        m_SceneReplacedSignal.Emit({.Scene = cached});
-    }
-    
-    m_AssetSystem->NotifyAssetUpdate(assetlib::scene::getMetadata().Type, {.AssetHandle = cached});
 }
 
 void SceneAssetManager::OnMaterialUpdated(MaterialHandle material)
@@ -253,7 +237,7 @@ void SceneAssetManager::UnregisterMaterials(SceneHandle sceneHandle)
 namespace 
 {
 template <typename T>
-void copyToVector(std::vector<T>& vec, std::byte* data, u64 sizeBytes)
+void copyToVector(std::vector<T>& vec, const std::byte* data, u64 sizeBytes)
 {
     ASSERT(sizeBytes % sizeof(T) == 0, "Data size in bytes is not a multiple of element size")
     ASSERT((u64)data % alignof(T) == 0, "Data is not aligned properly")
@@ -262,12 +246,12 @@ void copyToVector(std::vector<T>& vec, std::byte* data, u64 sizeBytes)
     memcpy(vec.data(), data, sizeBytes);
 }
 
-void loadBuffers(SceneGeometryInfo& geometry, assetlib::SceneAsset& scene)
+void loadBuffers(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene)
 {
     using enum assetlib::SceneAssetBufferViewType;
     ASSERT(scene.Header.Buffers.size() == 1, "Multiple sub-scenes are not supported")
     auto& sceneBuffer = scene.BuffersData[0];
-    std::byte* bufferData = sceneBuffer.data();
+    const std::byte* bufferData = sceneBuffer.data();
     auto& views = scene.Header.BufferViews;
 
     copyToVector(geometry.Indices,
@@ -284,7 +268,7 @@ void loadBuffers(SceneGeometryInfo& geometry, assetlib::SceneAsset& scene)
         bufferData + views[(u32)Meshlet].OffsetBytes, views[(u32)Meshlet].LengthBytes);
 }
 
-void loadRenderObjects(SceneGeometryInfo& geometry, assetlib::SceneAsset& scene)
+void loadRenderObjects(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene)
 {
     geometry.RenderObjects.reserve(scene.Header.Meshes.size());
     for (auto& meshInfo : scene.Header.Meshes)
@@ -328,29 +312,33 @@ LightType lightTypeAssetLightType(assetlib::SceneAssetLightType lightType)
 }
 }
 
-std::optional<SceneAsset> SceneAssetManager::DoLoad(const SceneLoadParameters& parameters)
+std::optional<SceneAsset> SceneAssetManager::DoLoad(bakers::SceneImporter& importer, const std::filesystem::path& path)
 {
-    LUX_LOG_INFO("Loading scene: {}", parameters.Path.string());
-    
-    const auto assetFile = m_AssetSystem->GetIo().ReadHeader(parameters.Path);
-    if (!assetFile.has_value())
-        return std::nullopt;
-    
-    auto sceneAsset = assetlib::scene::readScene(*assetFile, m_AssetSystem->GetIo(), m_AssetSystem->GetCompressor());
-    if (!sceneAsset.has_value())
-        return std::nullopt;
-    
     ASSERT(m_TextureAssetManager)
     ASSERT(m_MaterialAssetManager)
+    
+    LUX_LOG_INFO("Loading scene: {}", path.string());
+    
+    const bool willBake = importer.NeedsBaking(path);
+    auto imported = importer.Import(path);
+    if (!imported.has_value())
+    {
+        LUX_LOG_ERROR("Failed to load scene: {} ({})", imported.error(), path.string());
+        return std::nullopt;
+    }
+    
+    auto& sceneAsset = importer.GetImportedScene().Asset;
+    if (willBake) 
+        m_AssetSystem->ScanAssetsDirectory(path.parent_path());
 
     return SceneAsset{
-        .Geometry = LoadGeometryInfo(*sceneAsset),
-        .Lights = LoadLightsInfo(*sceneAsset),
-        .Hierarchy = LoadHierarchyInfo(*sceneAsset)
+        .Geometry = LoadGeometryInfo(sceneAsset),
+        .Lights = LoadLightsInfo(sceneAsset),
+        .Hierarchy = LoadHierarchyInfo(sceneAsset)
     };
 }
 
-SceneGeometryInfo SceneAssetManager::LoadGeometryInfo(assetlib::SceneAsset& scene)
+SceneGeometryInfo SceneAssetManager::LoadGeometryInfo(const assetlib::SceneAsset& scene)
 { 
     SceneGeometryInfo geometryInfo = {};
     loadBuffers(geometryInfo, scene);
@@ -360,7 +348,7 @@ SceneGeometryInfo SceneAssetManager::LoadGeometryInfo(assetlib::SceneAsset& scen
     return geometryInfo;
 }
 
-SceneLightInfo SceneAssetManager::LoadLightsInfo(assetlib::SceneAsset& scene)
+SceneLightInfo SceneAssetManager::LoadLightsInfo(const assetlib::SceneAsset& scene)
 {
     SceneLightInfo sceneLightInfo = {};
     sceneLightInfo.Lights.reserve(scene.Header.Lights.size());
@@ -380,7 +368,7 @@ SceneLightInfo SceneAssetManager::LoadLightsInfo(assetlib::SceneAsset& scene)
     return sceneLightInfo;
 }
 
-SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(assetlib::SceneAsset& scene)
+SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAsset& scene)
 {
     SceneHierarchyInfo sceneHierarchy = {};
 
@@ -460,7 +448,7 @@ SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(assetlib::SceneAsset& sc
     return sceneHierarchy;
 }
 
-void SceneAssetManager::LoadMaterials(SceneGeometryInfo& geometry, assetlib::SceneAsset& scene)
+void SceneAssetManager::LoadMaterials(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene)
 {
     geometry.Materials.reserve(scene.Header.Materials.size());
     geometry.MaterialsCpu.reserve(scene.Header.Materials.size());

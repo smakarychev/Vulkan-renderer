@@ -10,6 +10,7 @@ void Settings::initCvars()
 {
     // todo: mark as readonly once i know how to enforce it 
     CVarString assetsPath("Path.Assets"_hsv, "Base path to assets", "../assets/");
+    CVarString assetsBakedPath("Path.AssetsBaked"_hsv, "Base path to baked assets", "../assets/baked");
     CVarString shadersPath("Path.Shaders"_hsv, "Relative path to shaders", "shaders/");
     CVarString shadersPathFull("Path.Shaders.Full"_hsv, "Full path to shaders", 
         (std::filesystem::path(assetsPath.Get()) / shadersPath.Get()).generic_string());

@@ -1,4 +1,5 @@
-﻿#include <AssetLib/Io/AssetIoRegistry.h>
+﻿
+#include <AssetLib/Io/AssetIoRegistry.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/Compression/Lz4AssetCompressor.h>
@@ -9,11 +10,12 @@
 #include <AssetBakerLib/Bakers/BakerContext.h>
 #include <AssetBakerLib/Bakers/Bakers.h>
 #include <AssetBakerLib/Bakers/BakersDispatcher.h>
-#include <AssetBakerLib/Bakers/Images/ImageBaker.h>
-#include <AssetBakerLib/Bakers/Scenes/SceneBaker.h>
-#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
+#include <AssetBakerLib/Importers/Images/ImageImporter.h>
+#include <AssetBakerLib/Importers/Scenes/SceneImporter.h>
+#include <AssetBakerLib/Importers/Shaders/ShaderImporter.h>
 #include <CoreLib/Log.h>
 #include <CoreLib/Platform/PlatformUtils.h>
+#include <CoreLib/Utils/FileUtils.h>
 
 #include <filesystem>
 #include <memory>
@@ -32,6 +34,7 @@ struct ShaderBakerSettings
 struct Config
 {
     std::filesystem::path InitialDirectory{};
+    std::filesystem::path BakedDirectory{};
     std::optional<ShaderBakerSettings> ShaderBakerSettings{std::nullopt};
     std::string IoInterfaceName;
     std::optional<lux::Guid> IoInterfaceGuid;
@@ -44,19 +47,14 @@ template <> struct ::glz::meta<Config> : lux::assetlib::reflection::CamelCase {}
 
 std::optional<Config> readConfig(const std::filesystem::path& path)
 {
-    std::ifstream configFile(path, std::ios::binary | std::ios::ate);
-    if (!configFile.good())
+    auto read = lux::readFileToString(path);
+    if (!read.has_value())
         return std::nullopt;
-    const isize size = configFile.tellg();
-    configFile.seekg(0, std::ios::beg);
-    std::string buffer(size, 0);
-    configFile.read(buffer.data(), size);
-    configFile.close();
 
     Config config = {};
-    if (const auto error = glz::read_json(config, buffer))
+    if (const auto error = glz::read_json(config, *read))
     {
-        LUX_LOG_ERROR("Failed to read config file: {} ({})", glz::format_error(error, buffer), path.string());
+        LUX_LOG_ERROR("Failed to read config file: {} ({})", glz::format_error(error, *read), path.string());
         return std::nullopt;
     }
 
@@ -134,23 +132,19 @@ i32 main(i32 argc, char** argv)
     }
     
     auto shaderBakerSettings = config->ShaderBakerSettings.value_or(ShaderBakerSettings{});
-    lux::bakers::Context bakerContext{
+    auto bakerContext = std::make_shared<lux::bakers::Context>(lux::bakers::Context{
         .InitialDirectory = config->InitialDirectory,
+        .BakedDirectory = config->BakedDirectory,
         .Io = io.get(),
         .Compressor = compressor.get()
-    };
-    lux::bakers::SlangBakeSettings shaderBakeSettings{
-        .IncludePaths = {shaderBakerSettings.IncludeDirectory.string()},
-    };
-    lux::bakers::ImageBakeSettings imageBakeSettings{};
-    lux::bakers::SceneBakeSettings sceneBakeSettings{};
+    });
 
-    if (!bakerContext.Io)
+    if (!bakerContext->Io)
     {
         LUX_LOG_ERROR("io context is not set");
         return 1;
     }
-    if (!bakerContext.Compressor)
+    if (!bakerContext->Compressor)
     {
         LUX_LOG_ERROR("io compressor is not set");
         return 1;
@@ -164,37 +158,49 @@ i32 main(i32 argc, char** argv)
         lux::bakers::BakersDispatcher dispatcher(file);
         
         dispatcher.Dispatch({lux::bakers::SHADER_ASSET_EXTENSION}, [&](const fs::path& path) {
-            lux::bakers::Slang baker;
-            if (!baker.ShouldBake(path, shaderBakeSettings, bakerContext))
+            auto shaderLoadInfoRead = lux::assetlib::shader::readLoadInfo(path);
+            if (!shaderLoadInfoRead.has_value())
                 return;
             
-            auto baked = baker.BakeVariantsToFile(path, shaderBakeSettings, bakerContext);
-            if (!baked)
-                LUX_LOG_ERROR("Failed to bake shader file: {} ({})", baked.error(), path.string());
-            else
-                LUX_LOG_INFO("Baked shader file: {}", path.string());
+            for (auto& variant : shaderLoadInfoRead->Variants)
+            {
+                lux::bakers::SlangBakeSettings shaderBakeSettings{
+                    .Variant = StringId::FromString(variant.Name),
+                    .IncludePaths = {shaderBakerSettings.IncludeDirectory.string()},
+                };
+                
+                lux::bakers::ShaderImporter importer(bakerContext, shaderBakeSettings);
+                if (!importer.NeedsBaking(path))
+                    continue;
+                
+                auto imported = importer.Import(path);
+                if (!imported)
+                    LUX_LOG_ERROR("Failed to import shader file: {} ({})", imported.error(), path.string());
+                else
+                    LUX_LOG_INFO("Imported shader file: {}", path.string());
+            }
         });
         dispatcher.Dispatch({lux::bakers::SCENE_ASSET_RAW_EXTENSIONS}, [&](const fs::path& path) {
-            lux::bakers::SceneBaker baker;
-            if (!baker.ShouldBake(path, sceneBakeSettings, bakerContext))
+            lux::bakers::SceneImporter importer(bakerContext);
+            if (!importer.NeedsBaking(path))
                 return;
-            
-            auto baked = baker.BakeToFile(path, sceneBakeSettings, bakerContext);
-            if (!baked)
-                LUX_LOG_ERROR("Failed to bake scene file: {} ({})", baked.error(), path.string());
+
+            auto imported = importer.Import(path);
+            if (!imported)
+                LUX_LOG_ERROR("Failed to import scene file: {} ({})", imported.error(), path.string());
             else
-                LUX_LOG_INFO("Baked scene file: {}", path.string());
+                LUX_LOG_INFO("Imported scene file: {}", path.string());
         });
         dispatcher.Dispatch(lux::bakers::IMAGE_ASSET_RAW_EXTENSIONS, [&](const fs::path& path) {
-            lux::bakers::ImageBaker baker;
-            if (!baker.ShouldBake(path, imageBakeSettings, bakerContext))
+            lux::bakers::ImageImporter importer(bakerContext, {});
+            if (!importer.NeedsBaking(path))
                 return;
             
-            auto baked = baker.BakeToFile(path, imageBakeSettings, bakerContext);
-            if (!baked)
-                LUX_LOG_ERROR("Failed to bake image file: {} ({})", baked.error(), path.string());
+            auto imported = importer.Import(path);
+            if (!imported)
+                LUX_LOG_ERROR("Failed to import image file: {} ({})", imported.error(), path.string());
             else
-                LUX_LOG_INFO("Baked image file: {}", path.string());
+                LUX_LOG_INFO("Imported image file: {}", path.string());
         });
     }
 }

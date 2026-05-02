@@ -3,9 +3,9 @@
 #include "GeneratorUtils.h"
 #include "SlangUniformTypeGenerator.h"
 
-#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetLib/Shaders/ShaderAsset.h>
 #include <AssetLib/Shaders/ShaderLoadInfo.h>
+#include <AssetLib/Shaders/ShaderMeta.h>
 #include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
 
 #include <ranges>
@@ -1127,8 +1127,8 @@ struct Writer
 }
 
 SlangGenerator::SlangGenerator(SlangUniformTypeGenerator& uniformTypeGenerator,
-    const std::filesystem::path& initialDirectory, lux::assetlib::io::AssetIoInterface& io)
-    : m_UniformTypeGenerator(&uniformTypeGenerator), m_InitialDirectory(initialDirectory), m_Io(&io)
+    const std::shared_ptr<lux::bakers::Context>& ctx)
+    : m_UniformTypeGenerator(&uniformTypeGenerator), m_Ctx(ctx)
 {
 }
 
@@ -1184,12 +1184,12 @@ std::filesystem::path SlangGenerator::GetCommonFilePath(const std::filesystem::p
     return generationPath / GENERATED_COMMON_FILE_NAME;
 }
 
-lux::assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std::filesystem::path& path) const
+lux::assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std::filesystem::path& loadInfoPath)
 {
-    auto shaderLoadInfo = lux::assetlib::shader::readLoadInfo(path);
+    auto shaderLoadInfo = lux::assetlib::shader::readLoadInfo(loadInfoPath);
     if (!shaderLoadInfo.has_value())
         return std::unexpected(shaderLoadInfo.error());
-
+    
     std::vector<std::string> variants;
     std::unordered_set<std::filesystem::path> standaloneUniforms;
     std::unordered_map<lux::assetlib::AssetId, std::string> embeddedStructs;
@@ -1198,21 +1198,23 @@ lux::assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const
     std::vector<BindingsInfo> bindingsInfoPerSet;
     std::vector<UniformBindingsInfo> uniformBindingsInfoPerSet;
     std::vector<lux::assetlib::ShaderEntryPoint> entryPoints;
-
+    
     for (auto& variant : shaderLoadInfo->Variants)
     {
+        lux::bakers::Slang shaderBaker(m_Ctx, {.Variant = StringId::FromString(variant.Name)});
+        const std::filesystem::path metaPath = lux::assetlib::getMetadataPath(
+            shaderBaker.GetDefineAwarePath(loadInfoPath, shaderBaker.GetDefinesHash(*shaderLoadInfo).value_or(0)));
+        
+        auto shaderMeta = lux::assetlib::shader::readMeta(metaPath);
+        if (!shaderMeta.has_value())
+            return std::unexpected(shaderMeta.error());
+        
         const u32 variantIndex = (u32)variants.size();
         variants.push_back(variant.Name);
-
-        const std::filesystem::path bakedPath =
-            lux::bakers::Slang::GetBakedPath(path, StringId::FromString(variant.Name), {},
-                {.InitialDirectory = m_InitialDirectory});
-
-        auto assetFileResult = m_Io->ReadHeader(bakedPath);
-        if (!assetFileResult.has_value())
-            return std::unexpected(assetFileResult.error());
-
-        auto shaderUnpack = lux::assetlib::shader::readHeader(*assetFileResult);
+        
+        const std::filesystem::path bakedPath = shaderBaker.GetBakedPath(metaPath);
+        shaderMeta->Metadata.Io.HeaderFile = bakedPath;
+        auto shaderUnpack = lux::assetlib::shader::readHeader(shaderMeta->Metadata);
         if (!shaderUnpack.has_value())
             return std::unexpected(shaderUnpack.error());
 
@@ -1282,7 +1284,7 @@ lux::assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const
                 }, variantIndex);
         }
     }
-
+    
     std::string generatedStructName = std::format("{}BindGroupRG", utils::canonicalizeName(shaderLoadInfo->Name));
     std::string generatedFileName = std::format("{}.generated.h", generatedStructName);
 

@@ -191,10 +191,8 @@ private:
 
     std::shared_ptr<lux::assetlib::io::AssetIoInterface> m_AssetIoInterface{};
     std::shared_ptr<lux::assetlib::io::AssetCompressor> m_AssetCompressor{};
-    lux::bakers::Context m_BakerCtx{};
+    std::shared_ptr<lux::bakers::Context> m_BakerCtx{};
     lux::bakers::SlangBakeSettings m_SlangBakeSettings{};
-    lux::bakers::ImageBakeSettings m_ImageBakeSettings{};
-    lux::bakers::SceneBakeSettings m_SceneBakeSettings{};
 
     lux::AssetSystem m_AssetSystem;
     std::unique_ptr<lux::ShaderAssetManager> m_ShaderAssetManager;

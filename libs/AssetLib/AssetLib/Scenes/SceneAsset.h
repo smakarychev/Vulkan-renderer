@@ -82,7 +82,7 @@ struct SceneAssetPrimitive
     AABB BoundingBox{};
 
 public:
-    Attribute* FindAttribute(std::string_view name);
+    const Attribute* FindAttribute(std::string_view name) const;
 };
 struct SceneAssetMesh
 {
@@ -209,15 +209,11 @@ struct SceneAsset
 
 namespace scene
 {
-io::IoResult<SceneAssetHeader> readHeader(const AssetFile& assetFile);
-io::IoResult<std::vector<std::byte>> readBufferData(const SceneAssetHeader& header, const AssetFile& assetFile,
+io::IoResult<SceneAssetHeader> readHeader(const AssetMetadata& metadata);
+io::IoResult<std::vector<std::byte>> readBufferData(const SceneAssetHeader& header, const AssetMetadata& metadata,
     u32 bufferIndex, io::AssetIoInterface& io, io::AssetCompressor& compressor);
-io::IoResult<SceneAsset> readScene(const AssetFile& assetFile,
-    io::AssetIoInterface& io, io::AssetCompressor& compressor);
 
 io::IoResult<AssetPacked> pack(const SceneAsset& scene, io::AssetCompressor& compressor);
-
-AssetMetadata getMetadata();
 }
 
 }

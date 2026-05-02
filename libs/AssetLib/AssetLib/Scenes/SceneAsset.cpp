@@ -4,6 +4,8 @@
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetLib/Reflection/AssetlibReflectionUtility.inl>
 
+#include <CoreLib/Utils/FileUtils.h>
+
 template <>
 struct glz::meta<lux::assetlib::SceneAssetAccessorComponentType> : lux::assetlib::reflection::CamelCase {
     using enum lux::assetlib::SceneAssetAccessorComponentType;
@@ -50,16 +52,20 @@ template <> struct ::glz::meta<lux::assetlib::SceneAssetHeader> : lux::assetlib:
 
 namespace lux::assetlib::scene
 {
-io::IoResult<SceneAssetHeader> readHeader(const AssetFile& assetFile)
+io::IoResult<SceneAssetHeader> readHeader(const AssetMetadata& metadata)
 {
-    const auto result = glz::read_json<SceneAssetHeader>(assetFile.AssetSpecificInfo);
+    auto headerRead = readFileToString(metadata.Io.HeaderFile);
+    ASSETLIB_CHECK_RETURN_IO_ERROR(headerRead.has_value(), io::IoError::ErrorCode::GeneralError,
+        "Assetlib: Failed to read header file: {}", metadata.Io.HeaderFile.string())
+    
+    const auto result = glz::read_json<SceneAssetHeader>(*headerRead);
     ASSETLIB_CHECK_RETURN_IO_ERROR(result.has_value(), io::IoError::ErrorCode::GeneralError,
-        "Assetlib: Failed to read: {}", glz::format_error(result.error(), assetFile.AssetSpecificInfo))
+        "Assetlib: Failed to read: {}", glz::format_error(result.error(), *headerRead))
 
     return *result;
 }
 
-io::IoResult<std::vector<std::byte>> readBufferData(const SceneAssetHeader& header, const AssetFile& assetFile,
+io::IoResult<std::vector<std::byte>> readBufferData(const SceneAssetHeader& header, const AssetMetadata& metadata,
     u32 bufferIndex, io::AssetIoInterface& io, io::AssetCompressor& compressor)
 {
     ASSETLIB_CHECK_RETURN_IO_ERROR(header.Buffers.size() > bufferIndex, io::IoError::ErrorCode::GeneralError,
@@ -67,41 +73,17 @@ io::IoResult<std::vector<std::byte>> readBufferData(const SceneAssetHeader& head
 
     u64 dataOffset = 0;
     for (u32 i = 0; i < bufferIndex; i++)
-        dataOffset += assetFile.IoInfo.BinarySizeBytesChunksCompressed[i];
-    const u64 dataSize = assetFile.IoInfo.BinarySizeBytesChunksCompressed[bufferIndex];
+        dataOffset += metadata.Io.BinarySizeBytesChunksCompressed[i];
+    const u64 dataSize = metadata.Io.BinarySizeBytesChunksCompressed[bufferIndex];
     
     std::vector<std::byte> bufferData(dataSize);
-    auto result = io.ReadBinaryChunk(assetFile, bufferData.data(), dataOffset, bufferData.size());
+    auto result = io.ReadBinaryChunk(metadata, bufferData.data(), dataOffset, bufferData.size());
     ASSETLIB_CHECK_RETURN_IO_ERROR(result.has_value(), io::IoError::ErrorCode::FailedToLoad,
-        "Assetlib: Failed to read: {} ({})", result.error(), assetFile.IoInfo.BinaryFile.string())
+        "Assetlib: Failed to read: {} ({})", result.error(), metadata.Io.BinaryFile.string())
 
     bufferData = compressor.Decompress(bufferData, header.Buffers[bufferIndex].SizeBytes);
 
     return bufferData;
-}
-
-io::IoResult<SceneAsset> readScene(const AssetFile& assetFile, io::AssetIoInterface& io,
-    io::AssetCompressor& compressor)
-{
-    auto header = readHeader(assetFile);
-    if (!header.has_value())
-        return std::unexpected(header.error());
-
-    SceneAsset asset = {
-        .Header = std::move(*header)
-    };
-    asset.BuffersData.resize(asset.Header.Buffers.size());
-
-    for (u32 buffer = 0; buffer < asset.BuffersData.size(); buffer++)
-    {
-        auto binary = readBufferData(asset.Header, assetFile, buffer, io, compressor);
-        ASSETLIB_CHECK_RETURN_IO_ERROR(binary.has_value(), io::IoError::ErrorCode::FailedToLoad,
-            "Assetlib: Failed to read: {} ({})", binary.error(), assetFile.IoInfo.BinaryFile.string())
-        
-        asset.BuffersData[buffer] = std::move(*binary);
-    }
-
-    return asset;
 }
 
 io::IoResult<AssetPacked> pack(const SceneAsset& scene, io::AssetCompressor& compressor)
@@ -122,27 +104,15 @@ io::IoResult<AssetPacked> pack(const SceneAsset& scene, io::AssetCompressor& com
     }
     
     return AssetPacked{
-        .Metadata = getMetadata(),
-        .AssetSpecificInfo = std::move(*header),
+        .Header = std::move(*header),
         .PackedBinaries = std::move(bufferData),
         .PackedBinarySizeBytesChunks = std::move(packedBufferDataBinarySizeBytesChunks)
     };
 }
-
-AssetMetadata getMetadata()
-{
-    static constexpr u32 SCENE_ASSET_VERSION = 1;
-    
-    return {
-        .Type = "7b331c56-5ad1-4269-8737-7a6c0a9f46da"_guid,
-        .TypeName = "scene",
-        .Version = SCENE_ASSET_VERSION,
-    };
-}
 }
 
-lux::assetlib::SceneAssetPrimitive::Attribute* lux::assetlib::SceneAssetPrimitive::FindAttribute(
-    std::string_view name)
+const lux::assetlib::SceneAssetPrimitive::Attribute* lux::assetlib::SceneAssetPrimitive::FindAttribute(
+    std::string_view name) const
 {
     auto it = std::ranges::find_if(Attributes, [&](auto& attribute) { return attribute.Name == name; });
     

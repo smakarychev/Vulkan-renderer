@@ -10,11 +10,9 @@ namespace fs = std::filesystem;
 
 namespace lux
 {
-void AssetSystem::Init(assetlib::io::AssetIoInterface& io, assetlib::io::AssetCompressor& compressor)
+void AssetSystem::Init(const std::shared_ptr<bakers::Context>& context)
 {
-    m_Io = &io;
-    m_Compressor = &compressor;
-
+    m_Ctx = context;
     m_Bakery.Init();
 }
 
@@ -68,6 +66,11 @@ void AssetSystem::NotifyAssetUpdate(assetlib::AssetType type, const AssetUpdated
 const AssetIdResolver::AssetInfo* AssetSystem::Resolve(assetlib::AssetId id) const
 {
     return m_IdResolver.Resolve(id);
+}
+
+assetlib::AssetId AssetSystem::ResolveMetaPath(const std::filesystem::path& path) const
+{
+    return m_IdResolver.ResolveMetaPath(path);
 }
 
 bool AssetSystem::AddBakeRequest(AssetBakeRequest&& request)

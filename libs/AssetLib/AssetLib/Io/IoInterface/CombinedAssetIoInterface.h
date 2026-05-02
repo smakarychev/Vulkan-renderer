@@ -6,11 +6,11 @@ namespace lux::assetlib::io
 class CombinedAssetIoInterface final : public AssetIoInterface
 {
 public:
-    IoResult<void> WriteHeader(const AssetFile& file) override;
-    IoResult<u64> WriteBinaryChunk(const AssetFile& file, Span<const std::byte> binaryDataChunk) override;
-    IoResult<AssetFile> ReadHeader(const std::filesystem::path& headerPath) override;
-    IoResult<void> ReadBinaryChunk(
-        const AssetFile& file, std::byte* destination, u64 offsetBytes, u64 sizeBytes) override;
+    IoResult<void> WriteHeader(const AssetMetadata& metadata, const AssetCustomHeaderType& header) override;
+    IoResult<u64> WriteBinaryChunk(const AssetMetadata& metadata, Span<const std::byte> binaryDataChunk) override;
+    IoResult<AssetCustomHeaderType> ReadHeader(const AssetMetadata& metadata) override;
+    IoResult<void> ReadBinaryChunk(const AssetMetadata& metadata, std::byte* destination, u64 offsetBytes,
+        u64 sizeBytes) override;
     
     std::string GetHeaderExtension(std::string_view preferred) const override;
     std::string GetBinariesExtension() const override;

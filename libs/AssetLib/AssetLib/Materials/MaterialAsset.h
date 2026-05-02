@@ -42,10 +42,8 @@ struct MaterialAsset
 
 namespace material
 {
-io::IoResult<MaterialAsset> readMaterial(const AssetFile& assetFile);
+io::IoResult<MaterialAsset> readMaterial(const AssetMetadata& metadata);
 
 io::IoResult<AssetPacked> pack(const MaterialAsset& material);
-
-AssetMetadata getMetadata();
 }
 }

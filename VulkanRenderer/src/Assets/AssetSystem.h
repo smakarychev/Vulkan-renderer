@@ -7,6 +7,11 @@
 
 namespace lux
 {
+namespace bakers
+{
+struct Context;
+}
+
 namespace assetlib::io
 {
 class AssetCompressor;
@@ -26,7 +31,7 @@ using AssetUpdatedHandler = SignalHandler<AssetUpdatedInfo>;
 class AssetSystem
 {
 public:
-    void Init(assetlib::io::AssetIoInterface& io, assetlib::io::AssetCompressor& compressor);
+    void Init(const std::shared_ptr<bakers::Context>& context);
     void Shutdown();
     void RegisterAssetManager(assetlib::AssetType type, AssetManager& manager);
     void SetAssetsDirectory(const std::filesystem::path& path);
@@ -41,11 +46,11 @@ public:
     ResourceAssetManager* GetAssetManagerFor(assetlib::AssetType type);
     
     const AssetIdResolver::AssetInfo* Resolve(assetlib::AssetId id) const;
+    assetlib::AssetId ResolveMetaPath(const std::filesystem::path& path) const;
     bool AddBakeRequest(AssetBakeRequest&& request);
 
     const std::filesystem::path& GetAssetsDirectory() const { return m_AssetsDirectory; }
-    assetlib::io::AssetIoInterface& GetIo() const { return *m_Io; }
-    assetlib::io::AssetCompressor& GetCompressor() const { return *m_Compressor; }
+    const std::shared_ptr<bakers::Context>& GetContext() const { return m_Ctx; }
 private:
     void InitFileWatcher(const std::filesystem::path& path);
 private:
@@ -56,8 +61,7 @@ private:
     FileWatcherHandler m_FileWatcherHandler;
 
     std::filesystem::path m_AssetsDirectory{};
-    assetlib::io::AssetIoInterface* m_Io{nullptr};
-    assetlib::io::AssetCompressor* m_Compressor{nullptr};
+    std::shared_ptr<bakers::Context> m_Ctx{nullptr};
     
     std::unordered_map<assetlib::AssetType, AssetUpdatedSignal> m_AssetUpdatedSignals;
 

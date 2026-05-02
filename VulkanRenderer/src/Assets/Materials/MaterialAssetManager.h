@@ -7,6 +7,12 @@
 
 namespace lux
 {
+namespace bakers
+{
+class MaterialImporter;
+struct Context;
+}
+
 class ImageAssetManager;
 
 template <>
@@ -24,7 +30,7 @@ public:
 
     void OnAssetSystemInit() override;
     bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) override;
-    bool Bakes(const std::filesystem::path& path) override;
+    bool Bakes(std::string_view extension) override;
     void OnFileModified(const std::filesystem::path& path) override;
 
 protected:
@@ -33,7 +39,7 @@ protected:
     const MaterialAsset* GetAsset(MaterialHandle handle) const override;
     
 private:
-    std::optional<MaterialAsset> DoLoad(const MaterialLoadParameters& parameters) const;
+    std::optional<MaterialAsset> DoLoad(bakers::MaterialImporter& importer, const std::filesystem::path& path) const;
     ImageHandle LoadTexture(ImageAssetManager* imageAssetManager, assetlib::AssetId imageAsset) const;
 
 private:

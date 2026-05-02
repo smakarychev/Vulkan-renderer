@@ -8,47 +8,66 @@
 #include "Vulkan/Device.h"
 
 #include <AssetBakerLib/Bakers/Bakers.h>
-#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
+#include <AssetBakerLib/Importers/Shaders/ShaderImporter.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 
 namespace lux
 {
 bool ShaderAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
 {
-    if (path.extension() != bakers::SHADER_ASSET_EXTENSION)
+    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || !Bakes(assetlib::getMetadataRawExtension(path)))
         return false;
 
-    return LoadShaderInfo(path, resolver);
+    bakers::ShaderImporter importer(m_Ctx, {});
+    auto imported = importer.Import(path, bakers::ImportFlags::Header);
+    if (!imported)
+        return false;
+
+    auto& metadata = importer.GetImportedAssetMetadata();
+    auto& shaderHeader = importer.GetImportedShader().Asset.Header;
+
+    resolver.RegisterId(metadata.AssetId, {
+        .Path = metadata.Io.OriginalFile,
+        .MetaPath = path,
+        .AssetType = metadata.Type.Type
+    });
+
+    auto shaderLoadInfo = assetlib::shader::readLoadInfo(metadata.Io.OriginalFile);
+    if (!shaderLoadInfo.has_value())
+        return false;
+
+    const StringId name = StringId::FromString(shaderLoadInfo->Name);
+    m_ShaderNameToRawPath.emplace(name, std::filesystem::weakly_canonical(metadata.Io.OriginalFile).generic_string());
+
+    for (auto& include : shaderHeader.Includes)
+        if (std::ranges::find(m_RawPathToShaders[include], name) == m_RawPathToShaders[include].end())
+            m_RawPathToShaders[include].push_back(name);
+
+    return true;
 }
 
-bool ShaderAssetManager::Bakes(const std::filesystem::path& path)
+bool ShaderAssetManager::Bakes(std::string_view extension)
 {
     return
-        path.extension() == bakers::SHADER_ASSET_EXTENSION ||
-        path.extension() == bakers::SHADER_ASSET_RAW_EXTENSION;
+        extension == bakers::SHADER_ASSET_EXTENSION ||
+        extension == bakers::SHADER_ASSET_RAW_EXTENSION;
 }
 
 void ShaderAssetManager::OnFileModified(const std::filesystem::path& path)
 {
-    if (Bakes(path))
+    if (Bakes(path.extension().string()) || Bakes(assetlib::getMetadataRawExtension(path)))
         return OnRawFileModified(path);
 }
 
 void ShaderAssetManager::Init(const bakers::SlangBakeSettings& bakeSettings)
 {
-    m_Context = {
-        .InitialDirectory = m_AssetSystem->GetAssetsDirectory(),
-        .Io = &m_AssetSystem->GetIo(),
-        .Compressor = &m_AssetSystem->GetCompressor() 
-    };
-
     m_BakeSettings = &bakeSettings;
 }
 
 void ShaderAssetManager::Shutdown()
 {
     for (const PipelineInfo& pipeline : m_Pipelines |
-        std::views::filter([](const PipelineInfo& pipeline) { return pipeline.Pipeline.HasValue(); }))
+         std::views::filter([](const PipelineInfo& pipeline) { return pipeline.Pipeline.HasValue(); }))
         Device::Destroy(pipeline.Pipeline);
 
     m_ShaderPipelineTemplates.clear();
@@ -63,7 +82,7 @@ ShaderCacheAllocateResult ShaderAssetManager::Allocate(ShaderHandle handle,
     DescriptorArenaAllocators& allocators)
 {
     auto& pipelineInfo = m_Pipelines[handle.Index()];
-    
+
     const auto setPresence = pipelineInfo.PipelineTemplate->GetSetPresence();
     for (u32 i = 0; i < MAX_DESCRIPTOR_SETS; i++)
     {
@@ -159,13 +178,29 @@ ShaderHandle ShaderAssetManager::LoadAsset(const ShaderLoadParameters& parameter
         .Variant = parameters.Variant.value_or(bakers::Slang::MAIN_VARIANT),
         .OverridesHash = parameters.Overrides->Hash
     };
+    RebakeInfo rebakeInfo = CreateRebakeInfo(nameWithOverrides, parameters);
+    const bakers::SlangBakeSettings settings = CreateBakeSettings(rebakeInfo);
+    bakers::ShaderImporter importer(m_Ctx, settings);
+    
     auto it = m_PipelinesMap.find(nameWithOverrides);
-    if (it != m_PipelinesMap.end() && !m_Pipelines[it->second.Index()].ShouldReload)
+    if (it != m_PipelinesMap.end())
+    {
+        if (m_Pipelines[it->second.Index()].ShouldReload)
+            ReloadPipeline(m_Pipelines[it->second.Index()], importer, parameters);
+        
         return it->second;
-
-    std::optional<PipelineInfo> newPipeline = TryCreatePipeline(parameters, nameWithOverrides);
+    }
+    
+    const std::filesystem::path rawPath = m_ShaderNameToRawPath[parameters.Name];
+    std::optional<PipelineInfo> newPipeline = DoLoad(importer, rawPath);
     if (!newPipeline.has_value())
         return {};
+    
+    newPipeline->Pipeline = CreatePipeline(importer.GetImportedShaderLoadInfo(), *newPipeline, parameters);
+    
+    auto& pathRebakes = m_RawPathToRebakeInfos[rawPath.string()];
+    if (std::ranges::find(pathRebakes, rebakeInfo) == pathRebakes.end())
+        pathRebakes.push_back(std::move(rebakeInfo));
 
     ShaderHandle handle;
     if (it == m_PipelinesMap.end())
@@ -192,65 +227,14 @@ void ShaderAssetManager::UnloadAsset(ShaderHandle)
 ShaderAssetManager::GetType ShaderAssetManager::GetAsset(ShaderHandle handle) const
 {
     const auto& pipelineInfo = m_Pipelines[handle.Index()];
-    
+
     ShaderAsset shader = {};
     shader.m_Pipeline = pipelineInfo.Pipeline;
     shader.m_PipelineLayout = pipelineInfo.Layout;
     shader.m_Descriptors = pipelineInfo.Descriptors;
     shader.m_DescriptorLayouts = pipelineInfo.DescriptorLayouts;
-    
+
     return shader;
-}
-
-bool ShaderAssetManager::LoadShaderInfo(const std::filesystem::path& path, AssetIdResolver& resolver)
-{
-    auto shaderLoadInfo = assetlib::shader::readLoadInfo(path);
-    if (!shaderLoadInfo.has_value())
-        return false;
-
-    const StringId name = StringId::FromString(shaderLoadInfo->Name);
-    m_ShaderNameToRawPath.emplace(name, weakly_canonical(path).generic_string());
-
-    for (auto& variant : shaderLoadInfo->Variants)
-    {
-        auto bakedPath = bakers::Slang::GetBakedPath(path, StringId::FromString(variant.Name),
-            *m_BakeSettings, m_Context);
-
-        auto assetFile = m_Context.Io->ReadHeader(bakedPath);
-        if (!assetFile.has_value())
-            return false;
-
-        auto shaderHeader = assetlib::shader::readHeader(*assetFile);
-        if (!shaderHeader.has_value())
-            return false;
-
-        for (auto& include : shaderHeader->Includes)
-            if (std::ranges::find(m_RawPathToShaders[include], name) == m_RawPathToShaders[include].end())
-                m_RawPathToShaders[include].push_back(name);
-
-        resolver.RegisterId(assetFile->Metadata.AssetId, {
-            .Path = bakedPath,
-            .AssetType = assetFile->Metadata.Type
-        });
-    }
-
-    return true;
-}
-
-void ShaderAssetManager::OnBakedFileModified(const std::filesystem::path& path)
-{
-    Lock lock(m_ResourceAccessMutex);
-    
-    auto it = m_BakedPathToShaderName.find(path.string());
-    if (it == m_BakedPathToShaderName.end())
-        return;
-
-    const ShaderNameWithOverrides& name = it->second;
-    auto pipelineIt = m_PipelinesMap.find(name);
-    if (pipelineIt == m_PipelinesMap.end())
-        return;
-
-    m_Pipelines[pipelineIt->second.Index()].ShouldReload = true;
 }
 
 void ShaderAssetManager::OnRawFileModified(const std::filesystem::path& path)
@@ -265,169 +249,161 @@ void ShaderAssetManager::OnRawFileModified(const std::filesystem::path& path)
 
         for (auto& rebakeInfo : m_RawPathToRebakeInfos[shaderPath.string()])
         {
-            m_AssetSystem->AddBakeRequest({.BakeFn = [this, shaderPath, name, &rebakeInfo]() {
-                bakers::Slang baker;
-                
-                LUX_LOG_INFO("Baking shader: {} {} {}", name, rebakeInfo.Variant, shaderPath.string());
-                auto bakedPath = baker.BakeToFile(shaderPath, rebakeInfo.Variant, {
-                        .Defines = rebakeInfo.Defines,
-                        .DefinesHash = rebakeInfo.DefinesHash,
-                        .IncludePaths = m_BakeSettings->IncludePaths,
-                        .UniformReflectionDirectoryName = m_BakeSettings->UniformReflectionDirectoryName,
-                        .EnableHotReloading = m_BakeSettings->EnableHotReloading
-                    },
-                    m_Context);
-                if (!bakedPath)
+            m_AssetSystem->AddBakeRequest({
+                .BakeFn = [this, shaderPath, &rebakeInfo]()
                 {
-                    LUX_LOG_WARN("Bake request failed {} ({})", bakedPath.error(), shaderPath.string());
-                    return;
+                    const bakers::SlangBakeSettings settings = CreateBakeSettings(rebakeInfo);
+                    bakers::ShaderImporter importer(m_Ctx, settings);
+                    
+                    auto pipelineInfo = DoLoad(importer, shaderPath);
+                    if (!pipelineInfo.has_value())
+                        return;
+                    {
+                        Lock lock(m_ResourceAccessMutex);
+                        auto pipelineIt = m_PipelinesMap.find(rebakeInfo.NameWithOverrides);
+                        if (pipelineIt == m_PipelinesMap.end())
+                            return;
+                        
+                        m_Pipelines[pipelineIt->second.Index()] = *pipelineInfo;
+                        m_Pipelines[pipelineIt->second.Index()].ShouldReload = true;
+                    }
                 }
-                
-                OnBakedFileModified(*bakedPath);
-            }});
+            });
         }
     }
 }
 
-Result<std::filesystem::path, AssetManager::IoError> ShaderAssetManager::Bake(const ShaderLoadParameters& parameters,
-    const ShaderNameWithOverrides& name)
+std::optional<ShaderAssetManager::PipelineInfo> ShaderAssetManager::DoLoad(bakers::ShaderImporter& importer,
+    const std::filesystem::path& path)
+{
+    auto imported = importer.Import(path);
+    if (!imported.has_value())
+    {
+        LUX_LOG_ERROR("Failed to load shader: {} ({})", imported.error(), path.string());
+        return std::nullopt;
+    }
+    
+    auto& shaderAsset = importer.GetImportedShader().Asset;
+    auto& shaderMetadata = importer.GetImportedAssetMetadata();
+    
+    auto shaderReflectionResult = ShaderReflection::Reflect(shaderAsset);
+    if (!shaderReflectionResult.has_value())
+        return std::nullopt;
+
+    ShaderReflection::EntryPointsInfo entryPointsInfo = shaderReflectionResult->GetEntryPointsInfo();
+    std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> descriptorLayoutOverrides{};
+    descriptorLayoutOverrides[BINDLESS_DESCRIPTORS_INDEX] = m_TextureHeap.Layout;
+
+    const ShaderPipelineTemplate* pipelineTemplate = &(m_ShaderPipelineTemplates[shaderMetadata.AssetId] =
+        ShaderPipelineTemplate({
+            .ShaderReflection = std::move(*shaderReflectionResult),
+            .DescriptorLayoutOverrides = descriptorLayoutOverrides
+        })
+    );
+    
+    PipelineInfo pipelineInfo = {};
+    pipelineInfo.PipelineTemplate = pipelineTemplate;
+    pipelineInfo.Layout = pipelineTemplate->GetPipelineLayout();
+    pipelineInfo.HasTextureHeap = pipelineTemplate->GetSetPresence()[BINDLESS_DESCRIPTORS_INDEX];
+
+    return pipelineInfo;
+}
+
+Pipeline ShaderAssetManager::CreatePipeline(const assetlib::ShaderLoadInfo& shaderLoadInfo,
+    const PipelineInfo& pipelineInfo, const ShaderLoadParameters& parameters)
+{
+    std::vector<Format> colorFormats;
+    std::optional<Format> depthFormat;
+    DynamicStates dynamicStates = DynamicStates::Default;
+    AlphaBlending alphaBlending = AlphaBlending::Over;
+    DepthMode depthMode = DepthMode::ReadWrite;
+    DepthTest depthTest = DepthTest::GreaterOrEqual;
+    FaceCullMode cullMode = FaceCullMode::Back;
+    PrimitiveKind primitiveKind = PrimitiveKind::Triangle;
+    bool clampDepth = false;
+
+    if (shaderLoadInfo.RasterizationInfo.has_value())
+    {
+        const auto& rasterization = *shaderLoadInfo.RasterizationInfo;
+        dynamicStates = dynamicStatesFromAssetDynamicStates(rasterization.DynamicStates);
+        alphaBlending = alphaBlendingFromAssetAlphaBlending(rasterization.AlphaBlending);
+        depthMode = depthModeFromAssetDepthMode(rasterization.DepthMode);
+        depthTest = depthTestFromAssetDepthTest(rasterization.DepthTest);
+        cullMode = faceCullModeFromAssetFaceCullMode(rasterization.FaceCullMode);
+        primitiveKind = primitiveKindModeFromAssetPrimitiveKind(rasterization.PrimitiveKind);
+        clampDepth = rasterization.ClampDepth;
+
+        colorFormats.reserve(rasterization.Colors.size());
+        for (auto& color : rasterization.Colors)
+            colorFormats.push_back(formatFromAssetImageFormat(color.Format));
+        if (rasterization.Depth.has_value())
+            depthFormat = formatFromAssetImageFormat(*rasterization.Depth);
+    }
+
+    auto* pipelineTemplate = pipelineInfo.PipelineTemplate;
+    ASSERT(pipelineTemplate->GetReflection().Shaders().size() == 1)
+    std::array<ShaderModule, MAX_PIPELINE_SHADER_COUNT> shaderModules{};
+    std::ranges::fill(shaderModules, pipelineTemplate->GetReflection().Shaders().front());
+
+    const auto& overrides = parameters.Overrides;
+    const Pipeline pipeline = Device::CreatePipeline({
+        .PipelineLayout = pipelineTemplate->GetPipelineLayout(),
+        .Shaders = Span((const ShaderModule*)shaderModules.data(), pipelineTemplate->GetShaderStages().size()),
+        .ShaderStages = pipelineTemplate->GetShaderStages(),
+        .ShaderEntryPoints = pipelineTemplate->GetEntryPoints(),
+        .ColorFormats = colorFormats,
+        .DepthFormat = depthFormat ? *depthFormat : Format::Undefined,
+        .DynamicStates = overrides->PipelineOverrides.DynamicStates.value_or(dynamicStates),
+        .DepthMode = overrides->PipelineOverrides.DepthMode.value_or(depthMode),
+        .DepthTest = overrides->PipelineOverrides.DepthTest.value_or(depthTest),
+        .CullMode = overrides->PipelineOverrides.CullMode.value_or(cullMode),
+        .AlphaBlending = overrides->PipelineOverrides.AlphaBlending.value_or(alphaBlending),
+        .PrimitiveKind = overrides->PipelineOverrides.PrimitiveKind.value_or(primitiveKind),
+        .Specialization = overrides->Specializations.ToPipelineSpecializationsView(*pipelineTemplate),
+        .IsComputePipeline = pipelineTemplate->IsComputeTemplate(),
+        .ClampDepth = overrides->PipelineOverrides.ClampDepth.value_or(clampDepth)
+    }, Device::DummyDeletionQueue());
+    Device::NamePipeline(pipeline, parameters.Name.AsStringView());
+
+    return pipeline;
+}
+
+void ShaderAssetManager::ReloadPipeline(PipelineInfo& pipelineInfo, bakers::ShaderImporter& importer,
+    const ShaderLoadParameters& parameters)
+{
+    const std::filesystem::path rawPath = m_ShaderNameToRawPath[parameters.Name];
+    auto imported = importer.Import(rawPath, bakers::ImportFlags::Header);
+    if (!imported)
+        return;
+    
+    pipelineInfo.ShouldReload = false;
+    pipelineInfo.Pipeline = CreatePipeline(importer.GetImportedShaderLoadInfo(), pipelineInfo, parameters);
+}
+
+ShaderAssetManager::RebakeInfo ShaderAssetManager::CreateRebakeInfo(const ShaderNameWithOverrides& name, 
+    const ShaderLoadParameters& parameters) const
 {
     auto& overrides = *parameters.Overrides;
     std::vector<std::pair<std::string, std::string>> defines;
     defines.reserve(overrides.Defines.Defines.size());
     for (auto& define : overrides.Defines.Defines)
         defines.emplace_back(define.Name.AsStringView(), define.Value);
-
-    bakers::Slang baker;
-    bakers::SlangBakeSettings settings = {
-        .Defines = defines,
+    
+    return {
+        .NameWithOverrides = name,
         .DefinesHash = overrides.Defines.Hash,
+        .Defines = defines,
+    };
+}
+
+bakers::SlangBakeSettings ShaderAssetManager::CreateBakeSettings(const RebakeInfo& rebakeInfo) const
+{
+    return {
+        .Defines = rebakeInfo.Defines,
+        .DefinesHash = rebakeInfo.DefinesHash,
+        .Variant = rebakeInfo.NameWithOverrides.Variant,
         .IncludePaths = m_BakeSettings->IncludePaths,
         .EnableHotReloading = (bool)CVars::Get().GetI32CVar("Renderer.Shaders.HotReload"_hsv).value_or(true)
     };
-    const std::filesystem::path& path = m_ShaderNameToRawPath.at(parameters.Name);
-    StringId variant = parameters.Variant.value_or(bakers::Slang::MAIN_VARIANT);
-
-    auto bakedPath = baker.BakeToFile(path, variant, settings, m_Context); 
-    if (!bakedPath.has_value())
-        return bakedPath;
-
-    m_BakedPathToShaderName[bakedPath->string()] = name;
-    RebakeInfo rebakeInfo = {
-        .Variant = variant,
-        .Defines = std::vector(settings.Defines.begin(), settings.Defines.end()),
-        .DefinesHash = settings.DefinesHash
-    };
-    auto& pathRebakes = m_RawPathToRebakeInfos[path.string()];
-    if (std::ranges::find(pathRebakes, rebakeInfo) == pathRebakes.end())
-        pathRebakes.push_back(std::move(rebakeInfo));
-    
-    return bakedPath;
-}
-
-
-std::optional<ShaderAssetManager::PipelineInfo> ShaderAssetManager::TryCreatePipeline(
-    const ShaderLoadParameters& parameters, const ShaderNameWithOverrides& name)
-{
-    const std::filesystem::path& path = m_ShaderNameToRawPath.at(parameters.Name);
-
-    const auto shaderLoadInfo = assetlib::shader::readLoadInfo(path);
-    if (!shaderLoadInfo.has_value())
-        return std::nullopt;
-
-    std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> descriptorsLayoutsOverrides{};
-    descriptorsLayoutsOverrides[BINDLESS_DESCRIPTORS_INDEX] = m_TextureHeap.Layout;
-
-    const ShaderPipelineTemplate* shaderTemplate =
-        GetShaderPipelineTemplate(parameters, name, descriptorsLayoutsOverrides);
-    if (shaderTemplate == nullptr)
-        return std::nullopt;
-
-    auto createPipeline = [&]() -> Pipeline
-    {
-        LUX_LOG_INFO("Creating shader pipeline: {} {} {}", name.Name, name.Variant, path.string());
-        
-        std::vector<Format> colorFormats;
-        std::optional<Format> depthFormat;
-        DynamicStates dynamicStates = DynamicStates::Default;
-        AlphaBlending alphaBlending = AlphaBlending::Over;
-        DepthMode depthMode = DepthMode::ReadWrite;
-        DepthTest depthTest = DepthTest::GreaterOrEqual;
-        FaceCullMode cullMode = FaceCullMode::Back;
-        PrimitiveKind primitiveKind = PrimitiveKind::Triangle;
-        bool clampDepth = false;
-
-        if (shaderLoadInfo->RasterizationInfo.has_value())
-        {
-            const auto& rasterization = *shaderLoadInfo->RasterizationInfo;
-            dynamicStates = dynamicStatesFromAssetDynamicStates(rasterization.DynamicStates);
-            alphaBlending = alphaBlendingFromAssetAlphaBlending(rasterization.AlphaBlending);
-            depthMode = depthModeFromAssetDepthMode(rasterization.DepthMode);
-            depthTest = depthTestFromAssetDepthTest(rasterization.DepthTest);
-            cullMode = faceCullModeFromAssetFaceCullMode(rasterization.FaceCullMode);
-            primitiveKind = primitiveKindModeFromAssetPrimitiveKind(rasterization.PrimitiveKind);
-            clampDepth = rasterization.ClampDepth;
-
-            colorFormats.reserve(rasterization.Colors.size());
-            for (auto& color : rasterization.Colors)
-                colorFormats.push_back(formatFromAssetImageFormat(color.Format));
-            if (rasterization.Depth.has_value())
-                depthFormat = formatFromAssetImageFormat(*rasterization.Depth);
-        }
-
-        ASSERT(shaderTemplate->GetReflection().Shaders().size() == 1)
-        std::array<ShaderModule, MAX_PIPELINE_SHADER_COUNT> shaderModules{};
-        std::ranges::fill(shaderModules, shaderTemplate->GetReflection().Shaders().front());
-
-        auto& overrides = *parameters.Overrides;
-        const Pipeline pipeline = Device::CreatePipeline({
-            .PipelineLayout = shaderTemplate->GetPipelineLayout(),
-            .Shaders = Span(shaderModules.data(), shaderTemplate->GetShaderStages().size()),
-            .ShaderStages = shaderTemplate->GetShaderStages(),
-            .ShaderEntryPoints = shaderTemplate->GetEntryPoints(),
-            .ColorFormats = colorFormats,
-            .DepthFormat = depthFormat ? *depthFormat : Format::Undefined,
-            .DynamicStates = overrides.PipelineOverrides.DynamicStates.value_or(dynamicStates),
-            .DepthMode = overrides.PipelineOverrides.DepthMode.value_or(depthMode),
-            .DepthTest = overrides.PipelineOverrides.DepthTest.value_or(depthTest),
-            .CullMode = overrides.PipelineOverrides.CullMode.value_or(cullMode),
-            .AlphaBlending = overrides.PipelineOverrides.AlphaBlending.value_or(alphaBlending),
-            .PrimitiveKind = overrides.PipelineOverrides.PrimitiveKind.value_or(primitiveKind),
-            .Specialization = overrides.Specializations.ToPipelineSpecializationsView(*shaderTemplate),
-            .IsComputePipeline = shaderTemplate->IsComputeTemplate(),
-            .ClampDepth = overrides.PipelineOverrides.ClampDepth.value_or(clampDepth)
-        }, Device::DummyDeletionQueue());
-        Device::NamePipeline(pipeline, parameters.Name.AsStringView());
-
-        return pipeline;
-    };
-
-    PipelineInfo pipelineInfo = {};
-    pipelineInfo.PipelineTemplate = shaderTemplate;
-    pipelineInfo.Layout = shaderTemplate->GetPipelineLayout();
-    pipelineInfo.HasTextureHeap = shaderTemplate->GetSetPresence()[BINDLESS_DESCRIPTORS_INDEX];
-    pipelineInfo.Pipeline = createPipeline();
-
-    return pipelineInfo;
-}
-
-const ShaderPipelineTemplate* ShaderAssetManager::GetShaderPipelineTemplate(const ShaderLoadParameters& parameters,
-    const ShaderNameWithOverrides& name,
-    const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides)
-{
-    auto bakedPath = Bake(parameters, name);
-    if (!bakedPath)
-        return nullptr;
-
-    auto shaderReflectionResult = ShaderReflection::Reflect(*bakedPath, *m_Context.Io, *m_Context.Compressor);
-    if (!shaderReflectionResult.has_value())
-        return nullptr;
-
-    ShaderReflection::EntryPointsInfo entryPointsInfo = shaderReflectionResult->GetEntryPointsInfo();
-
-    return &(m_ShaderPipelineTemplates[name] = ShaderPipelineTemplate({
-        .ShaderReflection = std::move(*shaderReflectionResult),
-        .DescriptorLayoutOverrides = descriptorLayoutOverrides
-    }));
 }
 }

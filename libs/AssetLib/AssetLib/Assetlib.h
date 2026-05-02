@@ -9,21 +9,19 @@
 
 namespace lux::assetlib
 {
-constexpr u32 JSON_INDENT = 2;
-
 using AssetCustomHeaderType = std::string;
 
 using AssetType = Guid;
 
-struct AssetMetadata
+static constexpr std::string_view ASSETLIB_METADATA_EXTENSION = ".meta";
+struct AssetTypeMetadata
 {
-    AssetId AssetId{};
     AssetType Type{};
-    std::string TypeName{};
+    std::string Name{};
     u32 Version{1};
 };
 
-struct AssetFileIoInfo
+struct AssetIoMetadata
 {
     std::string OriginalFile{};
     std::filesystem::path HeaderFile{};
@@ -32,23 +30,28 @@ struct AssetFileIoInfo
     u64 BinarySizeBytes{};
     u64 BinarySizeBytesCompressed{};
     std::vector<u64> BinarySizeBytesChunksCompressed{};
+    std::string IoMode{};
     std::string CompressionMode{};
+    Guid IoGuid{};
     Guid CompressionGuid{};
+};
+
+struct AssetMetadata
+{
+    AssetId AssetId{};
+    AssetTypeMetadata Type{};
+    AssetIoMetadata Io{};
 };
 
 struct AssetPacked
 {
-    AssetMetadata Metadata{};
-    AssetCustomHeaderType AssetSpecificInfo{};
+    AssetCustomHeaderType Header{};
     std::vector<std::byte> PackedBinaries{};
     std::vector<u64> PackedBinarySizeBytesChunks{};
 };
 
-struct AssetFile
-{
-    AssetFileIoInfo IoInfo{};
-    AssetMetadata Metadata{};
-    AssetCustomHeaderType AssetSpecificInfo{};
-};
+bool isMetadataPath(const std::filesystem::path& path);
+std::filesystem::path getMetadataPath(const std::filesystem::path& path);
+std::string getMetadataRawExtension(const std::filesystem::path& path);
 }
 

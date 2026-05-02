@@ -18,6 +18,7 @@ namespace lux
 
 namespace bakers
 {
+class ShaderImporter;
 struct SlangBakeSettings;
 }
 
@@ -52,7 +53,7 @@ public:
     LUX_ASSET_MANAGER(ShaderAssetManager, "23ae71e5-8829-4643-a424-eb74e730d368"_guid)
     
     bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) override;
-    bool Bakes(const std::filesystem::path& path) override;
+    bool Bakes(std::string_view extension) override;
     void OnFileModified(const std::filesystem::path& path) override;
     
     void Init(const bakers::SlangBakeSettings& bakeSettings);
@@ -66,8 +67,6 @@ protected:
     void UnloadAsset(ShaderHandle handle) override;
     GetType GetAsset(ShaderHandle handle) const override;
 private:
-    bool LoadShaderInfo(const std::filesystem::path& path, AssetIdResolver& resolver);
-    void OnBakedFileModified(const std::filesystem::path& path);
     void OnRawFileModified(const std::filesystem::path& path);
     
     struct PipelineInfo
@@ -90,13 +89,21 @@ private:
 
         auto operator<=>(const ShaderNameWithOverrides&) const = default;
     };
-    Result<std::filesystem::path, IoError> Bake(const ShaderLoadParameters& parameters,
-        const ShaderNameWithOverrides& name);
-    std::optional<PipelineInfo> TryCreatePipeline(const ShaderLoadParameters& parameters,
-        const ShaderNameWithOverrides& name);
-    const ShaderPipelineTemplate* GetShaderPipelineTemplate(const ShaderLoadParameters& parameters,
-        const ShaderNameWithOverrides& name,
-        const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides);
+    struct RebakeInfo
+    {
+        ShaderNameWithOverrides NameWithOverrides{};
+        u64 DefinesHash{0};
+        std::vector<std::pair<std::string, std::string>> Defines{};
+
+        auto operator<=>(const RebakeInfo&) const = default;
+    };
+    std::optional<PipelineInfo> DoLoad(bakers::ShaderImporter& importer, const std::filesystem::path& path);
+    Pipeline CreatePipeline(const assetlib::ShaderLoadInfo& shaderLoadInfo, const PipelineInfo& pipelineInfo, 
+        const ShaderLoadParameters& parameters);
+    void ReloadPipeline(PipelineInfo& pipelineInfo, bakers::ShaderImporter& importer, 
+        const ShaderLoadParameters& parameters);
+    RebakeInfo CreateRebakeInfo(const ShaderNameWithOverrides& name, const ShaderLoadParameters& parameters) const;
+    bakers::SlangBakeSettings CreateBakeSettings(const RebakeInfo& rebakeInfo) const;
 private:
     struct ShaderNameWithOverridesHasher
     {
@@ -112,8 +119,7 @@ private:
 
     std::vector<PipelineInfo> m_Pipelines;
     std::unordered_map<ShaderNameWithOverrides, ShaderHandle, ShaderNameWithOverridesHasher> m_PipelinesMap;
-    std::unordered_map<ShaderNameWithOverrides, ShaderPipelineTemplate, ShaderNameWithOverridesHasher>
-        m_ShaderPipelineTemplates;
+    std::unordered_map<assetlib::AssetId, ShaderPipelineTemplate> m_ShaderPipelineTemplates;
 
     struct DescriptorsWithLayout
     {
@@ -123,19 +129,9 @@ private:
     DescriptorsWithLayout m_TextureHeap{};
 
     /* for hot-reloading */
-    bakers::Context m_Context{};
     const bakers::SlangBakeSettings* m_BakeSettings{nullptr};
     StringUnorderedMap<std::vector<StringId>> m_RawPathToShaders;
     std::unordered_map<StringId, std::filesystem::path> m_ShaderNameToRawPath;
-    StringUnorderedMap<ShaderNameWithOverrides> m_BakedPathToShaderName;
-    struct RebakeInfo
-    {
-        StringId Variant{};
-        std::vector<std::pair<std::string, std::string>> Defines{};
-        u64 DefinesHash{0};
-
-        auto operator<=>(const RebakeInfo&) const = default;
-    };
     StringUnorderedMap<std::vector<RebakeInfo>> m_RawPathToRebakeInfos;
     DeletionQueue* m_FrameDeletionQueue{nullptr};
 };

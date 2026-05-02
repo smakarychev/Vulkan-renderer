@@ -287,22 +287,13 @@ ShaderReflection::DescriptorSets descriptorSetsFromAssetBindingSets(
 }
 }
 
-lux::assetlib::io::IoResult<ShaderReflection> ShaderReflection::Reflect(const std::filesystem::path& path,
-    lux::assetlib::io::AssetIoInterface& io, lux::assetlib::io::AssetCompressor& compressor)
+lux::assetlib::io::IoResult<ShaderReflection> ShaderReflection::Reflect(const lux::assetlib::ShaderAsset& asset)
 {
-    const auto assetFileResult = io.ReadHeader(path);
-    if (!assetFileResult.has_value())
-        return std::unexpected(assetFileResult.error());
-
-    auto shaderAsset = lux::assetlib::shader::readShader(*assetFileResult, io, compressor);
-    if (!shaderAsset.has_value())
-        return std::unexpected(shaderAsset.error());
-
-    const auto& header = shaderAsset->Header;
+    const auto& header = asset.Header;
 
     ShaderReflection shaderReflection = {};
     shaderReflection.m_Modules.push_back(Device::CreateShaderModule({
-        .Source = shaderAsset->Spirv
+        .Source = asset.Spirv
     }, Device::DummyDeletionQueue()));
 
     for (auto& entry : header.EntryPoints)

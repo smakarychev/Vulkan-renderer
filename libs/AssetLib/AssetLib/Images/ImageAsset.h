@@ -41,14 +41,10 @@ struct ImageAsset
 
 namespace image
 {
-io::IoResult<ImageHeader> readHeader(const AssetFile& assetFile);
-io::IoResult<std::vector<std::byte>> readImageData(const ImageHeader& header, const AssetFile& assetFile,
+io::IoResult<ImageHeader> readHeader(const AssetMetadata& metadata);
+io::IoResult<std::vector<std::byte>> readImageData(const ImageHeader& header, const AssetMetadata& metadata,
     u32 mipmap, u32 layer, io::AssetIoInterface& io, io::AssetCompressor& compressor);
-io::IoResult<ImageAsset> readImage(const AssetFile& assetFile,
-    io::AssetIoInterface& io, io::AssetCompressor& compressor);
 
 io::IoResult<AssetPacked> pack(const ImageAsset& image, io::AssetCompressor& compressor);
-
-AssetMetadata getMetadata();
 }
 }

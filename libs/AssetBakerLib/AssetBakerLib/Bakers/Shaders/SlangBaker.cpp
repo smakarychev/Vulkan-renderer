@@ -1,5 +1,6 @@
 #include "SlangBaker.h"
 
+
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetLib/Shaders/ShaderLoadInfo.h>
@@ -9,6 +10,7 @@
 #include <CoreLib/core.h>
 #include <CoreLib/Utils/HashFileUtils.h>
 #include <CoreLib/Utils/HashUtils.h>
+#include <CoreLib/Utils/FileUtils.h>
 
 #include <fstream>
 #include <queue>
@@ -22,7 +24,10 @@
 #include <slang/slang-com-ptr.h>
 
 #define CHECK_RETURN_IO_ERROR(x, error, ...) \
-    ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, __VA_ARGS__)
+ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, __VA_ARGS__)
+
+#define CHECK_RETURN_IO_ERROR_PROPAGATE(result) \
+ASSETLIB_CHECK_RETURN_IO_ERROR_PROPAGATE(result)
 
 namespace lux::bakers
 {
@@ -536,7 +541,6 @@ public:
         return reflection;
     }
 
-private:
     void ReflectTypeLayout(slang::TypeLayoutReflection* typeLayout) override
     {
         switch (typeLayout->getKind())
@@ -665,7 +669,6 @@ public:
         return reflection;
     }
 
-private:
     void ReflectTypeLayout(slang::TypeLayoutReflection* typeLayout) override
     {
         switch (typeLayout->getKind())
@@ -1217,155 +1220,136 @@ private:
     
     static constexpr i32 RELATIVE_SET_INDEX = 0;
 };
+}
 
-std::string getBakedDefineAwareVariantFileName(const std::filesystem::path& path, u64 definesHash)
+std::filesystem::path Slang::GetBakedPath(const std::filesystem::path& metaPath) const
 {
-    if (definesHash == 0)
-        return path.filename().string();
+    auto metaRead = assetlib::shader::readMeta(metaPath);
+    ASSERT(metaRead.has_value())
+    if (!metaRead.has_value())
+        return {};
+
+    return GetBakedPath(*metaRead);
+}
+
+std::filesystem::path Slang::GetBakedPath(const assetlib::ShaderMeta& meta) const
+{
+    return getPostBakePath(meta.Metadata, POST_BAKE_EXTENSION, *m_Ctx);
+}
+
+IoResult<std::filesystem::path> Slang::BakeToFile(assetlib::ShaderMeta& meta, const std::filesystem::path& metaPath)
+{
+    ASSERT(!meta.Metadata.Io.OriginalFile.empty())
     
-    return std::format("{}-{}{}", path.stem().string(), definesHash, path.extension().string());
+    auto shaderLoadRead = assetlib::shader::readLoadInfo(meta.Metadata.Io.OriginalFile);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(shaderLoadRead)
+    
+    const AssetPaths paths = getPostBakePaths(meta.Metadata, POST_BAKE_EXTENSION, *m_Ctx);
+    auto baked = Bake(meta, *shaderLoadRead);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(baked)
+
+    auto packedShader = assetlib::shader::pack(*baked, *m_Ctx->Compressor);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(packedShader)
+    
+    meta.Metadata.Io = {
+        .OriginalFile = meta.Metadata.Io.OriginalFile,
+        .HeaderFile = std::filesystem::weakly_canonical(paths.HeaderPath).generic_string(),
+        .BinaryFile = std::filesystem::weakly_canonical(paths.BinaryPath).generic_string(),
+        .BinarySizeBytes = baked->Spirv.size(),
+        .BinarySizeBytesCompressed = packedShader->PackedBinaries.size(),
+        .BinarySizeBytesChunksCompressed = std::move(packedShader->PackedBinarySizeBytesChunks),
+        .IoMode = m_Ctx->Io->GetName(),
+        .CompressionMode = m_Ctx->Compressor->GetName(),
+        .IoGuid = m_Ctx->Io->GetGuid(),
+        .CompressionGuid = m_Ctx->Compressor->GetGuid()
+    };
+    {
+        auto updatedMeta = assetlib::shader::packMeta(meta);
+        CHECK_RETURN_IO_ERROR_PROPAGATE(updatedMeta)
+        auto writeResult = writeStringToFile(metaPath, assetlib::io::getAssetHeaderFormatted(*updatedMeta));
+        CHECK_RETURN_IO_ERROR(writeResult.has_value(), IoError::ErrorCode::GeneralError,
+            "Failed to update meta file for {}", metaPath.string())
+    }
+
+    IoResult<void> saveResult = m_Ctx->Io->WriteHeader(meta.Metadata, packedShader->Header);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(saveResult)
+
+    IoResult<u64> binarySaveResult = m_Ctx->Io->WriteBinaryChunk(meta.Metadata, packedShader->PackedBinaries);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(binarySaveResult)
+
+    return paths.HeaderPath;
 }
 
-AssetPaths convertPathsToDefineAwarePaths(const AssetPaths& paths, u64 definesHash)
-{
-    AssetPaths converted = paths;
-    converted.HeaderPath.replace_filename(getBakedDefineAwareVariantFileName(converted.HeaderPath, definesHash));
-    converted.BinaryPath.replace_filename(getBakedDefineAwareVariantFileName(converted.BinaryPath, definesHash));
-
-    return converted;
-}
-
-bool requiresBaking(const std::filesystem::path& path, const std::filesystem::path& bakedPath, const Context& ctx)
+bool Slang::ShouldBake(const std::filesystem::path& metaPath) const
 {
     namespace fs = std::filesystem;
+    
+    ASSERT(metaPath.extension().string() == assetlib::ASSETLIB_METADATA_EXTENSION)
+
+    auto metaRead = assetlib::shader::readMeta(metaPath);
+    if (!metaRead.has_value())
+        return true;
+
+    const std::filesystem::path rawPath = metaRead->Metadata.Io.OriginalFile;
+    const std::filesystem::path bakedPath = GetBakedPath(*metaRead);
+    
     if (!fs::exists(bakedPath))
         return true;
 
     const auto lastBaked = fs::last_write_time(bakedPath);
-    if (lastBaked < fs::last_write_time(path))
+    if (lastBaked < fs::last_write_time(metaPath) || lastBaked < fs::last_write_time(rawPath))
         return true;
 
-    IoResult<assetlib::AssetFile> assetFileRead = ctx.Io->ReadHeader(bakedPath);
-    if (!assetFileRead.has_value())
+    const auto readHeader = assetlib::shader::readHeader(metaRead->Metadata);
+    if (!readHeader.has_value())
         return true;
 
-    const auto unpackHeader = assetlib::shader::readHeader(*assetFileRead);
-    if (!unpackHeader.has_value())
-        return true;
-
-    for (auto& include : unpackHeader->Includes)
+    for (auto& include : readHeader->Includes)
         if (fs::exists(include) && lastBaked < fs::last_write_time(include))
             return true;
 
     return false; 
 }
 
-}
-
-std::filesystem::path Slang::GetBakedPath(const std::filesystem::path& originalFile, StringId variant,
-    const SlangBakeSettings& settings, const Context& ctx)
+std::optional<u64> Slang::GetDefinesHash(const assetlib::ShaderLoadInfo& loadInfo) const
 {
-    u64 definesHash = settings.DefinesHash;
-    if (variant.Hash() != MAIN_VARIANT.Hash())
+    u64 definesHash = m_Settings.DefinesHash;
+    if (m_Settings.Variant.Hash() != MAIN_VARIANT.Hash())
     {
-        const auto loadInfo = assetlib::shader::readLoadInfo(originalFile);
-        if (!loadInfo.has_value())
-            return {};
-
-        const auto shaderVariant = findShaderVariant(*loadInfo, variant);
+        const auto shaderVariant = findShaderVariant(loadInfo, m_Settings.Variant);
         if (!shaderVariant.has_value())
-            return {};
+            return std::nullopt;
         
         definesHash = getShaderVariantDefinesHash(*shaderVariant, definesHash);
     }
     
-    std::filesystem::path path = getPostBakePath(originalFile, ctx);
-    path.replace_filename(getBakedDefineAwareVariantFileName(path, definesHash));
-    path.replace_extension(POST_BAKE_EXTENSION);
-
-    return path;
+    return definesHash;
 }
 
-IoResult<void> Slang::BakeVariantsToFile(const std::filesystem::path& path, const SlangBakeSettings& settings,
-    const Context& ctx)
+std::filesystem::path Slang::GetDefineAwarePath(const std::filesystem::path& path, u64 definesHash) const
 {
-    const auto loadInfo = assetlib::shader::readLoadInfo(path);
-    if (!loadInfo.has_value())
-        return std::unexpected(loadInfo.error());
-
-    for (auto& variant : loadInfo->Variants)
-    {
-        auto baked = BakeToFile(path, StringId::FromString(variant.Name), settings, ctx);
-        CHECK_RETURN_IO_ERROR(baked.has_value(), baked.error().Code, "{} (variant {})",
-            baked.error().Message, variant.Name)
-    }
-
-    return {};
-}
-
-IoResult<std::filesystem::path> Slang::BakeToFile(const std::filesystem::path& path, StringId variant,
-    const SlangBakeSettings& settings, const Context& ctx)
-{
-    const auto loadInfo = assetlib::shader::readLoadInfo(path);
-    if (!loadInfo.has_value())
-        return std::unexpected(loadInfo.error());
-
-    const auto shaderVariant = findShaderVariant(*loadInfo, variant);
-    CHECK_RETURN_IO_ERROR(shaderVariant.has_value(), IoError::ErrorCode::GeneralError,
-        "Cannot find specified variant in shader: {} ({})", variant.AsStringView(), path.string())
-
-    const AssetPaths paths = convertPathsToDefineAwarePaths(
-        getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, *ctx.Io),
-        getShaderVariantDefinesHash(*shaderVariant, settings.DefinesHash));
-    if (!requiresBaking(path, paths.HeaderPath, ctx))
-        return paths.HeaderPath;
+    if (definesHash == 0)
+        return path;
     
-    auto baked = Bake(*loadInfo, *shaderVariant, settings, ctx);
-    CHECK_RETURN_IO_ERROR(baked.has_value(), baked.error().Code, "{} ({})", baked.error().Message, path.string())
-
-    auto packedShader = assetlib::shader::pack(*baked, *ctx.Compressor);
-    if (!packedShader.has_value())
-        return std::unexpected(packedShader.error());
-
-    auto existingAssetId = getBakedAssetId(paths.HeaderPath, *ctx.Io);
-    if (existingAssetId.HasValue())
-        packedShader->Metadata.AssetId = existingAssetId;
-    
-    assetlib::AssetFile assetFile = {
-        .Metadata = std::move(packedShader->Metadata),
-        .AssetSpecificInfo = std::move(packedShader->AssetSpecificInfo)
-    };
-    assetFile.IoInfo = {
-        .OriginalFile = std::filesystem::weakly_canonical(path).generic_string(),
-        .HeaderFile = std::filesystem::weakly_canonical(paths.HeaderPath).generic_string(),
-        .BinaryFile = std::filesystem::weakly_canonical(paths.BinaryPath).generic_string(),
-        .BinarySizeBytes = baked->Spirv.size(),
-        .BinarySizeBytesCompressed = packedShader->PackedBinaries.size(),
-        .BinarySizeBytesChunksCompressed = std::move(packedShader->PackedBinarySizeBytesChunks),
-        .CompressionMode = ctx.Compressor->GetName(),
-        .CompressionGuid = ctx.Compressor->GetGuid()
-    };
-
-    IoResult<void> saveResult = ctx.Io->WriteHeader(assetFile);
-    CHECK_RETURN_IO_ERROR(saveResult.has_value(), saveResult.error().Code, "{} ({})",
-        saveResult.error().Message, path.string())
-
-    IoResult<u64> binarySaveResult = ctx.Io->WriteBinaryChunk(assetFile, packedShader->PackedBinaries);
-    CHECK_RETURN_IO_ERROR(binarySaveResult.has_value(), binarySaveResult.error().Code, "{} ({})",
-        binarySaveResult.error().Message, path.string())
-
-    return paths.HeaderPath;
+    std::filesystem::path converted = path;
+    const std::string& extension = converted.extension().string();
+    converted.replace_extension("");
+    return std::format("{}-{}{}", converted.string(), definesHash, extension);
 }
 
-IoResult<assetlib::ShaderAsset> Slang::Bake(const assetlib::ShaderLoadInfo& loadInfo,
-    const assetlib::ShaderLoadInfo::Variant& variant, const SlangBakeSettings& settings, const Context& ctx)
+IoResult<assetlib::ShaderAsset> Slang::Bake(const assetlib::ShaderMeta& meta, const assetlib::ShaderLoadInfo& loadInfo)
 {
-    slang::ISession& session = getSession(settings, variant);
+    auto loadRead = assetlib::shader::readLoadInfo(meta.Metadata.Io.OriginalFile);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(loadRead)
+    
+    auto variant = findShaderVariant(loadInfo, m_Settings.Variant);
+    ASSERT(variant.has_value())
+     slang::ISession& session = getSession(m_Settings, *variant);
+    
     ::Slang::ComPtr<slang::IBlob> diagnosticsBlob;
-
     std::vector<slang::IModule*> shaderModules;
-    shaderModules.reserve(loadInfo.EntryPoints.size());
-    for (const auto& entryPoint : loadInfo.EntryPoints)
+    shaderModules.reserve(loadRead->EntryPoints.size());
+    for (const auto& entryPoint : loadRead->EntryPoints)
     {
         slang::IModule* shaderModule = session.loadModule(entryPoint.Path.c_str(), diagnosticsBlob.writeRef());
         CHECK_RETURN_IO_ERROR(shaderModule, IoError::ErrorCode::FailedToLoad,
@@ -1376,8 +1360,8 @@ IoResult<assetlib::ShaderAsset> Slang::Bake(const assetlib::ShaderLoadInfo& load
     }
 
     std::vector<::Slang::ComPtr<slang::IEntryPoint>> entryPoints;
-    entryPoints.resize(loadInfo.EntryPoints.size());
-    for (auto&& [i, entryPoint] : std::views::enumerate(loadInfo.EntryPoints))
+    entryPoints.resize(loadRead->EntryPoints.size());
+    for (auto&& [i, entryPoint] : std::views::enumerate(loadRead->EntryPoints))
     {
         shaderModules[i]->findEntryPointByName(entryPoint.Name.c_str(), entryPoints[i].writeRef());
         CHECK_RETURN_IO_ERROR(entryPoints[i], IoError::ErrorCode::FailedToLoad,
@@ -1439,36 +1423,14 @@ IoResult<assetlib::ShaderAsset> Slang::Bake(const assetlib::ShaderLoadInfo& load
     const bool usesTextureHeap =
         std::ranges::search(shaderAsset.Spirv, BINDLESS_HEAP_MARKER).begin() != shaderAsset.Spirv.end();
     
-    ShaderReflector reflector(ctx, settings, usesTextureHeap);
+    ShaderReflector reflector(*m_Ctx, m_Settings, usesTextureHeap);
     auto reflectedHeader = reflector.Reflect(shaderModules, linkedProgram, entryPointMetadata);
     CHECK_RETURN_IO_ERROR(reflectedHeader.has_value(), IoError::ErrorCode::GeneralError,
            "Shader::Bake: failed to reflect shader: {}", reflectedHeader.error())
     shaderAsset.Header = std::move(*reflectedHeader);
-    shaderAsset.Header.Name = loadInfo.Name;
+    shaderAsset.Header.Name = loadRead->Name;
 
     return shaderAsset;
-}
-
-bool Slang::ShouldBake(const std::filesystem::path& path, const SlangBakeSettings& settings, const Context& ctx)
-{
-    const auto loadInfo = assetlib::shader::readLoadInfo(path);
-    if (!loadInfo.has_value())
-        return true;
-
-    for (auto& variant : loadInfo->Variants)
-    {
-        const auto shaderVariant = findShaderVariant(*loadInfo, StringId::FromString(variant.Name));
-        if (!shaderVariant.has_value())
-            return true;
-
-        const AssetPaths paths = convertPathsToDefineAwarePaths(
-            getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, *ctx.Io),
-            getShaderVariantDefinesHash(*shaderVariant, settings.DefinesHash));
-        if (requiresBaking(path, paths.HeaderPath, ctx))
-            return true;
-    }
-
-    return false;
 }
 }
 

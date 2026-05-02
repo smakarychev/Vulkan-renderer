@@ -12,7 +12,7 @@ namespace lux
 {
 namespace bakers
 {
-struct ImageBakeSettings;
+class ImageImporter;
 }
 
 template <>
@@ -29,10 +29,9 @@ public:
     LUX_ASSET_MANAGER(ImageAssetManager, "7fbed3b1-ca4c-4d90-a678-ec202cf04ea3"_guid)
 
     bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) override;
-    bool Bakes(const std::filesystem::path& path) override;
+    bool Bakes(std::string_view extension) override;
     void OnFileModified(const std::filesystem::path& path) override;
 
-    void Init(const bakers::ImageBakeSettings& bakeSettings);
     void Shutdown();
 
     void OnFrameBegin(FrameContext& ctx);
@@ -44,8 +43,7 @@ protected:
 
 private:
     void OnRawFileModified(const std::filesystem::path& path);
-    void OnBakedFileModified(const std::filesystem::path& path);
-    ImageAsset DoLoad(const ImageLoadParameters& parameters) const;
+    ImageAsset DoLoad(bakers::ImageImporter& importer, const std::filesystem::path& path) const;
 
 private:
     // todo: alternative is to make ImageHandle equivalent to Image (since both are handles)
@@ -53,8 +51,6 @@ private:
     AssetFreeListMap<ImageAsset> m_Images;
 
     /* for hot-reloading */
-    bakers::Context m_Context{};
-    const bakers::ImageBakeSettings* m_BakeSettings{nullptr};
     DeletionQueue* m_FrameDeletionQueue{nullptr};
 };
 }

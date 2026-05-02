@@ -2,7 +2,6 @@
 
 #include <AssetLib/Format/ImageFormat.h>
 #include <AssetLib/Io/AssetIo.h>
-#include <CoreLib/Utils/HashUtils.h>
 
 namespace lux::assetlib
 {
@@ -48,8 +47,6 @@ struct ShaderLoadRasterizationInfo
 
 struct ShaderLoadInfo
 {
-    std::string Name{};
-
     struct EntryPoint
     {
         std::string Name{};
@@ -72,6 +69,7 @@ struct ShaderLoadInfo
         }
     };
 
+    std::string Name{};
     std::vector<EntryPoint> EntryPoints{};
     std::vector<Variant> Variants{};
     std::optional<u32> BindlessCount{std::nullopt};

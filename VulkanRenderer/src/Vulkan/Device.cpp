@@ -2260,8 +2260,8 @@ Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletio
 {
     Image image = {};
 
-    if (std::holds_alternative<lux::assetlib::ImageAsset*>(createInfo.DataSource))
-        image = CreateImageFromAssetFile(createInfo, std::get<lux::assetlib::ImageAsset*>(createInfo.DataSource));
+    if (std::holds_alternative<const lux::assetlib::ImageAsset*>(createInfo.DataSource))
+        image = CreateImageFromAssetFile(createInfo, std::get<const lux::assetlib::ImageAsset*>(createInfo.DataSource));
     else if (std::holds_alternative<Span<const std::byte>>(createInfo.DataSource))
         image = CreateImageFromPixels(createInfo, std::get<Span<const std::byte>>(createInfo.DataSource));
     
@@ -2271,7 +2271,7 @@ Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletio
     return image;
 }
 
-Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, lux::assetlib::ImageAsset* asset)
+Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, const lux::assetlib::ImageAsset* asset)
 {
     u64 totalSizeBytes = 0;
     for (auto& mip : asset->Header.MipmapSizes)
@@ -2551,7 +2551,7 @@ Span<const ImageSubresourceDescription> Device::GetAdditionalImageViews(Image im
 
 void Device::PreprocessCreateInfo(ImageCreateInfo& createInfo)
 {
-    if (std::holds_alternative<lux::assetlib::ImageAsset*>(createInfo.DataSource))
+    if (std::holds_alternative<const lux::assetlib::ImageAsset*>(createInfo.DataSource))
         createInfo.Description.Usage |= ImageUsage::Destination;
     
     if (createInfo.Description.Mipmaps > 1)

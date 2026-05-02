@@ -1,5 +1,6 @@
 {
   "initialDirectory": "../../../assets",
+  "bakedDirectory": "../../../assets/baked",
   "shaderBakerSettings": {
     "includeDirectory": "../../../assets/shaders/slang/raw"
   },

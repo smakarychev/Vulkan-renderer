@@ -6,51 +6,30 @@
 
 namespace lux::bakers
 {
-namespace 
+std::filesystem::path getPostBakePath(const assetlib::AssetMetadata& metadata, std::string_view postBakeExtension,
+    const Context& ctx)
 {
-constexpr std::string_view BAKED_ASSETS_DIRECTORY_NAME = "baked";
-}
-std::filesystem::path getPostBakePath(const std::filesystem::path& path, const Context& ctx)
-{
-    std::filesystem::path processedPath = path.filename();
-
-    std::filesystem::path currentPath = path.parent_path();
-    while (!std::filesystem::equivalent(currentPath, ctx.InitialDirectory))
-    {
-        processedPath = currentPath.filename() / processedPath;
-        currentPath = currentPath.parent_path();
-    }
-
-    processedPath = currentPath / BAKED_ASSETS_DIRECTORY_NAME / processedPath;
-
-    return processedPath;
+    const std::string bakedFileName =
+        std::format("{}/{}", metadata.Type.Name, metadata.AssetId);
+    
+    std::filesystem::path bakedBasePath = ctx.BakedDirectory / bakedFileName;
+    bakedBasePath.replace_extension(ctx.Io->GetHeaderExtension(postBakeExtension));
+    
+    return bakedBasePath;
 }
 
-AssetPaths getPostBakePaths(const std::filesystem::path& path, const Context& ctx, std::string_view postBakeExtension,
-    const assetlib::io::AssetIoInterface& io)
+AssetPaths getPostBakePaths(const assetlib::AssetMetadata& metadata, std::string_view postBakeExtension,
+    const Context& ctx)
 {
-    const std::filesystem::path processedPath = getPostBakePath(path, ctx);
+    const std::filesystem::path processedPath = getPostBakePath(metadata, postBakeExtension, ctx);
     auto headerPath = processedPath;
     auto binaryPath = processedPath;
 
-    headerPath.replace_extension(io.GetHeaderExtension(postBakeExtension));
-    binaryPath.replace_extension(io.GetBinariesExtension());
+    binaryPath.replace_extension(ctx.Io->GetBinariesExtension());
 
     return {
         .HeaderPath = std::move(headerPath),
         .BinaryPath = std::move(binaryPath),
     };
-}
-
-assetlib::AssetId getBakedAssetId(const std::filesystem::path& bakedPath, assetlib::io::AssetIoInterface& io)
-{
-    if (!std::filesystem::exists(bakedPath))
-        return assetlib::AssetId::CreateEmpty();
-
-    IoResult<assetlib::AssetFile> assetFileRead = io.ReadHeader(bakedPath);
-    if (!assetFileRead.has_value())
-        return assetlib::AssetId::CreateEmpty();
-
-    return assetFileRead->Metadata.AssetId;
 }
 }

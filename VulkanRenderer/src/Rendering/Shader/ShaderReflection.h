@@ -18,6 +18,7 @@ class AssetIoInterface;
 
 namespace lux::assetlib
 {
+struct ShaderAsset;
 struct ShaderHeader;
 }
 
@@ -43,8 +44,7 @@ public:
         u32 Count{0};
     };
 public:
-    static lux::assetlib::io::IoResult<ShaderReflection> Reflect(const std::filesystem::path& path,
-        lux::assetlib::io::AssetIoInterface& io, lux::assetlib::io::AssetCompressor& compressor);
+    static lux::assetlib::io::IoResult<ShaderReflection> Reflect(const lux::assetlib::ShaderAsset& asset);
     ShaderReflection() = default;
     ShaderReflection(const ShaderReflection&) = delete;
     ShaderReflection& operator=(const ShaderReflection&) = delete;

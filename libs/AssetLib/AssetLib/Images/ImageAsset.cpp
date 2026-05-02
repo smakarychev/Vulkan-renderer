@@ -1,10 +1,12 @@
 ﻿#include "ImageAsset.h"
 
-#include <AssetLib/utils.h>
+#include "ImageMeta.h"
+
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetLib/Reflection/AssetlibReflectionUtility.inl>
-#include <AssetLib/Format/ImageFormat.inl>
+
+#include <CoreLib/Utils/FileUtils.h>
 
 template <>
 struct glz::meta<lux::assetlib::ImageKind> : lux::assetlib::reflection::CamelCase {
@@ -15,16 +17,20 @@ template <> struct ::glz::meta<lux::assetlib::ImageHeader> : lux::assetlib::refl
 
 namespace lux::assetlib::image
 {
-io::IoResult<ImageHeader> readHeader(const AssetFile& assetFile)
+io::IoResult<ImageHeader> readHeader(const AssetMetadata& metadata)
 {
-    const auto result = glz::read_json<ImageHeader>(assetFile.AssetSpecificInfo);
+    auto headerRead = readFileToString(metadata.Io.HeaderFile);
+    ASSETLIB_CHECK_RETURN_IO_ERROR(headerRead.has_value(), io::IoError::ErrorCode::GeneralError,
+        "Assetlib: Failed to read header file: {}", metadata.Io.HeaderFile.string())
+    
+    const auto result = glz::read_json<ImageHeader>(*headerRead);
     ASSETLIB_CHECK_RETURN_IO_ERROR(result.has_value(), io::IoError::ErrorCode::GeneralError,
-        "Assetlib: Failed to read: {}", glz::format_error(result.error(), assetFile.AssetSpecificInfo))
+        "Assetlib: Failed to read: {}", glz::format_error(result.error(), *headerRead))
 
     return *result;
 }
 
-io::IoResult<std::vector<std::byte>> readImageData(const ImageHeader& header, const AssetFile& assetFile,
+io::IoResult<std::vector<std::byte>> readImageData(const ImageHeader& header, const AssetMetadata& metadata,
     u32 mipmap, u32 layer, io::AssetIoInterface& io, io::AssetCompressor& compressor)
 {
     ASSETLIB_CHECK_RETURN_IO_ERROR(header.Mipmaps > mipmap, io::IoError::ErrorCode::GeneralError,
@@ -35,46 +41,17 @@ io::IoResult<std::vector<std::byte>> readImageData(const ImageHeader& header, co
     const u32 imageDataCompressedSizeIndex = mipmap * header.Layers + layer;
     u64 dataOffset = 0;
     for (u32 i = 0; i < imageDataCompressedSizeIndex; i++)
-        dataOffset += assetFile.IoInfo.BinarySizeBytesChunksCompressed[i];
-    const u64 dataSize = assetFile.IoInfo.BinarySizeBytesChunksCompressed[imageDataCompressedSizeIndex];
+        dataOffset += metadata.Io.BinarySizeBytesChunksCompressed[i];
+    const u64 dataSize = metadata.Io.BinarySizeBytesChunksCompressed[imageDataCompressedSizeIndex];
     
     std::vector<std::byte> imageData(dataSize);
-    auto result = io.ReadBinaryChunk(assetFile, imageData.data(), dataOffset, imageData.size());
+    auto result = io.ReadBinaryChunk(metadata, imageData.data(), dataOffset, imageData.size());
     ASSETLIB_CHECK_RETURN_IO_ERROR(result.has_value(), io::IoError::ErrorCode::FailedToLoad,
-        "Assetlib: Failed to read: {} ({})", result.error(), assetFile.IoInfo.BinaryFile.string())
+        "Assetlib: Failed to read: {} ({})", result.error(), metadata.Io.BinaryFile.string())
 
     imageData = compressor.Decompress(imageData, header.MipmapSizes[mipmap][layer]);
 
     return imageData;
-}
-
-io::IoResult<ImageAsset> readImage(const AssetFile& assetFile, io::AssetIoInterface& io,
-    io::AssetCompressor& compressor)
-{
-    auto header = readHeader(assetFile);
-    if (!header.has_value())
-        return std::unexpected(header.error());
-
-    ImageAsset asset = {
-        .Header = std::move(*header)
-    };
-    asset.MipmapsImageData.resize(header->Mipmaps);
-    for (auto& mip : asset.MipmapsImageData)
-        mip.resize(header->Layers);
-    
-    for (u32 mip = 0; mip < header->Mipmaps; mip++)
-    {
-        for (u32 layer = 0; layer < header->Layers; layer++)
-        {
-            auto binary = readImageData(asset.Header, assetFile, mip, layer, io, compressor);
-            ASSETLIB_CHECK_RETURN_IO_ERROR(binary.has_value(), io::IoError::ErrorCode::FailedToLoad,
-                "Assetlib: Failed to read: {} ({})", binary.error(), assetFile.IoInfo.BinaryFile.string())
-            
-            asset.MipmapsImageData[mip][layer] = std::move(*binary);
-        }
-    }
-
-    return asset;
 }
 
 io::IoResult<AssetPacked> pack(const ImageAsset& image, io::AssetCompressor& compressor)
@@ -99,21 +76,9 @@ io::IoResult<AssetPacked> pack(const ImageAsset& image, io::AssetCompressor& com
     }
 
     return AssetPacked{
-        .Metadata = getMetadata(),
-        .AssetSpecificInfo = std::move(*header),
+        .Header = std::move(*header),
         .PackedBinaries = std::move(imageData),
         .PackedBinarySizeBytesChunks = std::move(packedImageDataBinarySizeBytesChunks)
-    };
-}
-
-AssetMetadata getMetadata()
-{
-    static constexpr u32 IMAGE_ASSET_VERSION = 1;
-    
-    return {
-        .Type = "66c40884-12d6-4f3f-a801-34d585c692a3"_guid,
-        .TypeName = "image",
-        .Version = IMAGE_ASSET_VERSION,
     };
 }
 }

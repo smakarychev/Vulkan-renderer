@@ -1,15 +1,17 @@
 ﻿#include "SeparateAssetIoInterface.h"
 
+#include <CoreLib/Utils/FileUtils.h>
+
 #include <fstream>
 
 namespace fs = std::filesystem;
 
 namespace lux::assetlib::io
 {
-IoResult<void> SeparateAssetIoInterface::WriteHeader(const AssetFile& file)
+IoResult<void> SeparateAssetIoInterface::WriteHeader(const AssetMetadata& metadata, const AssetCustomHeaderType& header)
 {
-    const fs::path& headerPath = file.IoInfo.HeaderFile;
-    const fs::path& binaryPath = file.IoInfo.BinaryFile;
+    const fs::path& headerPath = metadata.Io.HeaderFile;
+    const fs::path& binaryPath = metadata.Io.BinaryFile;
 
     ASSETLIB_CHECK_RETURN_IO_ERROR(!headerPath.empty(), IoError::ErrorCode::FailedToCreate,
         "Assetlib: File paths are not set: header: {}", headerPath.string())
@@ -26,18 +28,17 @@ IoResult<void> SeparateAssetIoInterface::WriteHeader(const AssetFile& file)
     ASSETLIB_CHECK_RETURN_IO_ERROR(headerOut.good(), IoError::ErrorCode::FailedToCreate,
         "Assetlib: Failed to create header file: {}", headerPath.string())
 
-    const auto assetHeaderString = getAssetFullHeaderFormattedString(file);
-    ASSETLIB_CHECK_RETURN_IO_ERROR(assetHeaderString.has_value(), IoError::ErrorCode::GeneralError,
-        "Assetlib: Failed to create header string: {} ({})", assetHeaderString.error().Message, headerPath.string())
-    headerOut.write(assetHeaderString->c_str(), (isize)assetHeaderString->size());
+    const auto assetHeaderString = getAssetHeaderFormatted(header);
+    headerOut.write(assetHeaderString.c_str(), (isize)assetHeaderString.size());
 
     return {};
 }
 
-IoResult<u64> SeparateAssetIoInterface::WriteBinaryChunk(const AssetFile& file, Span<const std::byte> binaryDataChunk)
+IoResult<u64> SeparateAssetIoInterface::WriteBinaryChunk(const AssetMetadata& metadata, 
+    Span<const std::byte> binaryDataChunk)
 {
-    const fs::path& headerPath = file.IoInfo.HeaderFile;
-    const fs::path& binaryPath = file.IoInfo.BinaryFile;
+    const fs::path& headerPath = metadata.Io.HeaderFile;
+    const fs::path& binaryPath = metadata.Io.BinaryFile;
 
     ASSETLIB_CHECK_RETURN_IO_ERROR(!binaryPath.empty(), IoError::ErrorCode::FailedToCreate,
         "Assetlib: File paths are not set: binary: {}", binaryPath.string())
@@ -59,19 +60,19 @@ IoResult<u64> SeparateAssetIoInterface::WriteBinaryChunk(const AssetFile& file, 
     return binaryDataChunk.size();
 }
 
-IoResult<AssetFile> SeparateAssetIoInterface::ReadHeader(const std::filesystem::path& headerPath)
+IoResult<AssetCustomHeaderType> SeparateAssetIoInterface::ReadHeader(const AssetMetadata& metadata)
 {
-    auto assetHeader = unpackBaseAssetHeader(headerPath);
-    ASSETLIB_CHECK_RETURN_IO_ERROR(assetHeader.has_value(), IoError::ErrorCode::WrongFormat,
-        "Assetlib: Failed to parse header file: {} ({})", assetHeader.error().Message, headerPath.string())
+    auto headerRead = readFileToString(metadata.Io.HeaderFile);
+    ASSETLIB_CHECK_RETURN_IO_ERROR(headerRead.has_value(), IoError::ErrorCode::FailedToOpen,
+        "Assetlib: Failed to open header file: {}", metadata.Io.HeaderFile.string())
 
-    return assetHeader;
+    return *headerRead;
 }
 
-IoResult<void> SeparateAssetIoInterface::ReadBinaryChunk(const AssetFile& file, std::byte* destination, u64 offsetBytes,
-    u64 sizeBytes)
+IoResult<void> SeparateAssetIoInterface::ReadBinaryChunk(const AssetMetadata& metadata, std::byte* destination, 
+    u64 offsetBytes, u64 sizeBytes)
 {
-    const fs::path& binaryPath = file.IoInfo.BinaryFile;
+    const fs::path& binaryPath = metadata.Io.BinaryFile;
 
     std::ifstream binaryIn(binaryPath, std::ios::binary | std::ios::ate);
     ASSETLIB_CHECK_RETURN_IO_ERROR(binaryIn.good(), IoError::ErrorCode::FailedToOpen,

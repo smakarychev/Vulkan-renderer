@@ -14,12 +14,12 @@ constexpr u32 ASSET_COMBINED_FILE_MAGIC_LENGTH = (u32)ASSET_COMBINED_FILE_MAGIC.
 static_assert(ASSET_COMBINED_FILE_MAGIC_LENGTH == 8);
 }
 
-IoResult<void> CombinedAssetIoInterface::WriteHeader(const AssetFile& file)
+IoResult<void> CombinedAssetIoInterface::WriteHeader(const AssetMetadata& metadata, const AssetCustomHeaderType& header)
 {
-    ASSETLIB_CHECK_RETURN_IO_ERROR(file.IoInfo.HeaderFile == file.IoInfo.BinaryFile, IoError::ErrorCode::FailedToCreate,
+    ASSETLIB_CHECK_RETURN_IO_ERROR(metadata.Io.HeaderFile == metadata.Io.BinaryFile, IoError::ErrorCode::FailedToCreate,
         "Assetlib: File paths for combined assets have to be equal")
 
-    const fs::path& path = file.IoInfo.HeaderFile;
+    const fs::path& path = metadata.Io.HeaderFile;
     ASSETLIB_CHECK_RETURN_IO_ERROR(!path.empty(), IoError::ErrorCode::FailedToCreate, "Assetlib: File path is not set")
 
     const bool success = fs::exists(fs::path(path).parent_path()) ||
@@ -31,30 +31,27 @@ IoResult<void> CombinedAssetIoInterface::WriteHeader(const AssetFile& file)
     ASSETLIB_CHECK_RETURN_IO_ERROR(out.good(), IoError::ErrorCode::FailedToCreate,
         "Assetlib: Failed to create file: {}", path.string())
 
-    const auto assetHeaderString = getAssetFullHeaderString(file);
-    ASSETLIB_CHECK_RETURN_IO_ERROR(assetHeaderString.has_value(), IoError::ErrorCode::GeneralError,
-        "Assetlib: Failed to create header string: {} ({})", assetHeaderString.error().Message, path.string())
     out.write(ASSET_COMBINED_FILE_MAGIC.data(), ASSET_COMBINED_FILE_MAGIC.length());
-    out.write((const char*)&file.Metadata.Version, sizeof file.Metadata.Version);
+    out.write((const char*)&metadata.Type.Version, sizeof metadata.Type.Version);
 
-    const isize headerSizeBytes = (isize)assetHeaderString->size();
+    const isize headerSizeBytes = (isize)header.size();
     out.write((const char*)&headerSizeBytes, sizeof headerSizeBytes);
 
-    const isize binarySizeBytes = (isize)file.IoInfo.BinarySizeBytesCompressed;
+    const isize binarySizeBytes = (isize)metadata.Io.BinarySizeBytesCompressed;
     out.write((const char*)&binarySizeBytes, sizeof binarySizeBytes);
 
-    out.write(assetHeaderString->data(), headerSizeBytes);
+    out.write(header.data(), headerSizeBytes);
 
     return {};
 }
 
-IoResult<u64> CombinedAssetIoInterface::WriteBinaryChunk(const AssetFile& file,
+IoResult<u64> CombinedAssetIoInterface::WriteBinaryChunk(const AssetMetadata& metadata,
     Span<const std::byte> binaryDataChunk)
 {
-    ASSETLIB_CHECK_RETURN_IO_ERROR(file.IoInfo.HeaderFile == file.IoInfo.BinaryFile, IoError::ErrorCode::FailedToCreate,
+    ASSETLIB_CHECK_RETURN_IO_ERROR(metadata.Io.HeaderFile == metadata.Io.BinaryFile, IoError::ErrorCode::FailedToCreate,
         "Assetlib: File paths for combined assets have to be equal")
 
-    const fs::path& path = file.IoInfo.HeaderFile;
+    const fs::path& path = metadata.Io.HeaderFile;
     ASSETLIB_CHECK_RETURN_IO_ERROR(!path.empty(), IoError::ErrorCode::FailedToCreate, "Assetlib: File path is not set")
 
     std::ofstream out(path, std::ios::binary | std::ios::ate);
@@ -68,11 +65,11 @@ IoResult<u64> CombinedAssetIoInterface::WriteBinaryChunk(const AssetFile& file,
     return binaryDataChunk.size();
 }
 
-IoResult<AssetFile> CombinedAssetIoInterface::ReadHeader(const std::filesystem::path& headerPath)
+IoResult<AssetCustomHeaderType> CombinedAssetIoInterface::ReadHeader(const AssetMetadata& metadata)
 {
-    std::ifstream in(headerPath, std::ios::binary);
+    std::ifstream in(metadata.Io.HeaderFile, std::ios::binary);
     ASSETLIB_CHECK_RETURN_IO_ERROR(in.good(), IoError::ErrorCode::FailedToOpen,
-        "Assetlib: Failed to open combined asset file: {}", headerPath.string())
+        "Assetlib: Failed to open combined asset file: {}", metadata.Io.HeaderFile.string())
 
     std::string assetMagicString = std::string(ASSET_COMBINED_FILE_MAGIC);
     in.read(assetMagicString.data(), (isize)assetMagicString.size());
@@ -96,21 +93,14 @@ IoResult<AssetFile> CombinedAssetIoInterface::ReadHeader(const std::filesystem::
     std::string headerString(headerSizeBytes, 0);
     in.read(headerString.data(), headerSizeBytes);
 
-    auto assetFile = unpackBaseAssetHeaderFromBuffer(headerString);
-    ASSETLIB_CHECK_RETURN_IO_ERROR(assetFile.has_value(), IoError::ErrorCode::WrongFormat,
-        "Assetlib: Failed to parse header file: {} ({})", assetFile.error().Message, headerPath.string())
-
-    assetFile->IoInfo.HeaderSizeBytes = headerSizeBytes;
-    assetFile->IoInfo.BinarySizeBytesCompressed = binarySizeBytes;
-
-    return assetFile;
+    return headerString;
 }
 
-IoResult<void> CombinedAssetIoInterface::ReadBinaryChunk(const AssetFile& file, std::byte* destination, u64 offsetBytes,
-    u64 sizeBytes)
+IoResult<void> CombinedAssetIoInterface::ReadBinaryChunk(const AssetMetadata& metadata, std::byte* destination, 
+    u64 offsetBytes, u64 sizeBytes)
 {
-    const isize headerSizeBytes = (isize)file.IoInfo.HeaderSizeBytes;
-    const fs::path& binaryPath = file.IoInfo.BinaryFile;
+    const isize headerSizeBytes = (isize)metadata.Io.HeaderSizeBytes;
+    const fs::path& binaryPath = metadata.Io.BinaryFile;
 
     std::ifstream binaryIn(binaryPath, std::ios::binary);
     ASSETLIB_CHECK_RETURN_IO_ERROR(binaryIn.good(), IoError::ErrorCode::FailedToOpen,
@@ -122,9 +112,9 @@ IoResult<void> CombinedAssetIoInterface::ReadBinaryChunk(const AssetFile& file, 
 
     binaryIn.seekg((isize)(
         ASSET_COMBINED_FILE_MAGIC_LENGTH +
-        sizeof file.Metadata.Version +
-        sizeof file.IoInfo.HeaderSizeBytes +
-        file.IoInfo.HeaderSizeBytes +
+        sizeof metadata.Type.Version +
+        sizeof metadata.Io.HeaderSizeBytes +
+        metadata.Io.HeaderSizeBytes +
         offsetBytes), std::ios::beg);
     binaryIn.read((char*)destination, (isize)sizeBytes);
 

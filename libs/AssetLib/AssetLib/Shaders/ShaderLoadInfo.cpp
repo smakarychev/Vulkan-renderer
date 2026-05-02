@@ -1,10 +1,7 @@
 #include "ShaderLoadInfo.h"
 
-#include <AssetLib/Format/ImageFormat.inl>
-#include <CoreLib/Utils/HashFileUtils.h>
-#include <CoreLib/Utils/HashUtils.h>
-
-#include <glaze/glaze.hpp>
+#include <AssetLib/Reflection/AssetlibReflectionUtility.inl>
+#include <CoreLib/Utils/FileUtils.h>
 
 template <>
 struct glz::meta<lux::assetlib::ShaderRasterizationDynamicState> : lux::assetlib::reflection::CamelCase {
@@ -54,7 +51,6 @@ void calculateShaderVariantHashes(lux::assetlib::ShaderLoadInfo& shaderLoadInfo)
     }
 }
 }
-
 namespace lux::assetlib::shader
 {
 io::IoResult<ShaderLoadInfo> readLoadInfo(const std::filesystem::path& path)
@@ -62,19 +58,15 @@ io::IoResult<ShaderLoadInfo> readLoadInfo(const std::filesystem::path& path)
     using namespace io;
 
     ShaderLoadInfo loadInfo = {};
-    std::ifstream in(path, std::ios::binary | std::ios::ate);
-    ASSETLIB_CHECK_RETURN_IO_ERROR(in.good(), IoError::ErrorCode::FailedToOpen,
-        "ShaderLoadInfo: Failed to open: {}", path.string())
-    const isize size = in.tellg();
-    in.seekg(0, std::ios::beg);
-    std::string buffer(size, 0);
-    in.read(buffer.data(), size);
-    in.close();
     
-    const glz::error_ctx error = glz::read_json(loadInfo, buffer);
+    auto read = readFileToString(path);
+    ASSETLIB_CHECK_RETURN_IO_ERROR(read.has_value(), IoError::ErrorCode::FailedToOpen,
+        "ShaderLoadInfo: Failed to open: {}", path.string())
+    
+    const glz::error_ctx error = glz::read_json(loadInfo, *read);
     ASSETLIB_CHECK_RETURN_IO_ERROR(!error, IoError::ErrorCode::GeneralError,
-        "ShaderLoadInfo: Failed to parse: {} ({})", glz::format_error(error, buffer), path.string())
-
+        "ShaderLoadInfo: Failed to parse: {} ({})", glz::format_error(error, *read), path.string())
+    
     calculateShaderVariantHashes(loadInfo);
     if (loadInfo.Variants.empty())
         loadInfo.Variants.push_back(ShaderLoadInfo::Variant::MainVariant());

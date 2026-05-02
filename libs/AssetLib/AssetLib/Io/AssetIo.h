@@ -27,10 +27,8 @@ struct IoError
 template <typename T>
 using IoResult = Result<T, IoError>;
 
-IoResult<AssetFile> unpackBaseAssetHeaderFromBuffer(std::string_view buffer);
-IoResult<AssetFile> unpackBaseAssetHeader(const std::filesystem::path& headerPath);
-IoResult<std::string> getAssetFullHeaderString(const AssetFile& file);
-IoResult<std::string> getAssetFullHeaderFormattedString(const AssetFile& file);
+IoResult<AssetMetadata> readBaseAssetMetadata(const std::filesystem::path& path);
+std::string getAssetHeaderFormatted(std::string_view header);
 }
 
 namespace std
@@ -75,3 +73,6 @@ struct formatter<lux::assetlib::io::IoError> {
 
 #define ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, ...) \
 if (!(x)) { return std::unexpected(::lux::assetlib::io::IoError{.Code = error, .Message = std::format(__VA_ARGS__)}); }
+
+#define ASSETLIB_CHECK_RETURN_IO_ERROR_PROPAGATE(result) \
+if (!(result).has_value()) { return std::unexpected((result).error()); }

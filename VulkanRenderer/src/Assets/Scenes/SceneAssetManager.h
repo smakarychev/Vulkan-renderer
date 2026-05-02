@@ -17,7 +17,8 @@ class ImageAssetManager;
 
 namespace bakers
 {
-struct SceneBakeSettings;
+class SceneImporter;
+struct SceneImportedAsset;
 }
 
 template <>
@@ -55,10 +56,9 @@ public:
 
     void OnAssetSystemInit() override;
     bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) override;
-    bool Bakes(const std::filesystem::path& path) override;
+    bool Bakes(std::string_view extension) override;
     void OnFileModified(const std::filesystem::path& path) override;
 
-    void Init(const bakers::SceneBakeSettings& bakeSettings);
     void SetTextureRingBuffer(BindlessTextureDescriptorsRingBuffer& ringBuffer);
     SceneDeletedSignal& GetSceneDeletedSignal() { return m_SceneDeletedSignal; }
     SceneReplacedSignal& GetSceneReplacedSignal() { return m_SceneReplacedSignal; }
@@ -75,16 +75,15 @@ protected:
 
 private:
     void OnRawFileModified(const std::filesystem::path& path);
-    void OnBakedFileModified(const std::filesystem::path& path);
     void OnMaterialUpdated(MaterialHandle material);
     void OnTextureUpdated(ImageHandle texture);
     void RegisterMaterials(SceneHandle sceneHandle);
     void UnregisterMaterials(SceneHandle sceneHandle);
-    std::optional<SceneAsset> DoLoad(const SceneLoadParameters& parameters);
-    SceneGeometryInfo LoadGeometryInfo(assetlib::SceneAsset& scene);
-    SceneLightInfo LoadLightsInfo(assetlib::SceneAsset& scene);
-    SceneHierarchyInfo LoadHierarchyInfo(assetlib::SceneAsset& scene);
-    void LoadMaterials(SceneGeometryInfo& geometry, assetlib::SceneAsset& scene);
+    std::optional<SceneAsset> DoLoad(bakers::SceneImporter& importer, const std::filesystem::path& path);
+    SceneGeometryInfo LoadGeometryInfo(const assetlib::SceneAsset& scene);
+    SceneLightInfo LoadLightsInfo(const assetlib::SceneAsset& scene);
+    SceneHierarchyInfo LoadHierarchyInfo(const assetlib::SceneAsset& scene);
+    void LoadMaterials(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene);
     MaterialGPU LoadMaterial(const SceneGeometryInfo::MaterialInfo& materialInfo, const MaterialAsset& materialAsset);
     TextureHandle LoadTexture(u32 uvIndex, ImageHandle image, TextureHandle fallback);
 
@@ -107,8 +106,6 @@ private:
     SceneDeletedSignal m_SceneDeletedSignal;
     
     /* for hot-reloading */
-    bakers::Context m_Context{};
-    const bakers::SceneBakeSettings* m_BakeSettings{nullptr};
     AssetUpdatedHandler m_MaterialUpdatedHandler;
     AssetUpdatedHandler m_TextureUpdatedHandler;
     std::unordered_map<MaterialHandle, std::vector<SceneHandle>> m_MaterialToScenes;

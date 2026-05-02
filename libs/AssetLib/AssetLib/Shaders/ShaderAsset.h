@@ -153,15 +153,11 @@ struct ShaderAsset
 
 namespace shader
 {
-io::IoResult<ShaderHeader> readHeader(const AssetFile& assetFile);
-io::IoResult<std::vector<std::byte>> readSpirv(const ShaderHeader& header, const AssetFile& assetFile,
-    io::AssetIoInterface& io, io::AssetCompressor& compressor);
-io::IoResult<ShaderAsset> readShader(const AssetFile& assetFile,
+io::IoResult<ShaderHeader> readHeader(const AssetMetadata& metadata);
+io::IoResult<std::vector<std::byte>> readSpirv(const ShaderHeader& header, const AssetMetadata& metadata,
     io::AssetIoInterface& io, io::AssetCompressor& compressor);
 
 io::IoResult<AssetPacked> pack(const ShaderAsset& shader, io::AssetCompressor& compressor);
-
-AssetMetadata getMetadata();
 }
 }
 

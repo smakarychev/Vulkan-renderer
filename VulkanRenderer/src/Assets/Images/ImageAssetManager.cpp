@@ -9,56 +9,45 @@
 #include "Rendering/Image/ImageUtility.h"
 #include "Vulkan/Device.h"
 
-#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
-#include <AssetBakerLib/Bakers/Images/ImageBaker.h>
+#include <AssetLib/Images/ImageMeta.h>
+#include <AssetBakerLib/Importers/Images/ImageImporter.h>
 
 namespace lux
 {
 bool ImageAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
 {
-    if (path.extension() != bakers::IMAGE_ASSET_EXTENSION)
+    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || !Bakes(assetlib::getMetadataRawExtension(path)))
         return false;
 
-    auto assetFile = m_Context.Io->ReadHeader(path);
-    if (!assetFile.has_value())
+    auto metadataRead = assetlib::io::readBaseAssetMetadata(path);
+    if (!metadataRead.has_value())
+        return false;
+    
+    if (metadataRead->Type.Type != assetlib::image::ASSET_TYPE)
         return false;
 
-    auto imageHeader = assetlib::image::readHeader(*assetFile);
-    if (!imageHeader.has_value())
-        return false;
-
-    resolver.RegisterId(assetFile->Metadata.AssetId, {
-        .Path = path,
-        .AssetType = assetFile->Metadata.Type
+    resolver.RegisterId(metadataRead->AssetId, {
+        .Path = metadataRead->Io.OriginalFile,
+        .MetaPath = path,
+        .AssetType = metadataRead->Type.Type
     });
-
+    
     return true;
 }
 
-bool ImageAssetManager::Bakes(const std::filesystem::path& path)
+bool ImageAssetManager::Bakes(std::string_view extension)
 {
     bool bakes = false;
-    for (auto& extension : bakers::IMAGE_ASSET_RAW_EXTENSIONS)
-        bakes = bakes || path.extension() == extension;
+    for (auto& rawExtension : bakers::IMAGE_ASSET_RAW_EXTENSIONS)
+        bakes = bakes || extension == rawExtension;
 
-    return bakes || path.extension() == bakers::ImageBaker::IMAGE_LOAD_INFO_EXTENSION;
+    return bakes;
 }
 
 void ImageAssetManager::OnFileModified(const std::filesystem::path& path)
 {
-    if (Bakes(path))
+    if (Bakes(path.extension().string()) || Bakes(assetlib::getMetadataRawExtension(path)))
         OnRawFileModified(path);
-}
-
-void ImageAssetManager::Init(const bakers::ImageBakeSettings& bakeSettings)
-{
-    m_Context = {
-        .InitialDirectory = m_AssetSystem->GetAssetsDirectory(),
-        .Io = &m_AssetSystem->GetIo(),
-        .Compressor = &m_AssetSystem->GetCompressor()
-    };
-
-    m_BakeSettings = &bakeSettings;
 }
 
 void ImageAssetManager::Shutdown()
@@ -76,25 +65,32 @@ void ImageAssetManager::OnFrameBegin(FrameContext& ctx)
 ImageHandle ImageAssetManager::LoadAsset(const ImageLoadParameters& parameters)
 {
     const std::filesystem::path path = weakly_canonical(parameters.Path).generic_string();
-    const ImageHandle cached = m_Images.Find(path);
+    bakers::ImageImporter importer(m_Ctx, {});
+    const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
+    
+    const ImageHandle cached = m_Images.Find(id);
     if (cached.IsValid())
         return cached;
 
-    return m_Images.Add(DoLoad(parameters), path);
+    return m_Images.Add(DoLoad(importer, path), id);
 }
 
 void ImageAssetManager::UnloadAsset(ImageHandle handle)
 {
     ASSERT(m_FrameDeletionQueue)
 
-    const std::filesystem::path* path = m_Images.Find(handle);
-    if (path == nullptr)
+    const assetlib::AssetId id = m_Images.Find(handle);
+    if (!id.HasValue())
         return;
 
-    LUX_LOG_INFO("Unloading image: {}", path->string());
+    const auto* assetInfo = m_AssetSystem->Resolve(id);
+    if (!assetInfo)
+        return;
+
+    LUX_LOG_INFO("Unloading image: {}", assetInfo->Path.string());
 
     m_FrameDeletionQueue->Enqueue(GetAsset(handle));
-    m_Images.Erase(handle, *path);
+    m_Images.Erase(handle, id);
 }
 
 Image ImageAssetManager::GetAsset(ImageHandle handle) const
@@ -104,81 +100,65 @@ Image ImageAssetManager::GetAsset(ImageHandle handle) const
 
 void ImageAssetManager::OnRawFileModified(const std::filesystem::path& path)
 {
-    std::filesystem::path loadPath = path;
-    if (path.extension() != bakers::ImageBaker::IMAGE_LOAD_INFO_EXTENSION)
-        loadPath.replace_extension(bakers::ImageBaker::IMAGE_LOAD_INFO_EXTENSION);
-
     m_AssetSystem->AddBakeRequest({
-        .BakeFn = [this, loadPath]()
+        .BakeFn = [this, path]()
         {
-            bakers::ImageBaker baker;
-
-            LUX_LOG_INFO("Baking image file: {}", loadPath.string());
-            auto bakedPath = baker.BakeToFile(loadPath, *m_BakeSettings, m_Context);
-            if (!bakedPath)
+            bakers::ImageImporter importer(m_Ctx, {});
+            const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
+            ImageHandle cached;
             {
-                LUX_LOG_WARN("Bake request failed {} ({})", bakedPath.error(), loadPath.string());
-                return;
+                Lock lock(m_ResourceAccessMutex);
+                cached = m_Images.Find(id);
+                if (!cached.IsValid())
+                    return;
             }
-            
-            OnBakedFileModified(*bakedPath);
+            const ImageAsset newImage = DoLoad(importer, path);
+            if (!newImage.HasValue())
+                return;
+            {
+                Lock lock(m_ResourceAccessMutex);
+                m_FrameDeletionQueue->Enqueue(GetAsset(cached));
+                m_Images[cached.Index()] = newImage;
+            }
+
+            m_AssetSystem->NotifyAssetUpdate(assetlib::image::ASSET_TYPE, {.AssetHandle = cached});
         }
     });
 }
 
-void ImageAssetManager::OnBakedFileModified(const std::filesystem::path& path)
+ImageAsset ImageAssetManager::DoLoad(bakers::ImageImporter& importer, const std::filesystem::path& path) const
 {
-    ImageHandle cached;
+    LUX_LOG_INFO("Loading image: {}", path.string());
     
+    auto imported = importer.Import(path);
+    if (!imported.has_value())
     {
-        Lock lock(m_ResourceAccessMutex);
-
-        cached = m_Images.Find(weakly_canonical(path).generic_string());
-        if (!cached.IsValid())
-            return;
-
-        m_FrameDeletionQueue->Enqueue(GetAsset(cached));
-        const ImageAsset newImage = DoLoad({.Path = path});
-        if (newImage.HasValue())
-            m_Images[cached.Index()] = newImage;
+        LUX_LOG_ERROR("Failed to load image: {} ({})", imported.error(), path.string());
+        return {};
     }
-    
-    m_AssetSystem->NotifyAssetUpdate(assetlib::image::getMetadata().Type, {.AssetHandle = cached});
-}
+    auto& imageAsset = importer.GetImportedImage().Asset;
 
-ImageAsset ImageAssetManager::DoLoad(const ImageLoadParameters& parameters) const
-{
-    LUX_LOG_INFO("Loading image: {}", parameters.Path.string());
-    
-    const auto assetFile = m_Context.Io->ReadHeader(parameters.Path);
-    if (!assetFile.has_value())
-        return {};
-
-    auto imageAsset = assetlib::image::readImage(*assetFile, *m_Context.Io, *m_Context.Compressor);
-    if (!imageAsset.has_value())
-        return {};
-
-    u32 layersDepth = imageAsset->Header.Layers;
-    i8 mips = (i8)imageAsset->Header.Mipmaps;
-    if (imageAsset->Header.Kind == assetlib::ImageKind::Image3d)
-        layersDepth = imageAsset->Header.Depth;
-    if (imageAsset->Header.GenerateMipmaps)
-        mips = imageAsset->Header.Kind == assetlib::ImageKind::Image3d ?
-           Images::mipmapCount({imageAsset->Header.Width, imageAsset->Header.Height, imageAsset->Header.Depth}) :
-           Images::mipmapCount({imageAsset->Header.Width, imageAsset->Header.Height});
+    u32 layersDepth = imageAsset.Header.Layers;
+    i8 mips = (i8)imageAsset.Header.Mipmaps;
+    if (imageAsset.Header.Kind == assetlib::ImageKind::Image3d)
+        layersDepth = imageAsset.Header.Depth;
+    if (imageAsset.Header.GenerateMipmaps)
+        mips = imageAsset.Header.Kind == assetlib::ImageKind::Image3d ?
+           Images::mipmapCount({imageAsset.Header.Width, imageAsset.Header.Height, imageAsset.Header.Depth}) :
+           Images::mipmapCount({imageAsset.Header.Width, imageAsset.Header.Height});
 
     const Image image = Device::CreateImage({
-        .DataSource = &(*imageAsset),
+        .DataSource = &imageAsset,
         .Description = ImageDescription{
-            .Width = imageAsset->Header.Width,
-            .Height = imageAsset->Header.Height,
+            .Width = imageAsset.Header.Width,
+            .Height = imageAsset.Header.Height,
             .LayersDepth = layersDepth,
             .Mipmaps = mips,
-            .Format = formatFromAssetImageFormat(imageAsset->Header.Format),
-            .Kind = imageKindFromAssetImageKind(imageAsset->Header.Kind),
+            .Format = formatFromAssetImageFormat(imageAsset.Header.Format),
+            .Kind = imageKindFromAssetImageKind(imageAsset.Header.Kind),
             .Usage = ImageUsage::Sampled,
         },
-        .CalculateMipmaps = imageAsset->Header.GenerateMipmaps
+        .CalculateMipmaps = imageAsset.Header.GenerateMipmaps
     }, Device::DummyDeletionQueue());
 
     return image;

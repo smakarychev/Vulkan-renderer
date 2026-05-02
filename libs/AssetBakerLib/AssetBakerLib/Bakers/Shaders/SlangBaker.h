@@ -1,6 +1,7 @@
 #pragma once
 
 #include <AssetLib/Shaders/ShaderLoadInfo.h>
+#include <AssetLib/Shaders/ShaderMeta.h>
 #include <AssetLib/Shaders/ShaderAsset.h>
 #include <AssetBakerLib/Bakers/BakerContext.h>
 #include <CoreLib/types.h>
@@ -19,7 +20,8 @@ struct SlangBakeSettings
 {
     Span<const std::pair<std::string, std::string>> Defines{};
     u64 DefinesHash{0};
-    std::vector<std::string> IncludePaths;
+    StringId Variant{};
+    std::vector<std::string> IncludePaths{};
     std::string UniformReflectionDirectoryName{"uniform_types"};
     bool EnableHotReloading{false};
 };
@@ -30,19 +32,21 @@ public:
     static constexpr auto MAIN_VARIANT = HashedStringView(assetlib::ShaderLoadInfo::SHADER_VARIANT_MAIN_NAME);
     static constexpr std::string_view POST_BAKE_EXTENSION = ".sl_shader";
 public:
-    static std::filesystem::path GetBakedPath(const std::filesystem::path& originalFile, StringId variant,
-        const SlangBakeSettings& settings, const Context& ctx);
-
-    IoResult<void> BakeVariantsToFile(const std::filesystem::path& path, const SlangBakeSettings& settings,
-        const Context& ctx);
+    Slang(const std::shared_ptr<Context>& ctx, const SlangBakeSettings& settings) : m_Ctx(ctx), m_Settings(settings) {}
     
-    IoResult<std::filesystem::path> BakeToFile(const std::filesystem::path& path, StringId variant,
-        const SlangBakeSettings& settings, const Context& ctx);
+    std::filesystem::path GetBakedPath(const std::filesystem::path& metaPath) const;
+    std::filesystem::path GetBakedPath(const assetlib::ShaderMeta& meta) const;
+    
+    IoResult<std::filesystem::path> BakeToFile(assetlib::ShaderMeta& meta, const std::filesystem::path& metaPath);
 
-    IoResult<assetlib::ShaderAsset> Bake(const assetlib::ShaderLoadInfo& loadInfo,
-        const assetlib::ShaderLoadInfo::Variant& variant, const SlangBakeSettings& settings, const Context& ctx);
-
-    bool ShouldBake(const std::filesystem::path& path, const SlangBakeSettings& settings,
-        const Context& ctx);
+    bool ShouldBake(const std::filesystem::path& metaPath) const;
+    
+    std::optional<u64> GetDefinesHash(const assetlib::ShaderLoadInfo& loadInfo) const;
+    std::filesystem::path GetDefineAwarePath(const std::filesystem::path& path, u64 definesHash) const;
+private:
+    IoResult<assetlib::ShaderAsset> Bake(const assetlib::ShaderMeta& meta, const assetlib::ShaderLoadInfo& loadInfo);
+private:
+    std::shared_ptr<Context> m_Ctx{nullptr};
+    SlangBakeSettings m_Settings{};
 };
 }

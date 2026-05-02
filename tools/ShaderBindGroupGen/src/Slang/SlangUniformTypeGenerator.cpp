@@ -5,6 +5,7 @@
 #include <AssetLib/Shaders/ShaderUniform.h>
 #include <CoreLib/Utils/HashFileUtils.h>
 #include <CoreLib/Utils/HashUtils.h>
+#include <CoreLib/Utils/FileUtils.h>
 
 #include <fstream>
 #include <ranges>
@@ -316,15 +317,11 @@ lux::assetlib::io::IoResult<SlangUniformTypeGeneratorResult> SlangUniformTypeGen
 lux::assetlib::io::IoResult<void> SlangUniformTypeGenerator::WriteStandaloneUniformType(
     const std::filesystem::path& path, const std::filesystem::path& outputPath) const
 {
-    std::ifstream in(path.string(), std::ios::binary | std::ios::ate);
-    ASSETLIB_CHECK_RETURN_IO_ERROR(in.good(), lux::assetlib::io::IoError::ErrorCode::FailedToOpen,
+    auto read = lux::readFileToString(path);
+    ASSETLIB_CHECK_RETURN_IO_ERROR(read.has_value(), lux::assetlib::io::IoError::ErrorCode::FailedToOpen,
         "Failed to open uniform file: {}", path.string())
-    const isize size = in.tellg();
-    in.seekg(0, std::ios::beg);
-    std::string content(size, 0);
-    in.read(content.data(), size);
-    in.close();
-
+    auto& content = *read;
+    
     const auto unpackResult = lux::assetlib::shader::unpackUniformStruct(content);
     ASSETLIB_CHECK_RETURN_IO_ERROR(unpackResult.has_value(), unpackResult.error().Code,
         "Failed to open unpack uniform file: {} ({})", unpackResult.error().Message, path.string())

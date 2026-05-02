@@ -290,7 +290,7 @@ private:
     static void CreateSwapchainImages(Swapchain swapchain);
     static void DestroySwapchainImages(Swapchain swapchain);
 
-    static Image CreateImageFromAssetFile(ImageCreateInfo& createInfo, lux::assetlib::ImageAsset* asset);
+    static Image CreateImageFromAssetFile(ImageCreateInfo& createInfo, const lux::assetlib::ImageAsset* asset);
     static Image CreateImageFromPixels(ImageCreateInfo& createInfo, Span<const std::byte> pixels);
     static Image CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer);
     static void PreprocessCreateInfo(ImageCreateInfo& createInfo);

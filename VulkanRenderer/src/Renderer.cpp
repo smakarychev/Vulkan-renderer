@@ -5,6 +5,7 @@
 #include <tracy/Tracy.hpp>
 
 #include "ViewInfoGPU.h"
+#include "AssetLib/Scenes/SceneMeta.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Images/ImageAssetManager.h"
 #include "Assets/Materials/MaterialAsset.h"
@@ -72,7 +73,8 @@
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Scene.h"
 
-#include <AssetLib/Images/ImageAsset.h>
+#include <AssetLib/Images/ImageMeta.h>
+#include <AssetLib/Materials/MaterialMeta.h>
 #include <AssetLib/Io/Compression/Lz4AssetCompressor.h>
 #include <AssetLib/Io/Compression/RawAssetCompressor.h>
 #include <AssetLib/Io/IoInterface/CombinedAssetIoInterface.h>
@@ -97,35 +99,33 @@ void Renderer::Init()
     else
         m_AssetCompressor = std::make_shared<lux::assetlib::io::RawAssetCompressor>();
 
-    m_BakerCtx = {
+    m_BakerCtx = std::make_shared<lux::bakers::Context>(lux::bakers::Context{
         .InitialDirectory = *CVars::Get().GetStringCVar("Path.Assets"_hsv),
+        .BakedDirectory = *CVars::Get().GetStringCVar("Path.AssetsBaked"_hsv),
         .Io = m_AssetIoInterface.get(),
         .Compressor = m_AssetCompressor.get()
-    };
+    });
     m_SlangBakeSettings = {
         .IncludePaths = {"../assets/shaders/slang/raw"},
         .UniformReflectionDirectoryName = "uniform_types",
         .EnableHotReloading = true,
     };
-    m_ImageBakeSettings = {};
 
-    m_AssetSystem.Init(*m_AssetIoInterface, *m_AssetCompressor);
+    m_AssetSystem.Init(m_BakerCtx);
     m_AssetSystem.SetAssetsDirectory(*CVars::Get().GetStringCVar("Path.Assets"_hsv));
 
     m_ShaderAssetManager = std::make_unique<lux::ShaderAssetManager>(m_AssetSystem);
-    m_AssetSystem.RegisterAssetManager(lux::assetlib::shader::getMetadata().Type, *m_ShaderAssetManager);
+    m_AssetSystem.RegisterAssetManager(lux::assetlib::shader::ASSET_TYPE, *m_ShaderAssetManager);
     m_ShaderAssetManager->Init(m_SlangBakeSettings);
 
     m_ImageAssetManager = std::make_unique<lux::ImageAssetManager>(m_AssetSystem);
-    m_AssetSystem.RegisterAssetManager(lux::assetlib::image::getMetadata().Type, *m_ImageAssetManager);
-    m_ImageAssetManager->Init(m_ImageBakeSettings);
+    m_AssetSystem.RegisterAssetManager(lux::assetlib::image::ASSET_TYPE, *m_ImageAssetManager);
 
     m_MaterialAssetManager = std::make_unique<lux::MaterialAssetManager>(m_AssetSystem);
-    m_AssetSystem.RegisterAssetManager(lux::assetlib::material::getMetadata().Type, *m_MaterialAssetManager);
+    m_AssetSystem.RegisterAssetManager(lux::assetlib::material::ASSET_TYPE, *m_MaterialAssetManager);
 
     m_SceneAssetManager = std::make_unique<lux::SceneAssetManager>(m_AssetSystem);
-    m_AssetSystem.RegisterAssetManager(lux::assetlib::scene::getMetadata().Type, *m_SceneAssetManager);
-    m_SceneAssetManager->Init(m_SceneBakeSettings);
+    m_AssetSystem.RegisterAssetManager(lux::assetlib::scene::ASSET_TYPE, *m_SceneAssetManager);
 
     m_AssetSystem.ScanAssetsDirectory();
     
@@ -190,7 +190,7 @@ void Renderer::InitRenderGraph()
     // todo: this is currently a rgb image, which is wasteful, I need to provide format hints to image converter
     m_BlueNoiseBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
         m_ImageAssetManager->Get(m_ImageAssetManager->LoadResource(
-            {.Path = "../assets/baked/textures/blue_noise_128.tex"})
+            {.Path = "../assets/textures/blue_noise_128.png"})
     ));
     
     /*m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
@@ -272,10 +272,10 @@ void Renderer::InitRenderGraph()
         ctx.CommandList = cmdList;
         m_Scenes.push_back(
             m_SceneAssetManager->LoadResource(
-                {.Path = *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/hotReloadTest/scene.scene"}));
+                {.Path = *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/hotReloadTest/scene.gltf"}));
         m_Scenes.push_back(
             m_SceneAssetManager->LoadResource(
-                {.Path = *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/dragon/scene.scene"}));
+                {.Path = *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/flight_helmet/scene.gltf"}));
         
         lux::SceneInstanceHandle instance = m_Scene->Instantiate(m_Scenes.front(), {
             .Transform = {
@@ -316,11 +316,9 @@ void Renderer::InitRenderGraph()
 
 void Renderer::ExecuteSingleTimePasses()
 {
-    static constexpr std::string_view SKYBOX_PATH = "../assets/baked/textures/autumn_field_puresky_4k.tex";
+    static constexpr std::string_view SKYBOX_PATH = "../assets/textures/autumn_field_puresky_4k.hdr";
     const lux::ImageHandle equirectangular = m_ImageAssetManager->LoadResource({.Path = SKYBOX_PATH});
 
-    const lux::MaterialHandle materialHandle = m_MaterialAssetManager->LoadResource({.Path = "../assets/baked/textures/materialTest.mat"});
-    
     const TextureDescription& equirectangularDescription =
         Device::GetImageDescription(m_ImageAssetManager->Get(equirectangular));
     m_SkyboxTexture = Device::CreateImage(ImageCreateInfo{
@@ -333,7 +331,7 @@ void Renderer::ExecuteSingleTimePasses()
             .Usage = ImageUsage::Sampled | ImageUsage::Storage},
         .CalculateMipmaps = false});
 
-    m_MipsTest = m_ImageAssetManager->LoadResource({.Path = "../assets/baked/textures/texture.tex"});
+    m_MipsTest = m_ImageAssetManager->LoadResource({.Path = "../assets/textures/texture.png"});
     
     m_SkyboxPrefilterMap = Device::CreateImage({
         .Description = Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(
@@ -1277,7 +1275,7 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     {
         if (!m_CloudCoverage.HasValue())
             m_CloudCoverage = m_ImageAssetManager->Get(m_ImageAssetManager->LoadResource(
-                {.Path = "../assets/baked/textures/clouds/coverage.tex"})
+                {.Path = "../assets/textures/clouds/coverage.png"})
             );
        cloudCoverageResource = m_Graph->Import("CloudCoverage.Loaded"_hsv, m_CloudCoverage, ImageLayout::Readonly);
     }
@@ -1305,7 +1303,7 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     {
         if (!m_CloudProfileMap.HasValue())
             m_CloudProfileMap = m_ImageAssetManager->Get(m_ImageAssetManager->LoadResource(
-                {.Path = "../assets/baked/textures/clouds/profile.tex"})
+                {.Path = "../assets/textures/clouds/profile.png"})
             );
         cloudProfileMapResource = m_Graph->Import("CloudProfileMap.Loaded"_hsv,
             m_CloudProfileMap, ImageLayout::Readonly);

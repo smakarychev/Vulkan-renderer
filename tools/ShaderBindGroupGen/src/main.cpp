@@ -7,12 +7,14 @@
 #include <AssetLib/Io/AssetIoRegistry.h>
 #include <AssetLib/Reflection/AssetlibReflectionUtility.inl>
 #include <AssetBakerLib/Bakers/Bakers.h>
+#include <AssetBakerLib/Bakers/BakerContext.h>
 
 #include <CoreLib/core.h>
 #include <CoreLib/types.h>
 #include <CoreLib/Platform/PlatformUtils.h>
 #include <CoreLib/utils/HashFileUtils.h>
 #include <CoreLib/Utils/HashUtils.h>
+#include <CoreLib/Utils/FileUtils.h>
 
 #include <glaze/glaze.hpp>
 
@@ -21,6 +23,7 @@ namespace fs = std::filesystem;
 struct Config
 {
     std::filesystem::path InitialDirectory{};
+    std::filesystem::path BakedDirectory{};
     std::filesystem::path ShadersPath{};
     std::filesystem::path GenerationPath{};
     std::filesystem::path UniformSearchPath{};
@@ -32,19 +35,14 @@ template <> struct ::glz::meta<Config> : lux::assetlib::reflection::CamelCase {}
 
 std::optional<Config> readConfig(const std::filesystem::path& path)
 {
-    std::ifstream configFile(path, std::ios::binary | std::ios::ate);
-    if (!configFile.good())
+    auto read = lux::readFileToString(path);
+    if (!read.has_value())
         return std::nullopt;
-    const isize size = configFile.tellg();
-    configFile.seekg(0, std::ios::beg);
-    std::string buffer(size, 0);
-    configFile.read(buffer.data(), size);
-    configFile.close();
 
     Config config = {};
-    if (const auto error = glz::read_json(config, buffer))
+    if (const auto error = glz::read_json(config, *read))
     {
-        LUX_LOG_ERROR("Failed to read config file: {} ({})", glz::format_error(error, buffer), path.string());
+        LUX_LOG_ERROR("Failed to read config file: {} ({})", glz::format_error(error, *read), path.string());
         return std::nullopt;
     }
 
@@ -111,8 +109,13 @@ i32 main()
     {
         LUX_LOG_ERROR("SlangUniformTypeGenerator error: {}", generationResult.error());
     }
-    
-    SlangGenerator generator(uniformTypeGenerator, config->InitialDirectory, *io);
+    auto context = std::make_shared<lux::bakers::Context>(lux::bakers::Context{
+        .InitialDirectory = config->InitialDirectory,
+        .BakedDirectory = config->BakedDirectory,
+        .Io = io.get(),
+        .Compressor = nullptr        
+    });
+    SlangGenerator generator(uniformTypeGenerator, context);
     {
         std::string commonFile = generator.GenerateCommonFile();
         const std::filesystem::path commonFilePath = generator.GetCommonFilePath(config->GenerationPath);
