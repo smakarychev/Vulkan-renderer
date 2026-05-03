@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include <AssetLib/Scenes/SceneAsset.h>
-#include <AssetLib/Scenes/SceneMeta.h>
+#include <AssetLib/Scenes/Scene/SceneAsset.h>
+#include <AssetLib/Scenes/Scene/SceneMeta.h>
 #include <AssetImportLib/Importers/Importer.h>
 #include <AssetImportLib/Bakers/Scenes/SceneBaker.h>
 

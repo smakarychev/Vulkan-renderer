@@ -1,17 +1,18 @@
 ﻿#include "SceneBaker.h"
 
-#include "mikktspace.h"
+#include "SceneUtils.h"
 
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetLib/Materials/MaterialAsset.h>
-#include <AssetLib/Scenes/SceneMeta.h>
-#include <AssetImportLib/utils.h>
+#include <AssetLib/Scenes/Scene/SceneMeta.h>
 #include <AssetImportLib/Bakers/BakersUtils.h>
 #include <AssetImportLib/Bakers/Images/ImageBaker.h>
 #include <AssetImportLib/Importers/Images/ImageImporter.h>
 #include <AssetImportLib/Importers/Materials/MaterialImporter.h>
 #include <CoreLib/Utils/FileUtils.h>
+
+#include <mikktspace.h>
 
 #define TINYGLTF_NO_EXTERNAL_IMAGE
 #define TINYGLTF_NO_STB_IMAGE

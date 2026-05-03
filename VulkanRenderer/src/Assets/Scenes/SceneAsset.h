@@ -3,7 +3,7 @@
 #include "RenderObject.h"
 #include "Assets/Materials/MaterialAsset.h"
 
-#include <AssetLib/Scenes/SceneAsset.h>
+#include <AssetLib/Scenes/Scene/SceneAsset.h>
 #include <CoreLib/Math/Transform.h>
 
 struct PointLight;

@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <AssetLib/Scenes/SceneAsset.h>
+#include <AssetLib/Scenes/Scene/SceneAsset.h>
 #include <AssetImportLib/Importers/ImportContext.h>
 #include <AssetImportLib/Importers/Import.h>
 

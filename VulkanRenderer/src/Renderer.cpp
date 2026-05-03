@@ -5,7 +5,6 @@
 #include <tracy/Tracy.hpp>
 
 #include "ViewInfoGPU.h"
-#include "AssetLib/Scenes/SceneMeta.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Images/ImageAssetManager.h"
 #include "Assets/Materials/MaterialAsset.h"
@@ -75,6 +74,7 @@
 
 #include <AssetLib/Images/ImageMeta.h>
 #include <AssetLib/Materials/MaterialMeta.h>
+#include <AssetLib/Scenes/Scene/SceneMeta.h>
 #include <AssetLib/Io/Compression/Lz4AssetCompressor.h>
 #include <AssetLib/Io/Compression/RawAssetCompressor.h>
 #include <AssetLib/Io/IoInterface/CombinedAssetIoInterface.h>

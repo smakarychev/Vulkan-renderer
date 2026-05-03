@@ -1,4 +1,4 @@
-﻿#include "utils.h"
+﻿#include "SceneUtils.h"
 
 #include <vector>
 #include <meshoptimizer.h>

@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <AssetLib/Scenes/SceneAsset.h>
+#include <AssetLib/Scenes/Scene/SceneAsset.h>
 
 namespace utils
 {

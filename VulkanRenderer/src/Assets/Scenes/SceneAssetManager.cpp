@@ -9,8 +9,8 @@
 #include <AssetLib/Images/ImageMeta.h>
 #include <AssetLib/Materials/MaterialAsset.h>
 #include <AssetLib/Materials/MaterialMeta.h>
-#include <AssetLib/Scenes/SceneAsset.h>
-#include <AssetLib/Scenes/SceneMeta.h>
+#include <AssetLib/Scenes/Scene/SceneAsset.h>
+#include <AssetLib/Scenes/Scene/SceneMeta.h>
 #include <AssetImportLib/Importers/Scenes/SceneImporter.h>
 
 namespace lux
