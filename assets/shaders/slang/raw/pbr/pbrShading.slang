@@ -240,7 +240,7 @@ public float3 pbrShadeIbl(const ViewInfo view, const PbrShadingInfo shadingInfo,
 
     const float3 ambient = specular + diffuse;
 
-    return ambient;
+    return ambient * shadingInfo.ao;
 }
 
 public float3 pbrShade(const ViewInfo view, const PbrShadingInfo shadingInfo, const PbrShadingSamplers samplers,

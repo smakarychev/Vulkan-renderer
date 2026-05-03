@@ -87,8 +87,7 @@ float4 main(FullScreenVSOutput input) {
     shadingInfo.specularColor = PbrShadingInfo.calculateSpecularColor(shadingInfo.F0);
     shadingInfo.screenUv = input.uv;
     shadingInfo.directionalShadow = shadow;
-
-    const float ao = resources.ssao.SampleLevel(samplers.linearSampler, input.uv, 0) * materialData.ao;
+    shadingInfo.ao = resources.ssao.SampleLevel(samplers.linearSampler, input.uv, 0) * materialData.ao;
 
     return float4(pbrShade(resources.view, shadingInfo, samplers.pbr, resources.pbr) + materialData.emissive, 1.0f);
 }
