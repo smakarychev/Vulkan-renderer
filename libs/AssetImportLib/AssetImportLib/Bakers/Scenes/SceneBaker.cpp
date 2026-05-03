@@ -794,7 +794,9 @@ IoResult<assetlib::SceneAsset> SceneBaker::Bake(const assetlib::SceneMeta& meta)
     auto& scene = gltf.scenes[sceneIndex];
     CHECK_RETURN_IO_ERROR(!scene.nodes.empty(), IoError::ErrorCode::GeneralError,
         "Failed to bake scene: no nodes in default scene")
-
+    CHECK_RETURN_IO_ERROR(gltf.buffers.size() < 2, IoError::ErrorCode::GeneralError,
+        "Failed to bake scene: only one geometry buffer is supported")
+    
     ProcessContext processCtx = {
         .ScenePath = path,
         .Ctx = m_Ctx
