@@ -8,8 +8,8 @@
 #include <AssetLib/Images/ImageMeta.h>
 #include <AssetLib/Materials/MaterialAsset.h>
 #include <AssetLib/Materials/MaterialMeta.h>
-#include <AssetBakerLib/Bakers/Bakers.h>
-#include <AssetBakerLib/Importers/Materials/MaterialImporter.h>
+#include <AssetImportLib/Importers/Import.h>
+#include <AssetImportLib/Importers/Materials/MaterialImporter.h>
 
 namespace lux
 {
@@ -22,7 +22,7 @@ void MaterialAssetManager::OnAssetSystemInit()
 bool MaterialAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
 {
     if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || 
-        assetlib::getMetadataRawExtension(path) != bakers::MATERIAL_ASSET_EXTENSION)
+        assetlib::getMetadataRawExtension(path) != import::MATERIAL_ASSET_EXTENSION)
         return false;
     
     auto metadataRead = assetlib::io::readBaseAssetMetadata(path);
@@ -41,18 +41,18 @@ bool MaterialAssetManager::AddManaged(const std::filesystem::path& path, AssetId
     return true;
 }
 
-bool MaterialAssetManager::Bakes(std::string_view extension)
+bool MaterialAssetManager::Imports(std::string_view extension)
 {
     return false;
 }
 
 void MaterialAssetManager::OnFileModified(const std::filesystem::path& path)
 {
-    if (path.extension() != bakers::MATERIAL_ASSET_EXTENSION)
+    if (path.extension() != import::MATERIAL_ASSET_EXTENSION)
         return;
 
     MaterialHandle cached;
-    bakers::MaterialImporter importer(m_Ctx);
+    import::MaterialImporter importer(m_Ctx);
     const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
     {
         Lock lock(m_ResourceAccessMutex);
@@ -73,7 +73,7 @@ void MaterialAssetManager::OnFileModified(const std::filesystem::path& path)
 MaterialHandle MaterialAssetManager::LoadAsset(const MaterialLoadParameters& parameters)
 {
     const std::filesystem::path path = weakly_canonical(parameters.Path).generic_string();
-    bakers::MaterialImporter importer(m_Ctx);
+    import::MaterialImporter importer(m_Ctx);
     const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
     
     const MaterialHandle cached = m_Materials.Find(id);
@@ -107,7 +107,7 @@ const MaterialAsset* MaterialAssetManager::GetAsset(MaterialHandle handle) const
     return &m_Materials[handle.Index()];
 }
 
-std::optional<MaterialAsset> MaterialAssetManager::DoLoad(bakers::MaterialImporter& importer, 
+std::optional<MaterialAsset> MaterialAssetManager::DoLoad(import::MaterialImporter& importer, 
     const std::filesystem::path& path) const
 {
     LUX_LOG_INFO("Loading material: {}", path.string());

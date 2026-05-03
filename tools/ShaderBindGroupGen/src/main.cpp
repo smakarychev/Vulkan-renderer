@@ -6,8 +6,8 @@
 #include <AssetLib/Io/IoInterface/SeparateAssetIoInterface.h>
 #include <AssetLib/Io/AssetIoRegistry.h>
 #include <AssetLib/Reflection/AssetlibReflectionUtility.inl>
-#include <AssetBakerLib/Bakers/Bakers.h>
-#include <AssetBakerLib/Bakers/BakerContext.h>
+#include <AssetImportLib/Importers/Import.h>
+#include <AssetImportLib/Importers/ImportContext.h>
 
 #include <CoreLib/core.h>
 #include <CoreLib/types.h>
@@ -109,7 +109,7 @@ i32 main()
     {
         LUX_LOG_ERROR("SlangUniformTypeGenerator error: {}", generationResult.error());
     }
-    auto context = std::make_shared<lux::bakers::Context>(lux::bakers::Context{
+    auto context = std::make_shared<lux::import::Context>(lux::import::Context{
         .InitialDirectory = config->InitialDirectory,
         .BakedDirectory = config->BakedDirectory,
         .Io = io.get(),
@@ -132,7 +132,7 @@ i32 main()
     {
         if (file.is_directory())
             continue;
-        if (file.path().extension() != lux::bakers::SHADER_ASSET_EXTENSION)
+        if (file.path().extension() != lux::import::SHADER_ASSET_EXTENSION)
             continue;
 
         const IoResult<SlangGeneratorResult> generated = generator.Generate(file.path());

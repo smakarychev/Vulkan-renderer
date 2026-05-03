@@ -11,7 +11,7 @@
 #include <AssetLib/Materials/MaterialMeta.h>
 #include <AssetLib/Scenes/SceneAsset.h>
 #include <AssetLib/Scenes/SceneMeta.h>
-#include <AssetBakerLib/Importers/Scenes/SceneImporter.h>
+#include <AssetImportLib/Importers/Scenes/SceneImporter.h>
 
 namespace lux
 {
@@ -36,7 +36,7 @@ void SceneAssetManager::OnAssetSystemInit()
 
 bool SceneAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
 {
-    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || !Bakes(assetlib::getMetadataRawExtension(path)))
+    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || !Imports(assetlib::getMetadataRawExtension(path)))
         return false;
 
     auto metadataRead = assetlib::io::readBaseAssetMetadata(path);
@@ -55,10 +55,10 @@ bool SceneAssetManager::AddManaged(const std::filesystem::path& path, AssetIdRes
     return true;
 }
 
-bool SceneAssetManager::Bakes(std::string_view extension)
+bool SceneAssetManager::Imports(std::string_view extension)
 {
     bool bakes = false;
-    for (auto& rawExtension : bakers::SCENE_ASSET_RAW_EXTENSIONS)
+    for (auto& rawExtension : import::SCENE_ASSET_RAW_EXTENSIONS)
         bakes = bakes || extension == rawExtension;
 
     return bakes;
@@ -66,7 +66,7 @@ bool SceneAssetManager::Bakes(std::string_view extension)
 
 void SceneAssetManager::OnFileModified(const std::filesystem::path& path)
 {
-    if (Bakes(path.extension().string()) || Bakes(assetlib::getMetadataRawExtension(path)))
+    if (Imports(path.extension().string()) || Imports(assetlib::getMetadataRawExtension(path)))
         OnRawFileModified(path);
 }
 
@@ -101,7 +101,7 @@ void SceneAssetManager::OnFrameBegin(FrameContext&)
 SceneHandle SceneAssetManager::LoadAsset(const SceneLoadParameters& parameters)
 {
     const std::filesystem::path path = weakly_canonical(parameters.Path).generic_string();
-    bakers::SceneImporter importer(m_Ctx);
+    import::SceneImporter importer(m_Ctx);
     const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
     
     const SceneHandle cached = m_Scenes.Find(id);
@@ -142,10 +142,10 @@ const SceneAsset* SceneAssetManager::GetAsset(SceneHandle handle) const
 
 void SceneAssetManager::OnRawFileModified(const std::filesystem::path& path)
 {
-    m_AssetSystem->AddBakeRequest({
-        .BakeFn = [this, path]()
+    m_AssetSystem->AddImportRequest({
+        .ImportFn = [this, path]()
         {
-            bakers::SceneImporter importer(m_Ctx);
+            import::SceneImporter importer(m_Ctx);
             const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
             SceneHandle cached;
             {
@@ -312,7 +312,7 @@ LightType lightTypeAssetLightType(assetlib::SceneAssetLightType lightType)
 }
 }
 
-std::optional<SceneAsset> SceneAssetManager::DoLoad(bakers::SceneImporter& importer, const std::filesystem::path& path)
+std::optional<SceneAsset> SceneAssetManager::DoLoad(import::SceneImporter& importer, const std::filesystem::path& path)
 {
     ASSERT(m_TextureAssetManager)
     ASSERT(m_MaterialAssetManager)

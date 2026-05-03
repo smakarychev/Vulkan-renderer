@@ -8,7 +8,7 @@
 
 namespace lux
 {
-namespace bakers
+namespace import
 {
 struct Context;
 }
@@ -38,14 +38,14 @@ public:
     /* is called by `AssetSystem` when all managers are registered and before the directory scan is performed */
     virtual void OnAssetSystemInit() {}
     virtual bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) = 0;
-    virtual bool Bakes(std::string_view extension) = 0;
+    virtual bool Imports(std::string_view extension) = 0;
     virtual void OnFileModified(const std::filesystem::path& path) = 0;
     
     virtual AssetHandleBase Load(const AssetLoadParameters& parameters) = 0;
     virtual void Unload(AssetHandleBase handle) = 0;
 protected:
     AssetSystem* m_AssetSystem{nullptr};
-    std::shared_ptr<bakers::Context> m_Ctx{nullptr};
+    std::shared_ptr<import::Context> m_Ctx{nullptr};
 };
 
 template <typename Resource>

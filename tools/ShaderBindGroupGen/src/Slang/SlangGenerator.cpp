@@ -6,7 +6,7 @@
 #include <AssetLib/Shaders/ShaderAsset.h>
 #include <AssetLib/Shaders/ShaderLoadInfo.h>
 #include <AssetLib/Shaders/ShaderMeta.h>
-#include <AssetBakerLib/Bakers/Shaders/ShaderBaker.h>
+#include <AssetImportLib/Importers/Shaders/ShaderImporter.h>
 
 #include <ranges>
 #include <unordered_set>
@@ -1127,7 +1127,7 @@ struct Writer
 }
 
 SlangGenerator::SlangGenerator(SlangUniformTypeGenerator& uniformTypeGenerator,
-    const std::shared_ptr<lux::bakers::Context>& ctx)
+    const std::shared_ptr<lux::import::Context>& ctx)
     : m_UniformTypeGenerator(&uniformTypeGenerator), m_Ctx(ctx)
 {
 }
@@ -1201,7 +1201,8 @@ lux::assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const
     
     for (auto& variant : shaderLoadInfo->Variants)
     {
-        lux::bakers::ShaderBaker shaderBaker(m_Ctx, {.Variant = StringId::FromString(variant.Name)});
+        lux::import::ShaderImportSettings settings = {};
+        lux::import::ShaderBaker shaderBaker(m_Ctx, settings);
         const std::filesystem::path metaPath = lux::assetlib::getMetadataPath(
             shaderBaker.GetDefineAwarePath(loadInfoPath, shaderBaker.GetDefinesHash(*shaderLoadInfo).value_or(0)));
         

@@ -7,19 +7,18 @@
 #include "cvars/CVarSystem.h"
 #include "Vulkan/Device.h"
 
-#include <AssetBakerLib/Bakers/Bakers.h>
-#include <AssetBakerLib/Importers/Shaders/ShaderImporter.h>
-#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
+#include <AssetImportLib/Importers/Import.h>
+#include <AssetImportLib/Importers/Shaders/ShaderImporter.h>
 
 namespace lux
 {
 bool ShaderAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
 {
-    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || !Bakes(assetlib::getMetadataRawExtension(path)))
+    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || !Imports(assetlib::getMetadataRawExtension(path)))
         return false;
 
-    bakers::ShaderImporter importer(m_Ctx, {});
-    auto imported = importer.Import(path, bakers::ImportFlags::Header);
+    import::ShaderImporter importer(m_Ctx, {});
+    auto imported = importer.Import(path, import::ImportFlags::Header);
     if (!imported)
         return false;
 
@@ -46,20 +45,20 @@ bool ShaderAssetManager::AddManaged(const std::filesystem::path& path, AssetIdRe
     return true;
 }
 
-bool ShaderAssetManager::Bakes(std::string_view extension)
+bool ShaderAssetManager::Imports(std::string_view extension)
 {
     return
-        extension == bakers::SHADER_ASSET_EXTENSION ||
-        extension == bakers::SHADER_ASSET_RAW_EXTENSION;
+        extension == import::SHADER_ASSET_EXTENSION ||
+        extension == import::SHADER_ASSET_RAW_EXTENSION;
 }
 
 void ShaderAssetManager::OnFileModified(const std::filesystem::path& path)
 {
-    if (Bakes(path.extension().string()) || Bakes(assetlib::getMetadataRawExtension(path)))
+    if (Imports(path.extension().string()) || Imports(assetlib::getMetadataRawExtension(path)))
         return OnRawFileModified(path);
 }
 
-void ShaderAssetManager::Init(const bakers::ShaderBakeSettings& bakeSettings)
+void ShaderAssetManager::Init(const import::ShaderImportSettings& bakeSettings)
 {
     m_BakeSettings = &bakeSettings;
 }
@@ -175,12 +174,12 @@ ShaderHandle ShaderAssetManager::LoadAsset(const ShaderLoadParameters& parameter
 {
     const ShaderNameWithOverrides nameWithOverrides = {
         .Name = parameters.Name,
-        .Variant = parameters.Variant.value_or(bakers::ShaderBaker::MAIN_VARIANT),
+        .Variant = parameters.Variant.value_or(import::ShaderBaker::MAIN_VARIANT),
         .OverridesHash = parameters.Overrides->Hash
     };
     RebakeInfo rebakeInfo = CreateRebakeInfo(nameWithOverrides, parameters);
-    const bakers::ShaderBakeSettings settings = CreateBakeSettings(rebakeInfo);
-    bakers::ShaderImporter importer(m_Ctx, settings);
+    const import::ShaderImportSettings settings = CreateBakeSettings(rebakeInfo);
+    import::ShaderImporter importer(m_Ctx, settings);
     
     auto it = m_PipelinesMap.find(nameWithOverrides);
     if (it != m_PipelinesMap.end())
@@ -249,11 +248,11 @@ void ShaderAssetManager::OnRawFileModified(const std::filesystem::path& path)
 
         for (auto& rebakeInfo : m_RawPathToRebakeInfos[shaderPath.string()])
         {
-            m_AssetSystem->AddBakeRequest({
-                .BakeFn = [this, shaderPath, &rebakeInfo]()
+            m_AssetSystem->AddImportRequest({
+                .ImportFn = [this, shaderPath, &rebakeInfo]()
                 {
-                    const bakers::ShaderBakeSettings settings = CreateBakeSettings(rebakeInfo);
-                    bakers::ShaderImporter importer(m_Ctx, settings);
+                    const import::ShaderImportSettings settings = CreateBakeSettings(rebakeInfo);
+                    import::ShaderImporter importer(m_Ctx, settings);
                     
                     auto pipelineInfo = DoLoad(importer, shaderPath);
                     if (!pipelineInfo.has_value())
@@ -273,9 +272,11 @@ void ShaderAssetManager::OnRawFileModified(const std::filesystem::path& path)
     }
 }
 
-std::optional<ShaderAssetManager::PipelineInfo> ShaderAssetManager::DoLoad(bakers::ShaderImporter& importer,
+std::optional<ShaderAssetManager::PipelineInfo> ShaderAssetManager::DoLoad(import::ShaderImporter& importer,
     const std::filesystem::path& path)
 {
+    LUX_LOG_INFO("Loading shader: {}", path.string());
+    
     auto imported = importer.Import(path);
     if (!imported.has_value())
     {
@@ -368,11 +369,11 @@ Pipeline ShaderAssetManager::CreatePipeline(const assetlib::ShaderLoadInfo& shad
     return pipeline;
 }
 
-void ShaderAssetManager::ReloadPipeline(PipelineInfo& pipelineInfo, bakers::ShaderImporter& importer,
+void ShaderAssetManager::ReloadPipeline(PipelineInfo& pipelineInfo, import::ShaderImporter& importer,
     const ShaderLoadParameters& parameters)
 {
     const std::filesystem::path rawPath = m_ShaderNameToRawPath[parameters.Name];
-    auto imported = importer.Import(rawPath, bakers::ImportFlags::Header);
+    auto imported = importer.Import(rawPath, import::ImportFlags::Header);
     if (!imported)
         return;
     
@@ -396,7 +397,7 @@ ShaderAssetManager::RebakeInfo ShaderAssetManager::CreateRebakeInfo(const Shader
     };
 }
 
-bakers::ShaderBakeSettings ShaderAssetManager::CreateBakeSettings(const RebakeInfo& rebakeInfo) const
+import::ShaderImportSettings ShaderAssetManager::CreateBakeSettings(const RebakeInfo& rebakeInfo) const
 {
     return {
         .Defines = rebakeInfo.Defines,

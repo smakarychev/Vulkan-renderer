@@ -9,7 +9,6 @@
 #include "Core/Camera.h"
 #include "RenderGraph/RGGraph.h"
 #include "FrameContext.h"
-#include "AssetBakerLib/Bakers/Scenes/SceneBaker.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Images/ImageAssetManager.h"
 #include "RenderGraph/Passes/Clouds/CloudCommon.h"
@@ -24,10 +23,7 @@
 #include "Scene/ScenePass.h"
 #include "Scene/SceneRenderObjectSet.h"
 #include "Scene/Visibility/SceneMultiviewVisibility.h"
-
-#include <AssetBakerLib/Bakers/BakerContext.h>
-#include <AssetBakerLib/Bakers/Images/ImageBaker.h>
-#include <AssetBakerLib/Bakers/Shaders/ShaderBaker.h>
+#include <AssetImportLib/Importers/Shaders/ShaderImporter.h>
 
 namespace lux
 {
@@ -191,8 +187,8 @@ private:
 
     std::shared_ptr<lux::assetlib::io::AssetIoInterface> m_AssetIoInterface{};
     std::shared_ptr<lux::assetlib::io::AssetCompressor> m_AssetCompressor{};
-    std::shared_ptr<lux::bakers::Context> m_BakerCtx{};
-    lux::bakers::ShaderBakeSettings m_ShaderBakeSettings{};
+    std::shared_ptr<lux::import::Context> m_ImportCtx{};
+    lux::import::ShaderImportSettings m_ShaderImportSettings{};
 
     lux::AssetSystem m_AssetSystem;
     std::unique_ptr<lux::ShaderAssetManager> m_ShaderAssetManager;

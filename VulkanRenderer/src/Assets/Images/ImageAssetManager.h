@@ -4,13 +4,13 @@
 #include "Assets/AssetManager.h"
 #include "Assets/Common/AssetFreeListMap.h"
 
-#include <AssetBakerLib/Bakers/BakerContext.h>
+#include <AssetImportLib/Importers/ImportContext.h>
 
 struct FrameContext;
 
 namespace lux
 {
-namespace bakers
+namespace import
 {
 class ImageImporter;
 }
@@ -29,7 +29,7 @@ public:
     LUX_ASSET_MANAGER(ImageAssetManager, "7fbed3b1-ca4c-4d90-a678-ec202cf04ea3"_guid)
 
     bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) override;
-    bool Bakes(std::string_view extension) override;
+    bool Imports(std::string_view extension) override;
     void OnFileModified(const std::filesystem::path& path) override;
 
     void Shutdown();
@@ -43,7 +43,7 @@ protected:
 
 private:
     void OnRawFileModified(const std::filesystem::path& path);
-    ImageAsset DoLoad(bakers::ImageImporter& importer, const std::filesystem::path& path) const;
+    ImageAsset DoLoad(import::ImageImporter& importer, const std::filesystem::path& path) const;
 
 private:
     // todo: alternative is to make ImageHandle equivalent to Image (since both are handles)

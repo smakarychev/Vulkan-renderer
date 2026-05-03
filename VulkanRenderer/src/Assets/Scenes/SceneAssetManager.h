@@ -5,7 +5,7 @@
 #include "Assets/Common/AssetSlotMap.h"
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 
-#include <AssetBakerLib/Bakers/BakerContext.h>
+#include <AssetImportLib/Importers/ImportContext.h>
 #include <CoreLib/Signals/Signal.h>
 
 struct FrameContext;
@@ -15,7 +15,7 @@ namespace lux
 class MaterialAssetManager;
 class ImageAssetManager;
 
-namespace bakers
+namespace import
 {
 class SceneImporter;
 struct SceneImportedAsset;
@@ -56,7 +56,7 @@ public:
 
     void OnAssetSystemInit() override;
     bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) override;
-    bool Bakes(std::string_view extension) override;
+    bool Imports(std::string_view extension) override;
     void OnFileModified(const std::filesystem::path& path) override;
 
     void SetTextureRingBuffer(BindlessTextureDescriptorsRingBuffer& ringBuffer);
@@ -79,7 +79,7 @@ private:
     void OnTextureUpdated(ImageHandle texture);
     void RegisterMaterials(SceneHandle sceneHandle);
     void UnregisterMaterials(SceneHandle sceneHandle);
-    std::optional<SceneAsset> DoLoad(bakers::SceneImporter& importer, const std::filesystem::path& path);
+    std::optional<SceneAsset> DoLoad(import::SceneImporter& importer, const std::filesystem::path& path);
     SceneGeometryInfo LoadGeometryInfo(const assetlib::SceneAsset& scene);
     SceneLightInfo LoadLightsInfo(const assetlib::SceneAsset& scene);
     SceneHierarchyInfo LoadHierarchyInfo(const assetlib::SceneAsset& scene);

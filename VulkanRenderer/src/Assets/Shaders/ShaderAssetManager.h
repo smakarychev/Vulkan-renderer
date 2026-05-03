@@ -6,8 +6,8 @@
 #include "Rendering/Shader/ShaderReflection.h"
 #include "Rendering/Shader/ShaderPipelineTemplate.h"
 
-#include <AssetBakerLib/Bakers/BakerContext.h>
-#include <AssetBakerLib/Bakers/Shaders/ShaderBaker.h>
+#include <AssetImportLib/Importers/ImportContext.h>
+#include <AssetImportLib/Importers/Shaders/ShaderImporter.h>
 #include <CoreLib/String/StringHeterogeneousHasher.h>
 #include <CoreLib/String/StringId.h>
 
@@ -16,10 +16,10 @@ struct FrameContext;
 namespace lux
 {
 
-namespace bakers
+namespace import
 {
 class ShaderImporter;
-struct ShaderBakeSettings;
+struct ShaderImportSettings;
 }
 
 template <>
@@ -53,10 +53,10 @@ public:
     LUX_ASSET_MANAGER(ShaderAssetManager, "23ae71e5-8829-4643-a424-eb74e730d368"_guid)
     
     bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) override;
-    bool Bakes(std::string_view extension) override;
+    bool Imports(std::string_view extension) override;
     void OnFileModified(const std::filesystem::path& path) override;
     
-    void Init(const bakers::ShaderBakeSettings& bakeSettings);
+    void Init(const import::ShaderImportSettings& bakeSettings);
     void Shutdown();
 
     void OnFrameBegin(FrameContext& ctx);
@@ -97,13 +97,13 @@ private:
 
         auto operator<=>(const RebakeInfo&) const = default;
     };
-    std::optional<PipelineInfo> DoLoad(bakers::ShaderImporter& importer, const std::filesystem::path& path);
+    std::optional<PipelineInfo> DoLoad(import::ShaderImporter& importer, const std::filesystem::path& path);
     Pipeline CreatePipeline(const assetlib::ShaderLoadInfo& shaderLoadInfo, const PipelineInfo& pipelineInfo, 
         const ShaderLoadParameters& parameters);
-    void ReloadPipeline(PipelineInfo& pipelineInfo, bakers::ShaderImporter& importer, 
+    void ReloadPipeline(PipelineInfo& pipelineInfo, import::ShaderImporter& importer, 
         const ShaderLoadParameters& parameters);
     RebakeInfo CreateRebakeInfo(const ShaderNameWithOverrides& name, const ShaderLoadParameters& parameters) const;
-    bakers::ShaderBakeSettings CreateBakeSettings(const RebakeInfo& rebakeInfo) const;
+    import::ShaderImportSettings CreateBakeSettings(const RebakeInfo& rebakeInfo) const;
 private:
     struct ShaderNameWithOverridesHasher
     {
@@ -129,7 +129,7 @@ private:
     DescriptorsWithLayout m_TextureHeap{};
 
     /* for hot-reloading */
-    const bakers::ShaderBakeSettings* m_BakeSettings{nullptr};
+    const import::ShaderImportSettings* m_BakeSettings{nullptr};
     StringUnorderedMap<std::vector<StringId>> m_RawPathToShaders;
     std::unordered_map<StringId, std::filesystem::path> m_ShaderNameToRawPath;
     StringUnorderedMap<std::vector<RebakeInfo>> m_RawPathToRebakeInfos;

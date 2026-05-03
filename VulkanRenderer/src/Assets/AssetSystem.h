@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include "AssetBakery.h"
+#include "AssetImportQueue.h"
 #include "AssetIdResolver.h"
 #include "AssetManager.h"
 
@@ -7,7 +7,7 @@
 
 namespace lux
 {
-namespace bakers
+namespace import
 {
 struct Context;
 }
@@ -31,7 +31,7 @@ using AssetUpdatedHandler = SignalHandler<AssetUpdatedInfo>;
 class AssetSystem
 {
 public:
-    void Init(const std::shared_ptr<bakers::Context>& context);
+    void Init(const std::shared_ptr<import::Context>& context);
     void Shutdown();
     void RegisterAssetManager(assetlib::AssetType type, AssetManager& manager);
     void SetAssetsDirectory(const std::filesystem::path& path);
@@ -47,10 +47,10 @@ public:
     
     const AssetIdResolver::AssetInfo* Resolve(assetlib::AssetId id) const;
     assetlib::AssetId ResolveMetaPath(const std::filesystem::path& path) const;
-    bool AddBakeRequest(AssetBakeRequest&& request);
+    bool AddImportRequest(AssetImportRequest&& request);
 
     const std::filesystem::path& GetAssetsDirectory() const { return m_AssetsDirectory; }
-    const std::shared_ptr<bakers::Context>& GetContext() const { return m_Ctx; }
+    const std::shared_ptr<import::Context>& GetContext() const { return m_Ctx; }
 private:
     void InitFileWatcher(const std::filesystem::path& path);
 private:
@@ -61,11 +61,11 @@ private:
     FileWatcherHandler m_FileWatcherHandler;
 
     std::filesystem::path m_AssetsDirectory{};
-    std::shared_ptr<bakers::Context> m_Ctx{nullptr};
+    std::shared_ptr<import::Context> m_Ctx{nullptr};
     
     std::unordered_map<assetlib::AssetType, AssetUpdatedSignal> m_AssetUpdatedSignals;
 
-    AssetBakery m_Bakery;
+    AssetImportQueue m_ImportQueue;
 };
 
 template <typename ResourceAssetManager> requires std::is_base_of_v<AssetManager, ResourceAssetManager>

@@ -1,12 +1,8 @@
 #pragma once
 
-#include "AssetBakerLib/Bakers/Bakers.h"
-
 #include <AssetLib/Io/AssetIo.h>
 
-#include <unordered_set>
-
-namespace lux::bakers
+namespace lux::import
 {
 struct Context;
 }
@@ -27,11 +23,11 @@ struct SlangGeneratorResult
 class SlangGenerator
 {
 public:
-    SlangGenerator(SlangUniformTypeGenerator& uniformTypeGenerator, const std::shared_ptr<lux::bakers::Context>& ctx);
+    SlangGenerator(SlangUniformTypeGenerator& uniformTypeGenerator, const std::shared_ptr<lux::import::Context>& ctx);
     std::string GenerateCommonFile() const;
     std::filesystem::path GetCommonFilePath(const std::filesystem::path& generationPath) const;
     lux::assetlib::io::IoResult<SlangGeneratorResult> Generate(const std::filesystem::path& loadInfoPath);
 private:
     SlangUniformTypeGenerator* m_UniformTypeGenerator{nullptr};
-    std::shared_ptr<lux::bakers::Context> m_Ctx{nullptr};
+    std::shared_ptr<lux::import::Context> m_Ctx{nullptr};
 };

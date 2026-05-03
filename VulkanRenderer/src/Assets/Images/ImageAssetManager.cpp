@@ -10,13 +10,13 @@
 #include "Vulkan/Device.h"
 
 #include <AssetLib/Images/ImageMeta.h>
-#include <AssetBakerLib/Importers/Images/ImageImporter.h>
+#include <AssetImportLib/Importers/Images/ImageImporter.h>
 
 namespace lux
 {
 bool ImageAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
 {
-    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || !Bakes(assetlib::getMetadataRawExtension(path)))
+    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || !Imports(assetlib::getMetadataRawExtension(path)))
         return false;
 
     auto metadataRead = assetlib::io::readBaseAssetMetadata(path);
@@ -35,10 +35,10 @@ bool ImageAssetManager::AddManaged(const std::filesystem::path& path, AssetIdRes
     return true;
 }
 
-bool ImageAssetManager::Bakes(std::string_view extension)
+bool ImageAssetManager::Imports(std::string_view extension)
 {
     bool bakes = false;
-    for (auto& rawExtension : bakers::IMAGE_ASSET_RAW_EXTENSIONS)
+    for (auto& rawExtension : import::IMAGE_ASSET_RAW_EXTENSIONS)
         bakes = bakes || extension == rawExtension;
 
     return bakes;
@@ -46,7 +46,7 @@ bool ImageAssetManager::Bakes(std::string_view extension)
 
 void ImageAssetManager::OnFileModified(const std::filesystem::path& path)
 {
-    if (Bakes(path.extension().string()) || Bakes(assetlib::getMetadataRawExtension(path)))
+    if (Imports(path.extension().string()) || Imports(assetlib::getMetadataRawExtension(path)))
         OnRawFileModified(path);
 }
 
@@ -65,7 +65,7 @@ void ImageAssetManager::OnFrameBegin(FrameContext& ctx)
 ImageHandle ImageAssetManager::LoadAsset(const ImageLoadParameters& parameters)
 {
     const std::filesystem::path path = weakly_canonical(parameters.Path).generic_string();
-    bakers::ImageImporter importer(m_Ctx, {});
+    import::ImageImporter importer(m_Ctx, {});
     const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
     
     const ImageHandle cached = m_Images.Find(id);
@@ -100,10 +100,10 @@ Image ImageAssetManager::GetAsset(ImageHandle handle) const
 
 void ImageAssetManager::OnRawFileModified(const std::filesystem::path& path)
 {
-    m_AssetSystem->AddBakeRequest({
-        .BakeFn = [this, path]()
+    m_AssetSystem->AddImportRequest({
+        .ImportFn = [this, path]()
         {
-            bakers::ImageImporter importer(m_Ctx, {});
+            import::ImageImporter importer(m_Ctx, {});
             const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
             ImageHandle cached;
             {
@@ -126,7 +126,7 @@ void ImageAssetManager::OnRawFileModified(const std::filesystem::path& path)
     });
 }
 
-ImageAsset ImageAssetManager::DoLoad(bakers::ImageImporter& importer, const std::filesystem::path& path) const
+ImageAsset ImageAssetManager::DoLoad(import::ImageImporter& importer, const std::filesystem::path& path) const
 {
     LUX_LOG_INFO("Loading image: {}", path.string());
     

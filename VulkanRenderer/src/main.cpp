@@ -11,7 +11,7 @@ i32 main()
     lux::Logger::Init({.LogFile = "../logs/log.txt"});
     Settings::initCvars();
     
-    platform::runSubProcess("../tools/bin/AssetBaker/AssetBaker.exe",
+    platform::runSubProcess("../tools/bin/AssetImporter/AssetImporter.exe",
         {CVars::Get().GetStringCVar("Path.Assets"_hsv, "../assets")});
 
     Renderer* renderer = Renderer::Get();

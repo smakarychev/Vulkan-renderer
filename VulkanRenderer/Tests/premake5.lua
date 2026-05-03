@@ -15,7 +15,7 @@ project "RendererTests"
         IncludeDir["Renderer"],
         IncludeDir["CoreLib"],
         IncludeDir["AssetLib"],
-        IncludeDir["AssetBakerLib"],
+        IncludeDir["AssetImportLib"],
         IncludeDir["glm"],
         IncludeDir["catch2"],
         IncludeDir["imgui"],

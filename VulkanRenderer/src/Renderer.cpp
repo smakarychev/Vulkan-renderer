@@ -79,8 +79,6 @@
 #include <AssetLib/Io/Compression/RawAssetCompressor.h>
 #include <AssetLib/Io/IoInterface/CombinedAssetIoInterface.h>
 #include <AssetLib/Io/IoInterface/SeparateAssetIoInterface.h>
-#include <AssetLib/Materials/MaterialAsset.h>
-#include <AssetBakerLib/Bakers/Scenes/SceneBaker.h>
 #include <CoreLib/Math/Random.h>
 #include <CoreLib/String/StringId.h>
 
@@ -99,24 +97,24 @@ void Renderer::Init()
     else
         m_AssetCompressor = std::make_shared<lux::assetlib::io::RawAssetCompressor>();
 
-    m_BakerCtx = std::make_shared<lux::bakers::Context>(lux::bakers::Context{
+    m_ImportCtx = std::make_shared<lux::import::Context>(lux::import::Context{
         .InitialDirectory = *CVars::Get().GetStringCVar("Path.Assets"_hsv),
         .BakedDirectory = *CVars::Get().GetStringCVar("Path.AssetsBaked"_hsv),
         .Io = m_AssetIoInterface.get(),
         .Compressor = m_AssetCompressor.get()
     });
-    m_ShaderBakeSettings = {
+    m_ShaderImportSettings = {
         .IncludePaths = {"../assets/shaders/slang/raw"},
         .UniformReflectionDirectoryName = "uniform_types",
         .EnableHotReloading = true,
     };
 
-    m_AssetSystem.Init(m_BakerCtx);
+    m_AssetSystem.Init(m_ImportCtx);
     m_AssetSystem.SetAssetsDirectory(*CVars::Get().GetStringCVar("Path.Assets"_hsv));
 
     m_ShaderAssetManager = std::make_unique<lux::ShaderAssetManager>(m_AssetSystem);
     m_AssetSystem.RegisterAssetManager(lux::assetlib::shader::ASSET_TYPE, *m_ShaderAssetManager);
-    m_ShaderAssetManager->Init(m_ShaderBakeSettings);
+    m_ShaderAssetManager->Init(m_ShaderImportSettings);
 
     m_ImageAssetManager = std::make_unique<lux::ImageAssetManager>(m_AssetSystem);
     m_AssetSystem.RegisterAssetManager(lux::assetlib::image::ASSET_TYPE, *m_ImageAssetManager);

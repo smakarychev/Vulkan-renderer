@@ -10,15 +10,15 @@ namespace fs = std::filesystem;
 
 namespace lux
 {
-void AssetSystem::Init(const std::shared_ptr<bakers::Context>& context)
+void AssetSystem::Init(const std::shared_ptr<import::Context>& context)
 {
     m_Ctx = context;
-    m_Bakery.Init();
+    m_ImportQueue.Init();
 }
 
 void AssetSystem::Shutdown()
 {
-    m_Bakery.Shutdown();
+    m_ImportQueue.Shutdown();
 }
 
 void AssetSystem::RegisterAssetManager(assetlib::AssetType type, AssetManager& manager)
@@ -73,9 +73,9 @@ assetlib::AssetId AssetSystem::ResolveMetaPath(const std::filesystem::path& path
     return m_IdResolver.ResolveMetaPath(path);
 }
 
-bool AssetSystem::AddBakeRequest(AssetBakeRequest&& request)
+bool AssetSystem::AddImportRequest(AssetImportRequest&& request)
 {
-    return m_Bakery.AddRequest(std::move(request));
+    return m_ImportQueue.AddRequest(std::move(request));
 }
 
 void AssetSystem::InitFileWatcher(const std::filesystem::path& path)

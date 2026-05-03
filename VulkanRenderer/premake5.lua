@@ -8,7 +8,7 @@ local project_includes = {
     "src",
     IncludeDir["CoreLib"], 
     IncludeDir["AssetLib"], 
-    IncludeDir["AssetBakerLib"], 
+    IncludeDir["AssetImportLib"], 
 }
 
 local external_includes = {
@@ -30,7 +30,7 @@ local project_links = {
     "tracy",
     "CoreLib",
     "AssetLib",
-    "AssetBakerLib",
+    "AssetImportLib",
 }
 
 local project_defines = {
@@ -74,11 +74,11 @@ project "VulkanRendererLib"
     
     prebuildcommands {
         "\
-        if not exist %{tools_bindir}/AssetBaker/AssetBaker.exe (\
-            msbuild %{wks.location}tools/AssetBaker/AssetBaker /p:Configuration=Release /p:Platform=x64) \
+        if not exist %{tools_bindir}/AssetImporter/AssetImporter.exe (\
+            msbuild %{wks.location}tools/AssetImporter/AssetImporter /p:Configuration=Release /p:Platform=x64) \
         if not exist %{tools_bindir}/ShaderBindGroupGen/ShaderBindGroupGen.exe ( \
             msbuild %{wks.location}tools/ShaderBindGroupGen /p:Configuration=Release /p:Platform=x64) \
-        cmd.exe /c %{tools_bindir}AssetBaker/AssetBaker.exe > nul \
+        cmd.exe /c %{tools_bindir}AssetImporter/AssetImporter.exe > nul \
         cmd.exe /c %{tools_bindir}ShaderBindGroupGen/ShaderBindGroupGen.exe %{wks.location}/assets/shaders %{prj.location}src/RenderGraph/Passes/Generated/ \
         :: this is unholy \
         cd %{wks.location} \
