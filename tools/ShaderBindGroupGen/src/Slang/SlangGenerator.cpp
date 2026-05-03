@@ -6,7 +6,7 @@
 #include <AssetLib/Shaders/ShaderAsset.h>
 #include <AssetLib/Shaders/ShaderLoadInfo.h>
 #include <AssetLib/Shaders/ShaderMeta.h>
-#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
+#include <AssetBakerLib/Bakers/Shaders/ShaderBaker.h>
 
 #include <ranges>
 #include <unordered_set>
@@ -1201,7 +1201,7 @@ lux::assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const
     
     for (auto& variant : shaderLoadInfo->Variants)
     {
-        lux::bakers::Slang shaderBaker(m_Ctx, {.Variant = StringId::FromString(variant.Name)});
+        lux::bakers::ShaderBaker shaderBaker(m_Ctx, {.Variant = StringId::FromString(variant.Name)});
         const std::filesystem::path metaPath = lux::assetlib::getMetadataPath(
             shaderBaker.GetDefineAwarePath(loadInfoPath, shaderBaker.GetDefinesHash(*shaderLoadInfo).value_or(0)));
         

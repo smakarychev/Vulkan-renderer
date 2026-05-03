@@ -105,7 +105,7 @@ void Renderer::Init()
         .Io = m_AssetIoInterface.get(),
         .Compressor = m_AssetCompressor.get()
     });
-    m_SlangBakeSettings = {
+    m_ShaderBakeSettings = {
         .IncludePaths = {"../assets/shaders/slang/raw"},
         .UniformReflectionDirectoryName = "uniform_types",
         .EnableHotReloading = true,
@@ -116,7 +116,7 @@ void Renderer::Init()
 
     m_ShaderAssetManager = std::make_unique<lux::ShaderAssetManager>(m_AssetSystem);
     m_AssetSystem.RegisterAssetManager(lux::assetlib::shader::ASSET_TYPE, *m_ShaderAssetManager);
-    m_ShaderAssetManager->Init(m_SlangBakeSettings);
+    m_ShaderAssetManager->Init(m_ShaderBakeSettings);
 
     m_ImageAssetManager = std::make_unique<lux::ImageAssetManager>(m_AssetSystem);
     m_AssetSystem.RegisterAssetManager(lux::assetlib::image::ASSET_TYPE, *m_ImageAssetManager);

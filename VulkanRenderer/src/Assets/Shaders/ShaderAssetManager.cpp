@@ -59,7 +59,7 @@ void ShaderAssetManager::OnFileModified(const std::filesystem::path& path)
         return OnRawFileModified(path);
 }
 
-void ShaderAssetManager::Init(const bakers::SlangBakeSettings& bakeSettings)
+void ShaderAssetManager::Init(const bakers::ShaderBakeSettings& bakeSettings)
 {
     m_BakeSettings = &bakeSettings;
 }
@@ -175,11 +175,11 @@ ShaderHandle ShaderAssetManager::LoadAsset(const ShaderLoadParameters& parameter
 {
     const ShaderNameWithOverrides nameWithOverrides = {
         .Name = parameters.Name,
-        .Variant = parameters.Variant.value_or(bakers::Slang::MAIN_VARIANT),
+        .Variant = parameters.Variant.value_or(bakers::ShaderBaker::MAIN_VARIANT),
         .OverridesHash = parameters.Overrides->Hash
     };
     RebakeInfo rebakeInfo = CreateRebakeInfo(nameWithOverrides, parameters);
-    const bakers::SlangBakeSettings settings = CreateBakeSettings(rebakeInfo);
+    const bakers::ShaderBakeSettings settings = CreateBakeSettings(rebakeInfo);
     bakers::ShaderImporter importer(m_Ctx, settings);
     
     auto it = m_PipelinesMap.find(nameWithOverrides);
@@ -252,7 +252,7 @@ void ShaderAssetManager::OnRawFileModified(const std::filesystem::path& path)
             m_AssetSystem->AddBakeRequest({
                 .BakeFn = [this, shaderPath, &rebakeInfo]()
                 {
-                    const bakers::SlangBakeSettings settings = CreateBakeSettings(rebakeInfo);
+                    const bakers::ShaderBakeSettings settings = CreateBakeSettings(rebakeInfo);
                     bakers::ShaderImporter importer(m_Ctx, settings);
                     
                     auto pipelineInfo = DoLoad(importer, shaderPath);
@@ -396,7 +396,7 @@ ShaderAssetManager::RebakeInfo ShaderAssetManager::CreateRebakeInfo(const Shader
     };
 }
 
-bakers::SlangBakeSettings ShaderAssetManager::CreateBakeSettings(const RebakeInfo& rebakeInfo) const
+bakers::ShaderBakeSettings ShaderAssetManager::CreateBakeSettings(const RebakeInfo& rebakeInfo) const
 {
     return {
         .Defines = rebakeInfo.Defines,

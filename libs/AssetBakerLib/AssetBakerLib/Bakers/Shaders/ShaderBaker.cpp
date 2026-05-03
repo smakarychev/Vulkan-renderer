@@ -1,4 +1,4 @@
-#include "SlangBaker.h"
+#include "ShaderBaker.h"
 
 
 #include <AssetLib/Io/Compression/AssetCompressor.h>
@@ -67,7 +67,7 @@ slang::IGlobalSession& getGlobalSession()
     return *globalSession;
 }
 
-slang::ISession& getSession(const SlangBakeSettings& settings, const assetlib::ShaderLoadInfo::Variant& variant)
+slang::ISession& getSession(const ShaderBakeSettings& settings, const assetlib::ShaderLoadInfo::Variant& variant)
 {
     /* slang sessions must be unique for each #define list */
     static std::unordered_map<u64, ::Slang::ComPtr<slang::ISession>> sessions;
@@ -249,7 +249,7 @@ class UniformTypeReflector
     using UniformVariable = assetlib::ShaderUniformVariable;
     using UniformType = assetlib::ShaderUniformType;
 public:
-    UniformTypeReflector(const Context& ctx, const SlangBakeSettings& settings) : m_Ctx(&ctx), m_Settings(&settings) {}
+    UniformTypeReflector(const Context& ctx, const ShaderBakeSettings& settings) : m_Ctx(&ctx), m_Settings(&settings) {}
     std::optional<Uniform> Reflect(const std::string& baseName, slang::VariableLayoutReflection* variableLayout)
     {
         m_CurrentName = baseName;
@@ -504,7 +504,7 @@ private:
 
     std::string m_CurrentName{};
     const Context* m_Ctx{nullptr};
-    const SlangBakeSettings* m_Settings{nullptr};
+    const ShaderBakeSettings* m_Settings{nullptr};
     std::unordered_map<slang::TypeReflection*, assetlib::AssetId> m_ProcessedEmbeddedStructTypes;
     std::vector<assetlib::ShaderUniformTypeEmbeddedStruct> m_EmbeddedStructs;
 };
@@ -710,7 +710,7 @@ private:
 class ShaderReflector
 {
 public:
-    ShaderReflector(const Context& ctx, const SlangBakeSettings& settings, bool usesTextureHeap)
+    ShaderReflector(const Context& ctx, const ShaderBakeSettings& settings, bool usesTextureHeap)
         : m_Ctx(&ctx), m_Settings(&settings), m_UsesTextureHeap(usesTextureHeap) {}
     IoResult<assetlib::ShaderHeader> Reflect(std::vector<slang::IModule*>& modules, slang::IComponentType* program,
         const std::vector<::Slang::ComPtr<slang::IMetadata>>& entryPointMetadata)
@@ -1215,14 +1215,14 @@ private:
     assetlib::ShaderStage m_CurrentShaderStages{assetlib::ShaderStage::None};
     std::stack<ParameterBlockInfo> m_ParameterBlocksToReflect;
     const Context* m_Ctx{nullptr};
-    const SlangBakeSettings* m_Settings{nullptr};
+    const ShaderBakeSettings* m_Settings{nullptr};
     bool m_UsesTextureHeap{false};
     
     static constexpr i32 RELATIVE_SET_INDEX = 0;
 };
 }
 
-std::filesystem::path Slang::GetBakedPath(const std::filesystem::path& metaPath) const
+std::filesystem::path ShaderBaker::GetBakedPath(const std::filesystem::path& metaPath) const
 {
     auto metaRead = assetlib::shader::readMeta(metaPath);
     ASSERT(metaRead.has_value())
@@ -1232,12 +1232,12 @@ std::filesystem::path Slang::GetBakedPath(const std::filesystem::path& metaPath)
     return GetBakedPath(*metaRead);
 }
 
-std::filesystem::path Slang::GetBakedPath(const assetlib::ShaderMeta& meta) const
+std::filesystem::path ShaderBaker::GetBakedPath(const assetlib::ShaderMeta& meta) const
 {
     return getPostBakePath(meta.Metadata, POST_BAKE_EXTENSION, *m_Ctx);
 }
 
-IoResult<std::filesystem::path> Slang::BakeToFile(assetlib::ShaderMeta& meta, const std::filesystem::path& metaPath)
+IoResult<std::filesystem::path> ShaderBaker::BakeToFile(assetlib::ShaderMeta& meta, const std::filesystem::path& metaPath)
 {
     ASSERT(!meta.Metadata.Io.OriginalFile.empty())
     
@@ -1280,7 +1280,7 @@ IoResult<std::filesystem::path> Slang::BakeToFile(assetlib::ShaderMeta& meta, co
     return paths.HeaderPath;
 }
 
-bool Slang::ShouldBake(const std::filesystem::path& metaPath) const
+bool ShaderBaker::ShouldBake(const std::filesystem::path& metaPath) const
 {
     namespace fs = std::filesystem;
     
@@ -1311,7 +1311,7 @@ bool Slang::ShouldBake(const std::filesystem::path& metaPath) const
     return false; 
 }
 
-std::optional<u64> Slang::GetDefinesHash(const assetlib::ShaderLoadInfo& loadInfo) const
+std::optional<u64> ShaderBaker::GetDefinesHash(const assetlib::ShaderLoadInfo& loadInfo) const
 {
     u64 definesHash = m_Settings.DefinesHash;
     if (m_Settings.Variant.Hash() != MAIN_VARIANT.Hash())
@@ -1326,7 +1326,7 @@ std::optional<u64> Slang::GetDefinesHash(const assetlib::ShaderLoadInfo& loadInf
     return definesHash;
 }
 
-std::filesystem::path Slang::GetDefineAwarePath(const std::filesystem::path& path, u64 definesHash) const
+std::filesystem::path ShaderBaker::GetDefineAwarePath(const std::filesystem::path& path, u64 definesHash) const
 {
     if (definesHash == 0)
         return path;
@@ -1337,7 +1337,7 @@ std::filesystem::path Slang::GetDefineAwarePath(const std::filesystem::path& pat
     return std::format("{}-{}{}", converted.string(), definesHash, extension);
 }
 
-IoResult<assetlib::ShaderAsset> Slang::Bake(const assetlib::ShaderMeta& meta, const assetlib::ShaderLoadInfo& loadInfo)
+IoResult<assetlib::ShaderAsset> ShaderBaker::Bake(const assetlib::ShaderMeta& meta, const assetlib::ShaderLoadInfo& loadInfo)
 {
     auto loadRead = assetlib::shader::readLoadInfo(meta.Metadata.Io.OriginalFile);
     CHECK_RETURN_IO_ERROR_PROPAGATE(loadRead)

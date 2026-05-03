@@ -8,7 +8,7 @@ ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, __VA_ARGS__)
 
 namespace lux::bakers
 {
-ShaderImporter::ShaderImporter(const std::shared_ptr<Context>& ctx, const SlangBakeSettings& settings)
+ShaderImporter::ShaderImporter(const std::shared_ptr<Context>& ctx, const ShaderBakeSettings& settings)
     : Importer(ctx), m_Baker(ctx, settings), m_BakeSettings(settings)
 {
 }

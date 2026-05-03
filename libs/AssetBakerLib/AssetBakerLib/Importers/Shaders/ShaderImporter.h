@@ -3,7 +3,7 @@
 #include <AssetLib/Shaders/ShaderAsset.h>
 #include <AssetLib/Shaders/ShaderMeta.h>
 #include <AssetBakerLib/Importers/Importer.h>
-#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
+#include <AssetBakerLib/Bakers/Shaders/ShaderBaker.h>
 
 namespace lux::bakers
 {
@@ -15,7 +15,7 @@ struct ShaderImportedAsset : ImportedAsset
 class ShaderImporter final : public Importer
 {
 public:
-    ShaderImporter(const std::shared_ptr<Context>& ctx, const SlangBakeSettings& settings);
+    ShaderImporter(const std::shared_ptr<Context>& ctx, const ShaderBakeSettings& settings);
 
     using Importer::Import;
     ImportResult<void> Import(const std::filesystem::path& path, ImportFlags importFlags) override;
@@ -35,7 +35,7 @@ private:
     ShaderImportedAsset m_ImportedAsset{};
     assetlib::ShaderMeta m_ImportedMeta{};
     assetlib::ShaderLoadInfo m_ImportedLoadInfo{};
-    Slang m_Baker;
-    SlangBakeSettings m_BakeSettings{};
+    ShaderBaker m_Baker;
+    ShaderBakeSettings m_BakeSettings{};
 };
 }

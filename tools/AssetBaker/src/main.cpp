@@ -164,7 +164,7 @@ i32 main(i32 argc, char** argv)
             
             for (auto& variant : shaderLoadInfoRead->Variants)
             {
-                lux::bakers::SlangBakeSettings shaderBakeSettings{
+                lux::bakers::ShaderBakeSettings shaderBakeSettings{
                     .Variant = StringId::FromString(variant.Name),
                     .IncludePaths = {shaderBakerSettings.IncludeDirectory.string()},
                 };

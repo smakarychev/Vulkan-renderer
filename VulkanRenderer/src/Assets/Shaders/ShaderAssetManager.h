@@ -7,7 +7,7 @@
 #include "Rendering/Shader/ShaderPipelineTemplate.h"
 
 #include <AssetBakerLib/Bakers/BakerContext.h>
-#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
+#include <AssetBakerLib/Bakers/Shaders/ShaderBaker.h>
 #include <CoreLib/String/StringHeterogeneousHasher.h>
 #include <CoreLib/String/StringId.h>
 
@@ -19,7 +19,7 @@ namespace lux
 namespace bakers
 {
 class ShaderImporter;
-struct SlangBakeSettings;
+struct ShaderBakeSettings;
 }
 
 template <>
@@ -56,7 +56,7 @@ public:
     bool Bakes(std::string_view extension) override;
     void OnFileModified(const std::filesystem::path& path) override;
     
-    void Init(const bakers::SlangBakeSettings& bakeSettings);
+    void Init(const bakers::ShaderBakeSettings& bakeSettings);
     void Shutdown();
 
     void OnFrameBegin(FrameContext& ctx);
@@ -103,7 +103,7 @@ private:
     void ReloadPipeline(PipelineInfo& pipelineInfo, bakers::ShaderImporter& importer, 
         const ShaderLoadParameters& parameters);
     RebakeInfo CreateRebakeInfo(const ShaderNameWithOverrides& name, const ShaderLoadParameters& parameters) const;
-    bakers::SlangBakeSettings CreateBakeSettings(const RebakeInfo& rebakeInfo) const;
+    bakers::ShaderBakeSettings CreateBakeSettings(const RebakeInfo& rebakeInfo) const;
 private:
     struct ShaderNameWithOverridesHasher
     {
@@ -129,7 +129,7 @@ private:
     DescriptorsWithLayout m_TextureHeap{};
 
     /* for hot-reloading */
-    const bakers::SlangBakeSettings* m_BakeSettings{nullptr};
+    const bakers::ShaderBakeSettings* m_BakeSettings{nullptr};
     StringUnorderedMap<std::vector<StringId>> m_RawPathToShaders;
     std::unordered_map<StringId, std::filesystem::path> m_ShaderNameToRawPath;
     StringUnorderedMap<std::vector<RebakeInfo>> m_RawPathToRebakeInfos;

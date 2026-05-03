@@ -16,7 +16,7 @@ struct ShaderLoadInfo;
 
 namespace lux::bakers
 {
-struct SlangBakeSettings
+struct ShaderBakeSettings
 {
     Span<const std::pair<std::string, std::string>> Defines{};
     u64 DefinesHash{0};
@@ -26,13 +26,13 @@ struct SlangBakeSettings
     bool EnableHotReloading{false};
 };
 
-class Slang
+class ShaderBaker
 {
 public:
     static constexpr auto MAIN_VARIANT = HashedStringView(assetlib::ShaderLoadInfo::SHADER_VARIANT_MAIN_NAME);
     static constexpr std::string_view POST_BAKE_EXTENSION = ".sl_shader";
 public:
-    Slang(const std::shared_ptr<Context>& ctx, const SlangBakeSettings& settings) : m_Ctx(ctx), m_Settings(settings) {}
+    ShaderBaker(const std::shared_ptr<Context>& ctx, const ShaderBakeSettings& settings) : m_Ctx(ctx), m_Settings(settings) {}
     
     std::filesystem::path GetBakedPath(const std::filesystem::path& metaPath) const;
     std::filesystem::path GetBakedPath(const assetlib::ShaderMeta& meta) const;
@@ -47,6 +47,6 @@ private:
     IoResult<assetlib::ShaderAsset> Bake(const assetlib::ShaderMeta& meta, const assetlib::ShaderLoadInfo& loadInfo);
 private:
     std::shared_ptr<Context> m_Ctx{nullptr};
-    SlangBakeSettings m_Settings{};
+    ShaderBakeSettings m_Settings{};
 };
 }

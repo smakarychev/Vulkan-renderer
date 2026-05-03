@@ -27,7 +27,7 @@
 
 #include <AssetBakerLib/Bakers/BakerContext.h>
 #include <AssetBakerLib/Bakers/Images/ImageBaker.h>
-#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
+#include <AssetBakerLib/Bakers/Shaders/ShaderBaker.h>
 
 namespace lux
 {
@@ -192,7 +192,7 @@ private:
     std::shared_ptr<lux::assetlib::io::AssetIoInterface> m_AssetIoInterface{};
     std::shared_ptr<lux::assetlib::io::AssetCompressor> m_AssetCompressor{};
     std::shared_ptr<lux::bakers::Context> m_BakerCtx{};
-    lux::bakers::SlangBakeSettings m_SlangBakeSettings{};
+    lux::bakers::ShaderBakeSettings m_ShaderBakeSettings{};
 
     lux::AssetSystem m_AssetSystem;
     std::unique_ptr<lux::ShaderAssetManager> m_ShaderAssetManager;
