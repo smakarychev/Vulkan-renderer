@@ -7,8 +7,9 @@ namespace lux::mem
 constexpr u64 alignAddressPow2(u64 address, u16 alignment)
 {
     const u16 mask = alignment - 1;
-    
-    return (address + mask) & ~mask;
+    if (alignment != 0)
+        return (address + mask) & ~mask;
+    return address;
 }
 constexpr u64 alignAddress(u64 address, u16 alignment)
 {

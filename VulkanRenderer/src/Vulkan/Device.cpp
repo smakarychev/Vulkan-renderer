@@ -26,7 +26,7 @@
 #include <AssetLib/Images/ImageAsset.h>
 #include <CoreLib/core.h>
 #include <CoreLib/Utils/ContainterUtils.h>
-#include <CoreLib/Utils/CoreUtils.h>
+#include <CoreLib/Utils/MemoryUtils.h>
 
 namespace
 {
@@ -3218,7 +3218,8 @@ std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator 
         }
     }
     
-    layoutSizeBytes = CoreUtils::align(layoutSizeBytes, descriptorBufferProps.descriptorBufferOffsetAlignment);
+    layoutSizeBytes = 
+        lux::mem::alignAddressPow2(layoutSizeBytes, descriptorBufferProps.descriptorBufferOffsetAlignment);
     if (layoutSizeBytes + allocatorResource.CurrentOffset > allocatorResource.SizeBytes)
         return {};
 
