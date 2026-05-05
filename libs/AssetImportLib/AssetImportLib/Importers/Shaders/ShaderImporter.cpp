@@ -35,8 +35,7 @@ ImportResult<void> ShaderImporter::Import(const std::filesystem::path& path, Imp
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(shaderLoadRead)
     m_ImportedLoadInfo = *shaderLoadRead;
     
-    const std::filesystem::path bakedPath = m_Baker.GetBakedPath(m_ImportedMeta);
-    if (!std::filesystem::exists(bakedPath) || m_Baker.ShouldBake(importPath))
+    if (m_Baker.ShouldBake(importPath))
     {
         if (!enumHasAny(importFlags, ImportFlags::BakeIfNotBaked))
             return std::unexpected(ImportError{
