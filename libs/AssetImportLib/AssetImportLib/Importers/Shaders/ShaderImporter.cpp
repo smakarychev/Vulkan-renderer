@@ -5,7 +5,6 @@
 #define CHECK_RETURN_IO_ERROR(x, error, ...) \
 ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, __VA_ARGS__)
 
-
 namespace lux::import
 {
 ShaderImporter::ShaderImporter(const std::shared_ptr<Context>& ctx, const ShaderImportSettings& settings)
@@ -91,30 +90,11 @@ std::filesystem::path ShaderImporter::GetMetaPath(const std::filesystem::path& p
 IoResult<void> ShaderImporter::WriteMetadata(const std::filesystem::path& metaPath,
     const std::filesystem::path& rawPath)
 {
-    if (std::filesystem::exists(metaPath))
-        return {};
-    
-    const assetlib::AssetId assetId = assetlib::shader::readMeta(metaPath).value_or({}).Metadata.AssetId;
-    
-    assetlib::ShaderMeta shaderMeta = {
-        .Metadata = {
-            .AssetId = assetId,
-            .Type = assetlib::shader::getTypeMetadata(),
-            .Io = {
-                .OriginalFile = std::filesystem::weakly_canonical(rawPath).generic_string(),
-            }
-        },
+    const assetlib::ShaderMeta shaderMeta = {
+        .Metadata = CreateMetadataBase(metaPath, rawPath, assetlib::shader::getTypeMetadata()),
         .VariantName = m_ImportSettings.Variant.AsString()
     };
     
-    auto packed = assetlib::shader::packMeta(shaderMeta);
-    CHECK_RETURN_IO_ERROR(packed.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to pack shader meta data for {}", rawPath.generic_string())
-
-    auto writeResult = writeStringToFile(metaPath, assetlib::io::getAssetHeaderFormatted(*packed));
-    CHECK_RETURN_IO_ERROR(writeResult.has_value(), IoError::ErrorCode::FailedToCreate,
-        "Failed to create shader meta data for {}", rawPath.generic_string())
-
-    return {};
+    return WritePackedMetadata(metaPath, assetlib::shader::packMeta(shaderMeta), "shader");
 }
 }

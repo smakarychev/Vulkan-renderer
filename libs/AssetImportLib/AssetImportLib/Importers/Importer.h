@@ -26,6 +26,11 @@ public:
     
     virtual bool NeedsBaking(const std::filesystem::path& path) const = 0;
     virtual std::filesystem::path GetMetaPath(const std::filesystem::path& path) const = 0;
+
+    static assetlib::AssetMetadata CreateMetadataBase(const std::filesystem::path& metaPath,
+        const std::filesystem::path& rawPath, const assetlib::AssetTypeMetadata& typeMetadata);
+    static IoResult<void> WritePackedMetadata(const std::filesystem::path& metaPath,
+        const assetlib::io::IoResult<std::string>& metadata, std::string_view typeLabel);
 protected:
     std::shared_ptr<Context> m_Ctx;
 };

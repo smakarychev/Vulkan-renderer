@@ -65,31 +65,10 @@ std::filesystem::path MaterialImporter::GetMetaPath(const std::filesystem::path&
 IoResult<void> MaterialImporter::WriteMetadata(const std::filesystem::path& metaPath, 
     const std::filesystem::path& rawPath)
 {
-    if (std::filesystem::exists(metaPath))
-        return {};
-    
-    const assetlib::AssetId assetId = assetlib::material::readMeta(metaPath).value_or({}).Metadata.AssetId;
-    
-    assetlib::MaterialMeta materialMeta = {
-        .Metadata = {
-            .AssetId = assetId,
-            .Type = assetlib::material::getTypeMetadata(),
-            .Io = {
-                .OriginalFile = std::filesystem::weakly_canonical(rawPath).generic_string(),
-                .HeaderFile = std::filesystem::weakly_canonical(rawPath).generic_string(),
-                .BinaryFile = std::filesystem::weakly_canonical(rawPath).generic_string(),
-            }
-        }
+    const assetlib::MaterialMeta materialMeta = {
+        .Metadata = CreateMetadataBase(metaPath, rawPath, assetlib::material::getTypeMetadata())
     };
     
-    auto packed = assetlib::material::packMeta(materialMeta);
-    CHECK_RETURN_IO_ERROR(packed.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to pack material meta data for {}", rawPath.generic_string())
-
-    auto writeResult = writeStringToFile(metaPath, assetlib::io::getAssetHeaderFormatted(*packed));
-    CHECK_RETURN_IO_ERROR(writeResult.has_value(), IoError::ErrorCode::FailedToCreate,
-        "Failed to create material meta data for {}", rawPath.generic_string())
-    
-    return {};
+    return WritePackedMetadata(metaPath, assetlib::material::packMeta(materialMeta), "material");
 }
 }

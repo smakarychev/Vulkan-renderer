@@ -111,7 +111,6 @@ std::filesystem::path ImageImporter::GetMetaPath(const std::filesystem::path& pa
 
 IoResult<void> ImageImporter::WriteMetadata(const std::filesystem::path& metaPath, const std::filesystem::path& rawPath)
 {
-    const assetlib::AssetId assetId = assetlib::image::readMeta(metaPath).value_or({}).Metadata.AssetId;
     if (std::filesystem::exists(metaPath) && !m_MetadataHint.Overwrite)
         return {};
     
@@ -127,12 +126,8 @@ IoResult<void> ImageImporter::WriteMetadata(const std::filesystem::path& metaPat
         const assetlib::ImageFormat inferred = chooseImageFormat(rawPath, m_MetadataHint.Heuristics);
         format = inferred != assetlib::ImageFormat::Undefined ? inferred : format;
     }
-    assetlib::ImageMeta imageMeta = {
-        .Metadata = {
-            .AssetId = assetId,
-            .Type = assetlib::image::getTypeMetadata(),
-            .Io = {.OriginalFile = std::filesystem::weakly_canonical(rawPath).generic_string()}
-        },
+    const assetlib::ImageMeta imageMeta = {
+        .Metadata = CreateMetadataBase(metaPath, rawPath, assetlib::image::getTypeMetadata()),
         .PregeneratedMipmaps =
             rawPath.extension() != IMAGE_ASSET_RAW_HDR_EXTENSION &&
             rawPath.extension() != IMAGE_ASSET_RAW_JPG_EXTENSION &&
@@ -140,14 +135,6 @@ IoResult<void> ImageImporter::WriteMetadata(const std::filesystem::path& metaPat
         .BakedFormat = format
     };
     
-    auto packed = assetlib::image::packMeta(imageMeta);
-    CHECK_RETURN_IO_ERROR(packed.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to pack image meta data for {}", rawPath.generic_string())
-
-    auto writeResult = writeStringToFile(metaPath, assetlib::io::getAssetHeaderFormatted(*packed));
-    CHECK_RETURN_IO_ERROR(writeResult.has_value(), IoError::ErrorCode::FailedToCreate,
-        "Failed to create image meta data for {}", rawPath.generic_string())
-
-    return {};
+    return WritePackedMetadata(metaPath, assetlib::image::packMeta(imageMeta), "image");
 }
 }

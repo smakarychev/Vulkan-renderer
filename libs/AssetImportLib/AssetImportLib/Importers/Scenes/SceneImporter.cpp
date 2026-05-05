@@ -78,31 +78,15 @@ std::filesystem::path SceneImporter::GetMetaPath(const std::filesystem::path& pa
     return assetlib::getMetadataPath(path);
 }
 
+{
+    
+    
 IoResult<void> SceneImporter::WriteMetadata(const std::filesystem::path& metaPath, const std::filesystem::path& rawPath)
 {
-    if (std::filesystem::exists(metaPath))
-        return {};
-    
-    const assetlib::AssetId assetId = assetlib::scene::readMeta(metaPath).value_or({}).Metadata.AssetId;
-    
-    assetlib::SceneMeta sceneMeta = {
-        .Metadata = {
-            .AssetId = assetId,
-            .Type = assetlib::scene::getTypeMetadata(),
-            .Io = {
-                .OriginalFile = std::filesystem::weakly_canonical(rawPath).generic_string(),
-            }
-        }
+    const assetlib::SceneMeta sceneMeta = {
+        .Metadata = CreateMetadataBase(metaPath, rawPath, assetlib::scene::getTypeMetadata())
     };
     
-    auto packed = assetlib::scene::packMeta(sceneMeta);
-    CHECK_RETURN_IO_ERROR(packed.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to pack scene meta data for {}", rawPath.generic_string())
-
-    auto writeResult = writeStringToFile(metaPath, assetlib::io::getAssetHeaderFormatted(*packed));
-    CHECK_RETURN_IO_ERROR(writeResult.has_value(), IoError::ErrorCode::FailedToCreate,
-        "Failed to create scene meta data for {}", rawPath.generic_string())
-
-    return {};
+    return WritePackedMetadata(metaPath, assetlib::scene::packMeta(sceneMeta), "scene");
 }
 }
