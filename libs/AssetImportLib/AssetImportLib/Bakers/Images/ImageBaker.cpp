@@ -82,7 +82,7 @@ IoResult<std::filesystem::path> ImageBaker::BakeToFile(assetlib::ImageMeta& meta
     return paths.HeaderPath;
 }
 
-bool ImageBaker::ShouldBake(const std::filesystem::path& metaPath) const
+bool ImageBaker::NeedsBaking(const std::filesystem::path& metaPath) const
 {
     namespace fs = std::filesystem;
     

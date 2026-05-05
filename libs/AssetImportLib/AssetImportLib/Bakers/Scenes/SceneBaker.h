@@ -21,7 +21,7 @@ public:
     
     IoResult<std::filesystem::path> BakeToFile(assetlib::SceneMeta& meta, const std::filesystem::path& metaPath);
 
-    bool ShouldBake(const std::filesystem::path& metaPath) const;
+    bool NeedsBaking(const std::filesystem::path& metaPath) const;
 private:
     IoResult<assetlib::SceneAsset> Bake(const assetlib::SceneMeta& meta);
 private:

@@ -97,7 +97,7 @@ IoResult<std::filesystem::path> SceneBaker::BakeToFile(assetlib::SceneMeta& meta
     return paths.HeaderPath;
 }
 
-bool SceneBaker::ShouldBake(const std::filesystem::path& metaPath) const
+bool SceneBaker::NeedsBaking(const std::filesystem::path& metaPath) const
 {
     namespace fs = std::filesystem;
 

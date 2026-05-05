@@ -21,7 +21,7 @@ public:
     
     IoResult<std::filesystem::path> BakeToFile(assetlib::ImageMeta& meta, const std::filesystem::path& metaPath);
 
-    bool ShouldBake(const std::filesystem::path& metaPath) const;
+    bool NeedsBaking(const std::filesystem::path& metaPath) const;
 private:
     IoResult<assetlib::ImageAsset> Bake(const assetlib::ImageMeta& meta);
     IoResult<assetlib::ImageAsset> BakeHDR(const assetlib::ImageMeta& meta);

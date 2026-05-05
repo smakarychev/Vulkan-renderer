@@ -81,7 +81,7 @@ assetlib::ImageFormat chooseImageFormat(const std::filesystem::path& path,
 
 bool ImageImporter::NeedsBaking(const std::filesystem::path& path) const
 {
-    return m_Baker.ShouldBake(GetMetaPath(path));
+    return m_Baker.NeedsBaking(GetMetaPath(path));
 }
 
 std::filesystem::path ImageImporter::GetMetaPath(const std::filesystem::path& path) const

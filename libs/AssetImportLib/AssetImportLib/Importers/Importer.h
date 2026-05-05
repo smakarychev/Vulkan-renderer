@@ -59,7 +59,7 @@ template <typename Metadata, typename Baker>
 ImportResult<void> Importer::EnsureBaked(const std::filesystem::path& metaPath, ImportFlags importFlags, 
     Metadata& metadata, Baker& baker, std::string_view typeLabel)
 {
-    if (!baker.ShouldBake(metaPath))
+    if (!baker.NeedsBaking(metaPath))
         return {};
     if (!enumHasAny(importFlags, ImportFlags::BakeIfNotBaked))
         return std::unexpected(ImportError{

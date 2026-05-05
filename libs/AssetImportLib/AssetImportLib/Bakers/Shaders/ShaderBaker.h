@@ -30,7 +30,7 @@ public:
     
     IoResult<std::filesystem::path> BakeToFile(assetlib::ShaderMeta& meta, const std::filesystem::path& metaPath);
 
-    bool ShouldBake(const std::filesystem::path& metaPath) const;
+    bool NeedsBaking(const std::filesystem::path& metaPath) const;
     
     std::optional<u64> GetDefinesHash(const assetlib::ShaderLoadInfo& loadInfo) const;
     std::filesystem::path GetDefineAwarePath(const std::filesystem::path& path, u64 definesHash) const;

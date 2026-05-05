@@ -1284,7 +1284,7 @@ IoResult<std::filesystem::path> ShaderBaker::BakeToFile(assetlib::ShaderMeta& me
     return paths.HeaderPath;
 }
 
-bool ShaderBaker::ShouldBake(const std::filesystem::path& metaPath) const
+bool ShaderBaker::NeedsBaking(const std::filesystem::path& metaPath) const
 {
     namespace fs = std::filesystem;
     

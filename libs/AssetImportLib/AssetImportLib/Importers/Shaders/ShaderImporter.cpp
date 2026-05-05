@@ -48,7 +48,7 @@ ImportResult<void> ShaderImporter::Import(const std::filesystem::path& path, Imp
 
 bool ShaderImporter::NeedsBaking(const std::filesystem::path& path) const
 {
-    return m_Baker.ShouldBake(GetMetaPath(path));
+    return m_Baker.NeedsBaking(GetMetaPath(path));
 }
 
 std::filesystem::path ShaderImporter::GetMetaPath(const std::filesystem::path& path) const
