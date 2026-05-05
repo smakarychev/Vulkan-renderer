@@ -30,8 +30,8 @@ public:
     
     bool NeedsBaking(const std::filesystem::path& path) const override { return false; }
     std::filesystem::path GetMetaPath(const std::filesystem::path& path) const override;
-private:
-    IoResult<void> WriteMetadata(const std::filesystem::path& metaPath, const std::filesystem::path& rawPath);
+protected:
+    IoResult<void> WriteMetadata(const std::filesystem::path& metaPath, const std::filesystem::path& rawPath) override;
 private:
     MaterialImportedAsset m_ImportedAsset{};
     assetlib::MaterialMeta m_ImportedMeta{};

@@ -2,9 +2,6 @@
 
 #include <CoreLib/Utils/FileUtils.h>
 
-#define CHECK_RETURN_IO_ERROR(x, error, ...) \
-ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, __VA_ARGS__)
-
 namespace lux::import
 {
 ShaderImporter::ShaderImporter(const std::shared_ptr<Context>& ctx, const ShaderImportSettings& settings)
@@ -18,15 +15,9 @@ ImportResult<void> ShaderImporter::Import(const std::filesystem::path& path, Imp
         IoError::ErrorCode::GeneralError, "ShaderImporter error flags do not include neither header nor binaries {}",
         path.string())
     
-    const std::filesystem::path importPath = GetMetaPath(path);
-    
-    if (!std::filesystem::exists(importPath))
-    {
-        auto writeResult = WriteMetadata(importPath, path);
-        CHECK_RETURN_IMPORT_ERROR_PROPAGATE(writeResult)
-    }
-    
-    auto metadataRead = assetlib::shader::readMeta(importPath);
+    auto importPath = EnsureMetadata(path);
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importPath)
+    auto metadataRead = assetlib::shader::readMeta(*importPath);
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(metadataRead)
     m_ImportedMeta = *metadataRead;
     
@@ -34,20 +25,7 @@ ImportResult<void> ShaderImporter::Import(const std::filesystem::path& path, Imp
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(shaderLoadRead)
     m_ImportedLoadInfo = *shaderLoadRead;
     
-    if (m_Baker.ShouldBake(importPath))
-    {
-        if (!enumHasAny(importFlags, ImportFlags::BakeIfNotBaked))
-            return std::unexpected(ImportError{
-                {
-                    .Code = IoError::ErrorCode::GeneralError,
-                    .Message = std::format("Failed to import shader: {}", path.string())
-                },
-                ImportError::ImportErrorCode::NotBaked
-            });
-        
-        auto bakeResult = m_Baker.BakeToFile(m_ImportedMeta, importPath);
-        CHECK_RETURN_IMPORT_ERROR_PROPAGATE(bakeResult)
-    }
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(EnsureBaked(*importPath, importFlags, m_ImportedMeta, m_Baker, "shader"))
     
     if (enumHasAny(importFlags, ImportFlags::Header))
     {

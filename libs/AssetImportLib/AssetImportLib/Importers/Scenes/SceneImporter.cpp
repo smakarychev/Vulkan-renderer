@@ -1,9 +1,7 @@
 ﻿#include "SceneImporter.h"
 
-#include <CoreLib/Utils/FileUtils.h>
-
-#define CHECK_RETURN_IO_ERROR(x, error, ...) \
-ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, __VA_ARGS__)
+#include <CoreLib/utils/HashFileUtils.h>
+#include <CoreLib/utils/FileUtils.h>
 
 namespace lux::import
 {
@@ -18,32 +16,12 @@ ImportResult<void> SceneImporter::Import(const std::filesystem::path& path, Impo
         IoError::ErrorCode::GeneralError, "SceneImporter error flags do not include neither header nor binaries {}",
         path.string())
     
-    const std::filesystem::path importPath = GetMetaPath(path);
- 
-    if (!std::filesystem::exists(importPath))
-    {
-        auto writeResult = WriteMetadata(importPath, path);
-        CHECK_RETURN_IMPORT_ERROR_PROPAGATE(writeResult)
-    }
-    
-    auto metadataRead = assetlib::scene::readMeta(importPath);
+    auto importPath = EnsureMetadata(path);
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importPath)
+    auto metadataRead = assetlib::scene::readMeta(*importPath);
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(metadataRead)
     m_ImportedMeta = *metadataRead;
-    
-    if (m_Baker.ShouldBake(importPath))
-    {
-        if (!enumHasAny(importFlags, ImportFlags::BakeIfNotBaked))
-            return std::unexpected(ImportError{
-                {
-                    .Code = IoError::ErrorCode::GeneralError,
-                    .Message = std::format("Failed to import scene: {}", path.string())
-                },
-                ImportError::ImportErrorCode::NotBaked
-            });
-        
-        auto bakeResult = m_Baker.BakeToFile(m_ImportedMeta, importPath);
-        CHECK_RETURN_IMPORT_ERROR_PROPAGATE(bakeResult)
-    }
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(EnsureBaked(*importPath, importFlags, m_ImportedMeta, m_Baker, "scene"))
     
     if (enumHasAny(importFlags, ImportFlags::Header))
     {

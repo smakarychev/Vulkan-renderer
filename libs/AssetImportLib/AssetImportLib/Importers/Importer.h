@@ -31,9 +31,18 @@ public:
         const std::filesystem::path& rawPath, const assetlib::AssetTypeMetadata& typeMetadata);
     static IoResult<void> WritePackedMetadata(const std::filesystem::path& metaPath,
         const assetlib::io::IoResult<std::string>& metadata, std::string_view typeLabel);
+    
+    ImportResult<std::filesystem::path> EnsureMetadata(const std::filesystem::path& rawPath);
+    template <typename Metadata, typename Baker>
+    static ImportResult<void> EnsureBaked(const std::filesystem::path& metaPath, ImportFlags importFlags,
+        Metadata& metadata, Baker& baker, std::string_view typeLabel);
+protected:
+    virtual IoResult<void> WriteMetadata(const std::filesystem::path& metaPath, 
+        const std::filesystem::path& rawPath) = 0;
 protected:
     std::shared_ptr<Context> m_Ctx;
 };
+
 }
 
 CREATE_ENUM_FLAGS_OPERATORS(lux::import::ImportFlags)
@@ -43,3 +52,27 @@ if (!(x)) { return std::unexpected<ImportError>(::lux::assetlib::io::IoError{.Co
 
 #define CHECK_RETURN_IMPORT_ERROR_PROPAGATE(result) \
 if (!(result).has_value()) { return std::unexpected<ImportError>((result).error()); }
+
+namespace lux::import
+{
+template <typename Metadata, typename Baker>
+ImportResult<void> Importer::EnsureBaked(const std::filesystem::path& metaPath, ImportFlags importFlags, 
+    Metadata& metadata, Baker& baker, std::string_view typeLabel)
+{
+    if (!baker.ShouldBake(metaPath))
+        return {};
+    if (!enumHasAny(importFlags, ImportFlags::BakeIfNotBaked))
+        return std::unexpected(ImportError{
+            {
+                .Code = IoError::ErrorCode::GeneralError,
+                .Message = std::format("Failed to import {}: {}", typeLabel, metaPath.string())
+            },
+            ImportError::ImportErrorCode::NotBaked
+        });
+        
+    auto bakeResult = baker.BakeToFile(metadata, metaPath);
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(bakeResult)
+    
+    return {};
+}
+}

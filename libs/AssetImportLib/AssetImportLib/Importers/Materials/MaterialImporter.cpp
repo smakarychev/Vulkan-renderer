@@ -15,15 +15,9 @@ MaterialImporter::MaterialImporter(const std::shared_ptr<Context>& ctx)
 
 ImportResult<void> MaterialImporter::Import(const std::filesystem::path& path, ImportFlags importFlags)
 {
-    const std::filesystem::path importPath = GetMetaPath(path);
-    
-    if (!std::filesystem::exists(importPath))
-    {
-        auto writeResult = WriteMetadata(importPath, path);
-        CHECK_RETURN_IMPORT_ERROR_PROPAGATE(writeResult)
-    }
-
-    auto metadataRead = assetlib::material::readMeta(importPath);
+    auto importPath = EnsureMetadata(path);
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importPath)
+    auto metadataRead = assetlib::material::readMeta(*importPath);
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(metadataRead)
     m_ImportedMeta = *metadataRead;
     
@@ -37,15 +31,9 @@ ImportResult<void> MaterialImporter::Import(const std::filesystem::path& path, I
 ImportResult<assetlib::AssetId> MaterialImporter::Export(const assetlib::MaterialAsset& asset,
     const std::filesystem::path& exportPath)
 {
-    std::filesystem::path exportMetadataPath = GetMetaPath(exportPath);
-    
-    if (!std::filesystem::exists(exportMetadataPath))
-    {
-        auto writeResult = WriteMetadata(exportMetadataPath, exportPath);
-        CHECK_RETURN_IMPORT_ERROR_PROPAGATE(writeResult)
-    }
-    
-    auto metadataRead = assetlib::material::readMeta(exportMetadataPath);
+    auto metadataPath = EnsureMetadata(exportPath);
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(metadataPath)
+    auto metadataRead = assetlib::material::readMeta(*metadataPath);
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(metadataRead)
     
     auto packedMaterial = assetlib::material::pack(asset);

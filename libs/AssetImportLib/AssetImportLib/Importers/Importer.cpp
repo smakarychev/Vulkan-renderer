@@ -39,4 +39,17 @@ IoResult<void> Importer::WritePackedMetadata(const std::filesystem::path& metaPa
     
     return {};
 }
+
+ImportResult<std::filesystem::path> Importer::EnsureMetadata(const std::filesystem::path& rawPath)
+{
+    std::filesystem::path metadataPath = GetMetaPath(rawPath);
+ 
+    if (!std::filesystem::exists(metadataPath))
+    {
+        auto writeResult = WriteMetadata(metadataPath, rawPath);
+        CHECK_RETURN_IMPORT_ERROR_PROPAGATE(writeResult)
+    }
+    
+    return metadataPath;
+}
 }

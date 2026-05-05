@@ -28,8 +28,8 @@ public:
     
     bool NeedsBaking(const std::filesystem::path& path) const override;
     std::filesystem::path GetMetaPath(const std::filesystem::path& path) const override;
-private:
-    IoResult<void> WriteMetadata(const std::filesystem::path& metaPath, const std::filesystem::path& rawPath);
+protected:
+    IoResult<void> WriteMetadata(const std::filesystem::path& metaPath, const std::filesystem::path& rawPath) override;
 private:
     SceneImportedAsset m_ImportedAsset{};
     assetlib::SceneMeta m_ImportedMeta{};
