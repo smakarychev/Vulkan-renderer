@@ -11,7 +11,6 @@
 #include <CoreLib/core.h>
 #include <CoreLib/Utils/HashFileUtils.h>
 #include <CoreLib/Utils/HashUtils.h>
-#include <CoreLib/Utils/FileUtils.h>
 
 #include <fstream>
 #include <queue>
@@ -1242,31 +1241,26 @@ IoResult<std::filesystem::path> ShaderBaker::BakeToFile(assetlib::ShaderMeta& me
     auto packedShader = assetlib::shader::pack(*baked, *m_Ctx->Compressor);
     CHECK_RETURN_IO_ERROR_PROPAGATE(packedShader)
     
+    IoResult<u64> saveResult = m_Ctx->Io->WriteHeader(meta.Metadata, packedShader->Header);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(saveResult)
+
+    IoResult<u64> binarySaveResult = m_Ctx->Io->WriteBinaryChunk(meta.Metadata, packedShader->PackedBinaries);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(binarySaveResult)
+    
     meta.Metadata.Io = {
         .OriginalFile = meta.Metadata.Io.OriginalFile,
         .HeaderFile = meta.Metadata.Io.HeaderFile,
         .BinaryFile = meta.Metadata.Io.BinaryFile,
+        .HeaderSizeBytes = *saveResult,
         .BinarySizeBytes = baked->Spirv.size(),
-        .BinarySizeBytesCompressed = packedShader->PackedBinaries.size(),
+        .BinarySizeBytesCompressed = *binarySaveResult,
         .BinarySizeBytesChunksCompressed = std::move(packedShader->PackedBinarySizeBytesChunks),
         .IoMode = m_Ctx->Io->GetName(),
         .CompressionMode = m_Ctx->Compressor->GetName(),
         .IoGuid = m_Ctx->Io->GetGuid(),
         .CompressionGuid = m_Ctx->Compressor->GetGuid()
     };
-    {
-        auto updatedMeta = assetlib::shader::packMeta(meta);
-        CHECK_RETURN_IO_ERROR_PROPAGATE(updatedMeta)
-        auto writeResult = writeStringToFile(metaPath, assetlib::io::getAssetHeaderFormatted(*updatedMeta));
-        CHECK_RETURN_IO_ERROR(writeResult.has_value(), IoError::ErrorCode::GeneralError,
-            "Failed to update meta file for {}", metaPath.string())
-    }
-
-    IoResult<void> saveResult = m_Ctx->Io->WriteHeader(meta.Metadata, packedShader->Header);
-    CHECK_RETURN_IO_ERROR_PROPAGATE(saveResult)
-
-    IoResult<u64> binarySaveResult = m_Ctx->Io->WriteBinaryChunk(meta.Metadata, packedShader->PackedBinaries);
-    CHECK_RETURN_IO_ERROR_PROPAGATE(binarySaveResult)
+    CHECK_RETURN_IO_ERROR_PROPAGATE(Importer::WritePackedMetadata(metaPath, assetlib::shader::packMeta(meta), "shader"))
 
     return paths.HeaderPath;
 }

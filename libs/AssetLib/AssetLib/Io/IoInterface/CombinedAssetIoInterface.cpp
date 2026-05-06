@@ -10,11 +10,12 @@ namespace
 {
 constexpr std::string_view ASSET_COMBINED_FILE_MAGIC = "ASSETBFF";
 constexpr std::string_view ASSET_COMBINED_FILE_EXTENSION = "gbin";
+constexpr u64 ASSET_COMBINED_FILE_VERSION = 1llu;
 constexpr u32 ASSET_COMBINED_FILE_MAGIC_LENGTH = (u32)ASSET_COMBINED_FILE_MAGIC.length();
 static_assert(ASSET_COMBINED_FILE_MAGIC_LENGTH == 8);
 }
 
-IoResult<void> CombinedAssetIoInterface::WriteHeader(const AssetMetadata& metadata, const AssetCustomHeaderType& header)
+IoResult<u64> CombinedAssetIoInterface::WriteHeader(const AssetMetadata& metadata, const AssetCustomHeaderType& header)
 {
     ASSETLIB_CHECK_RETURN_IO_ERROR(metadata.Io.HeaderFile == metadata.Io.BinaryFile, IoError::ErrorCode::FailedToCreate,
         "Assetlib: File paths for combined assets have to be equal")
@@ -32,17 +33,11 @@ IoResult<void> CombinedAssetIoInterface::WriteHeader(const AssetMetadata& metada
         "Assetlib: Failed to create file: {}", path.string())
 
     out.write(ASSET_COMBINED_FILE_MAGIC.data(), ASSET_COMBINED_FILE_MAGIC.length());
-    out.write((const char*)&metadata.Type.Version, sizeof metadata.Type.Version);
+    out.write((const char*)&ASSET_COMBINED_FILE_VERSION, sizeof ASSET_COMBINED_FILE_VERSION);
 
-    const isize headerSizeBytes = (isize)header.size();
-    out.write((const char*)&headerSizeBytes, sizeof headerSizeBytes);
-
-    const isize binarySizeBytes = (isize)metadata.Io.BinarySizeBytesCompressed;
-    out.write((const char*)&binarySizeBytes, sizeof binarySizeBytes);
-
-    out.write(header.data(), headerSizeBytes);
-
-    return {};
+    out.write(header.data(), (isize)header.size());
+    
+    return header.size();
 }
 
 IoResult<u64> CombinedAssetIoInterface::WriteBinaryChunk(const AssetMetadata& metadata,
@@ -77,21 +72,14 @@ IoResult<AssetCustomHeaderType> CombinedAssetIoInterface::ReadHeader(const Asset
         "Assetlib: Combined asset file does not include expected magic. Expected {}, got {}",
         ASSET_COMBINED_FILE_MAGIC, assetMagicString)
 
-    u32 version = 0;
+    u64 version = 0;
     in.read((char*)&version, sizeof version);
-
-    ASSETLIB_CHECK_RETURN_IO_ERROR(version == ASSET_CURRENT_VERSION, IoError::ErrorCode::WrongFormat,
+    ASSETLIB_CHECK_RETURN_IO_ERROR(version == ASSET_COMBINED_FILE_VERSION, IoError::ErrorCode::WrongFormat,
         "Assetlib: Combined asset file has unexpected version. Expected {}, got {}",
-        ASSET_CURRENT_VERSION, version)
+        ASSET_COMBINED_FILE_VERSION, version)
 
-    isize headerSizeBytes = 0;
-    in.read((char*)&headerSizeBytes, sizeof headerSizeBytes);
-
-    isize binarySizeBytes = 0;
-    in.read((char*)&binarySizeBytes, sizeof binarySizeBytes);
-
-    std::string headerString(headerSizeBytes, 0);
-    in.read(headerString.data(), headerSizeBytes);
+    std::string headerString(metadata.Io.HeaderSizeBytes, 0);
+    in.read(headerString.data(), (isize)metadata.Io.HeaderSizeBytes);
 
     return headerString;
 }
@@ -112,8 +100,7 @@ IoResult<void> CombinedAssetIoInterface::ReadBinaryChunk(const AssetMetadata& me
 
     binaryIn.seekg((isize)(
         ASSET_COMBINED_FILE_MAGIC_LENGTH +
-        sizeof metadata.Type.Version +
-        sizeof metadata.Io.HeaderSizeBytes +
+        sizeof ASSET_COMBINED_FILE_VERSION +
         metadata.Io.HeaderSizeBytes +
         offsetBytes), std::ios::beg);
     binaryIn.read((char*)destination, (isize)sizeBytes);

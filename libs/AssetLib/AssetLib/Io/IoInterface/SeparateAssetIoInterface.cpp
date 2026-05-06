@@ -8,7 +8,7 @@ namespace fs = std::filesystem;
 
 namespace lux::assetlib::io
 {
-IoResult<void> SeparateAssetIoInterface::WriteHeader(const AssetMetadata& metadata, const AssetCustomHeaderType& header)
+IoResult<u64> SeparateAssetIoInterface::WriteHeader(const AssetMetadata& metadata, const AssetCustomHeaderType& header)
 {
     const fs::path& headerPath = metadata.Io.HeaderFile;
     const fs::path& binaryPath = metadata.Io.BinaryFile;
@@ -31,7 +31,7 @@ IoResult<void> SeparateAssetIoInterface::WriteHeader(const AssetMetadata& metada
     const auto assetHeaderString = getAssetHeaderFormatted(header);
     headerOut.write(assetHeaderString.c_str(), (isize)assetHeaderString.size());
 
-    return {};
+    return assetHeaderString.size();
 }
 
 IoResult<u64> SeparateAssetIoInterface::WriteBinaryChunk(const AssetMetadata& metadata, 

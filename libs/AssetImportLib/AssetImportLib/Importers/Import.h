@@ -30,4 +30,6 @@ static constexpr std::array SCENE_ASSET_RAW_EXTENSIONS = {
     SCENE_ASSET_RAW_GLTF_EXTENSION,
     SCENE_ASSET_RAW_GLB_EXTENSION,
 };
+
+static constexpr std::string_view SCENE_GEOMETRY_BUFFER_ASSET_EXTENSION = ".sgbuf";
 }

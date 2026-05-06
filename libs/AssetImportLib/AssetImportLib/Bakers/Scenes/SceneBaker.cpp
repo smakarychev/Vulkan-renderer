@@ -9,6 +9,7 @@
 #include <AssetImportLib/Bakers/BakersUtils.h>
 #include <AssetImportLib/Bakers/Images/ImageBaker.h>
 #include <AssetImportLib/Importers/Images/ImageImporter.h>
+#include <AssetImportLib/Importers/Scenes/SceneImporter.h>
 #include <AssetImportLib/Importers/Materials/MaterialImporter.h>
 #include <CoreLib/Utils/FileUtils.h>
 
@@ -22,6 +23,7 @@
 #include <tiny_gltf.h>
 
 #define GLM_ENABLE_EXPERIMENTAL
+
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
@@ -52,32 +54,27 @@ IoResult<std::filesystem::path> SceneBaker::BakeToFile(assetlib::SceneMeta& meta
     
     auto packedScene = assetlib::scene::pack(*baked, *m_Ctx->Compressor);
     CHECK_RETURN_IO_ERROR_PROPAGATE(packedScene)
+    
+    IoResult<u64> saveResult = m_Ctx->Io->WriteHeader(meta.Metadata, packedScene->Header);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(saveResult)
+
+    IoResult<u64> binarySaveResult = m_Ctx->Io->WriteBinaryChunk(meta.Metadata, packedScene->PackedBinaries);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(binarySaveResult)
 
     meta.Metadata.Io = {
         .OriginalFile = meta.Metadata.Io.OriginalFile,
         .HeaderFile = meta.Metadata.Io.HeaderFile,
         .BinaryFile = meta.Metadata.Io.BinaryFile,
+        .HeaderSizeBytes = *saveResult,
         .BinarySizeBytes = binarySizeBytes,
-        .BinarySizeBytesCompressed = packedScene->PackedBinaries.size(),
+        .BinarySizeBytesCompressed = *binarySaveResult,
         .BinarySizeBytesChunksCompressed = std::move(packedScene->PackedBinarySizeBytesChunks),
         .IoMode = m_Ctx->Io->GetName(),
         .CompressionMode = m_Ctx->Compressor->GetName(),
         .IoGuid = m_Ctx->Io->GetGuid(),
         .CompressionGuid = m_Ctx->Compressor->GetGuid()
     };
-    {
-        auto updatedMeta = assetlib::scene::packMeta(meta);
-        CHECK_RETURN_IO_ERROR_PROPAGATE(updatedMeta)
-        auto writeResult = writeStringToFile(metaPath, assetlib::io::getAssetHeaderFormatted(*updatedMeta));
-        CHECK_RETURN_IO_ERROR(writeResult.has_value(), IoError::ErrorCode::GeneralError,
-            "Failed to update meta file for {}", metaPath.string())
-    }
-    
-    IoResult<void> saveResult = m_Ctx->Io->WriteHeader(meta.Metadata, packedScene->Header);
-    CHECK_RETURN_IO_ERROR_PROPAGATE(saveResult)
-
-    IoResult<u64> binarySaveResult = m_Ctx->Io->WriteBinaryChunk(meta.Metadata, packedScene->PackedBinaries);
-    CHECK_RETURN_IO_ERROR_PROPAGATE(binarySaveResult)
+    CHECK_RETURN_IO_ERROR_PROPAGATE(Importer::WritePackedMetadata(metaPath, assetlib::scene::packMeta(meta), "scene"))
 
     return paths.HeaderPath;
 }

@@ -9,7 +9,7 @@ class AssetIoInterface
 {
 public:
     virtual ~AssetIoInterface() = default;
-    virtual IoResult<void> WriteHeader(const AssetMetadata& metadata, const AssetCustomHeaderType& header) = 0;
+    virtual IoResult<u64> WriteHeader(const AssetMetadata& metadata, const AssetCustomHeaderType& header) = 0;
     virtual IoResult<u64> WriteBinaryChunk(const AssetMetadata& metadata, Span<const std::byte> binaryDataChunk) = 0;
 
     virtual IoResult<AssetCustomHeaderType> ReadHeader(const AssetMetadata& metadata) = 0;

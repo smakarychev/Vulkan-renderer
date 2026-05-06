@@ -6,7 +6,7 @@ namespace lux::assetlib::io
 class SeparateAssetIoInterface final : public AssetIoInterface
 {
 public:
-    IoResult<void> WriteHeader(const AssetMetadata& metadata, const AssetCustomHeaderType& header) override;
+    IoResult<u64> WriteHeader(const AssetMetadata& metadata, const AssetCustomHeaderType& header) override;
     IoResult<u64> WriteBinaryChunk(const AssetMetadata& metadata, Span<const std::byte> binaryDataChunk) override;
     IoResult<AssetCustomHeaderType> ReadHeader(const AssetMetadata& metadata) override;
     IoResult<void> ReadBinaryChunk(const AssetMetadata& metadata, std::byte* destination, u64 offsetBytes,

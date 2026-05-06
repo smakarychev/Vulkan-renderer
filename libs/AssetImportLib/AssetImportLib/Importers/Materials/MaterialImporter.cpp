@@ -37,8 +37,12 @@ ImportResult<assetlib::AssetId> MaterialImporter::Export(const assetlib::Materia
     auto packedMaterial = assetlib::material::pack(asset);
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(packedMaterial)
     
-    IoResult<void> saveResult = m_Ctx->Io->WriteHeader(metadataRead->Metadata, packedMaterial->Header);
+    IoResult<u64> saveResult = m_Ctx->Io->WriteHeader(metadataRead->Metadata, packedMaterial->Header);
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(saveResult)
+    
+    metadataRead->Metadata.Io.HeaderSizeBytes = *saveResult;
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(
+        WritePackedMetadata(*metadataPath, assetlib::material::packMeta(*metadataRead), "material"))
     
     return metadataRead->Metadata.AssetId;
 }
@@ -55,6 +59,7 @@ IoResult<void> MaterialImporter::WriteMetadata(const std::filesystem::path& meta
         .Metadata = CreateMetadataBase(metaPath, rawPath, assetlib::material::getTypeMetadata(),
             MATERIAL_ASSET_EXTENSION, *m_Ctx)
     };
+    materialMeta.Metadata.Io.HeaderFile = materialMeta.Metadata.Io.BinaryFile = materialMeta.Metadata.Io.OriginalFile;
     
     return WritePackedMetadata(metaPath, assetlib::material::packMeta(materialMeta), "material");
 }

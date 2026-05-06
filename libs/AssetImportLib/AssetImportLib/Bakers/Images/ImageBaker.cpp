@@ -4,7 +4,7 @@
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetImportLib/Bakers/BakersUtils.h>
-#include <CoreLib/Utils/FileUtils.h>
+#include <AssetImportLib/Importers/Importer.h>
 
 #include <glaze/glaze.hpp>
 #include <ktx.h>
@@ -37,32 +37,27 @@ IoResult<std::filesystem::path> ImageBaker::BakeToFile(assetlib::ImageMeta& meta
     
     auto packedImage = assetlib::image::pack(*baked, *m_Ctx->Compressor);
     CHECK_RETURN_IO_ERROR_PROPAGATE(packedImage)
+    
+    IoResult<u64> saveResult = m_Ctx->Io->WriteHeader(meta.Metadata, packedImage->Header);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(saveResult)
+
+    IoResult<u64> binarySaveResult = m_Ctx->Io->WriteBinaryChunk(meta.Metadata, packedImage->PackedBinaries);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(binarySaveResult)
 
     meta.Metadata.Io = {
         .OriginalFile = meta.Metadata.Io.OriginalFile,
         .HeaderFile = meta.Metadata.Io.HeaderFile,
         .BinaryFile = meta.Metadata.Io.BinaryFile,
+        .HeaderSizeBytes = *saveResult,
         .BinarySizeBytes = binarySizeBytes,
-        .BinarySizeBytesCompressed = packedImage->PackedBinaries.size(),
+        .BinarySizeBytesCompressed = *binarySaveResult,
         .BinarySizeBytesChunksCompressed = std::move(packedImage->PackedBinarySizeBytesChunks),
         .IoMode = m_Ctx->Io->GetName(),
         .CompressionMode = m_Ctx->Compressor->GetName(),
         .IoGuid = m_Ctx->Io->GetGuid(),
         .CompressionGuid = m_Ctx->Compressor->GetGuid()
     };
-    {
-        auto updatedMeta = assetlib::image::packMeta(meta);
-        CHECK_RETURN_IO_ERROR_PROPAGATE(updatedMeta)
-        auto writeResult = writeStringToFile(metaPath, assetlib::io::getAssetHeaderFormatted(*updatedMeta));
-        CHECK_RETURN_IO_ERROR(writeResult.has_value(), IoError::ErrorCode::GeneralError,
-            "Failed to update meta file for {}", metaPath.string())
-    }
-
-    IoResult<void> saveResult = m_Ctx->Io->WriteHeader(meta.Metadata, packedImage->Header);
-    CHECK_RETURN_IO_ERROR_PROPAGATE(saveResult)
-
-    IoResult<u64> binarySaveResult = m_Ctx->Io->WriteBinaryChunk(meta.Metadata, packedImage->PackedBinaries);
-    CHECK_RETURN_IO_ERROR_PROPAGATE(binarySaveResult)
+    CHECK_RETURN_IO_ERROR_PROPAGATE(Importer::WritePackedMetadata(metaPath, assetlib::image::packMeta(meta), "image"))
 
     return paths.HeaderPath;
 }

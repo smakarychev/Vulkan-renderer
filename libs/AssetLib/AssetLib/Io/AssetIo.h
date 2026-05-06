@@ -8,8 +8,6 @@
 
 namespace lux::assetlib::io
 {
-constexpr u32 ASSET_CURRENT_VERSION = 1;
-
 struct IoError
 {
     enum class ErrorCode : u8
