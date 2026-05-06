@@ -14,7 +14,7 @@ std::filesystem::path getPostBakePath(const assetlib::AssetMetadata& metadata, s
     std::filesystem::path bakedBasePath = ctx.BakedDirectory / bakedFileName;
     bakedBasePath.replace_extension(ctx.Io->GetHeaderExtension(postBakeExtension));
     
-    return bakedBasePath;
+    return std::filesystem::weakly_canonical(bakedBasePath).generic_string();
 }
 
 AssetPaths getPostBakePaths(const assetlib::AssetMetadata& metadata, std::string_view postBakeExtension,

@@ -1,4 +1,5 @@
 #include "ShaderBaker.h"
+
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetLib/Shaders/ShaderLoadInfo.h>
@@ -6,6 +7,7 @@
 #include <AssetLib/Shaders/ShaderAsset.h>
 #include <AssetImportLib/Bakers/BakersUtils.h>
 #include <AssetImportLib/Importers/Shaders/ShaderImporter.h>
+#include <AssetImportLib/Importers/Import.h>
 #include <CoreLib/core.h>
 #include <CoreLib/Utils/HashFileUtils.h>
 #include <CoreLib/Utils/HashUtils.h>
@@ -1226,21 +1228,6 @@ ShaderBaker::ShaderBaker(const std::shared_ptr<Context>& ctx, const ShaderImport
 {
 }
 
-std::filesystem::path ShaderBaker::GetBakedPath(const std::filesystem::path& metaPath) const
-{
-    auto metaRead = assetlib::shader::readMeta(metaPath);
-    ASSERT(metaRead.has_value())
-    if (!metaRead.has_value())
-        return {};
-
-    return GetBakedPath(*metaRead);
-}
-
-std::filesystem::path ShaderBaker::GetBakedPath(const assetlib::ShaderMeta& meta) const
-{
-    return getPostBakePath(meta.Metadata, POST_BAKE_EXTENSION, *m_Ctx);
-}
-
 IoResult<std::filesystem::path> ShaderBaker::BakeToFile(assetlib::ShaderMeta& meta, const std::filesystem::path& metaPath)
 {
     ASSERT(!meta.Metadata.Io.OriginalFile.empty())
@@ -1248,7 +1235,7 @@ IoResult<std::filesystem::path> ShaderBaker::BakeToFile(assetlib::ShaderMeta& me
     auto shaderLoadRead = assetlib::shader::readLoadInfo(meta.Metadata.Io.OriginalFile);
     CHECK_RETURN_IO_ERROR_PROPAGATE(shaderLoadRead)
     
-    const AssetPaths paths = getPostBakePaths(meta.Metadata, POST_BAKE_EXTENSION, *m_Ctx);
+    const AssetPaths paths = getPostBakePaths(meta.Metadata, SHADER_ASSET_EXTENSION, *m_Ctx);
     auto baked = Bake(meta, *shaderLoadRead);
     CHECK_RETURN_IO_ERROR_PROPAGATE(baked)
 
@@ -1257,8 +1244,8 @@ IoResult<std::filesystem::path> ShaderBaker::BakeToFile(assetlib::ShaderMeta& me
     
     meta.Metadata.Io = {
         .OriginalFile = meta.Metadata.Io.OriginalFile,
-        .HeaderFile = std::filesystem::weakly_canonical(paths.HeaderPath).generic_string(),
-        .BinaryFile = std::filesystem::weakly_canonical(paths.BinaryPath).generic_string(),
+        .HeaderFile = meta.Metadata.Io.HeaderFile,
+        .BinaryFile = meta.Metadata.Io.BinaryFile,
         .BinarySizeBytes = baked->Spirv.size(),
         .BinarySizeBytesCompressed = packedShader->PackedBinaries.size(),
         .BinarySizeBytesChunksCompressed = std::move(packedShader->PackedBinarySizeBytesChunks),
@@ -1295,7 +1282,7 @@ bool ShaderBaker::NeedsBaking(const std::filesystem::path& metaPath) const
         return true;
 
     const std::filesystem::path rawPath = metaRead->Metadata.Io.OriginalFile;
-    const std::filesystem::path bakedPath = GetBakedPath(*metaRead);
+    const std::filesystem::path bakedPath = getPostBakePath(metaRead->Metadata, SHADER_ASSET_EXTENSION, *m_Ctx);
     
     if (!fs::exists(bakedPath))
         return true;

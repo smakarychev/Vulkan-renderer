@@ -1,5 +1,6 @@
 ﻿#include "Importer.h"
 
+#include <AssetImportLib/Bakers/BakersUtils.h>
 #include <CoreLib/utils/FileUtils.h>
 
 #define CHECK_RETURN_IO_ERROR(x, error, ...) \
@@ -13,17 +14,22 @@ ImportResult<void> Importer::Import(const std::filesystem::path& path)
 }
 
 assetlib::AssetMetadata Importer::CreateMetadataBase(const std::filesystem::path& metaPath,
-    const std::filesystem::path& rawPath, const assetlib::AssetTypeMetadata& typeMetadata)
+    const std::filesystem::path& rawPath, const assetlib::AssetTypeMetadata& typeMetadata,
+    std::string_view postBakeExtension, const Context& ctx)
 {
     const assetlib::AssetId assetId = assetlib::io::readBaseAssetMetadata(metaPath).value_or({}).AssetId;
-    
-    return {
+    assetlib::AssetMetadata metadata {
         .AssetId = assetId,
         .Type = typeMetadata,
         .Io = {
             .OriginalFile = std::filesystem::weakly_canonical(rawPath).generic_string(),
         }
     };
+    const AssetPaths paths = getPostBakePaths(metadata, postBakeExtension, ctx);
+    metadata.Io.HeaderFile = paths.HeaderPath;
+    metadata.Io.BinaryFile = paths.BinaryPath;
+    
+    return metadata;
 }
 
 IoResult<void> Importer::WritePackedMetadata(const std::filesystem::path& metaPath,

@@ -62,7 +62,8 @@ std::filesystem::path SceneImporter::GetMetaPath(const std::filesystem::path& pa
 IoResult<void> SceneImporter::WriteMetadata(const std::filesystem::path& metaPath, const std::filesystem::path& rawPath)
 {
     const assetlib::SceneMeta sceneMeta = {
-        .Metadata = CreateMetadataBase(metaPath, rawPath, assetlib::scene::getTypeMetadata())
+        .Metadata = CreateMetadataBase(metaPath, rawPath, assetlib::scene::getTypeMetadata(),
+            SCENE_ASSET_EXTENSION, *m_Ctx)
     };
     
     return WritePackedMetadata(metaPath, assetlib::scene::packMeta(sceneMeta), "scene");

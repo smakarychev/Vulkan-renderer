@@ -107,7 +107,8 @@ IoResult<void> ImageImporter::WriteMetadata(const std::filesystem::path& metaPat
         format = inferred != assetlib::ImageFormat::Undefined ? inferred : format;
     }
     const assetlib::ImageMeta imageMeta = {
-        .Metadata = CreateMetadataBase(metaPath, rawPath, assetlib::image::getTypeMetadata()),
+        .Metadata = CreateMetadataBase(metaPath, rawPath, assetlib::image::getTypeMetadata(),
+            IMAGE_ASSET_EXTENSION, *m_Ctx),
         .PregeneratedMipmaps =
             rawPath.extension() != IMAGE_ASSET_RAW_HDR_EXTENSION &&
             rawPath.extension() != IMAGE_ASSET_RAW_JPG_EXTENSION &&

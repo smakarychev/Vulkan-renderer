@@ -37,27 +37,12 @@ static_assert(lux::assetlib::SCENE_UNSET_INDEX == (u32)(-1), "gltf absent nodes 
 
 namespace lux::import
 {
-std::filesystem::path SceneBaker::GetBakedPath(const std::filesystem::path& metaPath) const
-{
-    auto metaRead = assetlib::scene::readMeta(metaPath);
-    ASSERT(metaRead.has_value())
-    if (!metaRead.has_value())
-        return {};
-
-    return GetBakedPath(*metaRead);
-}
-
-std::filesystem::path SceneBaker::GetBakedPath(const assetlib::SceneMeta& meta) const
-{
-    return getPostBakePath(meta.Metadata, POST_BAKE_EXTENSION, *m_Ctx);
-}
-
 IoResult<std::filesystem::path> SceneBaker::BakeToFile(assetlib::SceneMeta& meta, 
     const std::filesystem::path& metaPath)
 {
     ASSERT(!meta.Metadata.Io.OriginalFile.empty())
 
-    const AssetPaths paths = getPostBakePaths(meta.Metadata, POST_BAKE_EXTENSION, *m_Ctx);
+    const AssetPaths paths = getPostBakePaths(meta.Metadata, SCENE_ASSET_EXTENSION, *m_Ctx);
     auto baked = Bake(meta);
     CHECK_RETURN_IO_ERROR_PROPAGATE(baked)
     
@@ -70,8 +55,8 @@ IoResult<std::filesystem::path> SceneBaker::BakeToFile(assetlib::SceneMeta& meta
 
     meta.Metadata.Io = {
         .OriginalFile = meta.Metadata.Io.OriginalFile,
-        .HeaderFile = std::filesystem::weakly_canonical(paths.HeaderPath).generic_string(),
-        .BinaryFile = std::filesystem::weakly_canonical(paths.BinaryPath).generic_string(),
+        .HeaderFile = meta.Metadata.Io.HeaderFile,
+        .BinaryFile = meta.Metadata.Io.BinaryFile,
         .BinarySizeBytes = binarySizeBytes,
         .BinarySizeBytesCompressed = packedScene->PackedBinaries.size(),
         .BinarySizeBytesChunksCompressed = std::move(packedScene->PackedBinarySizeBytesChunks),
@@ -108,7 +93,7 @@ bool SceneBaker::NeedsBaking(const std::filesystem::path& metaPath) const
         return true;
 
     const std::filesystem::path rawPath = metaRead->Metadata.Io.OriginalFile;
-    const std::filesystem::path bakedPath = GetBakedPath(*metaRead);
+    const std::filesystem::path bakedPath = getPostBakePath(metaRead->Metadata, SCENE_ASSET_EXTENSION, *m_Ctx);
 
     if (!fs::exists(bakedPath))
         return true;

@@ -28,7 +28,8 @@ public:
     virtual std::filesystem::path GetMetaPath(const std::filesystem::path& path) const = 0;
 
     static assetlib::AssetMetadata CreateMetadataBase(const std::filesystem::path& metaPath,
-        const std::filesystem::path& rawPath, const assetlib::AssetTypeMetadata& typeMetadata);
+        const std::filesystem::path& rawPath, const assetlib::AssetTypeMetadata& typeMetadata,
+        std::string_view postBakeExtension, const Context& ctx);
     static IoResult<void> WritePackedMetadata(const std::filesystem::path& metaPath,
         const assetlib::io::IoResult<std::string>& metadata, std::string_view typeLabel);
     

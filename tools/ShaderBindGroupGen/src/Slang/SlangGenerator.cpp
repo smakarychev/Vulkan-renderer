@@ -2,11 +2,13 @@
 
 #include "GeneratorUtils.h"
 #include "SlangUniformTypeGenerator.h"
+#include "AssetImportLib/Importers/Import.h"
 
 #include <AssetLib/Shaders/ShaderAsset.h>
 #include <AssetLib/Shaders/ShaderLoadInfo.h>
 #include <AssetLib/Shaders/ShaderMeta.h>
 #include <AssetImportLib/Importers/Shaders/ShaderImporter.h>
+#include <AssetImportLib/Bakers/BakersUtils.h>
 
 #include <ranges>
 #include <unordered_set>
@@ -1213,7 +1215,8 @@ lux::assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const
         const u32 variantIndex = (u32)variants.size();
         variants.push_back(variant.Name);
         
-        const std::filesystem::path bakedPath = shaderBaker.GetBakedPath(metaPath);
+        const std::filesystem::path bakedPath = 
+            lux::import::getPostBakePath(shaderMeta->Metadata, lux::import::SHADER_ASSET_EXTENSION, *m_Ctx);
         shaderMeta->Metadata.Io.HeaderFile = bakedPath;
         auto shaderUnpack = lux::assetlib::shader::readHeader(shaderMeta->Metadata);
         if (!shaderUnpack.has_value())

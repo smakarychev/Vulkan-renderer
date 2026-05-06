@@ -132,7 +132,7 @@ i32 main()
     {
         if (file.is_directory())
             continue;
-        if (file.path().extension() != lux::import::SHADER_ASSET_EXTENSION)
+        if (file.path().extension() != lux::import::SHADER_ASSET_LOAD_EXTENSION)
             continue;
 
         const IoResult<SlangGeneratorResult> generated = generator.Generate(file.path());

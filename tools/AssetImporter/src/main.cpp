@@ -157,7 +157,7 @@ i32 main(i32 argc, char** argv)
 
         lux::import::BakersDispatcher dispatcher(file);
         
-        dispatcher.Dispatch({lux::import::SHADER_ASSET_EXTENSION}, [&](const fs::path& path) {
+        dispatcher.Dispatch({lux::import::SHADER_ASSET_LOAD_EXTENSION}, [&](const fs::path& path) {
             auto shaderLoadInfoRead = lux::assetlib::shader::readLoadInfo(path);
             if (!shaderLoadInfoRead.has_value())
                 return;

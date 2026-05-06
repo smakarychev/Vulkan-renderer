@@ -48,7 +48,7 @@ bool ShaderAssetManager::AddManaged(const std::filesystem::path& path, AssetIdRe
 bool ShaderAssetManager::Imports(std::string_view extension)
 {
     return
-        extension == import::SHADER_ASSET_EXTENSION ||
+        extension == import::SHADER_ASSET_LOAD_EXTENSION ||
         extension == import::SHADER_ASSET_RAW_EXTENSION;
 }
 

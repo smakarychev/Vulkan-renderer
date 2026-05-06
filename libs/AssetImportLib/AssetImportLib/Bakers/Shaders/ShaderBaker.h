@@ -21,13 +21,9 @@ class ShaderBaker
 {
 public:
     static constexpr auto MAIN_VARIANT = HashedStringView(assetlib::ShaderLoadInfo::SHADER_VARIANT_MAIN_NAME);
-    static constexpr std::string_view POST_BAKE_EXTENSION = ".sl_shader";
 public:
     ShaderBaker(const std::shared_ptr<Context>& ctx, const ShaderImportSettings& settings);
 
-    std::filesystem::path GetBakedPath(const std::filesystem::path& metaPath) const;
-    std::filesystem::path GetBakedPath(const assetlib::ShaderMeta& meta) const;
-    
     IoResult<std::filesystem::path> BakeToFile(assetlib::ShaderMeta& meta, const std::filesystem::path& metaPath);
 
     bool NeedsBaking(const std::filesystem::path& metaPath) const;

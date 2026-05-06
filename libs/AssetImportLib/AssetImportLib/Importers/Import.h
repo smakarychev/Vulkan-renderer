@@ -4,7 +4,8 @@
 
 namespace lux::import
 {
-static constexpr std::string_view SHADER_ASSET_EXTENSION = ".shader";
+static constexpr std::string_view SHADER_ASSET_EXTENSION = ".sl_shader";
+static constexpr std::string_view SHADER_ASSET_LOAD_EXTENSION = ".shader";
 static constexpr std::string_view SHADER_ASSET_RAW_EXTENSION = ".slang";
 
 

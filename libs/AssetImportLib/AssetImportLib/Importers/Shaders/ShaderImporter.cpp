@@ -1,5 +1,6 @@
 ﻿#include "ShaderImporter.h"
 
+#include <AssetImportLib/Importers/Import.h>
 #include <CoreLib/Utils/FileUtils.h>
 
 namespace lux::import
@@ -69,7 +70,8 @@ IoResult<void> ShaderImporter::WriteMetadata(const std::filesystem::path& metaPa
     const std::filesystem::path& rawPath)
 {
     const assetlib::ShaderMeta shaderMeta = {
-        .Metadata = CreateMetadataBase(metaPath, rawPath, assetlib::shader::getTypeMetadata()),
+        .Metadata = CreateMetadataBase(metaPath, rawPath, assetlib::shader::getTypeMetadata(),
+            SHADER_ASSET_EXTENSION, *m_Ctx),
         .VariantName = m_ImportSettings.Variant.AsString()
     };
     

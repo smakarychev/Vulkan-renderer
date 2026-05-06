@@ -1,10 +1,8 @@
 ﻿#include "MaterialImporter.h"
 
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
+#include <AssetImportLib/Importers/Import.h>
 #include <CoreLib/Utils/FileUtils.h>
-
-#define CHECK_RETURN_IO_ERROR(x, error, ...) \
-ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, __VA_ARGS__)
 
 namespace lux::import
 {
@@ -53,8 +51,9 @@ std::filesystem::path MaterialImporter::GetMetaPath(const std::filesystem::path&
 IoResult<void> MaterialImporter::WriteMetadata(const std::filesystem::path& metaPath, 
     const std::filesystem::path& rawPath)
 {
-    const assetlib::MaterialMeta materialMeta = {
-        .Metadata = CreateMetadataBase(metaPath, rawPath, assetlib::material::getTypeMetadata())
+    assetlib::MaterialMeta materialMeta = {
+        .Metadata = CreateMetadataBase(metaPath, rawPath, assetlib::material::getTypeMetadata(),
+            MATERIAL_ASSET_EXTENSION, *m_Ctx)
     };
     
     return WritePackedMetadata(metaPath, assetlib::material::packMeta(materialMeta), "material");

@@ -21,27 +21,12 @@ ASSETLIB_CHECK_RETURN_IO_ERROR_PROPAGATE(result)
 
 namespace lux::import
 {
-std::filesystem::path ImageBaker::GetBakedPath(const std::filesystem::path& metaPath) const
-{
-    auto metaRead = assetlib::image::readMeta(metaPath);
-    ASSERT(metaRead.has_value())
-    if (!metaRead.has_value())
-        return {};
-    
-    return GetBakedPath(*metaRead);
-}
-
-std::filesystem::path ImageBaker::GetBakedPath(const assetlib::ImageMeta& meta) const
-{
-    return getPostBakePath(meta.Metadata, POST_BAKE_EXTENSION, *m_Ctx);
-}
-
 IoResult<std::filesystem::path> ImageBaker::BakeToFile(assetlib::ImageMeta& meta, 
     const std::filesystem::path& metaPath)
 {
     ASSERT(!meta.Metadata.Io.OriginalFile.empty())
 
-    const AssetPaths paths = getPostBakePaths(meta.Metadata, POST_BAKE_EXTENSION, *m_Ctx);
+    const AssetPaths paths = getPostBakePaths(meta.Metadata, IMAGE_ASSET_EXTENSION, *m_Ctx);
     auto baked = Bake(meta);
     CHECK_RETURN_IO_ERROR_PROPAGATE(baked)
 
@@ -55,8 +40,8 @@ IoResult<std::filesystem::path> ImageBaker::BakeToFile(assetlib::ImageMeta& meta
 
     meta.Metadata.Io = {
         .OriginalFile = meta.Metadata.Io.OriginalFile,
-        .HeaderFile = std::filesystem::weakly_canonical(paths.HeaderPath).generic_string(),
-        .BinaryFile = std::filesystem::weakly_canonical(paths.BinaryPath).generic_string(),
+        .HeaderFile = meta.Metadata.Io.HeaderFile,
+        .BinaryFile = meta.Metadata.Io.BinaryFile,
         .BinarySizeBytes = binarySizeBytes,
         .BinarySizeBytesCompressed = packedImage->PackedBinaries.size(),
         .BinarySizeBytesChunksCompressed = std::move(packedImage->PackedBinarySizeBytesChunks),
@@ -93,7 +78,7 @@ bool ImageBaker::NeedsBaking(const std::filesystem::path& metaPath) const
         return true;
     
     const std::filesystem::path rawPath = metaRead->Metadata.Io.OriginalFile;
-    const std::filesystem::path bakedPath = GetBakedPath(*metaRead);
+    const std::filesystem::path bakedPath = getPostBakePath(metaRead->Metadata, IMAGE_ASSET_EXTENSION, *m_Ctx);
     
     if (!fs::exists(bakedPath))
         return true;
