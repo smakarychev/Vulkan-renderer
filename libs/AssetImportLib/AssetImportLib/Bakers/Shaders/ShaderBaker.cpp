@@ -1260,7 +1260,8 @@ IoResult<std::filesystem::path> ShaderBaker::BakeToFile(assetlib::ShaderMeta& me
         .IoGuid = m_Ctx->Io->GetGuid(),
         .CompressionGuid = m_Ctx->Compressor->GetGuid()
     };
-    CHECK_RETURN_IO_ERROR_PROPAGATE(Importer::WritePackedMetadata(metaPath, assetlib::shader::packMeta(meta), "shader"))
+    CHECK_RETURN_IO_ERROR_PROPAGATE(Importer::UpdatePackedMetadataSilent(
+        metaPath, assetlib::shader::packMeta(meta), "shader"))
 
     return paths.HeaderPath;
 }

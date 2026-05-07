@@ -74,7 +74,8 @@ IoResult<std::filesystem::path> SceneBaker::BakeToFile(assetlib::SceneMeta& meta
         .IoGuid = m_Ctx->Io->GetGuid(),
         .CompressionGuid = m_Ctx->Compressor->GetGuid()
     };
-    CHECK_RETURN_IO_ERROR_PROPAGATE(Importer::WritePackedMetadata(metaPath, assetlib::scene::packMeta(meta), "scene"))
+    CHECK_RETURN_IO_ERROR_PROPAGATE(Importer::UpdatePackedMetadataSilent(
+        metaPath, assetlib::scene::packMeta(meta), "scene"))
 
     return paths.HeaderPath;
 }

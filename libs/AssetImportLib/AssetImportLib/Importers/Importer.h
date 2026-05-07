@@ -27,12 +27,15 @@ public:
     virtual bool NeedsBaking(const std::filesystem::path& path) const = 0;
     virtual std::filesystem::path GetMetaPath(const std::filesystem::path& path) const = 0;
     
-    static IoResult<void> WritePackedMetadata(const std::filesystem::path& metaPath,
+    /* updates metadata file, without changing the file modification time */
+    static IoResult<void> UpdatePackedMetadataSilent(const std::filesystem::path& metaPath,
         const assetlib::io::IoResult<std::string>& metadata, std::string_view typeLabel);
 protected:
     static assetlib::AssetMetadata CreateMetadataBase(const std::filesystem::path& metaPath,
         const std::filesystem::path& rawPath, const assetlib::AssetTypeMetadata& typeMetadata,
         std::string_view postBakeExtension, const Context& ctx);
+    static IoResult<void> WritePackedMetadata(const std::filesystem::path& metaPath,
+        const assetlib::io::IoResult<std::string>& metadata, std::string_view typeLabel);
     
     ImportResult<std::filesystem::path> EnsureMetadata(const std::filesystem::path& rawPath);
     template <typename Metadata, typename Baker>

@@ -42,7 +42,7 @@ ImportResult<assetlib::AssetId> MaterialImporter::Export(const assetlib::Materia
     
     metadataRead->Metadata.Io.HeaderSizeBytes = *saveResult;
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(
-        WritePackedMetadata(*metadataPath, assetlib::material::packMeta(*metadataRead), "material"))
+        UpdatePackedMetadataSilent(*metadataPath, assetlib::material::packMeta(*metadataRead), "material"))
     
     return metadataRead->Metadata.AssetId;
 }

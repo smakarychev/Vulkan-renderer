@@ -13,6 +13,16 @@ ImportResult<void> Importer::Import(const std::filesystem::path& path)
     return Import(path, ImportFlags::BakeIfNotBaked | ImportFlags::Header | ImportFlags::Binaries);
 }
 
+IoResult<void> Importer::UpdatePackedMetadataSilent(const std::filesystem::path& metaPath,
+    const assetlib::io::IoResult<std::string>& metadata, std::string_view typeLabel)
+{
+    auto writeTime = std::filesystem::last_write_time(metaPath);
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(WritePackedMetadata(metaPath, metadata, typeLabel))
+    std::filesystem::last_write_time(metaPath, writeTime);
+    
+    return {};
+}
+
 assetlib::AssetMetadata Importer::CreateMetadataBase(const std::filesystem::path& metaPath,
     const std::filesystem::path& rawPath, const assetlib::AssetTypeMetadata& typeMetadata,
     std::string_view postBakeExtension, const Context& ctx)

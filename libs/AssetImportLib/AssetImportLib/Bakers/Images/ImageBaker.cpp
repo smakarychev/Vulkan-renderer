@@ -57,7 +57,8 @@ IoResult<std::filesystem::path> ImageBaker::BakeToFile(assetlib::ImageMeta& meta
         .IoGuid = m_Ctx->Io->GetGuid(),
         .CompressionGuid = m_Ctx->Compressor->GetGuid()
     };
-    CHECK_RETURN_IO_ERROR_PROPAGATE(Importer::WritePackedMetadata(metaPath, assetlib::image::packMeta(meta), "image"))
+    CHECK_RETURN_IO_ERROR_PROPAGATE(Importer::UpdatePackedMetadataSilent(
+        metaPath, assetlib::image::packMeta(meta), "image"))
 
     return paths.HeaderPath;
 }
