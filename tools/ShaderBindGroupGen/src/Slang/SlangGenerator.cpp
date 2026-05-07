@@ -1203,7 +1203,7 @@ lux::assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const
     
     for (auto& variant : shaderLoadInfo->Variants)
     {
-        lux::import::ShaderImportSettings settings = {};
+        lux::import::ShaderImportSettings settings = {.Variant = StringId::FromString(variant.Name)};
         lux::import::ShaderBaker shaderBaker(m_Ctx, settings);
         const std::filesystem::path metaPath = lux::assetlib::getMetadataPath(
             shaderBaker.GetDefineAwarePath(loadInfoPath, shaderBaker.GetDefinesHash(*shaderLoadInfo).value_or(0)));
