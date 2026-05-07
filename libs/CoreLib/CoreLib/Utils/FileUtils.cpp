@@ -12,11 +12,26 @@ Result<std::string, FileError> readFileToString(const std::filesystem::path& pat
     if (!in.good())
         return std::unexpected(FileError{});
     
-    const isize metadataSize = in.tellg();
+    const isize size = in.tellg();
     in.seekg(0, std::ios::beg);
     
-    Result<std::string, FileError> read = std::string(metadataSize, 0);
-    in.read(read->data(), metadataSize);
+    Result<std::string, FileError> read = std::string(size, 0);
+    in.read(read->data(), size);
+    
+    return read;
+}
+
+Result<std::vector<std::byte>, FileError> readFileToBytes(const std::filesystem::path& path)
+{
+    std::ifstream in(path, std::ios::ate | std::ios::binary);
+    if (!in.good())
+        return std::unexpected(FileError{});
+    
+    const isize size = in.tellg();
+    in.seekg(0, std::ios::beg);
+    
+    Result<std::vector<std::byte>, FileError> read = std::vector(size, std::byte(0));
+    in.read((char*)read->data(), size);
     
     return read;
 }
