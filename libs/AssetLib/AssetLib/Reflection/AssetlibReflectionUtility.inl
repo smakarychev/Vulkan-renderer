@@ -34,3 +34,12 @@ template <> struct ::glz::meta<lux::assetlib::AssetMetadata> : lux::assetlib::re
 	auto metaOutput = glz::write_json(metaParameter); \
 	ASSETLIB_CHECK_RETURN_IO_ERROR(meta.has_value(), io::IoError::ErrorCode::GeneralError, \
 		#metaType ": Failed to pack: {}", glz::format_error(meta.error()))
+
+
+#define DEFINE_BASIC_HEADER_READ(headerType, resultOutput, metadataParameter) \
+	auto headerRead = readFileToString((metadataParameter).Io.HeaderFile); \
+	ASSETLIB_CHECK_RETURN_IO_ERROR(headerRead.has_value(), io::IoError::ErrorCode::GeneralError, \
+		"Assetlib: Failed to read header file: {}", (metadataParameter).Io.HeaderFile.string()) \
+	const auto resultOutput = glz::read_json<headerType>(*headerRead); \
+	ASSETLIB_CHECK_RETURN_IO_ERROR(result.has_value(), io::IoError::ErrorCode::GeneralError, \
+		"Assetlib: Failed to read: {}", glz::format_error(result.error(), *headerRead))

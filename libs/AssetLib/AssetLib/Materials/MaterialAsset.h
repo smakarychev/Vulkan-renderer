@@ -9,12 +9,6 @@
 
 namespace lux::assetlib
 {
-namespace io
-{
-class AssetCompressor;
-class AssetIoInterface;
-}
-
 enum class MaterialAlphaMode : u8
 {
     Opaque, Mask, Translucent

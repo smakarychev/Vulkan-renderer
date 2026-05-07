@@ -28,14 +28,7 @@ namespace lux::assetlib::shader
 {
 io::IoResult<ShaderHeader> readHeader(const AssetMetadata& metadata)
 {
-    auto headerRead = readFileToString(metadata.Io.HeaderFile);
-    ASSETLIB_CHECK_RETURN_IO_ERROR(headerRead.has_value(), io::IoError::ErrorCode::GeneralError,
-        "Assetlib: Failed to read header file: {}", metadata.Io.HeaderFile.string())
-    
-    const auto result = glz::read_json<ShaderHeader>(*headerRead);
-    ASSETLIB_CHECK_RETURN_IO_ERROR(result.has_value(), io::IoError::ErrorCode::GeneralError,
-        "Assetlib: Failed to read: {}", glz::format_error(result.error(), *headerRead))
-
+    DEFINE_BASIC_HEADER_READ(ShaderHeader, result, metadata)
     return *result;
 }
 
