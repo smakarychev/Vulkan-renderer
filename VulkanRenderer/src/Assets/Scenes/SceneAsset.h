@@ -4,6 +4,8 @@
 #include "Assets/Materials/MaterialAsset.h"
 
 #include <AssetLib/Scenes/Scene/SceneAsset.h>
+#include <AssetLib/Scenes/GeometryBuffer/GeometryBufferAsset.h>
+#include <AssetLib/Scenes/Mesh/MeshAsset.h>
 #include <CoreLib/Math/Transform.h>
 
 struct PointLight;

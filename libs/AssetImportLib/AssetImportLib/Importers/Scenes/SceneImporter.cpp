@@ -1,5 +1,6 @@
 ﻿#include "SceneImporter.h"
 
+#include <AssetImportLib/Importers/Import.h>
 #include <CoreLib/utils/HashFileUtils.h>
 #include <CoreLib/utils/FileUtils.h>
 
@@ -25,22 +26,9 @@ ImportResult<void> SceneImporter::Import(const std::filesystem::path& path, Impo
     
     if (enumHasAny(importFlags, ImportFlags::Header))
     {
-        auto headerRead = assetlib::scene::readHeader(m_ImportedMeta.Metadata);
+        auto headerRead = assetlib::scene::readScene(m_ImportedMeta.Metadata);
         CHECK_RETURN_IMPORT_ERROR_PROPAGATE(headerRead)
-        m_ImportedAsset.Asset.Header = std::move(*headerRead);
-    }
-    if (enumHasAny(importFlags, ImportFlags::Binaries))
-    {
-        const auto& header = m_ImportedAsset.Asset.Header;
-        m_ImportedAsset.Asset.BuffersData.resize(header.Buffers.size());
-
-        for (u32 buffer = 0; buffer < m_ImportedAsset.Asset.BuffersData.size(); buffer++)
-        {
-            auto binariesRead = assetlib::scene::readBufferData(header, m_ImportedMeta.Metadata, buffer,
-                *m_Ctx->Io, *m_Ctx->Compressor);
-            CHECK_RETURN_IMPORT_ERROR_PROPAGATE(binariesRead)
-            m_ImportedAsset.Asset.BuffersData[buffer] = std::move(*binariesRead);
-        }
+        m_ImportedAsset.Asset = std::move(*headerRead);
     }
     
     return {};
@@ -56,9 +44,12 @@ std::filesystem::path SceneImporter::GetMetaPath(const std::filesystem::path& pa
     return assetlib::getMetadataPath(path);
 }
 
+std::optional<u32> SceneImporter::CalculateGeometryBufferHash(const std::filesystem::path& path,
+    const std::string& uri)
 {
-    
-    
+    return Hash::murmur3b32File(path.parent_path() / uri);
+}
+
 IoResult<void> SceneImporter::WriteMetadata(const std::filesystem::path& metaPath, const std::filesystem::path& rawPath)
 {
     const assetlib::SceneMeta sceneMeta = {

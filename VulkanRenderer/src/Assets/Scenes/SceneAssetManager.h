@@ -80,10 +80,12 @@ private:
     void RegisterMaterials(SceneHandle sceneHandle);
     void UnregisterMaterials(SceneHandle sceneHandle);
     std::optional<SceneAsset> DoLoad(import::SceneImporter& importer, const std::filesystem::path& path);
-    SceneGeometryInfo LoadGeometryInfo(const assetlib::SceneAsset& scene);
+    std::optional<SceneGeometryInfo> LoadGeometryInfo(const assetlib::SceneAsset& scene);
     SceneLightInfo LoadLightsInfo(const assetlib::SceneAsset& scene);
     SceneHierarchyInfo LoadHierarchyInfo(const assetlib::SceneAsset& scene);
-    void LoadMaterials(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene);
+    bool LoadMeshes(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene);
+    std::optional<assetlib::GeometryBufferAsset> LoadGeometryBuffer(SceneGeometryInfo& geometry, 
+        assetlib::AssetId buffer);
     MaterialGPU LoadMaterial(const SceneGeometryInfo::MaterialInfo& materialInfo, const MaterialAsset& materialAsset);
     TextureHandle LoadTexture(u32 uvIndex, ImageHandle image, TextureHandle fallback);
 

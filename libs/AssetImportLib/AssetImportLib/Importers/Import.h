@@ -32,4 +32,5 @@ static constexpr std::array SCENE_ASSET_RAW_EXTENSIONS = {
 };
 
 static constexpr std::string_view SCENE_GEOMETRY_BUFFER_ASSET_EXTENSION = ".sgbuf";
+static constexpr std::string_view SCENE_MESH_ASSET_EXTENSION = ".mesh";
 }

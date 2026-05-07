@@ -6,9 +6,13 @@
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetLib/Materials/MaterialAsset.h>
 #include <AssetLib/Scenes/Scene/SceneMeta.h>
+#include <AssetLib/Scenes/GeometryBuffer/GeometryBufferAsset.h>
+#include <AssetLib/Scenes/Mesh/MeshAsset.h>
 #include <AssetImportLib/Bakers/BakersUtils.h>
 #include <AssetImportLib/Bakers/Images/ImageBaker.h>
 #include <AssetImportLib/Importers/Images/ImageImporter.h>
+#include <AssetImportLib/Importers/Scenes/GeometryBufferImporter.h>
+#include <AssetImportLib/Importers/Scenes/MeshImporter.h>
 #include <AssetImportLib/Importers/Scenes/SceneImporter.h>
 #include <AssetImportLib/Importers/Materials/MaterialImporter.h>
 #include <CoreLib/Utils/FileUtils.h>
@@ -48,27 +52,17 @@ IoResult<std::filesystem::path> SceneBaker::BakeToFile(assetlib::SceneMeta& meta
     auto baked = Bake(meta);
     CHECK_RETURN_IO_ERROR_PROPAGATE(baked)
     
-    u64 binarySizeBytes = 0;
-    for (auto& buffer : baked->Header.Buffers)
-        binarySizeBytes += buffer.SizeBytes;
-    
-    auto packedScene = assetlib::scene::pack(*baked, *m_Ctx->Compressor);
+    auto packedScene = assetlib::scene::pack(*baked);
     CHECK_RETURN_IO_ERROR_PROPAGATE(packedScene)
     
     IoResult<u64> saveResult = m_Ctx->Io->WriteHeader(meta.Metadata, packedScene->Header);
     CHECK_RETURN_IO_ERROR_PROPAGATE(saveResult)
-
-    IoResult<u64> binarySaveResult = m_Ctx->Io->WriteBinaryChunk(meta.Metadata, packedScene->PackedBinaries);
-    CHECK_RETURN_IO_ERROR_PROPAGATE(binarySaveResult)
 
     meta.Metadata.Io = {
         .OriginalFile = meta.Metadata.Io.OriginalFile,
         .HeaderFile = meta.Metadata.Io.HeaderFile,
         .BinaryFile = meta.Metadata.Io.BinaryFile,
         .HeaderSizeBytes = *saveResult,
-        .BinarySizeBytes = binarySizeBytes,
-        .BinarySizeBytesCompressed = *binarySaveResult,
-        .BinarySizeBytesChunksCompressed = std::move(packedScene->PackedBinarySizeBytesChunks),
         .IoMode = m_Ctx->Io->GetName(),
         .CompressionMode = m_Ctx->Compressor->GetName(),
         .IoGuid = m_Ctx->Io->GetGuid(),
@@ -100,7 +94,7 @@ bool SceneBaker::NeedsBaking(const std::filesystem::path& metaPath) const
     if (lastBaked < fs::last_write_time(metaPath) || lastBaked < fs::last_write_time(rawPath))
         return true;
 
-    const auto readHeader = assetlib::scene::readHeader(metaRead->Metadata);
+    const auto readHeader = assetlib::scene::readScene(metaRead->Metadata);
     if (!readHeader.has_value())
         return true;
 
@@ -138,41 +132,41 @@ struct AccessorDataTypeTraits
 template <>
 struct AccessorDataTypeTraits<glm::vec4>
 {
-    static constexpr assetlib::SceneAssetAccessorType TYPE = assetlib::SceneAssetAccessorType::Vec4;
-    static constexpr assetlib::SceneAssetAccessorComponentType COMPONENT_TYPE =
-        assetlib::SceneAssetAccessorComponentType::F32;
+    static constexpr assetlib::GeometryBufferAccessorType TYPE = assetlib::GeometryBufferAccessorType::Vec4;
+    static constexpr assetlib::GeometryBufferAccessorComponentType COMPONENT_TYPE =
+        assetlib::GeometryBufferAccessorComponentType::F32;
 };
 
 template <>
 struct AccessorDataTypeTraits<glm::vec3>
 {
-    static constexpr assetlib::SceneAssetAccessorType TYPE = assetlib::SceneAssetAccessorType::Vec3;
-    static constexpr assetlib::SceneAssetAccessorComponentType COMPONENT_TYPE =
-        assetlib::SceneAssetAccessorComponentType::F32;
+    static constexpr assetlib::GeometryBufferAccessorType TYPE = assetlib::GeometryBufferAccessorType::Vec3;
+    static constexpr assetlib::GeometryBufferAccessorComponentType COMPONENT_TYPE =
+        assetlib::GeometryBufferAccessorComponentType::F32;
 };
 
 template <>
 struct AccessorDataTypeTraits<glm::vec2>
 {
-    static constexpr assetlib::SceneAssetAccessorType TYPE = assetlib::SceneAssetAccessorType::Vec2;
-    static constexpr assetlib::SceneAssetAccessorComponentType COMPONENT_TYPE =
-        assetlib::SceneAssetAccessorComponentType::F32;
+    static constexpr assetlib::GeometryBufferAccessorType TYPE = assetlib::GeometryBufferAccessorType::Vec2;
+    static constexpr assetlib::GeometryBufferAccessorComponentType COMPONENT_TYPE =
+        assetlib::GeometryBufferAccessorComponentType::F32;
 };
 
 template <>
 struct AccessorDataTypeTraits<u8>
 {
-    static constexpr assetlib::SceneAssetAccessorType TYPE = assetlib::SceneAssetAccessorType::Scalar;
-    static constexpr assetlib::SceneAssetAccessorComponentType COMPONENT_TYPE =
-        assetlib::SceneAssetAccessorComponentType::U8;
+    static constexpr assetlib::GeometryBufferAccessorType TYPE = assetlib::GeometryBufferAccessorType::Scalar;
+    static constexpr assetlib::GeometryBufferAccessorComponentType COMPONENT_TYPE =
+        assetlib::GeometryBufferAccessorComponentType::U8;
 };
 
 template <>
 struct AccessorDataTypeTraits<assetlib::SceneAssetMeshlet>
 {
-    static constexpr assetlib::SceneAssetAccessorType TYPE = assetlib::SceneAssetAccessorType::Scalar;
-    static constexpr assetlib::SceneAssetAccessorComponentType COMPONENT_TYPE =
-        assetlib::SceneAssetAccessorComponentType::Meshlet;
+    static constexpr assetlib::GeometryBufferAccessorType TYPE = assetlib::GeometryBufferAccessorType::Scalar;
+    static constexpr assetlib::GeometryBufferAccessorComponentType COMPONENT_TYPE =
+        assetlib::GeometryBufferAccessorComponentType::Meshlet;
 };
 
 struct ProcessContext
@@ -184,23 +178,34 @@ struct ProcessContext
         std::vector<T> Data{};
     };
 
-    AccessorProxy<glm::vec3> Positions{.ViewIndex = (u32)assetlib::SceneAssetBufferViewType::Position};
-    AccessorProxy<glm::vec3> Normals{.ViewIndex = (u32)assetlib::SceneAssetBufferViewType::Normal};
-    AccessorProxy<glm::vec4> Tangents{.ViewIndex = (u32)assetlib::SceneAssetBufferViewType::Tangent};
-    AccessorProxy<glm::vec2> UVs{.ViewIndex = (u32)assetlib::SceneAssetBufferViewType::Uv};
-    AccessorProxy<assetlib::SceneAssetIndexType> Indices{.ViewIndex = (u32)assetlib::SceneAssetBufferViewType::Index};
-    AccessorProxy<assetlib::SceneAssetMeshlet> Meshlets{.ViewIndex = (u32)assetlib::SceneAssetBufferViewType::Meshlet};
+    AccessorProxy<glm::vec3> Positions{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Position};
+    AccessorProxy<glm::vec3> Normals{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Normal};
+    AccessorProxy<glm::vec4> Tangents{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Tangent};
+    AccessorProxy<glm::vec2> UVs{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Uv};
+    AccessorProxy<assetlib::SceneAssetIndexType> Indices{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Index};
+    AccessorProxy<assetlib::SceneAssetMeshlet> Meshlets{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Meshlet};
 
-    assetlib::SceneAssetHeader SceneAssetHeader{};
-    std::vector<std::byte> SceneBufferData{};
+    assetlib::SceneAsset SceneAsset{};
+    assetlib::GeometryBufferAsset GeometryBufferAsset{};
+    assetlib::AssetId GeometryBufferAssetId{};
+    struct MeshInfo
+    {
+        assetlib::MeshAsset Asset{};
+        assetlib::AssetId AssetId{};
+        std::string Name{};
+    };
+    std::vector<MeshInfo> MeshAssets{};
+    std::vector<assetlib::MeshPrimitiveMaterial> Materials{};
 
     std::filesystem::path ScenePath{};
+    std::string BufferUri{};
+    u32 BufferHash{};
     std::shared_ptr<Context> Ctx{nullptr};
 public:
     template <typename T>
-    assetlib::SceneAssetAccessor CreateAccessor(const std::vector<T>& data, AccessorProxy<T>& accessorProxy)
+    assetlib::GeometryBufferAccessor CreateAccessor(const std::vector<T>& data, AccessorProxy<T>& accessorProxy)
     {
-        assetlib::SceneAssetAccessor accessor{};
+        assetlib::GeometryBufferAccessor accessor{};
         accessor.ComponentType = AccessorDataTypeTraits<T>::COMPONENT_TYPE;
         accessor.Type = AccessorDataTypeTraits<T>::TYPE;
         accessor.Count = (u32)data.size();
@@ -211,26 +216,28 @@ public:
         return accessor;
     }
 
-    void Finalize()
+    void FinalizeGeometry()
     {
         static constexpr u32 ALIGNMENT = 4;
 
-        SceneAssetHeader.BufferViews.resize((u32)assetlib::SceneAssetBufferViewType::MaxVal);
-        SceneAssetHeader.BufferViews[(u32)assetlib::SceneAssetBufferViewType::Position].Name = "Positions";
-        SceneAssetHeader.BufferViews[(u32)assetlib::SceneAssetBufferViewType::Normal].Name = "Normals";
-        SceneAssetHeader.BufferViews[(u32)assetlib::SceneAssetBufferViewType::Tangent].Name = "Tangents";
-        SceneAssetHeader.BufferViews[(u32)assetlib::SceneAssetBufferViewType::Uv].Name = "Uvs";
-        SceneAssetHeader.BufferViews[(u32)assetlib::SceneAssetBufferViewType::Index].Name = "Indices";
-        SceneAssetHeader.BufferViews[(u32)assetlib::SceneAssetBufferViewType::Meshlet].Name = "Meshlet";
+        auto& geometryBufferHeader = GeometryBufferAsset.Header;
+        geometryBufferHeader.BufferViews.resize((u32)assetlib::GeometryBufferViewType::MaxVal);
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Position].Name = "Positions";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Normal].Name = "Normals";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Tangent].Name = "Tangents";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Uv].Name = "Uvs";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Index].Name = "Indices";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Meshlet].Name = "Meshlet";
 
-        auto writeAndUpdateView = [this](auto accessorProxy)
+        auto writeAndUpdateView = [&geometryBufferHeader, this](auto accessorProxy)
         {
             const u64 sizeBytes = accessorProxy.Data.size() * sizeof(accessorProxy.Data[0]);
-            WriteResult write = writeAligned<ALIGNMENT>(SceneBufferData, accessorProxy.Data.data(), sizeBytes);
+            WriteResult write = 
+                writeAligned<ALIGNMENT>(GeometryBufferAsset.Data, accessorProxy.Data.data(), sizeBytes);
 
-            SceneAssetHeader.BufferViews[accessorProxy.ViewIndex].Buffer = 0;
-            SceneAssetHeader.BufferViews[accessorProxy.ViewIndex].OffsetBytes = write.Offset;
-            SceneAssetHeader.BufferViews[accessorProxy.ViewIndex].LengthBytes = sizeBytes;
+            geometryBufferHeader.BufferViews[accessorProxy.ViewIndex].Buffer = 0;
+            geometryBufferHeader.BufferViews[accessorProxy.ViewIndex].OffsetBytes = write.Offset;
+            geometryBufferHeader.BufferViews[accessorProxy.ViewIndex].LengthBytes = sizeBytes;
         };
 
         writeAndUpdateView(Positions);
@@ -239,9 +246,303 @@ public:
         writeAndUpdateView(UVs);
         writeAndUpdateView(Indices);
         writeAndUpdateView(Meshlets);
-        SceneAssetHeader.Buffers.push_back({.SizeBytes = SceneBufferData.size()});
+        
+        GeometryBufferAsset.Header.SizeBytes = GeometryBufferAsset.Data.size();
     }
 };
+
+/* this function decodes percent encoding chars in uri */
+std::string decodeUri(const std::string& uri)
+{
+    std::string decoded;
+    decoded.reserve(uri.size());
+
+    static constexpr auto LUT = []() consteval
+    {
+        std::array<char, std::numeric_limits<char>::max()> array{};
+        array.fill(~0);
+        array['0'] = 0x0; array['1'] = 0x1; array['2'] = 0x2;
+        array['3'] = 0x3; array['4'] = 0x4; array['5'] = 0x5;
+        array['6'] = 0x6; array['7'] = 0x7; array['8'] = 0x8;
+        array['9'] = 0x9; array['a'] = 0xa; array['b'] = 0xb;
+        array['c'] = 0xc; array['d'] = 0xd; array['e'] = 0xe;
+        array['f'] = 0xf; array['A'] = 0xa; array['B'] = 0xb;
+        array['C'] = 0xc; array['D'] = 0xd; array['E'] = 0xe;
+        array['F'] = 0xf;
+
+        return array;
+    }();
+
+    for (u32 i = 0; i < uri.size(); i++)
+    {
+        const char c = uri[i];
+        switch (c)
+        {
+        case '%':
+            {
+                if (i + 2 >= uri.size())
+                {
+                    decoded.push_back(c);
+                    break;
+                }
+                const char cFirst = LUT[uri[i + 1]];
+                const char cSecond = LUT[uri[i + 2]];
+                const char byte = (char)(cFirst << 4 | cSecond);
+                decoded.push_back(byte);
+                i += 2;
+            }
+            break;
+        case '+':
+            decoded.push_back(' ');
+            break;
+        default:
+            decoded.push_back(c);
+            break;
+        }
+    }
+    decoded.shrink_to_fit();
+
+    return decoded;
+}
+
+IoResult<assetlib::AssetId> importMaterialImage(ProcessContext& ctx, tinygltf::Model& gltf, i32 textureIndex,
+    assetlib::ImageFormat imageFormat)
+{
+    if (textureIndex < 0)
+        return assetlib::AssetId::CreateEmpty();
+
+    const auto& texture = gltf.textures[textureIndex];
+    if (texture.source < 0)
+        return assetlib::AssetId::CreateEmpty();
+
+    const tinygltf::Image& image = gltf.images[texture.source];
+
+    CHECK_RETURN_IO_ERROR(image.bufferView == -1, IoError::ErrorCode::GeneralError,
+        "Failed to import image: image must be external", image.name)
+
+    const std::filesystem::path imagePath = ctx.ScenePath.parent_path() / decodeUri(image.uri);
+    ImageImporter importer(ctx.Ctx, {.BakedFormat = imageFormat, .Overwrite = true});
+    auto importResult = importer.Import(imagePath);
+    CHECK_RETURN_IO_ERROR(importResult.has_value(), IoError::ErrorCode::GeneralError,
+        "Failed to import image: {}: {}", image.uri, importResult.error())
+
+    LUX_LOG_INFO("Imported image file: {}, for scene {}", imagePath.string(), ctx.ScenePath.string());
+
+    return importer.GetImportedAssetMetadata().AssetId;
+}
+
+IoResult<assetlib::AssetId> importMaterial(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Material& material)
+{
+    assetlib::MaterialAlphaMode alphaMode = assetlib::MaterialAlphaMode::Opaque;
+    if (material.alphaMode == "MASK")
+        alphaMode = assetlib::MaterialAlphaMode::Mask;
+    else if (material.alphaMode == "BLEND")
+        alphaMode = assetlib::MaterialAlphaMode::Translucent;
+
+    auto importedBaseColor = importMaterialImage(ctx, gltf, material.pbrMetallicRoughness.baseColorTexture.index,
+        assetlib::ImageFormat::RGBA8_SRGB);
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedBaseColor)
+
+    auto importedEmissive = importMaterialImage(ctx, gltf, material.emissiveTexture.index,
+        assetlib::ImageFormat::RGBA8_SRGB);
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedEmissive)
+
+    auto importedNormal = importMaterialImage(ctx, gltf, material.normalTexture.index,
+        assetlib::ImageFormat::RGBA8_UNORM);
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedNormal)
+
+    auto importedMetallicRoughness = importMaterialImage(ctx, gltf,
+        material.pbrMetallicRoughness.metallicRoughnessTexture.index,
+        assetlib::ImageFormat::RGBA8_UNORM);
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedMetallicRoughness)
+
+    auto importedOcclusion = importMaterialImage(ctx, gltf,
+        material.occlusionTexture.index,
+        assetlib::ImageFormat::RGBA8_UNORM);
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedOcclusion)
+    
+    const assetlib::MaterialAsset bakedMaterial = {
+        .Name = material.name,
+        .BaseColor = glm::vec4{*(glm::dvec4*)material.pbrMetallicRoughness.baseColorFactor.data()},
+        .Metallic = (f32)material.pbrMetallicRoughness.metallicFactor,
+        .Roughness = (f32)material.pbrMetallicRoughness.roughnessFactor,
+        .EmissiveFactor = glm::vec3{*(glm::dvec3*)material.pbrMetallicRoughness.baseColorFactor.data()},
+        .AlphaMode = alphaMode,
+        .AlphaCutoff = (f32)material.alphaCutoff,
+        .DoubleSided = material.doubleSided,
+        .OcclusionStrength = (f32)material.occlusionTexture.strength,
+        .BaseColorTexture = *importedBaseColor,
+        .EmissiveTexture = *importedEmissive,
+        .NormalTexture = *importedNormal,
+        .MetallicRoughnessTexture = *importedMetallicRoughness,
+        .OcclusionTexture = *importedOcclusion
+    };
+    
+    const std::filesystem::path materialPath = ctx.ScenePath.parent_path() /
+        (material.name + std::string(MATERIAL_ASSET_EXTENSION));
+    MaterialImporter importer(ctx.Ctx);
+    auto exportResult = importer.Export(bakedMaterial, materialPath);
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(exportResult)
+
+    return *exportResult;
+}
+
+IoResult<void> processMaterial(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Material& material)
+{
+    auto convertSampleInfo = [&](i32 textureIndex, i32 uvIndex) -> assetlib::MeshPrimitiveTextureSample
+    {
+        if (textureIndex < 0)
+            return {};
+
+        const auto& texture = gltf.textures[textureIndex];
+        const auto& sampler = gltf.samplers[texture.sampler];
+
+        auto filter = assetlib::MeshPrimitiveTextureFilter::Linear;
+        switch (sampler.minFilter)
+        {
+        case TINYGLTF_TEXTURE_FILTER_NEAREST:
+        case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
+            filter = assetlib::MeshPrimitiveTextureFilter::Nearest;
+            break;
+        default:
+            break;
+        }
+
+        return {
+            .UvIndex = (u32)uvIndex,
+            .Filter = filter
+        };
+    };
+
+    auto importedMaterial = importMaterial(ctx, gltf, material);
+    CHECK_RETURN_IO_ERROR(importedMaterial.has_value(), IoError::ErrorCode::GeneralError,
+        "Failed to import material: {} ({})", importedMaterial.error(), material.name)
+
+    ctx.Materials.push_back({
+        .MaterialAsset = *importedMaterial,
+        .BaseColorSample = convertSampleInfo(
+            material.pbrMetallicRoughness.baseColorTexture.index,
+            material.pbrMetallicRoughness.baseColorTexture.texCoord),
+        .EmissiveSample = convertSampleInfo(
+            material.emissiveTexture.index,
+            material.emissiveTexture.texCoord),
+        .NormalSample = convertSampleInfo(
+            material.normalTexture.index,
+            material.normalTexture.texCoord),
+        .MetallicRoughnessSample = convertSampleInfo(
+            material.pbrMetallicRoughness.metallicRoughnessTexture.index,
+            material.pbrMetallicRoughness.metallicRoughnessTexture.texCoord),
+        .OcclusionSample = convertSampleInfo(
+            material.occlusionTexture.index,
+            material.occlusionTexture.texCoord),
+    });
+
+    return {};
+}
+
+void processCamera(ProcessContext& ctx, tinygltf::Model&, tinygltf::Camera& camera)
+{
+    if (camera.type == "perspective")
+        ctx.SceneAsset.Cameras.push_back({
+            .Type = assetlib::SceneAssetCameraType::Perspective,
+            .Near = (f32)camera.perspective.znear,
+            .Far = (f32)camera.perspective.zfar,
+            .Perspective = assetlib::SceneAssetCamera::PerspectiveData{
+                .Aspect = (f32)camera.perspective.aspectRatio,
+                .FovY = (f32)camera.perspective.yfov
+            },
+        });
+    else
+        ctx.SceneAsset.Cameras.push_back({
+            .Type = assetlib::SceneAssetCameraType::Orthographic,
+            .Near = (f32)camera.orthographic.znear,
+            .Far = (f32)camera.orthographic.zfar,
+            .Orthographic = assetlib::SceneAssetCamera::OrthographicData{
+                .SpanX = (f32)camera.orthographic.xmag,
+                .SpanY = (f32)camera.orthographic.ymag
+            },
+        });
+}
+
+void processLight(ProcessContext& ctx, tinygltf::Model&, tinygltf::Light& light)
+{
+    auto lightType = assetlib::SceneAssetLightType::Point;
+    if (light.type == "directional")
+        lightType = assetlib::SceneAssetLightType::Directional;
+    if (light.type == "spot")
+        lightType = assetlib::SceneAssetLightType::Spot;
+
+    static constexpr f32 UNLIMITED_RANGE = 1e+5f;
+
+    ctx.SceneAsset.Lights.push_back({
+        .Type = lightType,
+        .Color = (glm::vec3)*(glm::dvec3*)light.color.data(),
+        .Intensity = (f32)light.intensity,
+        .Range = light.range > 0 ? (f32)light.range : UNLIMITED_RANGE
+    });
+}
+
+void processNode(ProcessContext& ctx, tinygltf::Model&, tinygltf::Node& node)
+{
+    auto getTransform = [](tinygltf::Node& node)
+    {
+        glm::dvec3 translation{0.0f};
+        glm::dquat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+        glm::dvec3 scale{1.0f};
+
+        if (!node.matrix.empty())
+        {
+            glm::dvec3 scew;
+            glm::dvec4 perspective;
+            glm::decompose(*(glm::dmat4*)node.matrix.data(), scale, rotation, translation, scew, perspective);
+        }
+        else
+        {
+            if (!node.translation.empty())
+                translation = *(glm::dvec3*)node.translation.data();
+            if (!node.rotation.empty())
+            {
+                rotation.x = (f32)node.rotation[0];
+                rotation.y = (f32)node.rotation[1];
+                rotation.z = (f32)node.rotation[2];
+                rotation.w = (f32)node.rotation[3];
+            }
+            if (!node.scale.empty())
+                scale = *(glm::dvec3*)node.scale.data();
+        }
+
+        return Transform3d{
+            .Position = translation,
+            .Orientation = rotation,
+            .Scale = scale
+        };
+    };
+
+    assetlib::SceneAssetNode bakedNode = {
+        .Name = node.name,
+        .Camera = (u32)node.camera,
+        .Light = (u32)node.light,
+        .Mesh = (u32)node.mesh,
+        .Transform = getTransform(node)
+    };
+    bakedNode.Children.reserve(node.children.size());
+    for (i32 child : node.children)
+        bakedNode.Children.push_back((u32)child);
+
+    ctx.SceneAsset.Nodes.push_back(std::move(bakedNode));
+}
+
+void processSubscene(ProcessContext& ctx, tinygltf::Model&, tinygltf::Scene& subscene)
+{
+    assetlib::SceneAssetSubscene backedSubscene = {
+        .Name = subscene.name,
+    };
+    backedSubscene.Nodes.reserve(subscene.nodes.size());
+    for (i32 node : subscene.nodes)
+        backedSubscene.Nodes.push_back(node);
+
+    ctx.SceneAsset.Subscenes.push_back(std::move(backedSubscene));
+}
 
 template <typename T>
 void copyBufferToVector(std::vector<T>& vec, tinygltf::Model& gltf, tinygltf::Accessor& accessor)
@@ -386,13 +687,13 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
         for (auto& attribute : primitive.attributes)
         {
             tinygltf::Accessor& attributeAccessor = gltf.accessors[attribute.second];
-            if (attribute.first == assetlib::SceneAssetPrimitive::ATTRIBUTE_POSITION_NAME)
+            if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_POSITION_NAME)
                 copyBufferToVector(positions, gltf, attributeAccessor);
-            else if (attribute.first == assetlib::SceneAssetPrimitive::ATTRIBUTE_NORMAL_NAME)
+            else if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_NORMAL_NAME)
                 copyBufferToVector(normals, gltf, attributeAccessor);
-            else if (attribute.first == assetlib::SceneAssetPrimitive::ATTRIBUTE_TANGENT_NAME)
+            else if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_TANGENT_NAME)
                 copyBufferToVector(tangents, gltf, attributeAccessor);
-            else if (attribute.first == assetlib::SceneAssetPrimitive::ATTRIBUTE_UV0_NAME)
+            else if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_UV0_NAME)
                 copyBufferToVector(uvs, gltf, attributeAccessor);
         }
         CHECK_RETURN_IO_ERROR(!positions.empty(), IoError::ErrorCode::GeneralError,
@@ -421,342 +722,128 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
         auto&& [meshlets, meshletIndices] = utils::createMeshlets(attributes, indices);
         auto&& [sphere, box] = utils::meshBoundingVolumes(meshlets);
 
-        u32 lastAccessor = (u32)ctx.SceneAssetHeader.Accessors.size();
-        ctx.SceneAssetHeader.Accessors.push_back(ctx.CreateAccessor(positions, ctx.Positions));
-        ctx.SceneAssetHeader.Accessors.push_back(ctx.CreateAccessor(normals, ctx.Normals));
-        ctx.SceneAssetHeader.Accessors.push_back(ctx.CreateAccessor(tangents, ctx.Tangents));
-        ctx.SceneAssetHeader.Accessors.push_back(ctx.CreateAccessor(uvs, ctx.UVs));
-        ctx.SceneAssetHeader.Accessors.push_back(ctx.CreateAccessor(meshletIndices, ctx.Indices));
-        ctx.SceneAssetHeader.Accessors.push_back(ctx.CreateAccessor(meshlets, ctx.Meshlets));
+        u32 lastAccessor = (u32)ctx.GeometryBufferAsset.Header.Accessors.size();
+        ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(positions, ctx.Positions));
+        ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(normals, ctx.Normals));
+        ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(tangents, ctx.Tangents));
+        ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(uvs, ctx.UVs));
+        ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(meshletIndices, ctx.Indices));
+        ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(meshlets, ctx.Meshlets));
 
-        assetlib::SceneAssetPrimitive bakedPrimitive = {
+        assetlib::MeshPrimitive bakedPrimitive = {
             .Attributes = {
-                assetlib::SceneAssetPrimitive::Attribute{
-                    .Name = std::string(assetlib::SceneAssetPrimitive::ATTRIBUTE_POSITION_NAME),
-                    .Accessor = lastAccessor + (u32)assetlib::SceneAssetBufferViewType::Position
+                assetlib::MeshPrimitive::Attribute{
+                    .Name = std::string(assetlib::MeshPrimitive::ATTRIBUTE_POSITION_NAME),
+                    .Accessor = lastAccessor + (u32)assetlib::GeometryBufferViewType::Position
                 },
-                assetlib::SceneAssetPrimitive::Attribute{
-                    .Name = std::string(assetlib::SceneAssetPrimitive::ATTRIBUTE_NORMAL_NAME),
-                    .Accessor = lastAccessor + (u32)assetlib::SceneAssetBufferViewType::Normal
+                assetlib::MeshPrimitive::Attribute{
+                    .Name = std::string(assetlib::MeshPrimitive::ATTRIBUTE_NORMAL_NAME),
+                    .Accessor = lastAccessor + (u32)assetlib::GeometryBufferViewType::Normal
                 },
-                assetlib::SceneAssetPrimitive::Attribute{
-                    .Name = std::string(assetlib::SceneAssetPrimitive::ATTRIBUTE_TANGENT_NAME),
-                    .Accessor = lastAccessor + (u32)assetlib::SceneAssetBufferViewType::Tangent
+                assetlib::MeshPrimitive::Attribute{
+                    .Name = std::string(assetlib::MeshPrimitive::ATTRIBUTE_TANGENT_NAME),
+                    .Accessor = lastAccessor + (u32)assetlib::GeometryBufferViewType::Tangent
                 },
-                assetlib::SceneAssetPrimitive::Attribute{
-                    .Name = std::string(assetlib::SceneAssetPrimitive::ATTRIBUTE_UV0_NAME),
-                    .Accessor = lastAccessor + (u32)assetlib::SceneAssetBufferViewType::Uv
+                assetlib::MeshPrimitive::Attribute{
+                    .Name = std::string(assetlib::MeshPrimitive::ATTRIBUTE_UV0_NAME),
+                    .Accessor = lastAccessor + (u32)assetlib::GeometryBufferViewType::Uv
                 },
-                assetlib::SceneAssetPrimitive::Attribute{
-                    .Name = std::string(assetlib::SceneAssetPrimitive::ATTRIBUTE_MESHLET_NAME),
-                    .Accessor = lastAccessor + (u32)assetlib::SceneAssetBufferViewType::Meshlet
+                assetlib::MeshPrimitive::Attribute{
+                    .Name = std::string(assetlib::MeshPrimitive::ATTRIBUTE_MESHLET_NAME),
+                    .Accessor = lastAccessor + (u32)assetlib::GeometryBufferViewType::Meshlet
                 },
             },
-            .Material = (u32)primitive.material,
-            .IndicesAccessor = lastAccessor + (u32)assetlib::SceneAssetBufferViewType::Index,
+            .Material = primitive.material == -1 ? assetlib::MeshPrimitiveMaterial{} : ctx.Materials[primitive.material],
+            .IndicesAccessor = lastAccessor + (u32)assetlib::GeometryBufferViewType::Index,
             .BoundingSphere = sphere,
             .BoundingBox = box,
         };
-        ctx.SceneAssetHeader.Meshes.push_back({
-            .Primitives = {bakedPrimitive}
-        });
+        
+        std::string meshName = mesh.name;
+        if (meshName.empty())
+            meshName = std::format("_unnamed_mesh_{}", ctx.MeshAssets.size());
+        ctx.MeshAssets.push_back({.Asset = {.Primitives = {bakedPrimitive}}, .Name = meshName});
     }
 
     return {};
 }
 
-/* this function decodes percent encoding chars in uri */
-std::string decodeUri(const std::string& uri)
+IoResult<void> createGeometryBufferAssets(ProcessContext& ctx)
 {
-    std::string decoded;
-    decoded.reserve(uri.size());
-
-    static constexpr auto LUT = []() consteval
-    {
-        std::array<char, std::numeric_limits<char>::max()> array{};
-        array.fill(~0);
-        array['0'] = 0x0; array['1'] = 0x1; array['2'] = 0x2;
-        array['3'] = 0x3; array['4'] = 0x4; array['5'] = 0x5;
-        array['6'] = 0x6; array['7'] = 0x7; array['8'] = 0x8;
-        array['9'] = 0x9; array['a'] = 0xa; array['b'] = 0xb;
-        array['c'] = 0xc; array['d'] = 0xd; array['e'] = 0xe;
-        array['f'] = 0xf; array['A'] = 0xa; array['B'] = 0xb;
-        array['C'] = 0xc; array['D'] = 0xd; array['E'] = 0xe;
-        array['F'] = 0xf;
-
-        return array;
-    }();
-
-    for (u32 i = 0; i < uri.size(); i++)
-    {
-        const char c = uri[i];
-        switch (c)
-        {
-        case '%':
-            {
-                if (i + 2 >= uri.size())
-                {
-                    decoded.push_back(c);
-                    break;
-                }
-                const char cFirst = LUT[uri[i + 1]];
-                const char cSecond = LUT[uri[i + 2]];
-                const char byte = (char)(cFirst << 4 | cSecond);
-                decoded.push_back(byte);
-                i += 2;
-            }
-            break;
-        case '+':
-            decoded.push_back(' ');
-            break;
-        default:
-            decoded.push_back(c);
-            break;
-        }
-    }
-    decoded.shrink_to_fit();
-
-    return decoded;
-}
-
-IoResult<assetlib::AssetId> importMaterialImage(ProcessContext& ctx, tinygltf::Model& gltf, i32 textureIndex,
-    assetlib::ImageFormat imageFormat)
-{
-    if (textureIndex < 0)
-        return assetlib::AssetId::CreateEmpty();
-
-    const auto& texture = gltf.textures[textureIndex];
-    if (texture.source < 0)
-        return assetlib::AssetId::CreateEmpty();
-
-    const tinygltf::Image& image = gltf.images[texture.source];
-
-    CHECK_RETURN_IO_ERROR(image.bufferView == -1, IoError::ErrorCode::GeneralError,
-        "Failed to import image: image must be external", image.name)
-
-    const std::filesystem::path imagePath = ctx.ScenePath.parent_path() / decodeUri(image.uri);
-    ImageImporter importer(ctx.Ctx, {.BakedFormat = imageFormat, .Overwrite = true});
-    auto importResult = importer.Import(imagePath);
-    CHECK_RETURN_IO_ERROR(importResult.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to import image: {}: {}", image.uri, importResult.error())
-
-    LUX_LOG_INFO("Imported image file: {}, for scene {}", imagePath.string(), ctx.ScenePath.string());
-
-    return importer.GetImportedAssetMetadata().AssetId;
-}
-
-IoResult<assetlib::AssetId> importMaterial(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Material& material)
-{
-    assetlib::MaterialAlphaMode alphaMode = assetlib::MaterialAlphaMode::Opaque;
-    if (material.alphaMode == "MASK")
-        alphaMode = assetlib::MaterialAlphaMode::Mask;
-    else if (material.alphaMode == "BLEND")
-        alphaMode = assetlib::MaterialAlphaMode::Translucent;
-
-    auto importedBaseColor = importMaterialImage(ctx, gltf, material.pbrMetallicRoughness.baseColorTexture.index,
-        assetlib::ImageFormat::RGBA8_SRGB);
-    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedBaseColor)
-
-    auto importedEmissive = importMaterialImage(ctx, gltf, material.emissiveTexture.index,
-        assetlib::ImageFormat::RGBA8_SRGB);
-    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedEmissive)
-
-    auto importedNormal = importMaterialImage(ctx, gltf, material.normalTexture.index,
-        assetlib::ImageFormat::RGBA8_UNORM);
-    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedNormal)
-
-    auto importedMetallicRoughness = importMaterialImage(ctx, gltf,
-        material.pbrMetallicRoughness.metallicRoughnessTexture.index,
-        assetlib::ImageFormat::RGBA8_UNORM);
-    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedMetallicRoughness)
-
-    auto importedOcclusion = importMaterialImage(ctx, gltf,
-        material.occlusionTexture.index,
-        assetlib::ImageFormat::RGBA8_UNORM);
-    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importedOcclusion)
+    GeometryBufferImporter importer(ctx.Ctx, {
+        .IsSubAsset = true,
+        .SourceHash = ctx.BufferHash,
+        .SourceUri = ctx.BufferUri
+    });
     
-    const assetlib::MaterialAsset bakedMaterial = {
-        .Name = material.name,
-        .BaseColor = glm::vec4{*(glm::dvec4*)material.pbrMetallicRoughness.baseColorFactor.data()},
-        .Metallic = (f32)material.pbrMetallicRoughness.metallicFactor,
-        .Roughness = (f32)material.pbrMetallicRoughness.roughnessFactor,
-        .EmissiveFactor = glm::vec3{*(glm::dvec3*)material.pbrMetallicRoughness.baseColorFactor.data()},
-        .AlphaMode = alphaMode,
-        .AlphaCutoff = (f32)material.alphaCutoff,
-        .DoubleSided = material.doubleSided,
-        .OcclusionStrength = (f32)material.occlusionTexture.strength,
-        .BaseColorTexture = *importedBaseColor,
-        .EmissiveTexture = *importedEmissive,
-        .NormalTexture = *importedNormal,
-        .MetallicRoughnessTexture = *importedMetallicRoughness,
-        .OcclusionTexture = *importedOcclusion
-    };
-    
-    const std::filesystem::path materialPath = ctx.ScenePath.parent_path() /
-        (material.name + std::string(MATERIAL_ASSET_EXTENSION));
-    MaterialImporter importer(ctx.Ctx);
-    auto exportResult = importer.Export(bakedMaterial, materialPath);
+    auto exportResult = importer.Export(ctx.GeometryBufferAsset, ctx.ScenePath.parent_path() / ctx.BufferUri);
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(exportResult)
-
-    return *exportResult;
-}
-
-IoResult<void> processMaterial(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Material& material)
-{
-    auto convertSampleInfo = [&](i32 textureIndex, i32 uvIndex) -> assetlib::SceneAssetTextureSample
-    {
-        if (textureIndex < 0)
-            return {};
-
-        const auto& texture = gltf.textures[textureIndex];
-        const auto& sampler = gltf.samplers[texture.sampler];
-
-        auto filter = assetlib::SceneAssetTextureFilter::Linear;
-        switch (sampler.minFilter)
-        {
-        case TINYGLTF_TEXTURE_FILTER_NEAREST:
-        case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
-            filter = assetlib::SceneAssetTextureFilter::Nearest;
-            break;
-        default:
-            break;
-        }
-
-        return {
-            .UvIndex = (u32)uvIndex,
-            .Filter = filter
-        };
-    };
-
-    auto importedMaterial = importMaterial(ctx, gltf, material);
-    CHECK_RETURN_IO_ERROR(importedMaterial.has_value(), IoError::ErrorCode::GeneralError,
-        "Failed to import material: {} ({})", importedMaterial.error(), material.name)
-
-    ctx.SceneAssetHeader.Materials.push_back({
-        .Name = material.name,
-        .MaterialAsset = *importedMaterial,
-        .BaseColorSample = convertSampleInfo(
-            material.pbrMetallicRoughness.baseColorTexture.index,
-            material.pbrMetallicRoughness.baseColorTexture.texCoord),
-        .EmissiveSample = convertSampleInfo(
-            material.emissiveTexture.index,
-            material.emissiveTexture.texCoord),
-        .NormalSample = convertSampleInfo(
-            material.normalTexture.index,
-            material.normalTexture.texCoord),
-        .MetallicRoughnessSample = convertSampleInfo(
-            material.pbrMetallicRoughness.metallicRoughnessTexture.index,
-            material.pbrMetallicRoughness.metallicRoughnessTexture.texCoord),
-        .OcclusionSample = convertSampleInfo(
-            material.occlusionTexture.index,
-            material.occlusionTexture.texCoord),
-    });
-
+    
+    ctx.GeometryBufferAssetId = *exportResult;
+    
     return {};
 }
 
-void processCamera(ProcessContext& ctx, tinygltf::Model&, tinygltf::Camera& camera)
+IoResult<void> createMeshAssets(ProcessContext& ctx)
 {
-    if (camera.type == "perspective")
-        ctx.SceneAssetHeader.Cameras.push_back({
-            .Type = assetlib::SceneAssetCameraType::Perspective,
-            .Near = (f32)camera.perspective.znear,
-            .Far = (f32)camera.perspective.zfar,
-            .Perspective = assetlib::SceneAssetCamera::PerspectiveData{
-                .Aspect = (f32)camera.perspective.aspectRatio,
-                .FovY = (f32)camera.perspective.yfov
-            },
-        });
-    else
-        ctx.SceneAssetHeader.Cameras.push_back({
-            .Type = assetlib::SceneAssetCameraType::Orthographic,
-            .Near = (f32)camera.orthographic.znear,
-            .Far = (f32)camera.orthographic.zfar,
-            .Orthographic = assetlib::SceneAssetCamera::OrthographicData{
-                .SpanX = (f32)camera.orthographic.xmag,
-                .SpanY = (f32)camera.orthographic.ymag
-            },
-        });
-}
-
-void processLight(ProcessContext& ctx, tinygltf::Model&, tinygltf::Light& light)
-{
-    auto lightType = assetlib::SceneAssetLightType::Point;
-    if (light.type == "directional")
-        lightType = assetlib::SceneAssetLightType::Directional;
-    if (light.type == "spot")
-        lightType = assetlib::SceneAssetLightType::Spot;
-
-    static constexpr f32 UNLIMITED_RANGE = 1e+5f;
-
-    ctx.SceneAssetHeader.Lights.push_back({
-        .Type = lightType,
-        .Color = (glm::vec3)*(glm::dvec3*)light.color.data(),
-        .Intensity = (f32)light.intensity,
-        .Range = light.range > 0 ? (f32)light.range : UNLIMITED_RANGE
-    });
-}
-
-void processNode(ProcessContext& ctx, tinygltf::Model&, tinygltf::Node& node)
-{
-    auto getTransform = [](tinygltf::Node& node)
+    MeshImporter importer(ctx.Ctx);
+    
+    for (auto& mesh : ctx.MeshAssets)
     {
-        glm::dvec3 translation{0.0f};
-        glm::dquat rotation{1.0f, 0.0f, 0.0f, 0.0f};
-        glm::dvec3 scale{1.0f};
-
-        if (!node.matrix.empty())
-        {
-            glm::dvec3 scew;
-            glm::dvec4 perspective;
-            glm::decompose(*(glm::dmat4*)node.matrix.data(), scale, rotation, translation, scew, perspective);
-        }
-        else
-        {
-            if (!node.translation.empty())
-                translation = *(glm::dvec3*)node.translation.data();
-            if (!node.rotation.empty())
-            {
-                rotation.x = (f32)node.rotation[0];
-                rotation.y = (f32)node.rotation[1];
-                rotation.z = (f32)node.rotation[2];
-                rotation.w = (f32)node.rotation[3];
-            }
-            if (!node.scale.empty())
-                scale = *(glm::dvec3*)node.scale.data();
-        }
-
-        return Transform3d{
-            .Position = translation,
-            .Orientation = rotation,
-            .Scale = scale
-        };
-    };
-
-    assetlib::SceneAssetNode bakedNode = {
-        .Name = node.name,
-        .Camera = (u32)node.camera,
-        .Light = (u32)node.light,
-        .Mesh = (u32)node.mesh,
-        .Transform = getTransform(node)
-    };
-    bakedNode.Children.reserve(node.children.size());
-    for (i32 child : node.children)
-        bakedNode.Children.push_back((u32)child);
-
-    ctx.SceneAssetHeader.Nodes.push_back(std::move(bakedNode));
+        auto& asset = mesh.Asset;
+        asset.GeometryBuffer = ctx.GeometryBufferAssetId;
+        auto exportResult = importer.Export(asset, ctx.ScenePath.parent_path() / mesh.Name);
+        CHECK_RETURN_IMPORT_ERROR_PROPAGATE(exportResult)
+        mesh.AssetId = *exportResult;
+    }
+    
+    ctx.SceneAsset.Meshes.reserve(ctx.MeshAssets.size());
+    for (auto& mesh : ctx.MeshAssets)
+        ctx.SceneAsset.Meshes.push_back(mesh.AssetId);
+    
+    return {};
 }
 
-void processSubscene(ProcessContext& ctx, tinygltf::Model&, tinygltf::Scene& subscene)
+IoResult<void> copyExistingMeshes(ProcessContext& ctx)
 {
-    assetlib::SceneAssetSubscene backedSubscene = {
-        .Name = subscene.name,
-    };
-    backedSubscene.Nodes.reserve(subscene.nodes.size());
-    for (i32 node : subscene.nodes)
-        backedSubscene.Nodes.push_back(node);
+    SceneImporter importer(ctx.Ctx);
+    auto imported = importer.Import(ctx.ScenePath, ImportFlags::Header | ImportFlags::Outdated);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(imported)
+    
+    const auto& asset = importer.GetImportedScene().Asset;
+    
+    ctx.SceneAsset.Meshes.reserve(asset.Meshes.size());
+    for (assetlib::AssetId mesh : asset.Meshes)
+        ctx.SceneAsset.Meshes.push_back(mesh);
+    
+    return {};
+}
 
-    ctx.SceneAssetHeader.Subscenes.push_back(std::move(backedSubscene));
+IoResult<void> processGeometry(ProcessContext& ctx, tinygltf::Model& gltf)
+{
+    CHECK_RETURN_IO_ERROR(gltf.buffers.size() < 2, IoError::ErrorCode::GeneralError,
+        "Failed to bake scene: only one geometry buffer is supported")
+    
+    GeometryBufferImporter importer(ctx.Ctx, {
+        .IsSubAsset = true,
+        .SourceHash = ctx.BufferHash,
+        .SourceUri = ctx.BufferUri
+    });
+    const bool needToRebakeGeometry = importer.NeedsBaking(ctx.ScenePath.parent_path() / ctx.BufferUri);
+    if (!needToRebakeGeometry && copyExistingMeshes(ctx).has_value())
+        return {};
+ 
+    for (auto& mesh : gltf.meshes)
+    {
+        auto meshProcessResult = processMesh(ctx, gltf, mesh);
+        CHECK_RETURN_IO_ERROR(meshProcessResult.has_value(), IoError::ErrorCode::GeneralError,
+            "Failed to bake scene: {} ({})", meshProcessResult.error(), ctx.ScenePath.string())
+    }
+    ctx.FinalizeGeometry();
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(createGeometryBufferAssets(ctx))
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(createMeshAssets(ctx))
+    
+    return {};
 }
 }
 
@@ -783,7 +870,9 @@ IoResult<assetlib::SceneAsset> SceneBaker::Bake(const assetlib::SceneMeta& meta)
     
     ProcessContext processCtx = {
         .ScenePath = path,
-        .Ctx = m_Ctx
+        .BufferUri = gltf.buffers.front().uri,
+        .BufferHash = SceneImporter::CalculateGeometryBufferHash(path, gltf.buffers.front().uri).value_or(0),
+        .Ctx = m_Ctx,
     };
 
     for (auto& material : gltf.materials)
@@ -791,12 +880,6 @@ IoResult<assetlib::SceneAsset> SceneBaker::Bake(const assetlib::SceneMeta& meta)
         auto materialProcessResult = processMaterial(processCtx, gltf, material);
         CHECK_RETURN_IO_ERROR(materialProcessResult.has_value(), IoError::ErrorCode::GeneralError,
             "Failed to bake scene: {} ({})", materialProcessResult.error(), path.string())
-    }
-    for (auto& mesh : gltf.meshes)
-    {
-        auto meshProcessResult = processMesh(processCtx, gltf, mesh);
-        CHECK_RETURN_IO_ERROR(meshProcessResult.has_value(), IoError::ErrorCode::GeneralError,
-            "Failed to bake scene: {} ({})", meshProcessResult.error(), path.string())
     }
 
     for (auto& camera : gltf.cameras)
@@ -809,13 +892,10 @@ IoResult<assetlib::SceneAsset> SceneBaker::Bake(const assetlib::SceneMeta& meta)
         processNode(processCtx, gltf, node);
 
     processSubscene(processCtx, gltf, scene);
-    processCtx.SceneAssetHeader.DefaultSubscene = sceneIndex;
+    processCtx.SceneAsset.DefaultSubscene = sceneIndex;
 
-    processCtx.Finalize();
-
-    return assetlib::SceneAsset{
-        .Header = std::move(processCtx.SceneAssetHeader),
-        .BuffersData = {std::move(processCtx.SceneBufferData)}
-    };
+    CHECK_RETURN_IMPORT_ERROR_PROPAGATE(processGeometry(processCtx, gltf))
+    
+    return assetlib::SceneAsset{std::move(processCtx.SceneAsset)};
 }
 }

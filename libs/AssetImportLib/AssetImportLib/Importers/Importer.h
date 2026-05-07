@@ -8,8 +8,9 @@ enum class ImportFlags : u8
 {
     None = 0,
     BakeIfNotBaked = BIT(0),
-    Header = BIT(1),
-    Binaries = BIT(2),
+    Outdated = BIT(1),
+    Header = BIT(2),
+    Binaries = BIT(3),
 };
 
 struct ImportedAsset{};
@@ -63,7 +64,7 @@ template <typename Metadata, typename Baker>
 ImportResult<void> Importer::EnsureBaked(const std::filesystem::path& metaPath, ImportFlags importFlags, 
     Metadata& metadata, Baker& baker, std::string_view typeLabel)
 {
-    if (!baker.NeedsBaking(metaPath))
+    if (enumHasAny(importFlags, ImportFlags::Outdated) || !baker.NeedsBaking(metaPath))
         return {};
     if (!enumHasAny(importFlags, ImportFlags::BakeIfNotBaked))
         return std::unexpected(ImportError{

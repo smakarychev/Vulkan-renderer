@@ -28,6 +28,8 @@ public:
     
     bool NeedsBaking(const std::filesystem::path& path) const override;
     std::filesystem::path GetMetaPath(const std::filesystem::path& path) const override;
+
+    static std::optional<u32> CalculateGeometryBufferHash(const std::filesystem::path& path, const std::string& uri);
 protected:
     IoResult<void> WriteMetadata(const std::filesystem::path& metaPath, const std::filesystem::path& rawPath) override;
 private:

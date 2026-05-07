@@ -11,7 +11,14 @@
 #include <AssetLib/Materials/MaterialMeta.h>
 #include <AssetLib/Scenes/Scene/SceneAsset.h>
 #include <AssetLib/Scenes/Scene/SceneMeta.h>
+#include <AssetLib/Scenes/GeometryBuffer/GeometryBufferAsset.h>
+#include <AssetLib/Scenes/GeometryBuffer/GeometryBufferMeta.h>
+#include <AssetLib/Scenes/Mesh/MeshAsset.h>
+#include <AssetLib/Scenes/Mesh/MeshMeta.h>
+#include <AssetImportLib/Importers/Import.h>
 #include <AssetImportLib/Importers/Scenes/SceneImporter.h>
+#include <AssetImportLib/Importers/Scenes/GeometryBufferImporter.h>
+#include <AssetImportLib/Importers/Scenes/MeshImporter.h>
 
 namespace lux
 {
@@ -37,7 +44,9 @@ void SceneAssetManager::OnAssetSystemInit()
 bool SceneAssetManager::AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path&)
 {
     return
-        metadata.Type.Type == assetlib::scene::ASSET_TYPE;
+        metadata.Type.Type == assetlib::scene::ASSET_TYPE ||
+        metadata.Type.Type == assetlib::sceneGeometry::ASSET_TYPE ||
+        metadata.Type.Type == assetlib::sceneMesh::ASSET_TYPE;
 }
 
 bool SceneAssetManager::Imports(std::string_view extension)
@@ -222,69 +231,14 @@ void SceneAssetManager::UnregisterMaterials(SceneHandle sceneHandle)
 namespace 
 {
 template <typename T>
-void copyToVector(std::vector<T>& vec, const std::byte* data, u64 sizeBytes)
+void appendToVector(std::vector<T>& vec, const std::byte* data, u64 sizeBytes)
 {
     ASSERT(sizeBytes % sizeof(T) == 0, "Data size in bytes is not a multiple of element size")
     ASSERT((u64)data % alignof(T) == 0, "Data is not aligned properly")
 
-    vec.resize(sizeBytes / sizeof(T));
-    memcpy(vec.data(), data, sizeBytes);
-}
-
-void loadBuffers(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene)
-{
-    using enum assetlib::SceneAssetBufferViewType;
-    ASSERT(scene.Header.Buffers.size() == 1, "Multiple sub-scenes are not supported")
-    auto& sceneBuffer = scene.BuffersData[0];
-    const std::byte* bufferData = sceneBuffer.data();
-    auto& views = scene.Header.BufferViews;
-
-    copyToVector(geometry.Indices,
-        bufferData + views[(u32)Index].OffsetBytes, views[(u32)Index].LengthBytes);
-    copyToVector(geometry.Positions,
-        bufferData + views[(u32)Position].OffsetBytes, views[(u32)Position].LengthBytes);
-    copyToVector(geometry.Normals,
-        bufferData + views[(u32)Normal].OffsetBytes, views[(u32)Normal].LengthBytes);
-    copyToVector(geometry.Tangents,
-        bufferData + views[(u32)Tangent].OffsetBytes, views[(u32)Tangent].LengthBytes);
-    copyToVector(geometry.UVs,
-        bufferData + views[(u32)Uv].OffsetBytes, views[(u32)Uv].LengthBytes);
-    copyToVector(geometry.Meshlets,
-        bufferData + views[(u32)Meshlet].OffsetBytes, views[(u32)Meshlet].LengthBytes);
-}
-
-void loadRenderObjects(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene)
-{
-    geometry.RenderObjects.reserve(scene.Header.Meshes.size());
-    for (auto& meshInfo : scene.Header.Meshes)
-    {
-        ASSERT(meshInfo.Primitives.size() < 2, "Render objects with more that 1 primitives are not supported")
-        for (auto& primitive : meshInfo.Primitives)
-        {
-            const u32 firstIndex = (u32)(scene.Header.Accessors[primitive.IndicesAccessor].OffsetBytes /
-                sizeof(assetlib::SceneAssetIndexType));
-            const u32 firstVertex = (u32)(
-                scene.Header.Accessors[primitive.FindAttribute(
-                    assetlib::SceneAssetPrimitive::ATTRIBUTE_POSITION_NAME)->Accessor].OffsetBytes /
-                sizeof(glm::vec3));
-            const u32 firstMeshlet = (u32)(
-                scene.Header.Accessors[primitive.FindAttribute(
-                    assetlib::SceneAssetPrimitive::ATTRIBUTE_MESHLET_NAME)->Accessor].OffsetBytes /
-                sizeof(assetlib::SceneAssetMeshlet));
-            const u32 meshletsCount = scene.Header.Accessors[primitive.FindAttribute(
-                assetlib::SceneAssetPrimitive::ATTRIBUTE_MESHLET_NAME)->Accessor].Count;
-
-            geometry.RenderObjects.push_back({
-                .Material = primitive.Material,
-                .FirstIndex = firstIndex,
-                .FirstVertex = firstVertex,
-                .FirstMeshlet = firstMeshlet,
-                .MeshletCount = meshletsCount,
-                .BoundingBox = primitive.BoundingBox,
-                .BoundingSphere = primitive.BoundingSphere
-            });
-        }
-    }
+    u32 currentOffset = (u32)vec.size();
+    vec.resize(currentOffset + sizeBytes / sizeof(T));
+    memcpy(vec.data() + currentOffset, data, sizeBytes);
 }
 
 LightType lightTypeAssetLightType(assetlib::SceneAssetLightType lightType)
@@ -316,19 +270,23 @@ std::optional<SceneAsset> SceneAssetManager::DoLoad(import::SceneImporter& impor
     if (willBake) 
         m_AssetSystem->ScanAssetsDirectory(path.parent_path());
 
+    std::optional<SceneGeometryInfo> geometryInfo = LoadGeometryInfo(sceneAsset);
+    if (!geometryInfo.has_value())
+        LUX_LOG_ERROR("Failed to load geometry info for scene: {}", path.string());
+    
     return SceneAsset{
-        .Geometry = LoadGeometryInfo(sceneAsset),
+        .Geometry = std::move(*geometryInfo),
         .Lights = LoadLightsInfo(sceneAsset),
         .Hierarchy = LoadHierarchyInfo(sceneAsset)
     };
 }
 
-SceneGeometryInfo SceneAssetManager::LoadGeometryInfo(const assetlib::SceneAsset& scene)
+std::optional<SceneGeometryInfo> SceneAssetManager::LoadGeometryInfo(const assetlib::SceneAsset& scene)
 { 
     SceneGeometryInfo geometryInfo = {};
-    loadBuffers(geometryInfo, scene);
-    LoadMaterials(geometryInfo, scene);
-    loadRenderObjects(geometryInfo, scene);
+    
+    if (auto loadMeshesResult = LoadMeshes(geometryInfo, scene); !loadMeshesResult)
+        return std::nullopt;
     
     return geometryInfo;
 }
@@ -336,9 +294,9 @@ SceneGeometryInfo SceneAssetManager::LoadGeometryInfo(const assetlib::SceneAsset
 SceneLightInfo SceneAssetManager::LoadLightsInfo(const assetlib::SceneAsset& scene)
 {
     SceneLightInfo sceneLightInfo = {};
-    sceneLightInfo.Lights.reserve(scene.Header.Lights.size());
+    sceneLightInfo.Lights.reserve(scene.Lights.size());
 
-    for (auto& light : scene.Header.Lights)
+    for (auto& light : scene.Lights)
         sceneLightInfo.Lights.push_back({
             .Type = lightTypeAssetLightType(light.Type),
             /* this value is irrelevant, because the transform will be set by SceneHierarchy */
@@ -357,12 +315,12 @@ SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAss
 {
     SceneHierarchyInfo sceneHierarchy = {};
 
-    const u32 sceneIndex = scene.Header.DefaultSubscene;
-    auto& subscene = scene.Header.Subscenes[sceneIndex];
+    const u32 sceneIndex = scene.DefaultSubscene;
+    auto& subscene = scene.Subscenes[sceneIndex];
     /* if scene has many top-level nodes, we need to add dummy parent, to ensure that scene as a whole has transform */
     const bool needDummyParentNode = subscene.Nodes.size() > 1;
     
-    auto& nodes = scene.Header.Nodes;
+    auto& nodes = scene.Nodes;
     sceneHierarchy.Nodes.reserve(nodes.size() + (u32)needDummyParentNode);
     if (needDummyParentNode)
         sceneHierarchy.Nodes.push_back({
@@ -433,36 +391,153 @@ SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAss
     return sceneHierarchy;
 }
 
-void SceneAssetManager::LoadMaterials(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene)
+bool SceneAssetManager::LoadMeshes(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene)
 {
-    geometry.Materials.reserve(scene.Header.Materials.size());
-    geometry.MaterialsCpu.reserve(scene.Header.Materials.size());
-    for (auto& material : scene.Header.Materials)
+    struct BufferInfo
     {
-        auto* materialAssetInfo = m_AssetSystem->Resolve(material.MaterialAsset);
-        if (!materialAssetInfo)
-            continue;
-        
-        auto materialHandle = m_MaterialAssetManager->LoadResource({.Path = materialAssetInfo->Path});
-        if (!materialHandle.IsValid())
-            continue;
+        assetlib::GeometryBufferAsset Buffer{};
+        u32 FirstIndex{0};
+        u32 FirstVertex{0};
+        u32 FirstMeshlet{0};
+    };
+    std::unordered_map<assetlib::AssetId, BufferInfo> importedBuffers;
+    std::unordered_map<assetlib::AssetId, u32> importedMaterials;
 
-        auto* materialAsset = m_MaterialAssetManager->Get(materialHandle);
-        if (!materialAsset)
-            continue;
+    auto getBuffer = [&importedBuffers, &geometry, this](assetlib::AssetId asset) -> BufferInfo*
+    {
+        if (!importedBuffers.contains(asset))
+        {
+            BufferInfo bufferInfo = {
+                .FirstIndex = (u32)geometry.Indices.size(),
+                .FirstVertex = (u32)geometry.Positions.size(),
+                .FirstMeshlet = (u32)geometry.Meshlets.size()
+            };
+            auto importedBuffer = LoadGeometryBuffer(geometry, asset);
+            if (!importedBuffer.has_value())
+                return nullptr;
+
+            bufferInfo.Buffer = std::move(*importedBuffer);
+            importedBuffers.emplace(asset, std::move(bufferInfo));
+        }
+
+        return &importedBuffers.at(asset);
+    };
+    auto getMaterialIndex = [&importedMaterials, &geometry, this](const assetlib::MeshPrimitiveMaterial& material) ->
+        u32
+    {
+        if (!importedMaterials.contains(material.MaterialAsset))
+        {
+            auto* materialAssetInfo = m_AssetSystem->Resolve(material.MaterialAsset);
+            if (!materialAssetInfo)
+                return ~0lu;
         
-        SceneGeometryInfo::MaterialInfo materialInfo = {
-            .Handle = materialHandle,
-            .BaseColorUvIndex = material.BaseColorSample.UvIndex,
-            .EmissiveUvIndex = material.EmissiveSample.UvIndex,
-            .NormalUvIndex = material.NormalSample.UvIndex,
-            .MetallicRoughnessUvIndex = material.MetallicRoughnessSample.UvIndex,
-            .OcclusionUvIndex = material.OcclusionSample.UvIndex
-        };
-        geometry.MaterialsCpu.push_back(materialInfo);
+            auto materialHandle = m_MaterialAssetManager->LoadResource({.Path = materialAssetInfo->Path});
+            if (!materialHandle.IsValid())
+                return ~0lu;
+
+            auto* materialAsset = m_MaterialAssetManager->Get(materialHandle);
+            if (!materialAsset)
+                return ~0lu;
+                
+            SceneGeometryInfo::MaterialInfo materialInfo = {
+                .Handle = materialHandle,
+                .BaseColorUvIndex = material.BaseColorSample.UvIndex,
+                .EmissiveUvIndex = material.EmissiveSample.UvIndex,
+                .NormalUvIndex = material.NormalSample.UvIndex,
+                .MetallicRoughnessUvIndex = material.MetallicRoughnessSample.UvIndex,
+                .OcclusionUvIndex = material.OcclusionSample.UvIndex
+            };
+            const u32 materialIndex = (u32)geometry.Materials.size();
+            geometry.MaterialsCpu.push_back(materialInfo);
+            geometry.Materials.push_back(LoadMaterial(materialInfo, *materialAsset));
+                
+            importedMaterials.emplace(material.MaterialAsset, materialIndex);
+        }
         
-        geometry.Materials.push_back(LoadMaterial(materialInfo, *materialAsset));
+        return importedMaterials.at(material.MaterialAsset);
+    };
+    
+    geometry.RenderObjects.reserve(scene.Meshes.size());
+    
+    for (assetlib::AssetId mesh : scene.Meshes)
+    {
+        auto* meshAssetInfo = m_AssetSystem->Resolve(mesh);
+        if (!meshAssetInfo)
+            return false;
+    
+        import::MeshImporter importer(m_Ctx);
+        auto imported = importer.Import(meshAssetInfo->MetaPath);
+        if (!imported.has_value())
+            return false;
+    
+        auto& importedMesh = importer.GetImportedMesh().Asset;
+        auto* bufferInfo = getBuffer(importedMesh.GeometryBuffer);
+        if (!bufferInfo)
+            return false;
+        
+        ASSERT(importedMesh.Primitives.size() < 2, "Render objects with more that 1 primitives are not supported")
+        for (auto& primitive : importedMesh.Primitives)
+        {
+            const u32 firstIndex = (u32)(bufferInfo->Buffer.Header.Accessors[primitive.IndicesAccessor].OffsetBytes /
+                sizeof(assetlib::SceneAssetIndexType)) + bufferInfo->FirstIndex;
+            const u32 firstVertex = (u32)(
+                bufferInfo->Buffer.Header.Accessors[primitive.FindAttribute(
+                    assetlib::MeshPrimitive::ATTRIBUTE_POSITION_NAME)->Accessor].OffsetBytes /
+                sizeof(glm::vec3)) + bufferInfo->FirstVertex;
+            const u32 firstMeshlet = (u32)(
+                bufferInfo->Buffer.Header.Accessors[primitive.FindAttribute(
+                    assetlib::MeshPrimitive::ATTRIBUTE_MESHLET_NAME)->Accessor].OffsetBytes /
+                sizeof(assetlib::SceneAssetMeshlet)) + bufferInfo->FirstMeshlet;
+            const u32 meshletsCount = bufferInfo->Buffer.Header.Accessors[primitive.FindAttribute(
+                assetlib::MeshPrimitive::ATTRIBUTE_MESHLET_NAME)->Accessor].Count;
+
+            geometry.RenderObjects.push_back({
+                .Material = getMaterialIndex(primitive.Material),
+                .FirstIndex = firstIndex,
+                .FirstVertex = firstVertex,
+                .FirstMeshlet = firstMeshlet,
+                .MeshletCount = meshletsCount,
+                .BoundingBox = primitive.BoundingBox,
+                .BoundingSphere = primitive.BoundingSphere
+            });
+        }
     }
+    
+    return true;
+}
+
+std::optional<assetlib::GeometryBufferAsset> SceneAssetManager::LoadGeometryBuffer(SceneGeometryInfo& geometry,
+    assetlib::AssetId buffer)
+{
+    using enum assetlib::GeometryBufferViewType;
+    
+    auto* geometryBufferAssetInfo = m_AssetSystem->Resolve(buffer);
+    if (!geometryBufferAssetInfo)
+        return std::nullopt;
+    
+    import::GeometryBufferImporter importer(m_Ctx, {});
+    auto imported = importer.Import(geometryBufferAssetInfo->MetaPath);
+    if (!imported.has_value())
+        return std::nullopt;
+    
+    auto& importedBuffer = importer.GetImportedBuffer().Asset;
+    const std::byte* bufferData = importedBuffer.Data.data();
+    auto& views = importedBuffer.Header.BufferViews;
+
+    appendToVector(geometry.Indices,
+        bufferData + views[(u32)Index].OffsetBytes, views[(u32)Index].LengthBytes);
+    appendToVector(geometry.Positions,
+        bufferData + views[(u32)Position].OffsetBytes, views[(u32)Position].LengthBytes);
+    appendToVector(geometry.Normals,
+        bufferData + views[(u32)Normal].OffsetBytes, views[(u32)Normal].LengthBytes);
+    appendToVector(geometry.Tangents,
+        bufferData + views[(u32)Tangent].OffsetBytes, views[(u32)Tangent].LengthBytes);
+    appendToVector(geometry.UVs,
+        bufferData + views[(u32)Uv].OffsetBytes, views[(u32)Uv].LengthBytes);
+    appendToVector(geometry.Meshlets,
+        bufferData + views[(u32)Meshlet].OffsetBytes, views[(u32)Meshlet].LengthBytes);
+    
+    return importedBuffer;
 }
 
 MaterialGPU SceneAssetManager::LoadMaterial(const SceneGeometryInfo::MaterialInfo& materialInfo, 

@@ -16,99 +16,6 @@ class AssetIoInterface;
 
 static constexpr u32 SCENE_UNSET_INDEX = ~0u; 
 
-enum class SceneAssetAccessorComponentType : u8
-{
-    U8, U16, U32, F32, Meshlet
-};
-enum class SceneAssetAccessorType : u8
-{
-    Scalar, Vec2, Vec3, Vec4, Mat2, Mat3, Mat4
-};
-struct SceneAssetAccessor
-{
-    u32 BufferView{SCENE_UNSET_INDEX};
-    u64 OffsetBytes{0};
-    SceneAssetAccessorComponentType ComponentType{SceneAssetAccessorComponentType::U8};
-    u32 Count{0};
-    SceneAssetAccessorType Type{SceneAssetAccessorType::Scalar};
-    bool Normalize{false};
-};
-
-struct SceneAssetBuffer
-{
-    u64 SizeBytes{0};
-};
-
-enum class SceneAssetBufferViewType : u8
-{
-    /* vertex attributes */
-    Position = 0,
-    Normal = 1,
-    Tangent = 2,
-    Uv = 3,
-            
-    /* index */
-    Index = 4,
-
-    /* per instance data */
-    Meshlet = 5,
-            
-    MaxVal = 6,
-};
-struct SceneAssetBufferView
-{
-    std::string Name;
-    u32 Buffer{SCENE_UNSET_INDEX};
-    u64 OffsetBytes{0};
-    u64 LengthBytes{0};
-};
-
-struct SceneAssetPrimitive
-{
-    static constexpr std::string_view ATTRIBUTE_POSITION_NAME = "POSITION";
-    static constexpr std::string_view ATTRIBUTE_NORMAL_NAME = "NORMAL";
-    static constexpr std::string_view ATTRIBUTE_TANGENT_NAME = "TANGENT";
-    static constexpr std::string_view ATTRIBUTE_UV0_NAME = "TEXCOORD_0";
-    static constexpr std::string_view ATTRIBUTE_MESHLET_NAME = "MESHLET";
-    struct Attribute
-    {
-        std::string Name;
-        u32 Accessor{SCENE_UNSET_INDEX};
-    };
-    std::vector<Attribute> Attributes;
-    u32 Material{SCENE_UNSET_INDEX};
-    u32 IndicesAccessor{SCENE_UNSET_INDEX};
-    Sphere BoundingSphere{};
-    AABB BoundingBox{};
-
-public:
-    const Attribute* FindAttribute(std::string_view name) const;
-};
-struct SceneAssetMesh
-{
-    std::vector<SceneAssetPrimitive> Primitives;
-};
-
-enum class SceneAssetTextureFilter : u8
-{
-    Linear, Nearest
-};
-struct SceneAssetTextureSample
-{
-    u32 UvIndex{SCENE_UNSET_INDEX};
-    SceneAssetTextureFilter Filter{SceneAssetTextureFilter::Linear};
-};
-struct SceneAssetMaterial
-{
-    std::string Name;
-    AssetId MaterialAsset{AssetId::CreateEmpty()};
-    SceneAssetTextureSample BaseColorSample{};
-    SceneAssetTextureSample EmissiveSample{};
-    SceneAssetTextureSample NormalSample{};
-    SceneAssetTextureSample MetallicRoughnessSample{};
-    SceneAssetTextureSample OcclusionSample{};
-};
-
 enum class SceneAssetCameraType : u8
 {
     Perspective, Orthographic
@@ -181,21 +88,6 @@ struct SceneAssetSubscene
     std::vector<u32> Nodes{};
 };
 
-
-struct SceneAssetHeader
-{
-    std::vector<SceneAssetAccessor> Accessors;
-    std::vector<SceneAssetBuffer> Buffers;
-    std::vector<SceneAssetBufferView> BufferViews;
-    std::vector<SceneAssetMesh> Meshes;
-    std::vector<SceneAssetMaterial> Materials;
-    std::vector<SceneAssetCamera> Cameras;
-    std::vector<SceneAssetLight> Lights;
-    std::vector<SceneAssetNode> Nodes;
-    std::vector<SceneAssetSubscene> Subscenes;
-    u32 DefaultSubscene{0};
-};
-
 using SceneAssetIndexType = u8;
 
 struct SceneAsset
@@ -203,17 +95,19 @@ struct SceneAsset
     static constexpr u32 TRIANGLES_PER_MESHLET = 256;
     static constexpr u32 VERTICES_PER_MESHLET = 255;
     
-    SceneAssetHeader Header{};
-    std::vector<std::vector<std::byte>> BuffersData{};
+    std::vector<AssetId> Meshes;
+    std::vector<SceneAssetCamera> Cameras;
+    std::vector<SceneAssetLight> Lights;
+    std::vector<SceneAssetNode> Nodes;
+    std::vector<SceneAssetSubscene> Subscenes;
+    u32 DefaultSubscene{0};
 };
 
 namespace scene
 {
-io::IoResult<SceneAssetHeader> readHeader(const AssetMetadata& metadata);
-io::IoResult<std::vector<std::byte>> readBufferData(const SceneAssetHeader& header, const AssetMetadata& metadata,
-    u32 bufferIndex, io::AssetIoInterface& io, io::AssetCompressor& compressor);
+io::IoResult<SceneAsset> readScene(const AssetMetadata& metadata);
 
-io::IoResult<AssetPacked> pack(const SceneAsset& scene, io::AssetCompressor& compressor);
+io::IoResult<AssetPacked> pack(const SceneAsset& scene);
 }
 
 }
