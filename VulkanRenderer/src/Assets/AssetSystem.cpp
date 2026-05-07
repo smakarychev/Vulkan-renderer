@@ -47,9 +47,22 @@ void AssetSystem::ScanAssetsDirectory(const std::filesystem::path& path)
     {
         if (file.is_directory())
             continue;
+        
+        const std::filesystem::path filePath = std::filesystem::weakly_canonical(file.path()).generic_string();
+        if (filePath.extension() != assetlib::ASSETLIB_METADATA_EXTENSION)
+            continue;
+            
+        auto metadataRead = assetlib::io::readBaseAssetMetadata(filePath);
+        if (!metadataRead.has_value())
+            continue;
 
         for (auto& manager : m_Managers | std::views::values)
-            manager->AddManaged(std::filesystem::weakly_canonical(file), m_IdResolver);
+            if (manager->AddManaged(*metadataRead, filePath))
+                m_IdResolver.RegisterId(metadataRead->AssetId, {
+                    .Path = metadataRead->Io.OriginalFile,
+                    .MetaPath = filePath,
+                    .AssetType = metadataRead->Type.Type
+                });
     }
 }
 

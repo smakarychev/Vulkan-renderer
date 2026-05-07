@@ -37,7 +37,7 @@ public:
 
     /* is called by `AssetSystem` when all managers are registered and before the directory scan is performed */
     virtual void OnAssetSystemInit() {}
-    virtual bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) = 0;
+    virtual bool AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path& metaPath) = 0;
     virtual bool Imports(std::string_view extension) = 0;
     virtual void OnFileModified(const std::filesystem::path& path) = 0;
     

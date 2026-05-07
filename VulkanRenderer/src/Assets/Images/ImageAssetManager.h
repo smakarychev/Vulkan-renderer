@@ -28,7 +28,7 @@ class ImageAssetManager final : public ResourceAssetManager<ImageAsset, Resource
 public:
     LUX_ASSET_MANAGER(ImageAssetManager, "7fbed3b1-ca4c-4d90-a678-ec202cf04ea3"_guid)
 
-    bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) override;
+    bool AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path& metaPath) override;
     bool Imports(std::string_view extension) override;
     void OnFileModified(const std::filesystem::path& path) override;
 

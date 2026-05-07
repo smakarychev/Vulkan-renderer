@@ -52,7 +52,7 @@ class ShaderAssetManager final : public ResourceAssetManager<ShaderAsset, Resour
 public:
     LUX_ASSET_MANAGER(ShaderAssetManager, "23ae71e5-8829-4643-a424-eb74e730d368"_guid)
     
-    bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) override;
+    bool AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path& metaPath) override;
     bool Imports(std::string_view extension) override;
     void OnFileModified(const std::filesystem::path& path) override;
     

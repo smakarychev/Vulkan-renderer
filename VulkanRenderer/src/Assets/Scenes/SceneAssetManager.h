@@ -55,7 +55,7 @@ public:
     LUX_ASSET_MANAGER(SceneAssetManager, "87aebbdf-a3c4-4d65-9ffd-314dcd26ba01"_guid)
 
     void OnAssetSystemInit() override;
-    bool AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver) override;
+    bool AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path& metaPath) override;
     bool Imports(std::string_view extension) override;
     void OnFileModified(const std::filesystem::path& path) override;
 

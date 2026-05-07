@@ -19,26 +19,9 @@ void MaterialAssetManager::OnAssetSystemInit()
     ASSERT(m_ImageAssetManager)
 }
 
-bool MaterialAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
+bool MaterialAssetManager::AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path&)
 {
-    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || 
-        assetlib::getMetadataRawExtension(path) != import::MATERIAL_ASSET_EXTENSION)
-        return false;
-    
-    auto metadataRead = assetlib::io::readBaseAssetMetadata(path);
-    if (!metadataRead.has_value())
-        return false;
-    
-    if (metadataRead->Type.Type != assetlib::material::ASSET_TYPE)
-        return false;
-
-    resolver.RegisterId(metadataRead->AssetId, {
-        .Path = metadataRead->Io.OriginalFile,
-        .MetaPath = path,
-        .AssetType = metadataRead->Type.Type
-    });
-
-    return true;
+    return metadata.Type.Type == assetlib::material::ASSET_TYPE;
 }
 
 bool MaterialAssetManager::Imports(std::string_view extension)
@@ -66,7 +49,7 @@ void MaterialAssetManager::OnFileModified(const std::filesystem::path& path)
         if (newMaterial.has_value())
             m_Materials[cached.Index()] = std::move(*newMaterial);
     }
-    
+
     m_AssetSystem->NotifyAssetUpdate(assetlib::material::ASSET_TYPE, {.AssetHandle = cached});
 }
 
@@ -75,7 +58,7 @@ MaterialHandle MaterialAssetManager::LoadAsset(const MaterialLoadParameters& par
     const std::filesystem::path path = weakly_canonical(parameters.Path).generic_string();
     import::MaterialImporter importer(m_Ctx);
     const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
-    
+
     const MaterialHandle cached = m_Materials.Find(id);
     if (cached.IsValid())
         return cached;
@@ -92,7 +75,7 @@ void MaterialAssetManager::UnloadAsset(MaterialHandle handle)
     const assetlib::AssetId id = m_Materials.Find(handle);
     if (!id.HasValue())
         return;
-    
+
     const auto* assetInfo = m_AssetSystem->Resolve(id);
     if (!assetInfo)
         return;
@@ -107,11 +90,11 @@ const MaterialAsset* MaterialAssetManager::GetAsset(MaterialHandle handle) const
     return &m_Materials[handle.Index()];
 }
 
-std::optional<MaterialAsset> MaterialAssetManager::DoLoad(import::MaterialImporter& importer, 
+std::optional<MaterialAsset> MaterialAssetManager::DoLoad(import::MaterialImporter& importer,
     const std::filesystem::path& path) const
 {
     LUX_LOG_INFO("Loading material: {}", path.string());
-    
+
     auto imported = importer.Import(path);
     if (!imported.has_value())
     {
@@ -119,7 +102,7 @@ std::optional<MaterialAsset> MaterialAssetManager::DoLoad(import::MaterialImport
         return std::nullopt;
     }
     auto& materialAsset = importer.GetImportedMaterial().Asset;
-    
+
     ASSERT(m_ImageAssetManager)
 
     MaterialAsset material = {
@@ -146,7 +129,7 @@ ImageHandle MaterialAssetManager::LoadTexture(ImageAssetManager* imageAssetManag
 {
     if (!imageAsset.HasValue())
         return {};
-    
+
     const AssetIdResolver::AssetInfo* imageInfo = m_AssetSystem->Resolve(imageAsset);
     // todo: return dummy image instead
     if (imageInfo == nullptr)

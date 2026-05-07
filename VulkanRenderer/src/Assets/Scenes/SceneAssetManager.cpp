@@ -34,25 +34,10 @@ void SceneAssetManager::OnAssetSystemInit()
     m_AssetSystem->SubscribeOnAssetUpdate(assetlib::image::ASSET_TYPE, m_TextureUpdatedHandler);
 }
 
-bool SceneAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
+bool SceneAssetManager::AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path&)
 {
-    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || !Imports(assetlib::getMetadataRawExtension(path)))
-        return false;
-
-    auto metadataRead = assetlib::io::readBaseAssetMetadata(path);
-    if (!metadataRead.has_value())
-        return false;
-    
-    if (metadataRead->Type.Type != assetlib::scene::ASSET_TYPE)
-        return false;
-
-    resolver.RegisterId(metadataRead->AssetId, {
-        .Path = metadataRead->Io.OriginalFile,
-        .MetaPath = path,
-        .AssetType = metadataRead->Type.Type
-    });
-
-    return true;
+    return
+        metadata.Type.Type == assetlib::scene::ASSET_TYPE;
 }
 
 bool SceneAssetManager::Imports(std::string_view extension)

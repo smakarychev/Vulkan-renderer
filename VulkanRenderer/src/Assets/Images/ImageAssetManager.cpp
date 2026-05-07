@@ -14,25 +14,9 @@
 
 namespace lux
 {
-bool ImageAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
+bool ImageAssetManager::AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path&)
 {
-    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || !Imports(assetlib::getMetadataRawExtension(path)))
-        return false;
-
-    auto metadataRead = assetlib::io::readBaseAssetMetadata(path);
-    if (!metadataRead.has_value())
-        return false;
-    
-    if (metadataRead->Type.Type != assetlib::image::ASSET_TYPE)
-        return false;
-
-    resolver.RegisterId(metadataRead->AssetId, {
-        .Path = metadataRead->Io.OriginalFile,
-        .MetaPath = path,
-        .AssetType = metadataRead->Type.Type
-    });
-    
-    return true;
+    return metadata.Type.Type == assetlib::image::ASSET_TYPE;
 }
 
 bool ImageAssetManager::Imports(std::string_view extension)

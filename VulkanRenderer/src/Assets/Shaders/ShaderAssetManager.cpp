@@ -12,24 +12,17 @@
 
 namespace lux
 {
-bool ShaderAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
+bool ShaderAssetManager::AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path& metaPath)
 {
-    if (path.extension() != assetlib::ASSETLIB_METADATA_EXTENSION || !Imports(assetlib::getMetadataRawExtension(path)))
+    if (metadata.Type.Type != assetlib::shader::ASSET_TYPE)
         return false;
 
     import::ShaderImporter importer(m_Ctx, {});
-    auto imported = importer.Import(path, import::ImportFlags::Header);
+    auto imported = importer.Import(metaPath, import::ImportFlags::Header);
     if (!imported)
         return false;
 
-    auto& metadata = importer.GetImportedAssetMetadata();
     auto& shaderHeader = importer.GetImportedShader().Asset.Header;
-
-    resolver.RegisterId(metadata.AssetId, {
-        .Path = metadata.Io.OriginalFile,
-        .MetaPath = path,
-        .AssetType = metadata.Type.Type
-    });
 
     auto shaderLoadInfo = assetlib::shader::readLoadInfo(metadata.Io.OriginalFile);
     if (!shaderLoadInfo.has_value())
