@@ -112,7 +112,6 @@ public struct VBufferGeometryData {
             ugb.tangent(renderObject.tangentIndex + indices.z).xyz,
         );
         const float handedness = ugb.tangent(renderObject.tangentIndex + indices.x).w;
-        tangents = interpolateWithDerivatives3d(interpolationData, tangents);
         tangent = interpolate3d(interpolationData, tangents);
 
         normal = normalize(mul(normal, float3x3(renderObject.transform)));
