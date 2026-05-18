@@ -284,17 +284,17 @@ void Scene::Sweep(bool reclaimHandles)
 
     for (auto& node : m_HierarchyInfo.Nodes)
     {
-        if (node.Parent != lux::SceneHierarchyHandle::INVALID)
+        if (node.Parent == lux::SceneHierarchyHandle::INVALID)
+            continue;
+
+        u32 order = node.Parent.Handle;
+        u32 reordered = reorder[order];
+        while (reordered != order)
         {
-            u32 order = node.Parent.Handle;
-            u32 reordered = reorder[order];
-            while (reordered != order)
-            {
-                order = reordered;
-                reordered = reorder[order];
-            }
-            node.Parent.Handle = reordered;
+            order = reordered;
+            reordered = reorder[order];
         }
+        node.Parent.Handle = reordered;
     }
 
     m_HierarchyInfo.Nodes.resize(currentLast + 1);
