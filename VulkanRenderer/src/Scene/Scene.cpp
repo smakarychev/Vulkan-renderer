@@ -256,48 +256,40 @@ void Scene::Sweep(bool reclaimHandles)
         }
         node.Parent = parent;
     };
-
-    std::vector<u32> reorder(m_HierarchyInfo.Nodes.size());
-    std::ranges::iota(reorder, 0u);
-
-    for (auto& node : m_HierarchyInfo.Nodes)
+    
+    std::vector reorder(m_HierarchyInfo.Nodes.size(), lux::SceneHierarchyHandle::INVALID);
+    u32 currentLastAliveIndex = 0;
+    for (auto&& [i, node] : std::views::enumerate(m_HierarchyInfo.Nodes))
     {
-        if (m_InstanceIsAlive[node.Instance])
-            reparentToValid(node);
+        if (!m_InstanceIsAlive[node.Instance])
+            continue;
+        
+        reparentToValid(node);
+        reorder[i] = currentLastAliveIndex;
+        currentLastAliveIndex += 1;
     }
     
-    u32 currentLast = (u32)m_HierarchyInfo.Nodes.size() - 1;
-    for (i32 i = (i32)currentLast; i >= 0; i--)
     {
-        lux::SceneHierarchyNode& node = m_HierarchyInfo.Nodes[i];
-        
-        if (m_InstanceIsAlive[node.Instance])
-            continue;
-        
-        if (node.Type == lux::SceneHierarchyNodeType::Light)
-            m_Lights.Delete(node.PayloadIndex);
-
-        reorder[currentLast] = i;
-        std::swap(m_HierarchyInfo.Nodes[i], m_HierarchyInfo.Nodes[currentLast]);
-        currentLast--;
-    }
-
-    for (auto& node : m_HierarchyInfo.Nodes)
-    {
-        if (node.Parent == lux::SceneHierarchyHandle::INVALID)
-            continue;
-
-        u32 order = node.Parent.Handle;
-        u32 reordered = reorder[order];
-        while (reordered != order)
         {
-            order = reordered;
-            reordered = reorder[order];
         }
-        node.Parent.Handle = reordered;
+    for (u32 i = 0; i < (u32)m_HierarchyInfo.Nodes.size(); i++)
+    {
+        auto& node = m_HierarchyInfo.Nodes[i];
+        if (reorder[i] == lux::SceneHierarchyHandle::INVALID)
+        {
+            if (node.Type == lux::SceneHierarchyNodeType::Light)
+                m_Lights.Delete(node.PayloadIndex);
+            continue;
+        }
+        
+        if (node.Parent.Handle != lux::SceneHierarchyHandle::INVALID)
+            node.Parent.Handle = reorder[node.Parent.Handle];
+        
+        if (reorder[i] != i)
+            m_HierarchyInfo.Nodes[reorder[i]] = std::move(node);
     }
-
-    m_HierarchyInfo.Nodes.resize(currentLast + 1);
+    
+    m_HierarchyInfo.Nodes.resize(currentLastAliveIndex);
 
     for (auto& instanceHandle : m_DeletedInstances)
     {
