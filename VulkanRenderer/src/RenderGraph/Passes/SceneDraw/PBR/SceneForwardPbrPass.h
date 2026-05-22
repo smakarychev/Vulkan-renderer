@@ -2,8 +2,8 @@
 
 #include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
 
+struct SceneGeometryRGResources;
 class SceneLight;
-class SceneGeometry;
 
 namespace Passes::SceneForwardPbr
 {
@@ -11,7 +11,7 @@ struct ExecutionInfo
 {
     SceneDrawPassExecutionInfo DrawInfo{};
     std::optional<ShaderOverrides> CommonOverrides{std::nullopt};
-    const SceneGeometry* Geometry{nullptr};
+    const SceneGeometryRGResources* Geometry{nullptr};
     const SceneLight* Light{nullptr};
     RG::SSAOData SSAO{};
     RG::IBLData IBL{};

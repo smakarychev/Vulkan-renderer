@@ -4,6 +4,8 @@ import "core/attributes";
 import "core/geometry";
 import "core/viewInfo";
 import "core/ugb";
+import "core/lib";
+
 
 import "visibility";
 
@@ -40,7 +42,7 @@ void visibilityFirstStage(
     uniform uint viewCount) {
 
     const RenderObject object = resources.objects[resources.objectHandles[renderObjectHandle]];
-    const MeshletBounds meshlet = resources.meshlets.bounds(object.meshletBoundsIndex + meshletId);
+    const MeshletBounds meshlet = resources.meshlets.bounds(object.meshletBoundIndex + meshletId);
 
     const float4 originWorld = mul(float4(
         meshlet.x,
@@ -99,7 +101,7 @@ void visibilitySecondStage(
     uniform uint viewCount) {
 
     const RenderObject object = resources.objects[resources.objectHandles[renderObjectHandle]];
-    const MeshletBounds meshlet = resources.meshlets.bounds(object.meshletBoundsIndex + meshletId);
+    const MeshletBounds meshlet = resources.meshlets.bounds(object.meshletBoundIndex + meshletId);
 
     const float4 originWorld = mul(float4(
         meshlet.x,

@@ -6,6 +6,7 @@ import "light/light";
 import "light/culling/lightCulling";
 import "materials/material";
 import "shadow/shadow";
+import "skinning/skinning";
 import "volumetrics/volumetrics";
 import "scene/visibility/visibility";
 
@@ -13,6 +14,8 @@ struct Resources {
     ViewInfo view;
     SceneVisibilityCountData svcd;
     RenderObject ro;
+    RenderObjectSkinnedInfo rosi;
+    Skin sk;
     Meshlet mshlt;
     MeshletBounds mshltbnds;
     DrawInfo di;
@@ -29,6 +32,8 @@ struct Resources {
     CsmData csm;
     CloudsVPParameters cvp;
     CloudsNoiseParameters cnp;
+    SkinDispatchInfo sdi;
+    SkinnedVertex sv;
 }
 
 ParameterBlock<Resources> resources;

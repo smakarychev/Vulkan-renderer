@@ -274,10 +274,12 @@ std::optional<SceneAsset> SceneAssetManager::DoLoad(import::SceneImporter& impor
     if (!geometryInfo.has_value())
         LUX_LOG_ERROR("Failed to load geometry info for scene: {}", path.string());
     
+    SceneHierarchyInfo hierarchyInfo = LoadHierarchyInfo(sceneAsset, *geometryInfo);
+    
     return SceneAsset{
         .Geometry = std::move(*geometryInfo),
         .Lights = LoadLightsInfo(sceneAsset),
-        .Hierarchy = LoadHierarchyInfo(sceneAsset)
+        .Hierarchy = std::move(hierarchyInfo)
     };
 }
 
@@ -285,7 +287,7 @@ std::optional<SceneGeometryInfo> SceneAssetManager::LoadGeometryInfo(const asset
 { 
     SceneGeometryInfo geometryInfo = {};
     
-    if (auto loadMeshesResult = LoadMeshes(geometryInfo, scene); !loadMeshesResult)
+    if (auto loadMeshesResult = LoadMeshesAndSkins(geometryInfo, scene); !loadMeshesResult)
         return std::nullopt;
     
     return geometryInfo;
@@ -311,7 +313,8 @@ SceneLightInfo SceneAssetManager::LoadLightsInfo(const assetlib::SceneAsset& sce
     return sceneLightInfo;
 }
 
-SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAsset& scene)
+SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAsset& scene, 
+    const SceneGeometryInfo& geometryInfo)
 {
     SceneHierarchyInfo sceneHierarchy = {};
 
@@ -329,6 +332,11 @@ SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAss
             .Parent = SceneHierarchyHandle::INVALID
         });
     
+    const u32 jointCount = std::ranges::fold_left(scene.Skins, 0u, [](u32 sum, auto& skin) {
+        return sum + (u32)skin.JointNodes.size();
+    });
+    sceneHierarchy.Joints.reserve(jointCount);
+    
     struct NodeInfo
     {
         u32 ParentIndex{SceneHierarchyHandle::INVALID};
@@ -342,6 +350,8 @@ SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAss
             .NodeIndex = node,
             .Depth = needDummyParentNode ? (u16)1 : (u16)0
         });
+    
+    std::vector<u32> nodesReorder(sceneHierarchy.Nodes.capacity());
 
     while (!nodesToProcess.empty())
     {
@@ -356,8 +366,9 @@ SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAss
             type = SceneHierarchyNodeType::Mesh;
         else if (node.Light != assetlib::SCENE_UNSET_INDEX)
             type = SceneHierarchyNodeType::Light;
-
+        
         const u32 thisNodeNewIndex = (u32)sceneHierarchy.Nodes.size();
+
         u32 payloadIndex = ~0lu;
         switch (type)
         {
@@ -372,6 +383,7 @@ SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAss
             break;
         }
         
+        nodesReorder[nodeIndex] = (u32)thisNodeNewIndex;
         sceneHierarchy.Nodes.push_back({
             .Type = type,
             .Depth = depth,
@@ -388,10 +400,17 @@ SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAss
             });
     }
     
+    for (auto& skin : geometryInfo.Skins)
+        for (auto&& [jointIndex, joint] : std::views::enumerate(skin.JointNodes))
+            sceneHierarchy.Joints.push_back({
+                .Node = SceneHierarchyHandle{.Handle = nodesReorder[joint]},
+                .InverseBindMatrix = geometryInfo.JointInverseBindMatrices[jointIndex]
+            });
+    
     return sceneHierarchy;
 }
 
-bool SceneAssetManager::LoadMeshes(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene)
+bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene)
 {
     struct BufferInfo
     {
@@ -399,9 +418,30 @@ bool SceneAssetManager::LoadMeshes(SceneGeometryInfo& geometry, const assetlib::
         u32 FirstIndex{0};
         u32 FirstVertex{0};
         u32 FirstMeshlet{0};
+        u32 FirstJointMatrix{0};
+        u32 FirstJoint{0};
+        u32 FirstWeight{0};
+    };
+    struct ImportedMeshInfo
+    {
+        BufferInfo* BufferInfo{nullptr};
+        assetlib::MeshAsset MeshAsset{};
+        u32 SkinIndex{SceneRenderObject::INVALID};
+    };
+    struct ImportedSkinInfo
+    {
+        BufferInfo* BufferInfo{nullptr};
+    };
+    struct SkinInfo
+    {
+        u32 SkinIndex{};
+        u32 MeshIndex{};
     };
     std::unordered_map<assetlib::AssetId, BufferInfo> importedBuffers;
     std::unordered_map<assetlib::AssetId, u32> importedMaterials;
+    std::vector<ImportedMeshInfo> importedMeshes;
+    std::vector<ImportedSkinInfo> importedSkins;
+    std::vector<SkinInfo> skinnedRenderObjectsInfo;
 
     auto getBuffer = [&importedBuffers, &geometry, this](assetlib::AssetId asset) -> BufferInfo*
     {
@@ -410,7 +450,10 @@ bool SceneAssetManager::LoadMeshes(SceneGeometryInfo& geometry, const assetlib::
             BufferInfo bufferInfo = {
                 .FirstIndex = (u32)geometry.Indices.size(),
                 .FirstVertex = (u32)geometry.Positions.size(),
-                .FirstMeshlet = (u32)geometry.Meshlets.size()
+                .FirstMeshlet = (u32)geometry.Meshlets.size(),
+                .FirstJointMatrix = (u32)geometry.JointInverseBindMatrices.size(),
+                .FirstJoint = (u32)geometry.Joints.size(),
+                .FirstWeight = (u32)geometry.Weights.size(),
             };
             auto importedBuffer = LoadGeometryBuffer(geometry, asset);
             if (!importedBuffer.has_value())
@@ -456,34 +499,66 @@ bool SceneAssetManager::LoadMeshes(SceneGeometryInfo& geometry, const assetlib::
         
         return importedMaterials.at(material.MaterialAsset);
     };
-    
-    geometry.RenderObjects.reserve(scene.Meshes.size());
-    
-    for (assetlib::AssetId mesh : scene.Meshes)
-    {
-        auto* meshAssetInfo = m_AssetSystem->Resolve(mesh);
-        if (!meshAssetInfo)
-            return false;
-    
-        import::MeshImporter importer(m_Ctx);
-        auto imported = importer.Import(meshAssetInfo->MetaPath);
-        if (!imported.has_value())
-            return false;
-    
-        auto& importedMesh = importer.GetImportedMesh().Asset;
-        auto* bufferInfo = getBuffer(importedMesh.GeometryBuffer);
-        if (!bufferInfo)
-            return false;
+    auto preload = [&]() -> bool {
+        importedMeshes.reserve(scene.Meshes.size());
+        importedSkins.reserve(scene.Skins.size());
+        skinnedRenderObjectsInfo.reserve(scene.Meshes.size());
         
-        ASSERT(importedMesh.Primitives.size() < 2, "Render objects with more that 1 primitives are not supported")
-        for (auto& primitive : importedMesh.Primitives)
+        for (assetlib::AssetId mesh : scene.Meshes)
+        {
+            auto* meshAssetInfo = m_AssetSystem->Resolve(mesh);
+            if (!meshAssetInfo)
+                return false;
+    
+            import::MeshImporter importer(m_Ctx);
+            auto imported = importer.Import(meshAssetInfo->MetaPath);
+            if (!imported.has_value())
+                return false;
+    
+            auto& importedMesh = importer.GetImportedMesh().Asset;
+            auto* bufferInfo = getBuffer(importedMesh.GeometryBuffer);
+            if (!bufferInfo)
+                return false;
+        
+            importedMeshes.push_back({.BufferInfo = bufferInfo, .MeshAsset = importedMesh});
+        }
+
+        for (auto& skin : scene.Skins)
+        {
+            auto* bufferInfo = getBuffer(skin.GeometryBuffer);
+            if (!bufferInfo)
+                return false;
+            importedSkins.push_back({.BufferInfo = bufferInfo});
+        }
+        
+        for (auto& node : scene.Nodes)
+        {
+            if (node.Skin != assetlib::SCENE_UNSET_INDEX)
+            {
+                const u32 skinIndex = (u32)skinnedRenderObjectsInfo.size();
+                skinnedRenderObjectsInfo.push_back({.SkinIndex = node.Skin, .MeshIndex = node.Mesh});
+                importedMeshes[node.Mesh].SkinIndex = skinIndex;
+            }
+        }
+        
+        return true;
+    };
+    
+    if (!preload())
+        return false;
+    
+    geometry.RenderObjects.reserve(importedMeshes.size());
+    for (auto&& [bufferInfo, mesh, skinIndex] : importedMeshes)
+    {
+        ASSERT(mesh.Primitives.size() < 2, "Render objects with more that 1 primitives are not supported")
+        for (auto& primitive : mesh.Primitives)
         {
             const u32 firstIndex = (u32)(bufferInfo->Buffer.Header.Accessors[primitive.IndicesAccessor].OffsetBytes /
                 sizeof(assetlib::SceneAssetIndexType)) + bufferInfo->FirstIndex;
-            const u32 firstVertex = (u32)(
+            const assetlib::GeometryBufferAccessor& positionsAccessor = 
                 bufferInfo->Buffer.Header.Accessors[primitive.FindAttribute(
-                    assetlib::MeshPrimitive::ATTRIBUTE_POSITION_NAME)->Accessor].OffsetBytes /
-                sizeof(glm::vec3)) + bufferInfo->FirstVertex;
+                    assetlib::MeshPrimitive::ATTRIBUTE_POSITION_NAME)->Accessor];
+            const u32 firstVertex = (u32)(positionsAccessor.OffsetBytes / sizeof(glm::vec3)) + bufferInfo->FirstVertex;
             const u32 firstMeshlet = (u32)(
                 bufferInfo->Buffer.Header.Accessors[primitive.FindAttribute(
                     assetlib::MeshPrimitive::ATTRIBUTE_MESHLET_NAME)->Accessor].OffsetBytes /
@@ -495,12 +570,47 @@ bool SceneAssetManager::LoadMeshes(SceneGeometryInfo& geometry, const assetlib::
                 .Material = getMaterialIndex(primitive.Material),
                 .FirstIndex = firstIndex,
                 .FirstVertex = firstVertex,
+                .VertexCount = positionsAccessor.Count,
                 .FirstMeshlet = firstMeshlet,
                 .MeshletCount = meshletsCount,
+                .SkinnedRenderObjectIndex = skinIndex,
                 .BoundingBox = primitive.BoundingBox,
-                .BoundingSphere = primitive.BoundingSphere
+                .BoundingSphere = primitive.BoundingSphere,
             });
         }
+    }
+    
+    geometry.Skins.reserve(scene.Skins.size());
+    for (auto& skin : scene.Skins)
+        geometry.Skins.push_back({.JointNodes = skin.JointNodes});
+    
+    geometry.SkinnedRenderObjects.reserve(skinnedRenderObjectsInfo.size());
+    for (auto&& [skinIndex, meshIndex] : skinnedRenderObjectsInfo)
+    {
+        auto& skinInfo = importedSkins[skinIndex];
+        auto& skin = scene.Skins[skinIndex];
+        auto& meshInfo = importedMeshes[meshIndex];
+        auto& mesh = importedMeshes[meshIndex].MeshAsset.Primitives.front();
+        
+        const BufferInfo* skinBuffer = skinInfo.BufferInfo;
+        const BufferInfo* meshBuffer = meshInfo.BufferInfo;
+
+        const u32 firstJointMatrix =
+            (u32)(skinBuffer->Buffer.Header.Accessors[skin.InverseBindMatrixAccessor].OffsetBytes /
+                sizeof(glm::mat4)) + skinBuffer->FirstJointMatrix;
+        const u32 firstJoint = (u32)(meshBuffer->Buffer.Header.Accessors[mesh.FindAttribute(
+                assetlib::MeshPrimitive::ATTRIBUTE_JOINTS0_NAME)->Accessor].OffsetBytes /
+            sizeof(glm::u16vec4)) + meshBuffer->FirstJoint;
+        const u32 firstWeight = (u32)(meshBuffer->Buffer.Header.Accessors[mesh.FindAttribute(
+                assetlib::MeshPrimitive::ATTRIBUTE_WEIGHTS0_NAME)->Accessor].OffsetBytes /
+            sizeof(glm::vec4)) + meshBuffer->FirstWeight;
+        
+        geometry.SkinnedRenderObjects.push_back({
+            .FirstJointMatrix = firstJointMatrix,
+            .FirstJoint = firstJoint,
+            .FirstWeight = firstWeight,
+            .SkinIndex = skinIndex 
+        });
     }
     
     return true;
@@ -534,8 +644,14 @@ std::optional<assetlib::GeometryBufferAsset> SceneAssetManager::LoadGeometryBuff
         bufferData + views[(u32)Tangent].OffsetBytes, views[(u32)Tangent].LengthBytes);
     appendToVector(geometry.UVs,
         bufferData + views[(u32)Uv].OffsetBytes, views[(u32)Uv].LengthBytes);
+    appendToVector(geometry.Joints,
+        bufferData + views[(u32)Joint].OffsetBytes, views[(u32)Joint].LengthBytes);
+    appendToVector(geometry.Weights,
+        bufferData + views[(u32)Weight].OffsetBytes, views[(u32)Weight].LengthBytes);
     appendToVector(geometry.Meshlets,
         bufferData + views[(u32)Meshlet].OffsetBytes, views[(u32)Meshlet].LengthBytes);
+    appendToVector(geometry.JointInverseBindMatrices,
+        bufferData + views[(u32)InverseBindMatrices].OffsetBytes, views[(u32)InverseBindMatrices].LengthBytes);
     
     return importedBuffer;
 }
@@ -551,7 +667,8 @@ MaterialGPU SceneAssetManager::LoadMaterial(const SceneGeometryInfo::MaterialInf
             m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::White)),
         .NormalTexture = LoadTexture(materialInfo.NormalUvIndex, materialAsset.NormalTexture,
             m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::NormalMap)),
-        .MetallicRoughnessTexture = LoadTexture(materialInfo.MetallicRoughnessUvIndex, materialAsset.MetallicRoughnessTexture,
+        .MetallicRoughnessTexture = LoadTexture(
+            materialInfo.MetallicRoughnessUvIndex, materialAsset.MetallicRoughnessTexture,
             m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::White)),
         .AmbientOcclusionTexture = LoadTexture(materialInfo.OcclusionUvIndex, materialAsset.OcclusionTexture,
             m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::White)),

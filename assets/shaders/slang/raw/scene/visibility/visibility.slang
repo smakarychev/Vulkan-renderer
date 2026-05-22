@@ -59,15 +59,6 @@ public struct VisibilityBucketIndex
     }
 };
 
-public float extractScale(float4x4 matrix) {
-    const float l1 = dot(matrix[0], matrix[0]);
-    const float l2 = dot(matrix[1], matrix[1]);
-    const float l3 = dot(matrix[2], matrix[2]);
-    const float maxL = max(l1, max(l2, l3));
-
-    return sqrt(maxL);
-}
-
 public bool isBackfaceMeshletVisible(float3 sphereOrigin, float radius, float3 coneAxis, float coneCutoff) {
     return dot(sphereOrigin, coneAxis) < coneCutoff * length(sphereOrigin) + radius;
 }

@@ -22,6 +22,7 @@ struct glz::meta<lux::assetlib::SceneAssetLightType> : lux::assetlib::reflection
 };
 template <> struct ::glz::meta<lux::assetlib::SceneAssetLight> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::SceneAssetMeshlet> : lux::assetlib::reflection::CamelCase {};
+template <> struct ::glz::meta<lux::assetlib::SceneAssetSkin> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::SceneAssetNode> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::SceneAssetSubscene> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::SceneAsset> : lux::assetlib::reflection::CamelCase {};

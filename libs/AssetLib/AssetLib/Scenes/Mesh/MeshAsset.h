@@ -35,6 +35,8 @@ struct MeshPrimitive
     static constexpr std::string_view ATTRIBUTE_NORMAL_NAME = "NORMAL";
     static constexpr std::string_view ATTRIBUTE_TANGENT_NAME = "TANGENT";
     static constexpr std::string_view ATTRIBUTE_UV0_NAME = "TEXCOORD_0";
+    static constexpr std::string_view ATTRIBUTE_JOINTS0_NAME = "JOINTS_0";
+    static constexpr std::string_view ATTRIBUTE_WEIGHTS0_NAME = "WEIGHTS_0";
     static constexpr std::string_view ATTRIBUTE_MESHLET_NAME = "MESHLET";
     struct Attribute
     {

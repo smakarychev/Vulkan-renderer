@@ -93,7 +93,7 @@ Scene::NewInstanceData Scene::AddToHierarchy(lux::SceneInstanceHandle instance, 
     const lux::SceneHierarchyInfo& instanceHierarchy = sceneAsset.Hierarchy; 
     const u32 firstNode = (u32)m_HierarchyInfo.Nodes.size();
     
-    const SceneGeometry::AddRenderObjectsResult addResult = m_Geometry.AddRenderObjects(sceneAsset, instance, ctx);
+    const SceneGeometry::AddInstanceResult addResult = m_Geometry.AddInstance(sceneAsset, instance, ctx);
     m_MaxRenderObjectIndex = std::max(
         m_MaxRenderObjectIndex, addResult.FirstRenderObject + (u32)sceneAsset.Geometry.RenderObjects.size());
 
@@ -124,9 +124,14 @@ Scene::NewInstanceData Scene::AddToHierarchy(lux::SceneInstanceHandle instance, 
             .Instance = instance
         });
     }
-    
     m_HierarchyInfo.MaxDepth = std::max(m_HierarchyInfo.MaxDepth, instanceHierarchy.MaxDepth);
-
+    
+    for (auto& joint : instanceHierarchy.Joints)
+        m_HierarchyInfo.Joints.push_back({
+            .Node = joint.Node.Handle + firstNode,
+            .InverseBindMatrix = joint.InverseBindMatrix
+        });
+    
     return {
         .Scene = &sceneAsset,
         .Instance = instance,
@@ -269,9 +274,21 @@ void Scene::Sweep(bool reclaimHandles)
         currentLastAliveIndex += 1;
     }
     
+    for (i32 i = (i32)m_HierarchyInfo.Joints.size() - 1; i >= 0; i--)
     {
+        auto& joint = m_HierarchyInfo.Joints[i];
+        
+        if (reorder[joint.Node.Handle] == lux::SceneHierarchyHandle::INVALID)
         {
+            std::swap(joint, m_HierarchyInfo.Joints.back());
+            m_HierarchyInfo.Joints.pop_back();
         }
+        else
+        {
+            joint.Node.Handle = reorder[joint.Node.Handle];
+        }
+    }
+    
     for (u32 i = 0; i < (u32)m_HierarchyInfo.Nodes.size(); i++)
     {
         auto& node = m_HierarchyInfo.Nodes[i];
@@ -323,6 +340,14 @@ void updateRenderObject(Buffer renderObjects, u32 renderObjectIndex,
         renderObjectIndex * sizeof(RenderObjectGPU) + offsetof(RenderObjectGPU, Transform));
 }
 
+void updateJointMatrix(Buffer jointMatrices, u32 jointIndex, const glm::mat4& transform, ResourceUploader& uploader)
+{
+    uploader.UpdateBuffer(
+        jointMatrices,
+        transform,
+        jointIndex * sizeof(glm::mat4));
+}
+
 void updateLight(lux::CommonLight& light, const glm::mat4& transform)
 {
     switch (light.Type)
@@ -350,6 +375,16 @@ void Scene::UpdateHierarchy(FrameContext& ctx)
         transforms[i] = nodes[i].Parent == lux::SceneHierarchyHandle::INVALID ?
             nodes[i].LocalTransform.ToMatrix() :
             transforms[nodes[i].Parent.Handle] * nodes[i].LocalTransform.ToMatrix();
+    
+    std::vector<glm::mat4> skinMatrices(m_HierarchyInfo.Joints.size());
+    for (auto&& [jointIndex, joint] : std::views::enumerate(m_HierarchyInfo.Joints))
+    {
+        const glm::mat4 jointMatrix =  
+            transforms[joint.Node.Handle] *
+            joint.InverseBindMatrix;
+        updateJointMatrix(Device::GetBufferArenaUnderlyingBuffer(Geometry().JointMatrices), 
+            (u32)jointIndex, jointMatrix, *ctx.ResourceUploader);
+    }
 
     for (auto&& [i, node] : std::views::enumerate(nodes))
     {

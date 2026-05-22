@@ -6,6 +6,7 @@ import "core/ugb";
 import "core/materials/material";
 import "core/texturesHeap";
 import "core/viewInfo";
+import "core/lib";
 
 import "vbuffer";
 import "utility/fullscreen";
@@ -15,6 +16,7 @@ import "light/light";
 import "light/culling/lightCulling";
 import "shadow/shadow";
 import "scene/visibility/visibility";
+import "skinning/skinning";
 
 struct Samplers {
     VBufferSamplers vbufferSamplers;

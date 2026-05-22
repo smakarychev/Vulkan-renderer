@@ -2,7 +2,10 @@
 
 #include "RenderGraph/Passes/Generated/Types/MeshletBoundsUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/MeshletUniform.generated.h"
+#include "RenderGraph/Passes/Generated/Types/RenderObjectSkinnedInfoUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/RenderObjectUniform.generated.h"
+#include "RenderGraph/Passes/Generated/Types/SkinnedVertexUniform.generated.h"
+#include "RenderGraph/Passes/Generated/Types/SkinUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/StandardPbrMaterialUniform.generated.h"
 
 #include <CoreLib/core.h>
@@ -32,6 +35,12 @@ struct MaterialGPU : gen::StandardPbrMaterial
 using RenderObjectTransform = Transform3d;
 
 struct RenderObjectGPU : gen::RenderObject {};
+
+struct RenderObjectSkinnedInfoGPU : gen::RenderObjectSkinnedInfo {};
+
+struct SkinGPU : gen::Skin {};
+
+struct SkinnedVertexGPU : gen::SkinnedVertex {};
 
 struct MeshletBoundsGPU : gen::MeshletBounds {};
 

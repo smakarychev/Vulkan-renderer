@@ -3,8 +3,8 @@
 #include "SceneVBufferPbrPass.h"
 
 #include "RenderGraph/Passes/Generated/SceneVbufferPbrBindGroupRG.generated.h"
+#include "RenderGraph/Passes/Scene/SceneGeometryRGResources.h"
 #include "Rendering/Image/ImageUtility.h"
-#include "Scene/SceneGeometry.h"
 #include "Scene/SceneLight.h"
 
 Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId name, RG::Graph& renderGraph,
@@ -36,18 +36,13 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
             ));
 
             passData.BindGroup.SetResourcesVbuffer(info.VisibilityTexture);
-            passData.BindGroup.SetResourcesUgb(graph.Import("UGB"_hsv,
-                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes)));
-            passData.BindGroup.SetResourcesMeshletsUgb(graph.Import("Meshlets"_hsv,
-                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Meshlets)));
+            passData.BindGroup.SetResourcesUgb(info.Geometry->Attributes);
+            passData.BindGroup.SetResourcesMeshletsUgb(info.Geometry->Meshlets);
             passData.BindGroup.SetResourcesVisibleMeshlets(info.VisibleMeshlets);
             passData.BindGroup.SetResourcesView(info.ViewInfo);
-            passData.BindGroup.SetResourcesMaterials(graph.Import("Materials"_hsv,
-                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Materials)));
-            passData.BindGroup.SetResourcesRenderObjects(graph.Import("Objects"_hsv,
-                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->RenderObjects)));
-            passData.BindGroup.SetResourcesIndices(graph.Import("Indices"_hsv,
-                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)));
+            passData.BindGroup.SetResourcesMaterials(info.Geometry->Materials);
+            passData.BindGroup.SetResourcesRenderObjects(info.Geometry->RenderObjects);
+            passData.BindGroup.SetResourcesIndices(info.Geometry->Indices);
             passData.BindGroup.SetResourcesCsmData(info.CsmData.CsmInfo);
             passData.BindGroup.SetResourcesCsmTexture(info.CsmData.ShadowMap);
             passData.BindGroup.SetResourcesSsao(info.SSAO.SSAO);

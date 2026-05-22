@@ -30,6 +30,24 @@ public struct UGB {
         return loadAtIndex<float2>(index);
     }
 
+    /// Read joint data from ugb at a given index
+    /// @param index element index of vertex joint data
+    public uint16_t4 joint(uint index) {
+        return loadAtIndex<uint16_t4>(index);
+    }
+
+    /// Read weight data from ugb at a given index
+    /// @param index element index of vertex weight data
+    public float4 weight(uint index) {
+        return loadAtIndex<float4>(index);
+    }
+
+    /// Read skinnedVertex data from ugb at a given index
+    /// @param index element index of skinnedVertex
+    public SkinnedVertex skinnedVertex(uint index) {
+        return ugb.Load<SkinnedVertex>(index * sizeof(SkinnedVertex));
+    }
+
     private ValueT loadAtIndex<ValueT>(uint index) {
         return ugb.LoadAligned<ValueT>(index * sizeof(ValueT), sizeof(ValueT));
     }

@@ -2,14 +2,14 @@
 
 #include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
 
-class SceneGeometry;
+struct SceneGeometryRGResources;
 
 namespace Passes::SceneDepthPrepass
 {
 struct ExecutionInfo
 {
     SceneDrawPassExecutionInfo DrawInfo{};
-    const SceneGeometry* Geometry{nullptr};
+    const SceneGeometryRGResources* Geometry{nullptr};
     bool UseAlphaTest{false};
 };
 

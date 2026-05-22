@@ -3,6 +3,7 @@ module renderObjectVisibility;
 import "core/attributes";
 import "core/geometry";
 import "core/viewInfo";
+import "core/lib";
 
 import "visibility";
 

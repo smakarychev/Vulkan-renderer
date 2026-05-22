@@ -3,6 +3,7 @@
 #include "SceneDirectionalShadowPass.h"
 
 #include "RenderGraph/Passes/Generated/ShadowDirectionalUgbBindGroupRG.generated.h"
+#include "RenderGraph/Passes/Scene/SceneGeometryRGResources.h"
 
 Passes::SceneDirectionalShadow::PassData& Passes::SceneDirectionalShadow::addToGraph(StringId name,
     RG::Graph& renderGraph, const ExecutionInfo& info)
@@ -19,12 +20,9 @@ Passes::SceneDirectionalShadow::PassData& Passes::SceneDirectionalShadow::addToG
             passData.BindGroup = ShadowDirectionalUgbBindGroupRG(graph, *info.DrawInfo.BucketOverrides);
 
             passData.Resources.InitFrom(info.DrawInfo, graph);
-            passData.BindGroup.SetResourcesUgb(graph.Import("UGB"_hsv,
-                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes)));
-            passData.BindGroup.SetResourcesRenderObjects(graph.Import("Objects"_hsv,
-                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->RenderObjects)));
-            passData.BindGroup.SetResourcesMeshletsUgb(graph.Import("Meshlets"_hsv,
-                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Meshlets)));
+            passData.BindGroup.SetResourcesUgb(info.Geometry->Attributes);
+            passData.BindGroup.SetResourcesRenderObjects(info.Geometry->RenderObjects);
+            passData.BindGroup.SetResourcesMeshletsUgb(info.Geometry->Meshlets);
             passData.Resources.VisibleMeshlets =
                 passData.BindGroup.SetResourcesVisibleMeshlets(passData.Resources.VisibleMeshlets);
             passData.Resources.ViewInfo = passData.BindGroup.SetResourcesView(info.DrawInfo.ViewInfo);
@@ -37,7 +35,7 @@ Passes::SceneDirectionalShadow::PassData& Passes::SceneDirectionalShadow::addToG
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindGraphics(cmd);
             cmd.BindIndexU8Buffer({
-                .Buffer = Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)
+                .Buffer = graph.GetBuffer(info.Geometry->Indices)
             });
             cmd.DrawIndexedIndirectCount({
                 .DrawBuffer = graph.GetBuffer(passData.Resources.Draws),

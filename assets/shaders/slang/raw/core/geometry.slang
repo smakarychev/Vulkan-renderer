@@ -16,8 +16,19 @@ public struct RenderObject {
     public uint uvIndex;
     public uint indexIndex;
     public uint meshletIndex;
-    public uint meshletBoundsIndex;
+    public uint meshletBoundIndex;
     public uint meshletCount;
+    public uint skinIndex;
+
+    public bool isSkinned() { return skinIndex != ~0u; }
+}
+
+// todo: compress, see remedy alan wake 2
+[StandaloneType("skinnedVertex")]
+public struct SkinnedVertex {
+    public float3 position;
+    public float3 normal;
+    public float4 tangent;
 }
 
 [StandaloneType("meshlet")]

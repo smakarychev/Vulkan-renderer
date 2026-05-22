@@ -1,0 +1,27 @@
+﻿#include "rendererpch.h"
+#include "SceneGeometryRGResources.h"
+
+#include "RenderGraph/RGGraph.h"
+#include "Scene/SceneGeometry.h"
+
+SceneGeometryRGResources SceneGeometryRGResources::ForGeometry(const SceneGeometry& geometry, RG::Graph& renderGraph)
+{
+    return {
+        .Meshlets = renderGraph.Import("Meshlets"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Meshlets)),
+        .RenderObjects = 
+            renderGraph.Import("RenderObjects"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.RenderObjects)),
+        .Attributes = 
+            renderGraph.Import("Attributes"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Attributes)),
+        .Indices = 
+            renderGraph.Import("Indices"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Indices)),
+        .JointMatrices = 
+            renderGraph.Import("JointMatrices"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.JointMatrices)),
+        .Skins = 
+            renderGraph.Import("Skins"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Skins)),
+        .Materials = 
+            renderGraph.Import("Materials"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Materials)),
+        .RenderObjectSkinnedInfos = 
+            renderGraph.Import("RenderObjectSkinnedInfos"_hsv, 
+                Device::GetBufferArenaUnderlyingBuffer(geometry.RenderObjectSkinnedInfos)),
+    };
+}

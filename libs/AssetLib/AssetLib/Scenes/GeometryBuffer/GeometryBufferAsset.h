@@ -37,14 +37,18 @@ enum class GeometryBufferViewType : u8
     Normal = 1,
     Tangent = 2,
     Uv = 3,
+    Joint = 4,
+    Weight = 5,
             
     /* index */
-    Index = 4,
+    Index = 6,
 
     /* per instance data */
-    Meshlet = 5,
+    Meshlet = 7,
+    
+    InverseBindMatrices = 8,
             
-    MaxVal = 6,
+    MaxVal = 9,
 };
 struct GeometryBufferView
 {

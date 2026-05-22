@@ -8,13 +8,13 @@
 
 #include <CoreLib/Math/Geometry.h>
 
+struct SceneGeometryRGResources;
 class SceneDrawPassViewAttachments;
 struct SceneDrawPassDescription;
 class SceneMultiviewVisibility;
 class ScenePass;
 class Camera;
 class SceneLight;
-class SceneGeometry;
 
 namespace Passes::SceneCsm
 {
@@ -25,7 +25,7 @@ struct CsmInfo : ::gen::CsmData
 struct ExecutionInfo
 {
     const ScenePass* Pass{nullptr};
-    const SceneGeometry* Geometry{nullptr};
+    const SceneGeometryRGResources* Geometry{nullptr};
     SceneMultiviewVisibility* MultiviewVisibility{nullptr};
     /* pass will construct the suitable shadow camera based on main camera frustum */
     const Camera* MainCamera{nullptr};

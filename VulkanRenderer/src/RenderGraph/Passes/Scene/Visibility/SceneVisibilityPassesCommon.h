@@ -3,6 +3,8 @@
 #include "RenderGraph/RGResource.h"
 #include "Scene/Visibility/SceneMultiviewVisibility.h"
 
+struct SceneGeometryRGResources;
+
 enum class SceneVisibilityStage {Cull, Reocclusion, Single};
 
 struct SceneVisibilityPassesResources
@@ -33,6 +35,7 @@ struct SceneVisibilityPassesResources
     
     static SceneVisibilityPassesResources FromSceneMultiviewVisibility(
         RG::Graph& renderGraph,
+        SceneGeometryRGResources& sceneGeometryRGResources,
         const SceneMultiviewVisibility& sceneMultiviewVisibility);
 
     void Init(const SceneMultiviewVisibility& sceneMultiviewVisibility, RG::Graph& renderGraph);

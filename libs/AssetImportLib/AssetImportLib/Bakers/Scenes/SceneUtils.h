@@ -10,6 +10,8 @@ struct Attributes
     std::vector<glm::vec3>* Normals{nullptr};
     std::vector<glm::vec4>* Tangents{nullptr};
     std::vector<glm::vec2>* UVs{nullptr};
+    std::vector<glm::u16vec4>* Joints{nullptr};
+    std::vector<glm::vec4>* Weights{nullptr};
 };
 
 void remapMesh(Attributes& attributes, std::vector<u32>& indices);

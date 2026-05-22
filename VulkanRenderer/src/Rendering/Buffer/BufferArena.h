@@ -15,6 +15,7 @@ struct BufferArenaTag{};
 using BufferArena = ResourceHandleType<BufferArenaTag>;
 
 using BufferSuballocationHandle = u64;
+constexpr BufferSuballocationHandle INVALID_BUFFER_SUBALLOCATION_HANDLE = ~0llu;
 
 enum class BufferSuballocationError : u8
 {
@@ -26,7 +27,7 @@ struct BufferSuballocation
 {
     Buffer Buffer{};
     BufferSubresourceDescription Description{};
-    BufferSuballocationHandle Handle{};
+    BufferSuballocationHandle Handle{INVALID_BUFFER_SUBALLOCATION_HANDLE};
 };
 
 using BufferSuballocationResult = std::expected<BufferSuballocation, BufferSuballocationError>;

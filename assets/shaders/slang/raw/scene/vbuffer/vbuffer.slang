@@ -6,6 +6,8 @@ import "core/materials/material";
 import "core/ugb";
 import "core/viewInfo";
 
+import "skinning/skinning";
+
 public struct VBufferSamplers {
     [ImmutableSampler(SamplerFlags.Nearest)]
     public SamplerState sampler;
@@ -61,8 +63,9 @@ public struct VBufferGeometryData {
         float3 ddy;
     }
 
-    public __init(const VBufferVisibility visibility, const UGB ugb, const ViewInfo view, float2 screenPosition,
-        const Meshlet meshlet, const RenderObject renderObject, StructuredBuffer<uint8_t> indices) {
+    public __init(const VBufferVisibility visibility, const UGB ugb,
+        const ViewInfo view, float2 screenPosition, const Meshlet meshlet, const RenderObject renderObject, 
+        StructuredBuffer<uint8_t> indices) {
 
         const uint firstIndex = renderObject.indexIndex + meshlet.firstIndex;
         const uint3 indices = uint3(
@@ -71,12 +74,58 @@ public struct VBufferGeometryData {
             meshlet.firstVertex + uint(indices[firstIndex + visibility.triangle * 3 + 2])
         );
 
-        float3x4 positions = float3x4(
-            float4(ugb.position(renderObject.positionIndex + indices.x), 1.0f),
-            float4(ugb.position(renderObject.positionIndex + indices.y), 1.0f),
-            float4(ugb.position(renderObject.positionIndex + indices.z), 1.0f),
+        float3x4 positions;
+        float3x3 normals;
+        float3x3 tangents;
+        float handedness;
+        [branch]
+        if (renderObject.skinIndex != ~0u) {
+            SkinnedVertex vertexA = ugb.skinnedVertex(renderObject.positionIndex + indices.x);
+            SkinnedVertex vertexB = ugb.skinnedVertex(renderObject.positionIndex + indices.y);
+            SkinnedVertex vertexC = ugb.skinnedVertex(renderObject.positionIndex + indices.z);
+            positions = float3x4(
+                float4(vertexA.position, 1.0f),
+                float4(vertexB.position, 1.0f),
+                float4(vertexC.position, 1.0f),
+            );
+            normals = float3x3(
+                vertexA.normal,
+                vertexB.normal,
+                vertexC.normal,
+            );
+            tangents = float3x3(
+                vertexA.tangent.xyz,
+                vertexB.tangent.xyz,
+                vertexC.tangent.xyz,
+            );
+            handedness = vertexA.tangent.w;
+        }
+        else {
+            positions = float3x4(
+                mul(float4(ugb.position(renderObject.positionIndex + indices.x), 1.0f), renderObject.transform),
+                mul(float4(ugb.position(renderObject.positionIndex + indices.y), 1.0f), renderObject.transform),
+                mul(float4(ugb.position(renderObject.positionIndex + indices.z), 1.0f), renderObject.transform),
+            );
+            normals = float3x3(
+                mul(ugb.normal(renderObject.normalIndex + indices.x), float3x3(renderObject.transform)),
+                mul(ugb.normal(renderObject.normalIndex + indices.y), float3x3(renderObject.transform)),
+                mul(ugb.normal(renderObject.normalIndex + indices.z), float3x3(renderObject.transform)),
+            );
+            tangents = float3x3(
+                mul(ugb.tangent(renderObject.tangentIndex + indices.x).xyz, float3x3(renderObject.transform)),
+                mul(ugb.tangent(renderObject.tangentIndex + indices.y).xyz, float3x3(renderObject.transform)),
+                mul(ugb.tangent(renderObject.tangentIndex + indices.z).xyz, float3x3(renderObject.transform)),
+            );
+            handedness = ugb.tangent(renderObject.tangentIndex + indices.x).w;
+        }
+        
+        float3x2 uvs = float3x2(
+            ugb.uv(renderObject.uvIndex + indices.x),
+            ugb.uv(renderObject.uvIndex + indices.y),
+            ugb.uv(renderObject.uvIndex + indices.z),
         );
-        transformPositionsToClip(positions, view.camera.viewProjection, renderObject.transform);
+        
+        transformPositionsToClip(positions, view.camera.viewProjection);
 
         const InterpolationData interpolationData = 
             calculateInterpolation(positions, screenPosition, view.camera.resolution);
@@ -89,43 +138,25 @@ public struct VBufferGeometryData {
         positionI = mul(positionI, view.camera.inverseView);
         position = positionI.xyz;
 
-        float3x2 uvs = float3x2(
-            ugb.uv(renderObject.uvIndex + indices.x),
-            ugb.uv(renderObject.uvIndex + indices.y),
-            ugb.uv(renderObject.uvIndex + indices.z),
-        );
         uvs = interpolateWithDerivatives2d(interpolationData, uvs);
         uv = uvs[0];
         uvDx = uvs[1];
         uvDy = uvs[2];
 
-        float3x3 normals = float3x3(
-            ugb.normal(renderObject.normalIndex + indices.x),
-            ugb.normal(renderObject.normalIndex + indices.y),
-            ugb.normal(renderObject.normalIndex + indices.z),
-        );
         normal = interpolate3d(interpolationData, normals);
 
-        float3x3 tangents = float3x3(
-            ugb.tangent(renderObject.tangentIndex + indices.x).xyz,
-            ugb.tangent(renderObject.tangentIndex + indices.y).xyz,
-            ugb.tangent(renderObject.tangentIndex + indices.z).xyz,
-        );
-        const float handedness = ugb.tangent(renderObject.tangentIndex + indices.x).w;
         tangent = interpolate3d(interpolationData, tangents);
-
-        normal = normalize(mul(normal, float3x3(renderObject.transform)));
-        tangent = normalize(mul(tangent, float3x3(renderObject.transform)));
+        normal = normalize(normal);
         tangent = normalize(tangent - dot(tangent, normal) * normal);
         bitangent = normalize(cross(normal, tangent)) * handedness;
 
         materialId = renderObject.materialId;
     }
 
-    static void transformPositionsToClip(inout float3x4 positions, float4x4 viewProjection, float4x4 model) {
-        positions[0] = mul(mul(positions[0], model), viewProjection);
-        positions[1] = mul(mul(positions[1], model), viewProjection);
-        positions[2] = mul(mul(positions[2], model), viewProjection);
+    static void transformPositionsToClip(inout float3x4 positions, float4x4 viewProjection) {
+        positions[0] = mul(positions[0], viewProjection);
+        positions[1] = mul(positions[1], viewProjection);
+        positions[2] = mul(positions[2], viewProjection);
     }
 
     static InterpolationData calculateInterpolation(float3x4 positions, float2 screenPosition, float2 screenResolution) {

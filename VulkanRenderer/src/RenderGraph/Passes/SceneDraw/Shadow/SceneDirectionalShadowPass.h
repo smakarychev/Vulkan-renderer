@@ -2,12 +2,14 @@
 
 #include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
 
+struct SceneGeometryRGResources;
+
 namespace Passes::SceneDirectionalShadow
 {
 struct ExecutionInfo
 {
     SceneDrawPassExecutionInfo DrawInfo{};
-    const SceneGeometry* Geometry{nullptr};
+    const SceneGeometryRGResources* Geometry{nullptr};
 };
 
 struct PassData

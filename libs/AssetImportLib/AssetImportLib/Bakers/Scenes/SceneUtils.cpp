@@ -6,20 +6,28 @@
 
 namespace utils
 {
+// todo: is this even correct?
 void remapMesh(Attributes& attributes, std::vector<u32>& indices)
 {
-    std::array vertexElementsStreams = {
-        meshopt_Stream{attributes.Positions->data(), sizeof(glm::vec3), sizeof(glm::vec3)},
-        meshopt_Stream{attributes.Normals->data(), sizeof(glm::vec3), sizeof(glm::vec3)},
-        meshopt_Stream{attributes.Tangents->data(), sizeof(glm::vec4), sizeof(glm::vec4)},
-        meshopt_Stream{attributes.UVs->data(), sizeof(glm::vec2), sizeof(glm::vec2)},
-    };
+    std::vector<meshopt_Stream> vertexElementsStreams;
+    if (!attributes.Positions->empty())
+        vertexElementsStreams.push_back({attributes.Positions->data(), sizeof(glm::vec3), sizeof(glm::vec3)});
+    if (!attributes.Normals->empty())
+        vertexElementsStreams.push_back({attributes.Normals->data(), sizeof(glm::vec3), sizeof(glm::vec3)});
+    if (!attributes.Tangents->empty())
+        vertexElementsStreams.push_back({attributes.Tangents->data(), sizeof(glm::vec4), sizeof(glm::vec4)});
+    if (!attributes.UVs->empty())
+        vertexElementsStreams.push_back({attributes.UVs->data(), sizeof(glm::vec2), sizeof(glm::vec2)});
+    if (!attributes.Joints->empty())
+        vertexElementsStreams.push_back({attributes.Joints->data(), sizeof(glm::u16vec4), sizeof(glm::u16vec4)});
+    if (!attributes.Weights->empty())
+        vertexElementsStreams.push_back({attributes.Weights->data(), sizeof(glm::vec4), sizeof(glm::vec4)});
 
-    u32 indexCountInitial = (u32)indices.size();
-    u32 vertexCountInitial = (u32)attributes.Positions->size();
+    const u32 indexCountInitial = (u32)indices.size();
+    const u32 vertexCountInitial = (u32)attributes.Positions->size();
 
-    std::vector<u32> indexRemap(indices);
-    u32 vertexCount = (u32)meshopt_generateVertexRemapMulti(indexRemap.data(),
+    std::vector indexRemap(indices);
+    const u32 vertexCount = (u32)meshopt_generateVertexRemapMulti(indexRemap.data(),
         indices.data(),
         indexCountInitial, vertexCountInitial,
         vertexElementsStreams.data(), vertexElementsStreams.size());
@@ -29,35 +37,65 @@ void remapMesh(Attributes& attributes, std::vector<u32>& indices)
     std::vector<glm::vec3> remappedNormals(vertexCount);
     std::vector<glm::vec4> remappedTangents(vertexCount);
     std::vector<glm::vec2> remappedUVs(vertexCount);
+    std::vector<glm::u16vec4> remappedJoints(vertexCount);
+    std::vector<glm::vec4> remappedWeights(vertexCount);
 
     meshopt_remapIndexBuffer(remappedIndices.data(), indices.data(), indices.size(), indexRemap.data());
-    meshopt_remapVertexBuffer(remappedPositions.data(), attributes.Positions->data(),
-        vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
-    meshopt_remapVertexBuffer(remappedNormals.data(), attributes.Normals->data(),
-        vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
-    meshopt_remapVertexBuffer(remappedTangents.data(), attributes.Tangents->data(),
-        vertexCountInitial, sizeof(glm::vec4), indexRemap.data());
-    meshopt_remapVertexBuffer(remappedUVs.data(), attributes.UVs->data(),
-        vertexCountInitial, sizeof(glm::vec2), indexRemap.data());
+    if (!attributes.Positions->empty())
+        meshopt_remapVertexBuffer(remappedPositions.data(), attributes.Positions->data(),
+            vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
+    if (!attributes.Normals->empty())
+        meshopt_remapVertexBuffer(remappedNormals.data(), attributes.Normals->data(),
+            vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
+    if (!attributes.Tangents->empty())
+        meshopt_remapVertexBuffer(remappedTangents.data(), attributes.Tangents->data(),
+            vertexCountInitial, sizeof(glm::vec4), indexRemap.data());
+    if (!attributes.UVs->empty())
+        meshopt_remapVertexBuffer(remappedUVs.data(), attributes.UVs->data(),
+            vertexCountInitial, sizeof(glm::vec2), indexRemap.data());
+    if (!attributes.Joints->empty())
+        meshopt_remapVertexBuffer(remappedJoints.data(), attributes.Joints->data(),
+            vertexCountInitial, sizeof(glm::u16vec4), indexRemap.data());
+    if (!attributes.Weights->empty())
+        meshopt_remapVertexBuffer(remappedWeights.data(), attributes.Weights->data(),
+            vertexCountInitial, sizeof(glm::vec4), indexRemap.data());
 
     meshopt_optimizeVertexCache(remappedIndices.data(), remappedIndices.data(), indexCountInitial, vertexCount);
     meshopt_optimizeVertexFetchRemap(indexRemap.data(), remappedIndices.data(), indexCountInitial, vertexCount);
 
     meshopt_remapIndexBuffer(remappedIndices.data(), remappedIndices.data(), indexCountInitial, indexRemap.data());
-    meshopt_remapVertexBuffer(remappedPositions.data(), remappedPositions.data(),
-        vertexCount, sizeof(glm::vec3), indexRemap.data());
-    meshopt_remapVertexBuffer(remappedNormals.data(), remappedNormals.data(),
-        vertexCount, sizeof(glm::vec3), indexRemap.data());
-    meshopt_remapVertexBuffer(remappedTangents.data(), remappedTangents.data(),
-        vertexCount, sizeof(glm::vec4), indexRemap.data());
-    meshopt_remapVertexBuffer(remappedUVs.data(), remappedUVs.data(),
-        vertexCount, sizeof(glm::vec2), indexRemap.data());
+    if (!attributes.Positions->empty())
+        meshopt_remapVertexBuffer(remappedPositions.data(), remappedPositions.data(),
+            vertexCount, sizeof(glm::vec3), indexRemap.data());
+    if (!attributes.Normals->empty())
+        meshopt_remapVertexBuffer(remappedNormals.data(), remappedNormals.data(),
+            vertexCount, sizeof(glm::vec3), indexRemap.data());
+    if (!attributes.Tangents->empty())
+        meshopt_remapVertexBuffer(remappedTangents.data(), remappedTangents.data(),
+            vertexCount, sizeof(glm::vec4), indexRemap.data());
+    if (!attributes.UVs->empty())
+        meshopt_remapVertexBuffer(remappedUVs.data(), remappedUVs.data(),
+            vertexCount, sizeof(glm::vec2), indexRemap.data());
+    if (!attributes.Joints->empty())
+        meshopt_remapVertexBuffer(remappedJoints.data(), remappedJoints.data(),
+            vertexCount, sizeof(glm::u16vec4), indexRemap.data());
+    if (!attributes.Weights->empty())
+        meshopt_remapVertexBuffer(remappedWeights.data(), remappedWeights.data(),
+            vertexCount, sizeof(glm::vec4), indexRemap.data());
 
     indices = remappedIndices;
-    *attributes.Positions = remappedPositions;
-    *attributes.Normals = remappedNormals;
-    *attributes.Tangents = remappedTangents;
-    *attributes.UVs = remappedUVs;
+    if (!attributes.Positions->empty())
+        *attributes.Positions = remappedPositions;
+    if (!attributes.Normals->empty())
+        *attributes.Normals = remappedNormals;
+    if (!attributes.Tangents->empty())
+        *attributes.Tangents = remappedTangents;
+    if (!attributes.UVs->empty())
+        *attributes.UVs = remappedUVs;
+    if (!attributes.Joints->empty())
+        *attributes.Joints = remappedJoints;
+    if (!attributes.Weights->empty())
+        *attributes.Weights = remappedWeights;
 }
 
 MeshletInfo createMeshlets(Attributes& attributes, const std::vector<u32>& indices)
@@ -115,6 +153,8 @@ MeshletInfo createMeshlets(Attributes& attributes, const std::vector<u32>& indic
     std::vector<glm::vec3> finalNormals(meshletVertices.size());
     std::vector<glm::vec4> finalTangents(meshletVertices.size());
     std::vector<glm::vec2> finalUVs(meshletVertices.size());
+    std::vector<glm::u16vec4> finalJoints(meshletVertices.size());
+    std::vector<glm::vec4> finalWeights(meshletVertices.size());
 
     for (auto& meshlet : meshoptMeshlets)
     {
@@ -122,17 +162,33 @@ MeshletInfo createMeshlets(Attributes& attributes, const std::vector<u32>& indic
         for (u32 localIndex = 0; localIndex < meshlet.vertex_count; localIndex++)
         {
             u32 vertexIndex = vertexOffset + localIndex;
-            finalPositions[vertexIndex] = (*attributes.Positions)[meshletVertices[vertexIndex]];
-            finalNormals[vertexIndex] = (*attributes.Normals)[meshletVertices[vertexIndex]];
-            finalTangents[vertexIndex] = (*attributes.Tangents)[meshletVertices[vertexIndex]];
-            finalUVs[vertexIndex] = (*attributes.UVs)[meshletVertices[vertexIndex]];
+            if (!attributes.Positions->empty())
+                finalPositions[vertexIndex] = (*attributes.Positions)[meshletVertices[vertexIndex]];
+            if (!attributes.Normals->empty())
+                finalNormals[vertexIndex] = (*attributes.Normals)[meshletVertices[vertexIndex]];
+            if (!attributes.Tangents->empty())
+                finalTangents[vertexIndex] = (*attributes.Tangents)[meshletVertices[vertexIndex]];
+            if (!attributes.UVs->empty())
+                finalUVs[vertexIndex] = (*attributes.UVs)[meshletVertices[vertexIndex]];
+            if (!attributes.Joints->empty())
+                finalJoints[vertexIndex] = (*attributes.Joints)[meshletVertices[vertexIndex]];
+            if (!attributes.Weights->empty())
+                finalWeights[vertexIndex] = (*attributes.Weights)[meshletVertices[vertexIndex]];
         }
     }
 
-    *attributes.Positions = finalPositions;
-    *attributes.Normals = finalNormals;
-    *attributes.Tangents = finalTangents;
-    *attributes.UVs = finalUVs;
+    if (!attributes.Positions->empty())
+        *attributes.Positions = finalPositions;
+    if (!attributes.Normals->empty())
+        *attributes.Normals = finalNormals;
+    if (!attributes.Tangents->empty())
+        *attributes.Tangents = finalTangents;
+    if (!attributes.UVs->empty())
+        *attributes.UVs = finalUVs;
+    if (!attributes.Joints->empty())
+        *attributes.Joints = finalJoints;
+    if (!attributes.Weights->empty())
+        *attributes.Weights = finalWeights;
 
     return meshletInfo;
 }

@@ -1,6 +1,5 @@
 ﻿#pragma once
 #include <AssetLib/Io/AssetIo.h>
-#include <CoreLib/core.h>
 #include <CoreLib/Math/Geometry.h>
 #include <CoreLib/Math/Transform.h>
 
@@ -72,6 +71,13 @@ struct SceneAssetMeshlet
     BoundingCone Cone{};
 };
 
+struct SceneAssetSkin
+{
+    AssetId GeometryBuffer{AssetId::CreateEmpty()};
+    u32 InverseBindMatrixAccessor{SCENE_UNSET_INDEX};
+    std::vector<u32> JointNodes;
+};
+
 struct SceneAssetNode
 {
     std::string Name;
@@ -79,6 +85,7 @@ struct SceneAssetNode
     u32 Camera{SCENE_UNSET_INDEX};
     u32 Light{SCENE_UNSET_INDEX};
     u32 Mesh{SCENE_UNSET_INDEX};
+    u32 Skin{SCENE_UNSET_INDEX};
     Transform3d Transform{};
 };
 
@@ -93,9 +100,10 @@ using SceneAssetIndexType = u8;
 struct SceneAsset
 {
     static constexpr u32 TRIANGLES_PER_MESHLET = 256;
-    static constexpr u32 VERTICES_PER_MESHLET = 255;
+    static constexpr u32 VERTICES_PER_MESHLET = 128;
     
     std::vector<AssetId> Meshes;
+    std::vector<SceneAssetSkin> Skins;
     std::vector<SceneAssetCamera> Cameras;
     std::vector<SceneAssetLight> Lights;
     std::vector<SceneAssetNode> Nodes;

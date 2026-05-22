@@ -5,9 +5,11 @@
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/Types/SceneVisibilityElementUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/SceneVisibilityCountDataUniform.generated.h"
+#include "RenderGraph/Passes/Scene/SceneGeometryRGResources.h"
 
 SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
-    RG::Graph& renderGraph, const SceneMultiviewVisibility& sceneMultiviewVisibility)
+    RG::Graph& renderGraph, SceneGeometryRGResources& sceneGeometryRGResources,
+    const SceneMultiviewVisibility& sceneMultiviewVisibility)
 {
     auto& set = sceneMultiviewVisibility.ObjectSet();
     
@@ -15,10 +17,8 @@ SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultivie
     resources.RenderObjectCount = set.RenderObjectCount();
     resources.MeshletCount = set.MeshletCount();
 
-    resources.Meshlets = renderGraph.Import("Meshlets"_hsv,
-        Device::GetBufferArenaUnderlyingBuffer(set.Geometry().Meshlets));
-    resources.RenderObjects = renderGraph.Import("RenderObjects"_hsv,
-        Device::GetBufferArenaUnderlyingBuffer(set.Geometry().RenderObjects));
+    resources.Meshlets = sceneGeometryRGResources.Meshlets;
+    resources.RenderObjects = sceneGeometryRGResources.RenderObjects;
     resources.RenderObjectBuckets = renderGraph.Import("RenderObjectBuckets"_hsv, set.BucketBits());
     resources.RenderObjectHandles = renderGraph.Import("RenderObjectHandles"_hsv, set.RenderObjectHandles());
 

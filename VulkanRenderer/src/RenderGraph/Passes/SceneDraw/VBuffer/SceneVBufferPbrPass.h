@@ -2,14 +2,14 @@
 
 #include "RenderGraph/RGDrawResources.h"
 
+struct SceneGeometryRGResources;
 class SceneLight;
-class SceneGeometry;
 
 namespace Passes::SceneVBufferPbr
 {
 struct ExecutionInfo
 {
-    const SceneGeometry* Geometry{nullptr};
+    const SceneGeometryRGResources* Geometry{nullptr};
     RG::Resource VisibleMeshlets{};
     RG::Resource VisibilityTexture{};
     RG::Resource ViewInfo{};

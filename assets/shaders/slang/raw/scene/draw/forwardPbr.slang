@@ -10,6 +10,7 @@ import "core/ugb";
 import "pbr/pbr";
 import "shadow/shadow";
 import "scene/visibility/visibility";
+import "skinning/skinning";
 
 struct Samplers {
     [ImmutableSampler(SamplerFlags.Linear)]
@@ -52,19 +53,33 @@ VSOutput vertexMain(uint baseInstance : SV_StartInstanceLocation, uint vertexID:
     const SceneDrawElement element = resources.visibleMeshlets[baseInstance];
     const RenderObject renderObject = resources.renderObjects[element.renderObjectId];
     const Meshlet meshlet = resources.meshlets.meshlet(renderObject.meshletIndex + element.meshletId);
-    const float4x4 transform = renderObject.transform;
     const uint vertexOffset = meshlet.firstVertex + vertexID;
-    const float3 position = resources.ugb.position(renderObject.positionIndex + vertexOffset);
+    float4x4 transform = renderObject.transform;
 
-    const float4 positionWs = mul(float4(position, 1.0f), transform);
+    float4 positionWs;
+    float3 normal;
+    float4 tangent;
+
+    [branch]
+    if (WaveActiveBitOr(renderObject.skinIndex != ~0u)) {
+        SkinnedVertex vertex = resources.ugb.skinnedVertex(renderObject.positionIndex + vertexOffset);
+        positionWs = float4(vertex.position, 1.0f);
+        normal = vertex.normal;
+        tangent = vertex.tangent;
+    }
+    else {
+        positionWs = mul(float4(resources.ugb.position(renderObject.positionIndex + vertexOffset), 1.0f), transform);
+        normal = mul(resources.ugb.normal(renderObject.normalIndex + vertexOffset), float3x3(transform));
+        tangent = resources.ugb.tangent(renderObject.tangentIndex + vertexOffset);
+        tangent.xyz = mul(tangent.xyz, float3x3(transform));
+    }
 
     VSOutput output;
     output.materialId = renderObject.materialId;
     output.position = mul(positionWs, resources.view.camera.viewProjection);
     output.positionWs = positionWs.xyz;
-    output.normal = mul(resources.ugb.normal(renderObject.normalIndex + vertexOffset), float3x3(renderObject.transform));
-    output.tangent = resources.ugb.tangent(renderObject.tangentIndex + vertexOffset);
-    output.tangent.xyz = mul(output.tangent.xyz, float3x3(renderObject.transform));
+    output.normal = normal;
+    output.tangent = tangent;
     output.uv = resources.ugb.uv(renderObject.uvIndex + vertexOffset);
     output.viewZ = dot(positionWs, resources.view.camera.view._m02_m12_m22_m32);
 

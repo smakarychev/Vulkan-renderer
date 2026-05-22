@@ -223,8 +223,11 @@ ScenePassCreateInfo Passes::SceneCsm::getScenePassCreateInfo(StringId name,
             {
                 .Name = "Opaque material"_hsv,
                 .Filter = [&](const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
-                    const lux::MaterialAsset* materialAsset = materialAssetManager.Get(geometry.MaterialsCpu[
-                        geometry.RenderObjects[renderObject.Index].Material].Handle);
+                    const u32 material = geometry.RenderObjects[renderObject.Index].Material;
+                    if (material == lux::SceneRenderObject::INVALID)
+                        return false;
+                    const lux::MaterialAsset* materialAsset = materialAssetManager.Get(
+                        geometry.MaterialsCpu[material].Handle);
                     if (materialAsset == nullptr)
                         return false;
                     

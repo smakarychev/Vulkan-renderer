@@ -47,6 +47,7 @@
 #include "RenderGraph/Passes/Lights/VisualizeLightClustersPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightTiles.h"
 #include "RenderGraph/Passes/PostProcessing/CRT/CrtPass.h"
+#include "RenderGraph/Passes/Scene/SceneGeometryRGResources.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewVisibilityHiZPass.h"
@@ -65,6 +66,7 @@
 #include "RenderGraph/Passes/SceneDraw/PBR/DiffuseIrradianceSHPass.h"
 #include "RenderGraph/Passes/SceneDraw/PBR/EnvironmentPrefilterPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowCamerasGpuPass.h"
+#include "RenderGraph/Passes/Skinning/ComputeSkinningPass.h"
 #include "RenderGraph/Passes/Utility/EquirectangularToCubemapPass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/MipMapPass.h"
@@ -208,8 +210,11 @@ void Renderer::InitRenderGraph()
                 {
                     .Name = "Opaque material"_hsv,
                     .Filter = [this](const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
-                        const lux::MaterialAsset* materialAsset = m_MaterialAssetManager->Get(geometry.MaterialsCpu[
-                            geometry.RenderObjects[renderObject.Index].Material].Handle);
+                        const u32 material = geometry.RenderObjects[renderObject.Index].Material;
+                        if (material == lux::SceneRenderObject::INVALID)
+                            return false;
+                        const lux::MaterialAsset* materialAsset = m_MaterialAssetManager->Get(
+                            geometry.MaterialsCpu[material].Handle);
                         if (materialAsset == nullptr)
                             return false;
                         
@@ -224,8 +229,11 @@ void Renderer::InitRenderGraph()
                 {
                     .Name = "Opaque material"_hsv,
                     .Filter = [this](const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
-                        const lux::MaterialAsset* materialAsset = m_MaterialAssetManager->Get(geometry.MaterialsCpu[
-                            geometry.RenderObjects[renderObject.Index].Material].Handle);
+                        const u32 material = geometry.RenderObjects[renderObject.Index].Material;
+                        if (material == lux::SceneRenderObject::INVALID)
+                            return false;
+                        const lux::MaterialAsset* materialAsset = m_MaterialAssetManager->Get(
+                            geometry.MaterialsCpu[material].Handle);
                         if (materialAsset == nullptr)
                             return false;
                         
@@ -246,8 +254,11 @@ void Renderer::InitRenderGraph()
                 {
                     .Name = "Opaque material2"_hsv,
                     .Filter = [this](const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
-                        const lux::MaterialAsset* materialAsset = m_MaterialAssetManager->Get(geometry.MaterialsCpu[
-                            geometry.RenderObjects[renderObject.Index].Material].Handle);
+                        const u32 material = geometry.RenderObjects[renderObject.Index].Material;
+                        if (material == lux::SceneRenderObject::INVALID)
+                            return false;
+                        const lux::MaterialAsset* materialAsset = m_MaterialAssetManager->Get(
+                            geometry.MaterialsCpu[material].Handle);
                         if (materialAsset == nullptr)
                             return false;
                         
@@ -314,7 +325,7 @@ void Renderer::InitRenderGraph()
 
 void Renderer::ExecuteSingleTimePasses()
 {
-    static constexpr std::string_view SKYBOX_PATH = "../assets/textures/autumn_field_puresky_4k.hdr";
+    static constexpr std::string_view SKYBOX_PATH = "../assets/textures/forest.hdr";
     const lux::ImageHandle equirectangular = m_ImageAssetManager->LoadResource({.Path = SKYBOX_PATH});
 
     const TextureDescription& equirectangularDescription =
@@ -389,6 +400,9 @@ void Renderer::SetupRenderGraph()
     UpdateGlobalRenderGraphResources();
 
     Resource backbuffer = m_Graph->GetBackbufferImage();
+    
+    m_SceneGeometryRGResources = SceneGeometryRGResources::ForGeometry(m_Scene->Geometry(), 
+        *m_Graph);
 
     Resource color = m_Graph->Create("Color"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
         .Inference = RGImageInference::Size2d,
@@ -441,6 +455,24 @@ void Renderer::SetupRenderGraph()
         cloudMaps = RenderGraphGetCloudMaps();
         skyAtmosphereWithCloudsEnvironment = RenderGraphAtmosphereEnvironment(*atmosphereLuts, cloudMaps);
     }
+    
+    if (m_Scene->Geometry().SkinnedRenderObjectCount > 0)
+    {
+        auto skinning = Passes::ComputeSkinning::addToGraph("Skinning"_hsv, *m_Graph, {
+            .RenderObjects = m_SceneGeometryRGResources.RenderObjects,
+            .Meshlets = m_SceneGeometryRGResources.Meshlets,
+            .Skins = m_SceneGeometryRGResources.Skins,
+            .RenderObjectSkinnedInfos = m_SceneGeometryRGResources.RenderObjectSkinnedInfos,
+            .Ugb = m_SceneGeometryRGResources.Attributes,
+            .JointMatrices = m_SceneGeometryRGResources.JointMatrices,
+            .SkinnedRenderObjectCount = m_Scene->Geometry().SkinnedRenderObjectCount,
+            .SkinnedMeshletCount = m_Scene->Geometry().SkinnedMeshletCount
+        });
+        
+        m_SceneGeometryRGResources.RenderObjects = skinning.RenderObjects;
+        m_SceneGeometryRGResources.Meshlets = skinning.Meshlets;
+        m_SceneGeometryRGResources.Attributes = skinning.Ugb;
+    }
 
     m_OpaqueSetPrimaryView = {
         .Name = "OpaquePrimary"_hsv,
@@ -452,7 +484,7 @@ void Renderer::SetupRenderGraph()
     m_OpaqueSetPrimaryVisibility = m_PrimaryVisibility.AddVisibility(m_OpaqueSetPrimaryView);
     const u32 primaryVisibilityIndex = m_PrimaryVisibility.VisibilityHandleToIndex(m_OpaqueSetPrimaryVisibility);
     m_PrimaryVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
-        *m_Graph, m_PrimaryVisibility);
+        *m_Graph, m_SceneGeometryRGResources, m_PrimaryVisibility);
     m_PrimaryVisibilityResources.HizPrevious[primaryVisibilityIndex] = m_PrimaryHizPrevious.HasValue() ?
         m_Graph->Import("PrimaryHiz.Previous"_hsv, m_PrimaryHizPrevious, ImageLayout::Readonly) :
         m_Graph->Import("PrimaryHiz.Dummy"_hsv,
@@ -711,7 +743,7 @@ RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass, const lux::
     auto& csmInit = Passes::SceneCsm::addToGraph("CSM"_hsv,
         *m_Graph, {
             .Pass = &scenePass,
-            .Geometry = &m_Scene->Geometry(),
+            .Geometry = &m_SceneGeometryRGResources,
             .MultiviewVisibility = &m_ShadowMultiviewVisibility,
             .MainCamera = m_Camera.get(),
             .DirectionalLight = DirectionalLight{{
@@ -728,7 +760,7 @@ RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass, const lux::
         });
 
     m_ShadowMultiviewVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
-        *m_Graph, m_ShadowMultiviewVisibility);
+        *m_Graph, m_SceneGeometryRGResources, m_ShadowMultiviewVisibility);
     
     auto& meta = Passes::SceneMetaDraw::addToGraph("MetaCsmPass"_hsv,
         *m_Graph, {
@@ -768,7 +800,7 @@ SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::Resour
         auto& pass = Passes::SceneDepthPrepass::addToGraph(
             name.Concatenate(".DepthPrepass"), graph, {
                 .DrawInfo = info,
-                .Geometry = &m_Scene->Geometry()});
+                .Geometry = &m_SceneGeometryRGResources});
 
         return pass.Resources.Attachments;
     };
@@ -803,7 +835,7 @@ SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource
         
         Passes::SceneForwardPbr::ExecutionInfo executionInfo = {
             .DrawInfo = info,
-            .Geometry = &m_Scene->Geometry(),
+            .Geometry = &m_SceneGeometryRGResources,
             .Light = &m_Scene->Lights(),
             .SSAO = {.SSAO = m_Ssao},
             .IBL = {
@@ -871,7 +903,7 @@ SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::Resource vb
     {
         Passes::SceneVBuffer::ExecutionInfo executionInfo = {
             .DrawInfo = info,
-            .Geometry = &m_Scene->Geometry()
+            .Geometry = &m_SceneGeometryRGResources
         };
         
         auto& pass = Passes::SceneVBuffer::addToGraph(name.Concatenate(".VBuffer"), graph, executionInfo);
@@ -913,7 +945,7 @@ RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource 
     const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
     
     auto& pbr = Passes::SceneVBufferPbr::addToGraph("VBufferPbr"_hsv, *m_Graph, {
-        .Geometry = &m_Scene->Geometry(),
+        .Geometry = &m_SceneGeometryRGResources,
         .VisibleMeshlets = visibleMeshlets,
         .VisibilityTexture = vbuffer,
         .ViewInfo = viewInfo,
@@ -967,7 +999,7 @@ Passes::SceneMetaDraw::PassData& Renderer::RenderGraphForwardPass(RG::Resource& 
     return meta;
 }
 
-Passes::SceneMetaDraw::PassData& Renderer::RenderGraphVBuffer(RG::Resource& vbuffer, RG::Resource& color,
+Passes::SceneMetaDraw::PassData& Renderer::RenderGraphVBuffer(RG::Resource& vbuffer, RG::Resource& color, 
     RG::Resource& depth)
 {
     auto& shadowPass = m_OpaqueSet.FindPass("Shadow"_hsv);
@@ -1570,7 +1602,7 @@ lux::SceneInstanceHandle spawnRandomScene(Scene& scene, const std::vector<lux::S
     lux::SceneHandle sceneHandle = scenes[sceneIndex];
     
     glm::vec3 position = camera.GetPosition() +
-        camera.GetForward() * 15.0f +
+        camera.GetForward() * 7.0f +
         camera.GetRight() * Random::Float(-2.0f, 2.0f) +
         camera.GetUp() * Random::Float(-2.0f, 2.0f);
     

@@ -130,6 +130,14 @@ struct AccessorDataTypeTraits
 };
 
 template <>
+struct AccessorDataTypeTraits<glm::u16vec4>
+{
+    static constexpr assetlib::GeometryBufferAccessorType TYPE = assetlib::GeometryBufferAccessorType::Vec4;
+    static constexpr assetlib::GeometryBufferAccessorComponentType COMPONENT_TYPE =
+        assetlib::GeometryBufferAccessorComponentType::U16;
+};
+
+template <>
 struct AccessorDataTypeTraits<glm::vec4>
 {
     static constexpr assetlib::GeometryBufferAccessorType TYPE = assetlib::GeometryBufferAccessorType::Vec4;
@@ -169,6 +177,14 @@ struct AccessorDataTypeTraits<assetlib::SceneAssetMeshlet>
         assetlib::GeometryBufferAccessorComponentType::Meshlet;
 };
 
+template <>
+struct AccessorDataTypeTraits<glm::mat4>
+{
+    static constexpr assetlib::GeometryBufferAccessorType TYPE = assetlib::GeometryBufferAccessorType::Mat4;
+    static constexpr assetlib::GeometryBufferAccessorComponentType COMPONENT_TYPE =
+        assetlib::GeometryBufferAccessorComponentType::F32;
+};
+
 struct ProcessContext
 {
     template <typename T>
@@ -182,8 +198,13 @@ struct ProcessContext
     AccessorProxy<glm::vec3> Normals{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Normal};
     AccessorProxy<glm::vec4> Tangents{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Tangent};
     AccessorProxy<glm::vec2> UVs{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Uv};
+    AccessorProxy<glm::u16vec4> Joints{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Joint};
+    AccessorProxy<glm::vec4> Weights{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Weight};
     AccessorProxy<assetlib::SceneAssetIndexType> Indices{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Index};
     AccessorProxy<assetlib::SceneAssetMeshlet> Meshlets{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Meshlet};
+    AccessorProxy<glm::mat4> InverseBindMatrices{
+        .ViewIndex = (u32)assetlib::GeometryBufferViewType::InverseBindMatrices
+    };
 
     assetlib::SceneAsset SceneAsset{};
     assetlib::GeometryBufferAsset GeometryBufferAsset{};
@@ -226,8 +247,12 @@ public:
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Normal].Name = "Normals";
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Tangent].Name = "Tangents";
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Uv].Name = "Uvs";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Joint].Name = "Joints";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Weight].Name = "Weights";
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Index].Name = "Indices";
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Meshlet].Name = "Meshlet";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::InverseBindMatrices].Name = 
+            "InverseBindMatrices";
 
         auto writeAndUpdateView = [&geometryBufferHeader, this](auto accessorProxy)
         {
@@ -244,8 +269,11 @@ public:
         writeAndUpdateView(Normals);
         writeAndUpdateView(Tangents);
         writeAndUpdateView(UVs);
+        writeAndUpdateView(Joints);
+        writeAndUpdateView(Weights);
         writeAndUpdateView(Indices);
         writeAndUpdateView(Meshlets);
+        writeAndUpdateView(InverseBindMatrices);
         
         GeometryBufferAsset.Header.SizeBytes = GeometryBufferAsset.Data.size();
     }
@@ -523,6 +551,7 @@ void processNode(ProcessContext& ctx, tinygltf::Model&, tinygltf::Node& node)
         .Camera = (u32)node.camera,
         .Light = (u32)node.light,
         .Mesh = (u32)node.mesh,
+        .Skin = (u32)node.skin,
         .Transform = getTransform(node)
     };
     bakedNode.Children.reserve(node.children.size());
@@ -684,6 +713,8 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
         std::vector<glm::vec3> normals;
         std::vector<glm::vec4> tangents;
         std::vector<glm::vec2> uvs;
+        std::vector<glm::u16vec4> joints;
+        std::vector<glm::vec4> weights;
         for (auto& attribute : primitive.attributes)
         {
             tinygltf::Accessor& attributeAccessor = gltf.accessors[attribute.second];
@@ -695,6 +726,31 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
                 copyBufferToVector(tangents, gltf, attributeAccessor);
             else if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_UV0_NAME)
                 copyBufferToVector(uvs, gltf, attributeAccessor);
+            else if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_JOINTS0_NAME)
+            {
+                switch (attributeAccessor.componentType)
+                {
+                case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+                    {
+                        std::vector<glm::u8vec4> rawJoints(attributeAccessor.count);
+                        copyBufferToVector(rawJoints, gltf, attributeAccessor);
+                        joints.reserve(rawJoints.size());
+                        for (auto& joint : rawJoints)
+                            joints.emplace_back(joint.x, joint.y, joint.z, joint.w);
+                        break;
+                    }
+                case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+                    {
+                        copyBufferToVector(joints, gltf, attributeAccessor);
+                        break;
+                    }
+                default:
+                    ASSERT(false)
+                    break;
+                }
+            }
+            else if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_WEIGHTS0_NAME)
+                copyBufferToVector(weights, gltf, attributeAccessor);
         }
         CHECK_RETURN_IO_ERROR(!positions.empty(), IoError::ErrorCode::GeneralError,
             "Failed to process mesh {}. The mesh has no positions data", mesh.name)
@@ -716,45 +772,42 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
             .Positions = &positions,
             .Normals = &normals,
             .Tangents = &tangents,
-            .UVs = &uvs
+            .UVs = &uvs,
+            .Joints = &joints,
+            .Weights = &weights
         };
         utils::remapMesh(attributes, indices);
         auto&& [meshlets, meshletIndices] = utils::createMeshlets(attributes, indices);
         auto&& [sphere, box] = utils::meshBoundingVolumes(meshlets);
+        
+        std::vector<assetlib::MeshPrimitive::Attribute> meshAttributes;
+        auto addAttribute = [&ctx, &meshAttributes](auto& source, auto& destination, std::string_view name) {
+            u32 accessorIndex = (u32)ctx.GeometryBufferAsset.Header.Accessors.size();
+            ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(source, destination));
+            meshAttributes.push_back(assetlib::MeshPrimitive::Attribute{
+                .Name = std::string(name),
+                .Accessor = accessorIndex
+            });
+        };
+        
+        addAttribute(positions, ctx.Positions, assetlib::MeshPrimitive::ATTRIBUTE_POSITION_NAME);
+        addAttribute(normals, ctx.Normals, assetlib::MeshPrimitive::ATTRIBUTE_NORMAL_NAME);
+        addAttribute(tangents, ctx.Tangents, assetlib::MeshPrimitive::ATTRIBUTE_TANGENT_NAME);
+        addAttribute(uvs, ctx.UVs, assetlib::MeshPrimitive::ATTRIBUTE_UV0_NAME);
+        if (!joints.empty())
+        {
+            ASSERT(joints.size() == weights.size())
+            addAttribute(joints, ctx.Joints, assetlib::MeshPrimitive::ATTRIBUTE_JOINTS0_NAME);
+            addAttribute(weights, ctx.Weights, assetlib::MeshPrimitive::ATTRIBUTE_WEIGHTS0_NAME);
+        }
+        addAttribute(meshlets, ctx.Meshlets, assetlib::MeshPrimitive::ATTRIBUTE_MESHLET_NAME);
 
-        u32 lastAccessor = (u32)ctx.GeometryBufferAsset.Header.Accessors.size();
-        ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(positions, ctx.Positions));
-        ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(normals, ctx.Normals));
-        ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(tangents, ctx.Tangents));
-        ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(uvs, ctx.UVs));
+        const u32 indicesAccessorIndex = (u32)ctx.GeometryBufferAsset.Header.Accessors.size();
         ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(meshletIndices, ctx.Indices));
-        ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(meshlets, ctx.Meshlets));
-
         assetlib::MeshPrimitive bakedPrimitive = {
-            .Attributes = {
-                assetlib::MeshPrimitive::Attribute{
-                    .Name = std::string(assetlib::MeshPrimitive::ATTRIBUTE_POSITION_NAME),
-                    .Accessor = lastAccessor + (u32)assetlib::GeometryBufferViewType::Position
-                },
-                assetlib::MeshPrimitive::Attribute{
-                    .Name = std::string(assetlib::MeshPrimitive::ATTRIBUTE_NORMAL_NAME),
-                    .Accessor = lastAccessor + (u32)assetlib::GeometryBufferViewType::Normal
-                },
-                assetlib::MeshPrimitive::Attribute{
-                    .Name = std::string(assetlib::MeshPrimitive::ATTRIBUTE_TANGENT_NAME),
-                    .Accessor = lastAccessor + (u32)assetlib::GeometryBufferViewType::Tangent
-                },
-                assetlib::MeshPrimitive::Attribute{
-                    .Name = std::string(assetlib::MeshPrimitive::ATTRIBUTE_UV0_NAME),
-                    .Accessor = lastAccessor + (u32)assetlib::GeometryBufferViewType::Uv
-                },
-                assetlib::MeshPrimitive::Attribute{
-                    .Name = std::string(assetlib::MeshPrimitive::ATTRIBUTE_MESHLET_NAME),
-                    .Accessor = lastAccessor + (u32)assetlib::GeometryBufferViewType::Meshlet
-                },
-            },
+            .Attributes = std::move(meshAttributes),
             .Material = primitive.material == -1 ? assetlib::MeshPrimitiveMaterial{} : ctx.Materials[primitive.material],
-            .IndicesAccessor = lastAccessor + (u32)assetlib::GeometryBufferViewType::Index,
+            .IndicesAccessor = indicesAccessorIndex,
             .BoundingSphere = sphere,
             .BoundingBox = box,
         };
@@ -765,6 +818,26 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
         ctx.MeshAssets.push_back({.Asset = {.Primitives = {bakedPrimitive}}, .Name = meshName});
     }
 
+    return {};
+}
+
+IoResult<void> processSkin(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Skin& skin)
+{
+    tinygltf::Accessor& attributeAccessor = gltf.accessors[skin.inverseBindMatrices];
+    
+    std::vector<glm::mat4> matrices(attributeAccessor.count);
+    copyBufferToVector(matrices, gltf, attributeAccessor);
+
+    const u32 accessorIndex = (u32)ctx.GeometryBufferAsset.Header.Accessors.size();
+    ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(matrices, ctx.InverseBindMatrices));
+    
+    std::vector<u32> joints;
+    joints.assign_range(skin.joints);
+    ctx.SceneAsset.Skins.push_back({
+        .InverseBindMatrixAccessor = accessorIndex,
+        .JointNodes = std::move(joints)
+    });
+    
     return {};
 }
 
@@ -804,7 +877,7 @@ IoResult<void> createMeshAssets(ProcessContext& ctx)
     return {};
 }
 
-IoResult<void> copyExistingMeshes(ProcessContext& ctx)
+IoResult<void> copyExistingMeshesAndSkins(ProcessContext& ctx)
 {
     SceneImporter importer(ctx.Ctx);
     auto imported = importer.Import(ctx.ScenePath, ImportFlags::Header | ImportFlags::Outdated);
@@ -815,6 +888,9 @@ IoResult<void> copyExistingMeshes(ProcessContext& ctx)
     ctx.SceneAsset.Meshes.reserve(asset.Meshes.size());
     for (assetlib::AssetId mesh : asset.Meshes)
         ctx.SceneAsset.Meshes.push_back(mesh);
+    ctx.SceneAsset.Skins.reserve(asset.Skins.size());
+    for (auto& skin : asset.Skins)
+        ctx.SceneAsset.Skins.push_back(skin);
     
     return {};
 }
@@ -830,18 +906,24 @@ IoResult<void> processGeometry(ProcessContext& ctx, tinygltf::Model& gltf)
         .SourceUri = ctx.BufferUri
     });
     const bool needToRebakeGeometry = importer.NeedsBaking(ctx.ScenePath.parent_path() / ctx.BufferUri);
-    if (!needToRebakeGeometry && copyExistingMeshes(ctx).has_value())
+    if (!needToRebakeGeometry && copyExistingMeshesAndSkins(ctx).has_value())
         return {};
  
     for (auto& mesh : gltf.meshes)
     {
         auto meshProcessResult = processMesh(ctx, gltf, mesh);
-        CHECK_RETURN_IO_ERROR(meshProcessResult.has_value(), IoError::ErrorCode::GeneralError,
-            "Failed to bake scene: {} ({})", meshProcessResult.error(), ctx.ScenePath.string())
+        CHECK_RETURN_IO_ERROR_PROPAGATE(meshProcessResult)
+    }
+    for (auto& skin : gltf.skins)
+    {
+        auto skinProcessResult = processSkin(ctx, gltf, skin);
+        CHECK_RETURN_IO_ERROR_PROPAGATE(skinProcessResult)
     }
     ctx.FinalizeGeometry();
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(createGeometryBufferAssets(ctx))
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(createMeshAssets(ctx))
+    for (auto& skin : ctx.SceneAsset.Skins)
+        skin.GeometryBuffer = ctx.GeometryBufferAssetId;
     
     return {};
 }

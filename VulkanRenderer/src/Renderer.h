@@ -13,6 +13,7 @@
 #include "Assets/Images/ImageAssetManager.h"
 #include "RenderGraph/Passes/Clouds/CloudCommon.h"
 #include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudPass.h"
+#include "RenderGraph/Passes/Scene/SceneGeometryRGResources.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityPassesCommon.h"
 #include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
 #include "RenderGraph/Visualization/RGMermaidExporter.h"
@@ -81,8 +82,7 @@ private:
     void SetupRenderGraph();
     void UpdateGlobalRenderGraphResources() const;
 
-    RG::CsmData RenderGraphShadows(const ScenePass& scenePass,
-        const lux::CommonLight& directionalLight);
+    RG::CsmData RenderGraphShadows(const ScenePass& scenePass, const lux::CommonLight& directionalLight);
     Passes::SceneMetaDraw::PassData& RenderGraphDepthPrepass(RG::Resource depth, const ScenePass& scenePass);
     SceneDrawPassDescription RenderGraphDepthPrepassDescription(RG::Resource depth, const ScenePass& scenePass);
     SceneDrawPassDescription RenderGraphForwardPbrDescription(RG::Resource color, RG::Resource depth,
@@ -94,7 +94,7 @@ private:
         RG::CsmData csmData);
 
     Passes::SceneMetaDraw::PassData& RenderGraphForwardPass(RG::Resource& color, RG::Resource& depth);
-    Passes::SceneMetaDraw::PassData& RenderGraphVBuffer(RG::Resource& vbuffer, RG::Resource& color,
+    Passes::SceneMetaDraw::PassData& RenderGraphVBuffer(RG::Resource& vbuffer, RG::Resource& color, 
         RG::Resource& depth);
     
     void RenderGraphOnFrameDepthGenerated(StringId passName, RG::Resource depth);
@@ -242,6 +242,7 @@ private:
     std::vector<lux::SceneHandle> m_Scenes;
     lux::SceneHandle m_Lights{};
     std::unique_ptr<Scene> m_Scene;
+    SceneGeometryRGResources m_SceneGeometryRGResources;
     SceneBucketList m_SceneBucketList;
     SceneRenderObjectSet m_OpaqueSet;
     SceneVisibilityHandle m_OpaqueSetPrimaryVisibility{};

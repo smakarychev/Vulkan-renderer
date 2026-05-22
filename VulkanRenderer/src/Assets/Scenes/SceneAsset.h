@@ -13,6 +13,9 @@ struct DirectionalLight;
 
 namespace lux
 {
+struct SceneSkin;
+struct SceneHierarchyJoint;
+struct SceneSkinnedRenderObject;
 struct SceneRenderObject;
 struct CommonLight;
 struct SceneHierarchyNode;
@@ -24,10 +27,15 @@ struct SceneGeometryInfo
     std::vector<glm::vec3> Normals;
     std::vector<glm::vec4> Tangents;
     std::vector<glm::vec2> UVs;
+    std::vector<glm::u16vec4> Joints;
+    std::vector<glm::vec4> Weights;
 
     std::vector<SceneRenderObject> RenderObjects;
+    std::vector<SceneSkinnedRenderObject> SkinnedRenderObjects;
+    std::vector<SceneSkin> Skins;
     std::vector<MaterialGPU> Materials;
     std::vector<assetlib::SceneAssetMeshlet> Meshlets;
+    std::vector<glm::mat4> JointInverseBindMatrices;
     
     struct MaterialInfo
     {
@@ -52,6 +60,7 @@ struct SceneLightInfo
 struct SceneHierarchyInfo
 {
     std::vector<SceneHierarchyNode> Nodes;
+    std::vector<SceneHierarchyJoint> Joints;
     u16 MaxDepth{0};
 };
 
@@ -70,13 +79,30 @@ using SceneInstanceHandle = u32;
 
 struct SceneRenderObject
 {
+    static constexpr u32 INVALID = ~0lu;
+    
     u32 Material{};
     u32 FirstIndex{};
     u32 FirstVertex{};
+    u32 VertexCount{};
     u32 FirstMeshlet{};
     u32 MeshletCount{};
+    u32 SkinnedRenderObjectIndex{INVALID};
     AABB BoundingBox{};
     Sphere BoundingSphere{};
+};
+
+struct SceneSkinnedRenderObject
+{
+    u32 FirstJointMatrix{};
+    u32 FirstJoint{};
+    u32 FirstWeight{};
+    u32 SkinIndex{};
+};
+
+struct SceneSkin
+{
+    std::vector<u32> JointNodes;
 };
 
 enum class LightType : u8
@@ -128,5 +154,10 @@ struct SceneHierarchyNode
     Transform3d LocalTransform{};
     u32 PayloadIndex{0};
     SceneInstanceHandle Instance{};
+};
+struct SceneHierarchyJoint
+{
+    SceneHierarchyHandle Node{};
+    glm::mat4 InverseBindMatrix{};
 };
 }
