@@ -393,6 +393,7 @@ IoResult<assetlib::ImageAsset> readUncompressedHdr(const assetlib::ImageMeta& me
 {
     i32 width, height, channels;
     u8* pixels{nullptr};
+    stbi_set_flip_vertically_on_load(true);
     pixels = (u8*)stbi_loadf(meta.Metadata.Io.OriginalFile.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     const u64 sizeBytes = (u64)width * (u64)height * 4llu * sizeof(f32);
     std::vector imageData((std::byte*)pixels, (std::byte*)pixels + sizeBytes);
@@ -417,6 +418,7 @@ IoResult<assetlib::ImageAsset> readUncompressedLdr(const assetlib::ImageMeta& me
 {
     i32 width, height, channels;
     u8* pixels{nullptr};
+    stbi_set_flip_vertically_on_load(true);
     pixels = (u8*)stbi_load(meta.Metadata.Io.OriginalFile.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     const u64 sizeBytes = (u64)width * (u64)height * 4llu;
     std::vector imageData((std::byte*)pixels, (std::byte*)pixels + sizeBytes);
