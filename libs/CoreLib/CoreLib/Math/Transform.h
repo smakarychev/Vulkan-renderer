@@ -11,10 +11,14 @@ struct Transform3d
 
     glm::mat4 ToMatrix() const
     {
-        return
-            glm::translate(glm::mat4{1.0f}, Position) * 
-            glm::mat4_cast(Orientation) * 
-            glm::scale(glm::mat4{1.0f}, Scale);
+        glm::mat4 transform = glm::mat4(glm::mat3_cast(Orientation));
+        transform[0] *= Scale.x;
+        transform[1] *= Scale.y;
+        transform[2] *= Scale.z;
+
+        transform[3] = glm::vec4(Position, 1.0f);
+
+        return transform;
     }
 
     Transform3d Inverse() const
