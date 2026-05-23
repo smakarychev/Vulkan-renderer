@@ -574,7 +574,7 @@ void processSubscene(ProcessContext& ctx, tinygltf::Model&, tinygltf::Scene& sub
 }
 
 template <typename T>
-void copyBufferToVector(std::vector<T>& vec, tinygltf::Model& gltf, tinygltf::Accessor& accessor)
+void copyBufferToVector(std::vector<T>& vec, tinygltf::Model& gltf, const tinygltf::Accessor& accessor)
 {
     const tinygltf::BufferView& bufferView = gltf.bufferViews[accessor.bufferView];
     const tinygltf::Buffer& buffer = gltf.buffers[bufferView.buffer];
@@ -674,6 +674,67 @@ void generateTriangleTangents(std::vector<glm::vec4>& tangents,
     genTangSpaceDefault(&context);
 }
 
+IoResult<std::vector<u32>> readIndices(tinygltf::Model& gltf, const tinygltf::Accessor& indexAccessor)
+{
+    std::vector<u32> indices(indexAccessor.count);
+    switch (indexAccessor.componentType)
+    {
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+        {
+            std::vector<u8> rawIndices(indexAccessor.count);
+            copyBufferToVector(rawIndices, gltf, indexAccessor);
+            indices.assign_range(rawIndices);
+        }
+        break;
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+        {
+            std::vector<u16> rawIndices(indexAccessor.count);
+            copyBufferToVector(rawIndices, gltf, indexAccessor);
+            indices.assign_range(rawIndices);
+        }
+        break;
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+        copyBufferToVector(indices, gltf, indexAccessor);
+        break;
+    default:
+        return std::unexpected(assetlib::io::IoError{
+            .Code = IoError::ErrorCode::WrongFormat,
+            .Message = std::format("Unexpected index accessor type: {}", indexAccessor.componentType)
+        });
+    }
+    
+    return indices;
+}
+
+IoResult<std::vector<glm::u16vec4>> readJoints(tinygltf::Model& gltf, const tinygltf::Accessor& jointsAccessor)
+{
+    std::vector<glm::u16vec4> joints;
+    switch (jointsAccessor.componentType)
+    {
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+        {
+            std::vector<glm::u8vec4> rawJoints(jointsAccessor.count);
+            copyBufferToVector(rawJoints, gltf, jointsAccessor);
+            joints.reserve(rawJoints.size());
+            for (auto& joint : rawJoints)
+                joints.emplace_back(joint.x, joint.y, joint.z, joint.w);
+            break;
+        }
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+        {
+            copyBufferToVector(joints, gltf, jointsAccessor);
+            break;
+        }
+    default:
+        return std::unexpected(assetlib::io::IoError{
+            .Code = IoError::ErrorCode::WrongFormat,
+            .Message = std::format("Unexpected joints accessor type: {}", jointsAccessor.componentType)
+        });
+    }
+    
+    return joints;
+}
+
 IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Mesh& mesh)
 {
     for (auto& primitive : mesh.primitives)
@@ -682,32 +743,8 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
             "Failed to process mesh {}. The mesh mode is not triangles", mesh.name)
 
         tinygltf::Accessor& indexAccessor = gltf.accessors[primitive.indices];
-        std::vector<u32> indices(indexAccessor.count);
-        switch (indexAccessor.componentType)
-        {
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
-            {
-                std::vector<u8> rawIndices(indexAccessor.count);
-                copyBufferToVector(rawIndices, gltf, indexAccessor);
-                indices.assign_range(rawIndices);
-            }
-            break;
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-            {
-                std::vector<u16> rawIndices(indexAccessor.count);
-                copyBufferToVector(rawIndices, gltf, indexAccessor);
-                indices.assign_range(rawIndices);
-            }
-            break;
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
-            copyBufferToVector(indices, gltf, indexAccessor);
-            break;
-        default:
-            return std::unexpected(assetlib::io::IoError{
-                .Code = IoError::ErrorCode::WrongFormat,
-                .Message = std::format("Unexpected index accessor type: {}", indexAccessor.componentType)
-            });
-        }
+        auto indices = readIndices(gltf, indexAccessor);
+        CHECK_RETURN_IO_ERROR_PROPAGATE(indices)
 
         std::vector<glm::vec3> positions;
         std::vector<glm::vec3> normals;
@@ -728,26 +765,9 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
                 copyBufferToVector(uvs, gltf, attributeAccessor);
             else if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_JOINTS0_NAME)
             {
-                switch (attributeAccessor.componentType)
-                {
-                case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
-                    {
-                        std::vector<glm::u8vec4> rawJoints(attributeAccessor.count);
-                        copyBufferToVector(rawJoints, gltf, attributeAccessor);
-                        joints.reserve(rawJoints.size());
-                        for (auto& joint : rawJoints)
-                            joints.emplace_back(joint.x, joint.y, joint.z, joint.w);
-                        break;
-                    }
-                case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-                    {
-                        copyBufferToVector(joints, gltf, attributeAccessor);
-                        break;
-                    }
-                default:
-                    ASSERT(false)
-                    break;
-                }
+                auto jointsRead = readJoints(gltf, attributeAccessor);
+                CHECK_RETURN_IO_ERROR_PROPAGATE(jointsRead)
+                joints = std::move(*jointsRead);
             }
             else if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_WEIGHTS0_NAME)
                 copyBufferToVector(weights, gltf, attributeAccessor);
@@ -760,9 +780,9 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
         const bool hasUVs = !uvs.empty();
 
         if (!hasNormals)
-            generateTriangleNormals(normals, positions, indices);
+            generateTriangleNormals(normals, positions, *indices);
         if (!hasTangents && hasUVs)
-            generateTriangleTangents(tangents, positions, normals, uvs, indices);
+            generateTriangleTangents(tangents, positions, normals, uvs, *indices);
         if (!hasTangents)
             tangents.resize(positions.size(), glm::vec4{0.0f, 0.0f, 1.0f, 1.0f});
         if (!hasUVs)
@@ -776,8 +796,8 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
             .Joints = &joints,
             .Weights = &weights
         };
-        utils::remapMesh(attributes, indices);
-        auto&& [meshlets, meshletIndices] = utils::createMeshlets(attributes, indices);
+        utils::remapMesh(attributes, *indices);
+        auto&& [meshlets, meshletIndices] = utils::createMeshlets(attributes, *indices);
         auto&& [sphere, box] = utils::meshBoundingVolumes(meshlets);
         
         std::vector<assetlib::MeshPrimitive::Attribute> meshAttributes;
