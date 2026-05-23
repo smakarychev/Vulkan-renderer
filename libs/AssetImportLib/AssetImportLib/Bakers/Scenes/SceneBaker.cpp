@@ -203,7 +203,7 @@ struct ProcessContext
     AccessorProxy<assetlib::SceneAssetIndexType> Indices{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Index};
     AccessorProxy<assetlib::SceneAssetMeshlet> Meshlets{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Meshlet};
     AccessorProxy<glm::mat4> InverseBindMatrices{
-        .ViewIndex = (u32)assetlib::GeometryBufferViewType::InverseBindMatrices
+        .ViewIndex = (u32)assetlib::GeometryBufferViewType::InverseBindMatrix
     };
 
     assetlib::SceneAsset SceneAsset{};
@@ -251,7 +251,7 @@ public:
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Weight].Name = "Weights";
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Index].Name = "Indices";
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Meshlet].Name = "Meshlet";
-        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::InverseBindMatrices].Name = 
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::InverseBindMatrix].Name = 
             "InverseBindMatrices";
 
         auto writeAndUpdateView = [&geometryBufferHeader, this](auto accessorProxy)

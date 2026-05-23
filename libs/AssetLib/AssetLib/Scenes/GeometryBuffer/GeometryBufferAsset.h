@@ -46,7 +46,7 @@ enum class GeometryBufferViewType : u8
     /* per instance data */
     Meshlet = 7,
     
-    InverseBindMatrices = 8,
+    InverseBindMatrix = 8,
             
     MaxVal = 9,
 };

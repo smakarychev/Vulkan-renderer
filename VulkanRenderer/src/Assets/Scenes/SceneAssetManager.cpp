@@ -651,7 +651,7 @@ std::optional<assetlib::GeometryBufferAsset> SceneAssetManager::LoadGeometryBuff
     appendToVector(geometry.Meshlets,
         bufferData + views[(u32)Meshlet].OffsetBytes, views[(u32)Meshlet].LengthBytes);
     appendToVector(geometry.JointInverseBindMatrices,
-        bufferData + views[(u32)InverseBindMatrices].OffsetBytes, views[(u32)InverseBindMatrices].LengthBytes);
+        bufferData + views[(u32)InverseBindMatrix].OffsetBytes, views[(u32)InverseBindMatrix].LengthBytes);
     
     return importedBuffer;
 }
