@@ -877,7 +877,7 @@ IoResult<void> createMeshAssets(ProcessContext& ctx)
     return {};
 }
 
-IoResult<void> copyExistingMeshesAndSkins(ProcessContext& ctx)
+IoResult<void> copyExistingGeometry(ProcessContext& ctx)
 {
     SceneImporter importer(ctx.Ctx);
     auto imported = importer.Import(ctx.ScenePath, ImportFlags::Header | ImportFlags::Outdated);
@@ -906,7 +906,7 @@ IoResult<void> processGeometry(ProcessContext& ctx, tinygltf::Model& gltf)
         .SourceUri = ctx.BufferUri
     });
     const bool needToRebakeGeometry = importer.NeedsBaking(ctx.ScenePath.parent_path() / ctx.BufferUri);
-    if (!needToRebakeGeometry && copyExistingMeshesAndSkins(ctx).has_value())
+    if (!needToRebakeGeometry && copyExistingGeometry(ctx).has_value())
         return {};
  
     for (auto& mesh : gltf.meshes)
