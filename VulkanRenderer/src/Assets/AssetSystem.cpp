@@ -105,7 +105,8 @@ void AssetSystem::InitFileWatcher(const std::filesystem::path& path)
     {
         const std::filesystem::path filePath = event.Name;
 
-        if (event.Action != FileWatcherEvent::ActionType::Modify)
+        if (event.Action != FileWatcherEvent::ActionType::Modify && 
+            event.Action != FileWatcherEvent::ActionType::Rename)
             return;
         
         /* is it possible that file is deleted or renamed before we begin to process it */
