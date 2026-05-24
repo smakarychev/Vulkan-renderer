@@ -20,8 +20,8 @@ public:
         using pointer = std::conditional_t<IsConst, const value_type*, value_type*>;
         using reference = std::conditional_t<IsConst, const value_type&, value_type&>;
 
-        Iterator(const PagedDenseArray<Element>& dense, u32 index)
-            : m_Index(index), m_Dense(&dense)
+        Iterator(std::conditional_t<IsConst, const PagedDenseArray<Element>&, PagedDenseArray<Element>&> dense,
+            u32 index) : m_Index(index), m_Dense(&dense)
         {
         }
 
