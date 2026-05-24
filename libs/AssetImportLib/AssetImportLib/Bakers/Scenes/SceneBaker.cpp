@@ -822,6 +822,15 @@ IoResult<std::vector<glm::vec4>> readKeyframeOrientations(tinygltf::Model& gltf,
     return keyframes;
 }
 
+std::string getMeshName(ProcessContext& ctx, tinygltf::Mesh& mesh)
+{
+    std::string meshName = mesh.name;
+    if (meshName.empty())
+        meshName = std::format("_unnamed_mesh_{}", ctx.MeshAssets.size());
+    
+    return meshName;
+}
+
 IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Mesh& mesh)
 {
     for (auto& primitive : mesh.primitives)
@@ -919,13 +928,25 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
             .BoundingBox = box,
         };
         
-        std::string meshName = mesh.name;
-        if (meshName.empty())
-            meshName = std::format("_unnamed_mesh_{}", ctx.MeshAssets.size());
-        ctx.MeshAssets.push_back({.Asset = {.Primitives = {bakedPrimitive}}, .Name = meshName});
+        ctx.MeshAssets.push_back({.Asset = {.Primitives = {bakedPrimitive}}, .Name = getMeshName(ctx, mesh)});
     }
 
     return {};
+}
+
+void processMeshMaterialsOnly(ProcessContext& ctx, tinygltf::Mesh& mesh)
+{
+    for (auto& primitive : mesh.primitives)
+    {
+        assetlib::MeshPrimitive bakedPrimitive = {
+            .Material = primitive.material == -1 ? assetlib::MeshPrimitiveMaterial{} : ctx.Materials[primitive.material]
+        };
+        
+        std::string meshName = mesh.name;
+        if (meshName.empty())
+            meshName = std::format("_unnamed_mesh_{}", ctx.MeshAssets.size());
+        ctx.MeshAssets.push_back({.Asset = {.Primitives = {bakedPrimitive}}, .Name = getMeshName(ctx, mesh)});
+    }
 }
 
 IoResult<void> processSkin(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Skin& skin)
@@ -1061,6 +1082,11 @@ IoResult<void> createGeometryBufferAssets(ProcessContext& ctx)
     return {};
 }
 
+std::filesystem::path getMeshAssetPath(ProcessContext& ctx, ProcessContext::MeshInfo& mesh)
+{
+    return ctx.ScenePath.parent_path() / mesh.Name;
+}
+
 IoResult<void> createMeshAssets(ProcessContext& ctx)
 {
     MeshImporter importer(ctx.Ctx);
@@ -1069,7 +1095,7 @@ IoResult<void> createMeshAssets(ProcessContext& ctx)
     {
         auto& asset = mesh.Asset;
         asset.GeometryBuffer = ctx.GeometryBufferAssetId;
-        auto exportResult = importer.Export(asset, ctx.ScenePath.parent_path() / mesh.Name);
+        auto exportResult = importer.Export(asset, getMeshAssetPath(ctx, mesh));
         CHECK_RETURN_IMPORT_ERROR_PROPAGATE(exportResult)
         mesh.AssetId = *exportResult;
     }
@@ -1081,7 +1107,35 @@ IoResult<void> createMeshAssets(ProcessContext& ctx)
     return {};
 }
 
-IoResult<void> copyExistingGeometry(ProcessContext& ctx)
+IoResult<void> updateExistingMeshesMaterials(ProcessContext& ctx)
+{
+    MeshImporter importer(ctx.Ctx);
+    
+    for (auto& mesh : ctx.MeshAssets)
+    {
+        auto importResult = importer.Import(getMeshAssetPath(ctx, mesh));
+        CHECK_RETURN_IMPORT_ERROR_PROPAGATE(importResult)
+        auto existingMesh = importer.GetImportedMesh();
+        
+        CHECK_RETURN_IMPORT_ERROR(existingMesh.Asset.Primitives.size() == mesh.Asset.Primitives.size(), 
+            IoError::ErrorCode::GeneralError, "Meshes primitive count changed")
+        
+        for (u32 primitiveIndex = 0; primitiveIndex < mesh.Asset.Primitives.size(); primitiveIndex++) 
+            existingMesh.Asset.Primitives[primitiveIndex].Material = mesh.Asset.Primitives[primitiveIndex].Material;
+        
+        auto exportResult = importer.Export(existingMesh.Asset, getMeshAssetPath(ctx, mesh));
+        CHECK_RETURN_IMPORT_ERROR_PROPAGATE(exportResult)
+        mesh.AssetId = *exportResult;
+    }
+    
+    ctx.SceneAsset.Meshes.reserve(ctx.MeshAssets.size());
+    for (auto& mesh : ctx.MeshAssets)
+        ctx.SceneAsset.Meshes.push_back(mesh.AssetId);
+    
+    return {};
+}
+
+IoResult<void> copyExistingGeometry(ProcessContext& ctx, tinygltf::Model& gltf)
 {
     SceneImporter importer(ctx.Ctx);
     auto imported = importer.Import(ctx.ScenePath, ImportFlags::Header | ImportFlags::Outdated);
@@ -1089,9 +1143,9 @@ IoResult<void> copyExistingGeometry(ProcessContext& ctx)
     
     const auto& asset = importer.GetImportedScene().Asset;
     
-    ctx.SceneAsset.Meshes.reserve(asset.Meshes.size());
-    for (assetlib::AssetId mesh : asset.Meshes)
-        ctx.SceneAsset.Meshes.push_back(mesh);
+    for (auto& mesh : gltf.meshes)
+        processMeshMaterialsOnly(ctx, mesh);
+    CHECK_RETURN_IO_ERROR_PROPAGATE(updateExistingMeshesMaterials(ctx))
     
     ctx.SceneAsset.Skins.reserve(asset.Skins.size());
     for (auto& skin : asset.Skins)
@@ -1115,7 +1169,7 @@ IoResult<void> processGeometry(ProcessContext& ctx, tinygltf::Model& gltf)
         .SourceUri = ctx.BufferUri
     });
     const bool needToRebakeGeometry = importer.NeedsBaking(ctx.ScenePath.parent_path() / ctx.BufferUri);
-    if (!needToRebakeGeometry && copyExistingGeometry(ctx).has_value())
+    if (!needToRebakeGeometry && copyExistingGeometry(ctx, gltf).has_value())
         return {};
  
     ctx.MeshAssets.reserve(gltf.meshes.size());

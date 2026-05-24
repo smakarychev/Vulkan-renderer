@@ -43,7 +43,7 @@ struct MeshPrimitive
         std::string Name;
         u32 Accessor{MESH_UNSET_INDEX};
     };
-    std::vector<Attribute> Attributes;
+    std::vector<Attribute> Attributes{};
     MeshPrimitiveMaterial Material{};
     u32 IndicesAccessor{MESH_UNSET_INDEX};
     Sphere BoundingSphere{};
