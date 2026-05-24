@@ -400,13 +400,19 @@ SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAss
             });
     }
     
+    u32 jointIndex = 0;
     for (auto& skin : geometryInfo.Skins)
-        for (auto&& [jointIndex, joint] : std::views::enumerate(skin.JointNodes))
+    {
+        for (auto& joint : skin.JointNodes)
+        {
             sceneHierarchy.Joints.push_back({
                 .Node = SceneHierarchyHandle{.Handle = nodesReorder[joint]},
-                .JointMatrixIndex = (u32)jointIndex,
+                .JointMatrixIndex = jointIndex,
                 .InverseBindMatrix = geometryInfo.JointInverseBindMatrices[jointIndex]
             });
+            jointIndex += 1;
+        }
+    }
     
     return sceneHierarchy;
 }
