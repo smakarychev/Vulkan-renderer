@@ -7,8 +7,10 @@
 
 SceneGeometryRGResources SceneGeometryRGResources::ForGeometry(const SceneGeometry& geometry, RG::Graph& renderGraph)
 {
-    RG::Resource renderObjectSkinnedInfoIndices = Passes::Upload::addToGraph("UploadRenderObjectSkinnedInfoIndices"_hsv, 
-        renderGraph, geometry.RenderObjectSkinnedInfosIndices);
+    const RG::Resource renderObjectSkinnedInfoIndices = geometry.RenderObjectSkinnedInfosIndices.empty() ?
+        RG::Resource{} :
+        Passes::Upload::addToGraph("UploadRenderObjectSkinnedInfoIndices"_hsv, 
+            renderGraph, geometry.RenderObjectSkinnedInfosIndices);
     
     return {
         .Meshlets = renderGraph.Import("Meshlets"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Meshlets)),
