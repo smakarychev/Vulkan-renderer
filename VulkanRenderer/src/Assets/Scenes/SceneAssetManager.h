@@ -5,6 +5,7 @@
 #include "Assets/Common/AssetSlotMap.h"
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 
+#include <AssetLib/Scenes/GeometryBuffer/GeometryBufferAsset.h>
 #include <AssetImportLib/Importers/ImportContext.h>
 #include <CoreLib/Signals/Signal.h>
 
@@ -80,12 +81,32 @@ private:
     void RegisterMaterials(SceneHandle sceneHandle);
     void UnregisterMaterials(SceneHandle sceneHandle);
     std::optional<SceneAsset> DoLoad(import::SceneImporter& importer, const std::filesystem::path& path);
-    std::optional<SceneGeometryInfo> LoadGeometryInfo(const assetlib::SceneAsset& scene);
+    
+    struct BufferInfo
+    {
+        assetlib::GeometryBufferAsset Buffer{};
+        u32 FirstIndex{0};
+        u32 FirstVertex{0};
+        u32 FirstMeshlet{0};
+        u32 FirstJointMatrix{0};
+        u32 FirstJoint{0};
+        u32 FirstWeight{0};
+    };
+    std::optional<SceneGeometryInfo> LoadGeometryInfo(const assetlib::SceneAsset& scene, 
+        std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers);
     SceneLightInfo LoadLightsInfo(const assetlib::SceneAsset& scene);
-    SceneHierarchyInfo LoadHierarchyInfo(const assetlib::SceneAsset& scene, const SceneGeometryInfo& geometryInfo);
-    bool LoadMeshesAndSkins(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene);
+    SceneHierarchyInfo LoadHierarchyInfo(const assetlib::SceneAsset& scene, SceneGeometryInfo& geometryInfo, 
+        std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers);
+    void LoadNodes(SceneHierarchyInfo& sceneHierarchy, const assetlib::SceneAsset& scene, 
+        const SceneGeometryInfo& geometryInfo);
+    void LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const assetlib::SceneAsset& scene,
+        SceneGeometryInfo& geometry, std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers);
+    bool LoadMeshesAndSkins(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene, 
+        std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers);
     std::optional<assetlib::GeometryBufferAsset> LoadGeometryBuffer(SceneGeometryInfo& geometry, 
         assetlib::AssetId buffer);
+    BufferInfo* GetGeometryBuffer(SceneGeometryInfo& geometry, assetlib::AssetId buffer, 
+        std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers);
     MaterialGPU LoadMaterial(const SceneGeometryInfo::MaterialInfo& materialInfo, const MaterialAsset& materialAsset);
     TextureHandle LoadTexture(u32 uvIndex, ImageHandle image, TextureHandle fallback);
 

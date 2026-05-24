@@ -78,6 +78,32 @@ struct SceneAssetSkin
     std::vector<u32> JointNodes;
 };
 
+enum class SceneAssetAnimationSamplerType : u8
+{
+    Linear, Step, CubicSpline
+};
+
+enum class SceneAssetAnimationChannelType : u8
+{
+    Translation, Orientation, Scale
+};
+
+struct SceneAssetAnimationChannel
+{
+    SceneAssetAnimationChannelType Type{};
+    SceneAssetAnimationSamplerType SamplerType{};
+    u32 TargetNode{SCENE_UNSET_INDEX};
+    u32 TimestampsAccessor{SCENE_UNSET_INDEX};
+    u32 KeyframesAccessor{SCENE_UNSET_INDEX};
+};
+
+struct SceneAssetAnimation
+{
+    std::string Name;
+    AssetId GeometryBuffer{AssetId::CreateEmpty()};
+    std::vector<SceneAssetAnimationChannel> Channels;
+};
+
 struct SceneAssetNode
 {
     std::string Name;
@@ -104,6 +130,7 @@ struct SceneAsset
     
     std::vector<AssetId> Meshes;
     std::vector<SceneAssetSkin> Skins;
+    std::vector<SceneAssetAnimation> Animations;
     std::vector<SceneAssetCamera> Cameras;
     std::vector<SceneAssetLight> Lights;
     std::vector<SceneAssetNode> Nodes;

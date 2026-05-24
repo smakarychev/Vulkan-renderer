@@ -64,6 +64,8 @@ private:
     void Spawn(FrameContext& ctx);
     void Sweep(bool reclaimHandles);
     void UpdateHierarchy(FrameContext& ctx);
+    void UpdateAnimations(FrameContext& ctx);
+    void UpdateTransforms(FrameContext& ctx);
     void HandleMaterialUpdates(FrameContext& ctx);
 private:
     lux::SceneAssetManager* m_SceneAssetManager{};

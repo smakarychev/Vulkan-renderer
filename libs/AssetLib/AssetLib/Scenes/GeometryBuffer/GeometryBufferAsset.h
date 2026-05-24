@@ -47,8 +47,13 @@ enum class GeometryBufferViewType : u8
     Meshlet = 7,
     
     InverseBindMatrix = 8,
+    
+    AnimationTimestamp = 9,
+    AnimationPositionKeyframe = 10,
+    AnimationOrientationKeyframe = 11,
+    AnimationScaleKeyframe = 12,
             
-    MaxVal = 9,
+    MaxVal = 13,
 };
 struct GeometryBufferView
 {

@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "Assets/Materials/MaterialAsset.h"
+#include "Assets/Scenes/SceneAsset.h"
 #include "Rendering/FormatTraits.h"
 #include "Rendering/Pipeline.h"
 
@@ -428,5 +429,34 @@ constexpr MaterialAlphaMode materialAlphaModeFromAssetAlphaMode(assetlib::Materi
     static_assert((u8)MaterialAlphaMode::Translucent == (u8)assetlib::MaterialAlphaMode::Translucent);
 
     return (MaterialAlphaMode)(alphaMode);
+}
+
+constexpr SceneHierarchyAnimationChannelType animationChannelTypeFromAssetAnimationChannelType(
+    assetlib::SceneAssetAnimationChannelType channel)
+{
+    static_assert(
+        (u8)SceneHierarchyAnimationChannelType::Translation == (u8)
+        assetlib::SceneAssetAnimationChannelType::Translation);
+    static_assert(
+        (u8)SceneHierarchyAnimationChannelType::Orientation == (u8)
+        assetlib::SceneAssetAnimationChannelType::Orientation);
+    static_assert(
+        (u8)SceneHierarchyAnimationChannelType::Scale == (u8)
+        assetlib::SceneAssetAnimationChannelType::Scale);
+
+    return (SceneHierarchyAnimationChannelType)(channel);
+}
+
+constexpr SceneHierarchyAnimationSamplerType animationSamplerTypeFromAssetAnimationSamplerType(
+    assetlib::SceneAssetAnimationSamplerType sampler)
+{
+    static_assert(
+        (u8)SceneHierarchyAnimationSamplerType::Linear == (u8)assetlib::SceneAssetAnimationSamplerType::Linear);
+    static_assert((u8)SceneHierarchyAnimationSamplerType::Step == (u8)assetlib::SceneAssetAnimationSamplerType::Step);
+    static_assert(
+        (u8)SceneHierarchyAnimationSamplerType::CubicSpline == (u8)
+        assetlib::SceneAssetAnimationSamplerType::CubicSpline);
+
+    return (SceneHierarchyAnimationSamplerType)(sampler);
 } 
 }

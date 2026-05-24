@@ -170,6 +170,14 @@ struct AccessorDataTypeTraits<u8>
 };
 
 template <>
+struct AccessorDataTypeTraits<f32>
+{
+    static constexpr assetlib::GeometryBufferAccessorType TYPE = assetlib::GeometryBufferAccessorType::Scalar;
+    static constexpr assetlib::GeometryBufferAccessorComponentType COMPONENT_TYPE =
+        assetlib::GeometryBufferAccessorComponentType::F32;
+};
+
+template <>
 struct AccessorDataTypeTraits<assetlib::SceneAssetMeshlet>
 {
     static constexpr assetlib::GeometryBufferAccessorType TYPE = assetlib::GeometryBufferAccessorType::Scalar;
@@ -204,6 +212,16 @@ struct ProcessContext
     AccessorProxy<assetlib::SceneAssetMeshlet> Meshlets{.ViewIndex = (u32)assetlib::GeometryBufferViewType::Meshlet};
     AccessorProxy<glm::mat4> InverseBindMatrices{
         .ViewIndex = (u32)assetlib::GeometryBufferViewType::InverseBindMatrix
+    };
+    AccessorProxy<f32> AnimationTimestamps{.ViewIndex = (u32)assetlib::GeometryBufferViewType::AnimationTimestamp};
+    AccessorProxy<glm::vec3> AnimationPositionKeyframes{
+        .ViewIndex = (u32)assetlib::GeometryBufferViewType::AnimationPositionKeyframe
+    };
+    AccessorProxy<glm::vec4> AnimationOrientationKeyframes{
+        .ViewIndex = (u32)assetlib::GeometryBufferViewType::AnimationOrientationKeyframe
+    };
+    AccessorProxy<glm::vec3> AnimationScaleKeyframes{
+        .ViewIndex = (u32)assetlib::GeometryBufferViewType::AnimationScaleKeyframe
     };
 
     assetlib::SceneAsset SceneAsset{};
@@ -250,12 +268,19 @@ public:
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Joint].Name = "Joints";
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Weight].Name = "Weights";
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Index].Name = "Indices";
-        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Meshlet].Name = "Meshlet";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::Meshlet].Name = "Meshlets";
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::InverseBindMatrix].Name = 
             "InverseBindMatrices";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::AnimationTimestamp].Name = 
+            "AnimationTimestamps";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::AnimationPositionKeyframe].Name = 
+            "AnimationKeyframePositions";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::AnimationOrientationKeyframe].Name = 
+            "AnimationKeyframeOrientations";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::AnimationScaleKeyframe].Name = 
+            "AnimationKeyframeScales";
 
-        auto writeAndUpdateView = [&geometryBufferHeader, this](auto accessorProxy)
-        {
+        auto writeAndUpdateView = [&geometryBufferHeader, this](auto accessorProxy) {
             const u64 sizeBytes = accessorProxy.Data.size() * sizeof(accessorProxy.Data[0]);
             WriteResult write = 
                 writeAligned<ALIGNMENT>(GeometryBufferAsset.Data, accessorProxy.Data.data(), sizeBytes);
@@ -274,6 +299,10 @@ public:
         writeAndUpdateView(Indices);
         writeAndUpdateView(Meshlets);
         writeAndUpdateView(InverseBindMatrices);
+        writeAndUpdateView(AnimationTimestamps);
+        writeAndUpdateView(AnimationPositionKeyframes);
+        writeAndUpdateView(AnimationOrientationKeyframes);
+        writeAndUpdateView(AnimationScaleKeyframes);
         
         GeometryBufferAsset.Header.SizeBytes = GeometryBufferAsset.Data.size();
     }
@@ -735,6 +764,64 @@ IoResult<std::vector<glm::u16vec4>> readJoints(tinygltf::Model& gltf, const tiny
     return joints;
 }
 
+IoResult<std::vector<glm::vec4>> readKeyframeOrientations(tinygltf::Model& gltf, 
+    const tinygltf::Accessor& keyframesAccessor)
+{
+    std::vector<glm::vec4> keyframes;
+    switch (keyframesAccessor.componentType)
+    {
+    case TINYGLTF_COMPONENT_TYPE_FLOAT:
+        {
+            copyBufferToVector(keyframes, gltf, keyframesAccessor);
+            break;
+        }
+    case TINYGLTF_COMPONENT_TYPE_BYTE:
+        {
+            std::vector<glm::i8vec4> rawKeyframes;
+            copyBufferToVector(rawKeyframes, gltf, keyframesAccessor);
+            keyframes.reserve(rawKeyframes.size());
+            for (auto frame : rawKeyframes) 
+                keyframes.push_back(glm::max(glm::vec4(frame) / 127.0f, -1.0f));
+            break;
+        }
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+        {
+            std::vector<glm::u8vec4> rawKeyframes;
+            copyBufferToVector(rawKeyframes, gltf, keyframesAccessor);
+            keyframes.reserve(rawKeyframes.size());
+            for (auto frame : rawKeyframes) 
+                keyframes.push_back(glm::vec4(frame) / 255.0f);
+            break;
+        }
+    case TINYGLTF_COMPONENT_TYPE_SHORT:
+        {
+            std::vector<glm::i16vec4> rawKeyframes;
+            copyBufferToVector(rawKeyframes, gltf, keyframesAccessor);
+            keyframes.reserve(rawKeyframes.size());
+            for (auto frame : rawKeyframes) 
+                keyframes.push_back(glm::max(glm::vec4(frame) / 32767.0f, -1.0f));
+            break;
+        }
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+        {
+            std::vector<glm::u16vec4> rawKeyframes;
+            copyBufferToVector(rawKeyframes, gltf, keyframesAccessor);
+            keyframes.reserve(rawKeyframes.size());
+            for (auto frame : rawKeyframes) 
+                keyframes.push_back(glm::vec4(frame) / 65535.0f);
+            break;
+        }
+    default:
+        return std::unexpected(assetlib::io::IoError{
+            .Code = IoError::ErrorCode::WrongFormat,
+            .Message = std::format("Unexpected keyframe orientations accessor type: {}",
+                keyframesAccessor.componentType)
+        });
+    }
+    
+    return keyframes;
+}
+
 IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Mesh& mesh)
 {
     for (auto& primitive : mesh.primitives)
@@ -861,6 +948,103 @@ IoResult<void> processSkin(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
     return {};
 }
 
+IoResult<assetlib::SceneAssetAnimationChannelType> getAnimationChannelType(const tinygltf::AnimationChannel& channel)
+{
+    if (channel.target_path == "translation")
+        return assetlib::SceneAssetAnimationChannelType::Translation;
+    if (channel.target_path == "rotation")
+        return assetlib::SceneAssetAnimationChannelType::Orientation;
+    if (channel.target_path == "scale")
+        return assetlib::SceneAssetAnimationChannelType::Scale;
+
+    CHECK_RETURN_IO_ERROR(false, IoError::ErrorCode::GeneralError, "Unsupported animation channel type: {}",
+        channel.target_path)
+}
+
+IoResult<assetlib::SceneAssetAnimationSamplerType> getAnimationSamplerType(const tinygltf::AnimationSampler& sampler)
+{
+    if (sampler.interpolation == "LINEAR")
+        return assetlib::SceneAssetAnimationSamplerType::Linear;
+    if (sampler.interpolation == "STEP")
+        return assetlib::SceneAssetAnimationSamplerType::Step;
+    if (sampler.interpolation == "CUBICSPLINE")
+        return assetlib::SceneAssetAnimationSamplerType::CubicSpline;
+
+    CHECK_RETURN_IO_ERROR(false, IoError::ErrorCode::GeneralError, "Unsupported animation sampler type: {}",
+        sampler.interpolation)
+}
+
+IoResult<void> processAnimation(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Animation& animation)
+{
+    std::vector<assetlib::SceneAssetAnimationChannel> channels;
+    channels.reserve(animation.channels.size());
+    
+    for (auto& channel : animation.channels)
+    {
+        if (channel.target_node == -1)
+            continue;
+
+        auto channelType = getAnimationChannelType(channel);
+        CHECK_RETURN_IO_ERROR_PROPAGATE(channelType)
+        
+        const tinygltf::AnimationSampler sampler = animation.samplers[channel.sampler];
+        auto samplerType = getAnimationSamplerType(sampler);
+        CHECK_RETURN_IO_ERROR_PROPAGATE(samplerType)
+        
+        tinygltf::Accessor& timestampAccessor = gltf.accessors[sampler.input];
+        std::vector<f32> timestamps;
+        copyBufferToVector(timestamps, gltf, timestampAccessor);
+        u32 timestampAccessorIndex = (u32)ctx.GeometryBufferAsset.Header.Accessors.size();
+        ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(timestamps, ctx.AnimationTimestamps));
+        
+        tinygltf::Accessor& keyframeAccessor = gltf.accessors[sampler.output];
+        u32 keyframeAccessorIndex = (u32)ctx.GeometryBufferAsset.Header.Accessors.size();
+        switch (*channelType) 
+        {
+        case assetlib::SceneAssetAnimationChannelType::Translation:
+            {
+                std::vector<glm::vec3> positions;
+                copyBufferToVector(positions, gltf, keyframeAccessor);
+                ctx.GeometryBufferAsset.Header.Accessors.push_back(
+                    ctx.CreateAccessor(positions, ctx.AnimationPositionKeyframes));
+                break;
+            }
+        case assetlib::SceneAssetAnimationChannelType::Orientation:
+            {
+                auto readOrientations = readKeyframeOrientations(gltf, keyframeAccessor);
+                CHECK_RETURN_IO_ERROR_PROPAGATE(readOrientations)
+                std::vector<glm::vec4> orientations = std::move(*readOrientations);
+                ctx.GeometryBufferAsset.Header.Accessors.push_back(
+                    ctx.CreateAccessor(orientations, ctx.AnimationOrientationKeyframes));
+            }
+            break;
+        case assetlib::SceneAssetAnimationChannelType::Scale:
+            {
+                std::vector<glm::vec3> scales;
+                copyBufferToVector(scales, gltf, keyframeAccessor);
+                ctx.GeometryBufferAsset.Header.Accessors.push_back(
+                    ctx.CreateAccessor(scales, ctx.AnimationScaleKeyframes));
+                break;
+            }
+        }
+        
+        channels.push_back({
+            .Type = *channelType,
+            .SamplerType = *samplerType,
+            .TargetNode = (u32)channel.target_node,
+            .TimestampsAccessor = timestampAccessorIndex,
+            .KeyframesAccessor = keyframeAccessorIndex
+        });
+    }
+    
+    ctx.SceneAsset.Animations.push_back({
+        .Name = animation.name,
+        .Channels = std::move(channels) 
+    });
+    
+    return {};
+}
+
 IoResult<void> createGeometryBufferAssets(ProcessContext& ctx)
 {
     GeometryBufferImporter importer(ctx.Ctx, {
@@ -908,9 +1092,14 @@ IoResult<void> copyExistingGeometry(ProcessContext& ctx)
     ctx.SceneAsset.Meshes.reserve(asset.Meshes.size());
     for (assetlib::AssetId mesh : asset.Meshes)
         ctx.SceneAsset.Meshes.push_back(mesh);
+    
     ctx.SceneAsset.Skins.reserve(asset.Skins.size());
     for (auto& skin : asset.Skins)
         ctx.SceneAsset.Skins.push_back(skin);
+    
+    ctx.SceneAsset.Animations.reserve(asset.Animations.size());
+    for (auto& animation : asset.Animations)
+        ctx.SceneAsset.Animations.push_back(animation);
     
     return {};
 }
@@ -929,21 +1118,33 @@ IoResult<void> processGeometry(ProcessContext& ctx, tinygltf::Model& gltf)
     if (!needToRebakeGeometry && copyExistingGeometry(ctx).has_value())
         return {};
  
+    ctx.MeshAssets.reserve(gltf.meshes.size());
     for (auto& mesh : gltf.meshes)
     {
         auto meshProcessResult = processMesh(ctx, gltf, mesh);
         CHECK_RETURN_IO_ERROR_PROPAGATE(meshProcessResult)
     }
+    
+    ctx.SceneAsset.Skins.reserve(gltf.skins.size());
     for (auto& skin : gltf.skins)
     {
         auto skinProcessResult = processSkin(ctx, gltf, skin);
         CHECK_RETURN_IO_ERROR_PROPAGATE(skinProcessResult)
+    }
+    
+    ctx.SceneAsset.Animations.reserve(gltf.animations.size());
+    for (auto& animation : gltf.animations)
+    {
+        auto animationProcessResult = processAnimation(ctx, gltf, animation);
+        CHECK_RETURN_IO_ERROR_PROPAGATE(animationProcessResult)
     }
     ctx.FinalizeGeometry();
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(createGeometryBufferAssets(ctx))
     CHECK_RETURN_IMPORT_ERROR_PROPAGATE(createMeshAssets(ctx))
     for (auto& skin : ctx.SceneAsset.Skins)
         skin.GeometryBuffer = ctx.GeometryBufferAssetId;
+    for (auto& animation : ctx.SceneAsset.Animations)
+        animation.GeometryBuffer = ctx.GeometryBufferAssetId;
     
     return {};
 }

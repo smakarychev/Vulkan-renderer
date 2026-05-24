@@ -77,4 +77,18 @@ Transform3d CommonLight::GetTransform() const
     
     std::unreachable();
 }
+
+void SceneHierarchyAnimationChannel::Tick(f32 dt)
+{
+    Timestamp += dt;
+    if (Timestamp < Timestamps[Frame + 1])
+        return;
+        
+    Frame += 1;
+    if (Frame >= Timestamps.size() - 1)
+    {
+        Frame = 0;
+        Timestamp = Timestamps.front();
+    }
+}
 }

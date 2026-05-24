@@ -132,6 +132,21 @@ Scene::NewInstanceData Scene::AddToHierarchy(lux::SceneInstanceHandle instance, 
             .JointMatrixIndex = addResult.FirstJointMatrix + joint.JointMatrixIndex,
             .InverseBindMatrix = joint.InverseBindMatrix
         });
+    auto& animationChannels = m_HierarchyInfo.AnimationChannels;
+    for (auto& animation : instanceHierarchy.Animations)
+        m_HierarchyInfo.Animations.push_back({
+            .Name = animation.Name,
+            .Node = animation.Node + firstNode,
+            .TranslationChannel = animation.TranslationChannel == lux::SceneHierarchyAnimation::INVALID ?
+                animation.TranslationChannel : 
+                animationChannels.insert(instanceHierarchy.AnimationChannels[animation.TranslationChannel]),
+            .OrientationChannel = animation.OrientationChannel == lux::SceneHierarchyAnimation::INVALID ?
+                animation.OrientationChannel : 
+                animationChannels.insert(instanceHierarchy.AnimationChannels[animation.OrientationChannel]),
+            .ScaleChannel = animation.ScaleChannel == lux::SceneHierarchyAnimation::INVALID ?
+                animation.ScaleChannel : 
+                animationChannels.insert(instanceHierarchy.AnimationChannels[animation.ScaleChannel]),
+        });
     
     return {
         .Scene = &sceneAsset,
@@ -290,6 +305,28 @@ void Scene::Sweep(bool reclaimHandles)
         }
     }
     
+    for (i32 i = (i32)m_HierarchyInfo.Animations.size() - 1; i >= 0; i--)
+    {
+        auto& animation = m_HierarchyInfo.Animations[i];
+        
+        if (reorder[animation.Node.Handle] == lux::SceneHierarchyHandle::INVALID)
+        {
+            if (animation.TranslationChannel != lux::SceneHierarchyHandle::INVALID)
+                m_HierarchyInfo.AnimationChannels.erase(animation.TranslationChannel);
+            if (animation.OrientationChannel != lux::SceneHierarchyHandle::INVALID)
+                m_HierarchyInfo.AnimationChannels.erase(animation.OrientationChannel);
+            if (animation.ScaleChannel != lux::SceneHierarchyHandle::INVALID)
+                m_HierarchyInfo.AnimationChannels.erase(animation.ScaleChannel);
+            
+            std::swap(animation, m_HierarchyInfo.Animations.back());
+            m_HierarchyInfo.Animations.pop_back();
+        }
+        else
+        {
+            animation.Node.Handle = reorder[animation.Node.Handle];
+        }
+    }
+    
     for (u32 i = 0; i < (u32)m_HierarchyInfo.Nodes.size(); i++)
     {
         auto& node = m_HierarchyInfo.Nodes[i];
@@ -367,6 +404,120 @@ void updateLight(lux::CommonLight& light, const glm::mat4& transform)
 }
 
 void Scene::UpdateHierarchy(FrameContext& ctx)
+{
+    UpdateAnimations(ctx);
+    UpdateTransforms(ctx);
+}
+
+namespace
+{
+glm::vec3 interpolateTranslations(const glm::vec3& current, const glm::vec3& next, f32 t,
+    lux::SceneHierarchyAnimationSamplerType samplerType)
+{
+    switch (samplerType)
+    {
+    case lux::SceneHierarchyAnimationSamplerType::Linear:
+        return glm::mix(current, next, t);
+    case lux::SceneHierarchyAnimationSamplerType::Step:
+        return current;
+    case lux::SceneHierarchyAnimationSamplerType::CubicSpline:
+        ASSERT(false)
+        break;
+    }
+    
+    return current;
+}
+glm::vec3 interpolateScales(const glm::vec3& current, const glm::vec3& next, f32 t,
+    lux::SceneHierarchyAnimationSamplerType samplerType)
+{
+    return interpolateTranslations(current, next, t, samplerType);
+}
+glm::quat interpolateOrientations(const glm::quat& current, const glm::quat& next, f32 t,
+    lux::SceneHierarchyAnimationSamplerType samplerType)
+{
+    switch (samplerType)
+    {
+    case lux::SceneHierarchyAnimationSamplerType::Linear:
+        return glm::slerp(current, next, t);
+    case lux::SceneHierarchyAnimationSamplerType::Step:
+        return current;
+    case lux::SceneHierarchyAnimationSamplerType::CubicSpline:
+        ASSERT(false)
+        break;
+    }
+    
+    return current;
+}
+}
+
+void Scene::UpdateAnimations(FrameContext& ctx)
+{
+    auto& channels = m_HierarchyInfo.AnimationChannels;
+    
+    for (auto& animationChannel : channels)
+    {
+        if (animationChannel.Keyframes.size() < 2)
+        {
+            animationChannel.Interpolated = animationChannel.Keyframes.front();
+            continue;
+        }
+        
+        const u32 frame = animationChannel.Frame;
+        const u32 nextFrame = animationChannel.Frame + 1;
+        const f32 t = Math::ilerp(
+            animationChannel.Timestamps[frame],
+            animationChannel.Timestamps[nextFrame],
+            animationChannel.Timestamp
+        );
+        animationChannel.Tick(ctx.Dt);
+        if (t < 0)
+        {
+            animationChannel.Interpolated = animationChannel.Keyframes.front();
+            continue;
+        }
+        
+        switch (animationChannel.Type) 
+        {
+        case lux::SceneHierarchyAnimationChannelType::Translation:
+            {
+                const glm::vec3 translation = animationChannel.Keyframes[frame].Translation;
+                const glm::vec3 translationNext = animationChannel.Keyframes[nextFrame].Translation;
+                animationChannel.Interpolated.Translation =
+                    interpolateTranslations(translation, translationNext, t, animationChannel.SamplerType);
+                break;
+            }
+        case lux::SceneHierarchyAnimationChannelType::Orientation:
+            {
+                const glm::quat orientation = animationChannel.Keyframes[frame].Orientation;
+                const glm::quat orientationNext = animationChannel.Keyframes[nextFrame].Orientation;
+                animationChannel.Interpolated.Orientation =
+                    interpolateOrientations(orientation, orientationNext, t, animationChannel.SamplerType);
+                break;
+            }
+        case lux::SceneHierarchyAnimationChannelType::Scale:
+            {
+                const glm::vec3 scale = animationChannel.Keyframes[frame].Scale;
+                const glm::vec3 scaleNext = animationChannel.Keyframes[nextFrame].Scale;
+                animationChannel.Interpolated.Scale =
+                    interpolateScales(scale, scaleNext, t, animationChannel.SamplerType);
+                break;
+            }
+        }
+    }
+    
+    for (auto& animation : m_HierarchyInfo.Animations)
+    {
+        auto& node = m_HierarchyInfo.Nodes[animation.Node.Handle];
+        if (animation.TranslationChannel != lux::SceneHierarchyAnimation::INVALID)
+            node.LocalTransform.Position = channels[animation.TranslationChannel].Interpolated.Translation;
+        if (animation.OrientationChannel != lux::SceneHierarchyAnimation::INVALID)
+            node.LocalTransform.Orientation = channels[animation.OrientationChannel].Interpolated.Orientation;
+        if (animation.ScaleChannel != lux::SceneHierarchyAnimation::INVALID)
+            node.LocalTransform.Scale = channels[animation.ScaleChannel].Interpolated.Scale;
+    }
+}
+
+void Scene::UpdateTransforms(FrameContext& ctx)
 {
     auto& nodes = m_HierarchyInfo.Nodes;
     std::vector<glm::mat4> transforms(nodes.size());

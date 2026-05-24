@@ -2,6 +2,7 @@
 #include "SceneAssetManager.h"
 
 #include "SceneAsset.h"
+#include "Assets/Enums/ConvertAssetEnums.h"
 #include "Assets/Images/ImageAssetManager.h"
 #include "Assets/Materials/MaterialAssetManager.h"
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
@@ -270,11 +271,12 @@ std::optional<SceneAsset> SceneAssetManager::DoLoad(import::SceneImporter& impor
     if (willBake) 
         m_AssetSystem->ScanAssetsDirectory(path.parent_path());
 
-    std::optional<SceneGeometryInfo> geometryInfo = LoadGeometryInfo(sceneAsset);
+    std::unordered_map<assetlib::AssetId, BufferInfo> importedBuffers;
+    std::optional<SceneGeometryInfo> geometryInfo = LoadGeometryInfo(sceneAsset, importedBuffers);
     if (!geometryInfo.has_value())
         LUX_LOG_ERROR("Failed to load geometry info for scene: {}", path.string());
     
-    SceneHierarchyInfo hierarchyInfo = LoadHierarchyInfo(sceneAsset, *geometryInfo);
+    SceneHierarchyInfo hierarchyInfo = LoadHierarchyInfo(sceneAsset, *geometryInfo, importedBuffers);
     
     return SceneAsset{
         .Geometry = std::move(*geometryInfo),
@@ -283,11 +285,12 @@ std::optional<SceneAsset> SceneAssetManager::DoLoad(import::SceneImporter& impor
     };
 }
 
-std::optional<SceneGeometryInfo> SceneAssetManager::LoadGeometryInfo(const assetlib::SceneAsset& scene)
+std::optional<SceneGeometryInfo> SceneAssetManager::LoadGeometryInfo(const assetlib::SceneAsset& scene, 
+    std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers)
 { 
     SceneGeometryInfo geometryInfo = {};
     
-    if (auto loadMeshesResult = LoadMeshesAndSkins(geometryInfo, scene); !loadMeshesResult)
+    if (auto loadMeshesResult = LoadMeshesAndSkins(geometryInfo, scene, importedBuffers); !loadMeshesResult)
         return std::nullopt;
     
     return geometryInfo;
@@ -314,10 +317,19 @@ SceneLightInfo SceneAssetManager::LoadLightsInfo(const assetlib::SceneAsset& sce
 }
 
 SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAsset& scene, 
-    const SceneGeometryInfo& geometryInfo)
+    SceneGeometryInfo& geometryInfo, std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers)
 {
     SceneHierarchyInfo sceneHierarchy = {};
+    
+    LoadAnimations(sceneHierarchy, scene, geometryInfo, importedBuffers);
+    LoadNodes(sceneHierarchy, scene, geometryInfo);
+    
+    return sceneHierarchy;
+}
 
+void SceneAssetManager::LoadNodes(SceneHierarchyInfo& sceneHierarchy, const assetlib::SceneAsset& scene,
+    const SceneGeometryInfo& geometryInfo)
+{
     const u32 sceneIndex = scene.DefaultSubscene;
     auto& subscene = scene.Subscenes[sceneIndex];
     /* if scene has many top-level nodes, we need to add dummy parent, to ensure that scene as a whole has transform */
@@ -414,21 +426,113 @@ SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAss
         }
     }
     
-    return sceneHierarchy;
+    for (auto& animation : sceneHierarchy.Animations)
+        animation.Node = SceneHierarchyHandle{.Handle = nodesReorder[animation.Node.Handle]};
 }
 
-bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene)
+void SceneAssetManager::LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const assetlib::SceneAsset& scene,
+    SceneGeometryInfo& geometry, std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers)
 {
-    struct BufferInfo
-    {
-        assetlib::GeometryBufferAsset Buffer{};
-        u32 FirstIndex{0};
-        u32 FirstVertex{0};
-        u32 FirstMeshlet{0};
-        u32 FirstJointMatrix{0};
-        u32 FirstJoint{0};
-        u32 FirstWeight{0};
+    auto copyAccessorToVector = [](auto& vector, const assetlib::GeometryBufferAccessor& accessor,
+        const assetlib::GeometryBufferAsset& buffer, u64 accessorElementSizeBytes, u64 vectorElementSizeBytes) {
+        vector.resize(accessor.Count);
+        
+        if (accessorElementSizeBytes == vectorElementSizeBytes)
+        {
+            std::memcpy(vector.data(),
+                buffer.Data.data() + buffer.Header.BufferViews[accessor.BufferView].OffsetBytes +
+                accessor.OffsetBytes, accessor.Count * sizeof(vector[0]));
+            return;
+        }
+        
+        const std::byte* source = buffer.Data.data() + buffer.Header.BufferViews[accessor.BufferView].OffsetBytes +
+            accessor.OffsetBytes;
+        std::byte* destination = (std::byte*)vector.data();
+        
+        for (u32 i = 0; i < accessor.Count; i++)
+        {
+            std::memcpy(destination, source, accessorElementSizeBytes);
+            source += accessorElementSizeBytes;
+            destination += vectorElementSizeBytes;
+        }
     };
+    
+    for (auto& animation : scene.Animations)
+    {
+        // todo: this loads extra stuff that we do not need for animations, consider another lighter function
+        auto* bufferInfo = GetGeometryBuffer(geometry, animation.GeometryBuffer, importedBuffers);
+        if (!bufferInfo)
+            continue;
+        
+        auto& accessors = bufferInfo->Buffer.Header.Accessors;
+        
+        for (auto& channel : animation.Channels)
+        {
+            auto& timestampsAccessor = accessors[channel.TimestampsAccessor];                
+            auto& keyframesAccessor = accessors[channel.KeyframesAccessor];    
+            ASSERT(timestampsAccessor.Count == keyframesAccessor.Count)
+
+            auto sceneAnimationIt = std::ranges::find_if(sceneHierarchy.Animations, [&channel](auto& animation) {
+                return animation.Node == channel.TargetNode;
+            });
+            if (sceneAnimationIt == sceneHierarchy.Animations.end())
+            {
+                sceneHierarchy.Animations.push_back({
+                    .Name = StringId::FromString(animation.Name),
+                    .Node = channel.TargetNode,
+                });
+                sceneAnimationIt = std::prev(sceneHierarchy.Animations.end()); 
+            }
+            
+            const SceneHierarchyAnimationChannelType channelType = animationChannelTypeFromAssetAnimationChannelType(
+                channel.Type);
+            const SceneHierarchyAnimationSamplerType samplerType = animationSamplerTypeFromAssetAnimationSamplerType(
+                channel.SamplerType);
+
+            SceneHierarchyAnimationChannel animationChannel = {
+                .Type = channelType,
+                .SamplerType = samplerType,
+            };
+            
+            copyAccessorToVector(animationChannel.Timestamps, timestampsAccessor, bufferInfo->Buffer, 
+                sizeof(f32), sizeof(f32));
+
+            switch (channelType) 
+            {
+            case SceneHierarchyAnimationChannelType::Translation:
+                {
+                    copyAccessorToVector(animationChannel.Keyframes, keyframesAccessor, bufferInfo->Buffer,
+                        sizeof(glm::vec3), sizeof(animationChannel.Keyframes[0]));
+                    sceneAnimationIt->TranslationChannel = 
+                        sceneHierarchy.AnimationChannels.insert(std::move(animationChannel));
+                    break;
+                }
+            case SceneHierarchyAnimationChannelType::Orientation:
+                {
+                    copyAccessorToVector(animationChannel.Keyframes, keyframesAccessor, bufferInfo->Buffer,
+                        sizeof(glm::quat), sizeof(animationChannel.Keyframes[0]));
+                    sceneAnimationIt->OrientationChannel =  
+                        sceneHierarchy.AnimationChannels.insert(std::move(animationChannel));
+                    break;
+                }
+            case SceneHierarchyAnimationChannelType::Scale:
+                {
+                    copyAccessorToVector(animationChannel.Keyframes, keyframesAccessor, bufferInfo->Buffer,
+                        sizeof(glm::vec3), sizeof(animationChannel.Keyframes[0]));
+                    sceneAnimationIt->ScaleChannel =  
+                        sceneHierarchy.AnimationChannels.insert(std::move(animationChannel));
+                    break;
+                }
+            default:
+                ASSERT(false)
+            }
+        }
+    }
+}
+
+bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene, 
+    std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers)
+{
     struct ImportedMeshInfo
     {
         BufferInfo* BufferInfo{nullptr};
@@ -444,34 +548,11 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
         u32 SkinIndex{};
         u32 MeshIndex{};
     };
-    std::unordered_map<assetlib::AssetId, BufferInfo> importedBuffers;
     std::unordered_map<assetlib::AssetId, u32> importedMaterials;
     std::vector<ImportedMeshInfo> importedMeshes;
     std::vector<ImportedSkinInfo> importedSkins;
     std::vector<SkinInfo> skinnedRenderObjectsInfo;
 
-    auto getBuffer = [&importedBuffers, &geometry, this](assetlib::AssetId asset) -> BufferInfo*
-    {
-        if (!importedBuffers.contains(asset))
-        {
-            BufferInfo bufferInfo = {
-                .FirstIndex = (u32)geometry.Indices.size(),
-                .FirstVertex = (u32)geometry.Positions.size(),
-                .FirstMeshlet = (u32)geometry.Meshlets.size(),
-                .FirstJointMatrix = (u32)geometry.JointInverseBindMatrices.size(),
-                .FirstJoint = (u32)geometry.Joints.size(),
-                .FirstWeight = (u32)geometry.Weights.size(),
-            };
-            auto importedBuffer = LoadGeometryBuffer(geometry, asset);
-            if (!importedBuffer.has_value())
-                return nullptr;
-
-            bufferInfo.Buffer = std::move(*importedBuffer);
-            importedBuffers.emplace(asset, std::move(bufferInfo));
-        }
-
-        return &importedBuffers.at(asset);
-    };
     auto getMaterialIndex = [&importedMaterials, &geometry, this](const assetlib::MeshPrimitiveMaterial& material) ->
         u32
     {
@@ -523,7 +604,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
                 return false;
     
             auto& importedMesh = importer.GetImportedMesh().Asset;
-            auto* bufferInfo = getBuffer(importedMesh.GeometryBuffer);
+            auto* bufferInfo = GetGeometryBuffer(geometry, importedMesh.GeometryBuffer, importedBuffers);
             if (!bufferInfo)
                 return false;
         
@@ -532,7 +613,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
 
         for (auto& skin : scene.Skins)
         {
-            auto* bufferInfo = getBuffer(skin.GeometryBuffer);
+            auto* bufferInfo = GetGeometryBuffer(geometry, skin.GeometryBuffer, importedBuffers);
             if (!bufferInfo)
                 return false;
             importedSkins.push_back({.BufferInfo = bufferInfo});
@@ -661,6 +742,30 @@ std::optional<assetlib::GeometryBufferAsset> SceneAssetManager::LoadGeometryBuff
         bufferData + views[(u32)InverseBindMatrix].OffsetBytes, views[(u32)InverseBindMatrix].LengthBytes);
     
     return importedBuffer;
+}
+
+SceneAssetManager::BufferInfo* SceneAssetManager::GetGeometryBuffer(SceneGeometryInfo& geometry,
+    assetlib::AssetId buffer, std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers)
+{
+    if (!importedBuffers.contains(buffer))
+    {
+        BufferInfo bufferInfo = {
+            .FirstIndex = (u32)geometry.Indices.size(),
+            .FirstVertex = (u32)geometry.Positions.size(),
+            .FirstMeshlet = (u32)geometry.Meshlets.size(),
+            .FirstJointMatrix = (u32)geometry.JointInverseBindMatrices.size(),
+            .FirstJoint = (u32)geometry.Joints.size(),
+            .FirstWeight = (u32)geometry.Weights.size(),
+        };
+        auto importedBuffer = LoadGeometryBuffer(geometry, buffer);
+        if (!importedBuffer.has_value())
+            return nullptr;
+
+        bufferInfo.Buffer = std::move(*importedBuffer);
+        importedBuffers.emplace(buffer, std::move(bufferInfo));
+    }
+
+    return &importedBuffers.at(buffer);
 }
 
 MaterialGPU SceneAssetManager::LoadMaterial(const SceneGeometryInfo::MaterialInfo& materialInfo, 

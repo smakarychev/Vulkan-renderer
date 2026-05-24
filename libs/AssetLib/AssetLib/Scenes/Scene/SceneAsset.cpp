@@ -23,6 +23,18 @@ struct glz::meta<lux::assetlib::SceneAssetLightType> : lux::assetlib::reflection
 template <> struct ::glz::meta<lux::assetlib::SceneAssetLight> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::SceneAssetMeshlet> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::SceneAssetSkin> : lux::assetlib::reflection::CamelCase {};
+template <>
+struct glz::meta<lux::assetlib::SceneAssetAnimationSamplerType> : lux::assetlib::reflection::CamelCase {
+    using enum lux::assetlib::SceneAssetAnimationSamplerType;
+    static constexpr auto value = glz::enumerate(Linear, Step, CubicSpline);
+};
+template <>
+struct glz::meta<lux::assetlib::SceneAssetAnimationChannelType> : lux::assetlib::reflection::CamelCase {
+    using enum lux::assetlib::SceneAssetAnimationChannelType;
+    static constexpr auto value = glz::enumerate(Translation, Orientation, Scale);
+};
+template <> struct ::glz::meta<lux::assetlib::SceneAssetAnimationChannel> : lux::assetlib::reflection::CamelCase {};
+template <> struct ::glz::meta<lux::assetlib::SceneAssetAnimation> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::SceneAssetNode> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::SceneAssetSubscene> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::SceneAsset> : lux::assetlib::reflection::CamelCase {};

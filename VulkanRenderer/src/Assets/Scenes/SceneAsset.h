@@ -4,9 +4,9 @@
 #include "Assets/Materials/MaterialAsset.h"
 
 #include <AssetLib/Scenes/Scene/SceneAsset.h>
-#include <AssetLib/Scenes/GeometryBuffer/GeometryBufferAsset.h>
 #include <AssetLib/Scenes/Mesh/MeshAsset.h>
 #include <CoreLib/Math/Transform.h>
+#include <CoreLib/Containers/SlotMapType.h>
 
 struct PointLight;
 struct DirectionalLight;
@@ -19,6 +19,8 @@ struct SceneSkinnedRenderObject;
 struct SceneRenderObject;
 struct CommonLight;
 struct SceneHierarchyNode;
+struct SceneHierarchyAnimation;
+struct SceneHierarchyAnimationChannel;
 
 struct SceneGeometryInfo
 {
@@ -61,6 +63,8 @@ struct SceneHierarchyInfo
 {
     std::vector<SceneHierarchyNode> Nodes;
     std::vector<SceneHierarchyJoint> Joints;
+    SlotMap<SceneHierarchyAnimationChannel> AnimationChannels;
+    std::vector<SceneHierarchyAnimation> Animations;
     u16 MaxDepth{0};
 };
 
@@ -160,5 +164,43 @@ struct SceneHierarchyJoint
     SceneHierarchyHandle Node{};
     u32 JointMatrixIndex{0};
     glm::mat4 InverseBindMatrix{};
+};
+
+enum class SceneHierarchyAnimationChannelType : u8
+{
+    Translation, Orientation, Scale
+};
+enum class SceneHierarchyAnimationSamplerType : u8
+{
+    Linear, Step, CubicSpline
+};
+struct SceneHierarchyAnimationChannel
+{
+    SceneHierarchyAnimationChannelType Type{SceneHierarchyAnimationChannelType::Translation};
+    SceneHierarchyAnimationSamplerType SamplerType{SceneHierarchyAnimationSamplerType::Linear};
+
+    union Keyframe
+    {
+        glm::vec3 Translation;
+        glm::quat Orientation;
+        glm::vec3 Scale;
+    };
+    std::vector<Keyframe> Keyframes{};
+    std::vector<f32> Timestamps{};
+    Keyframe Interpolated{};
+    f32 Timestamp{};
+    u32 Frame{};
+    
+    void Tick(f32 dt);
+};
+
+struct SceneHierarchyAnimation
+{
+    static constexpr u32 INVALID = ~0lu;
+    StringId Name{};
+    SceneHierarchyHandle Node{};
+    u32 TranslationChannel{INVALID};
+    u32 OrientationChannel{INVALID};
+    u32 ScaleChannel{INVALID};
 };
 }

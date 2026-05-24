@@ -20,6 +20,7 @@ struct FrameContext
     FrameSync FrameSync{};
     u32 FrameNumber{};
     u64 FrameNumberTick{};
+    f32 Dt{1.0f / 60.0f};
 
     glm::uvec2 Resolution{};
     
