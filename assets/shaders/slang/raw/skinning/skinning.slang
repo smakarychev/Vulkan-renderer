@@ -44,6 +44,7 @@ public struct Skin {
 
 struct PrepareComputeSkinningResources {
     StructuredBuffer<RenderObjectSkinnedInfo> skinnedRenderObjectInfo;
+    StructuredBuffer<uint> skinnedRenderObjectInfoIndices;
     RWStructuredBuffer<RenderObject> objects;
     UGBMeshlets meshlets;
     StructuredBuffer<Skin> skins;
@@ -60,7 +61,8 @@ void prepareComputeSkinning(uint dispatchThreadID: SV_DispatchThreadID,
     if (dispatchThreadID >= skinnedRenderObjectCount)
         return;
 
-    const RenderObjectSkinnedInfo skinnedInfo = resources.skinnedRenderObjectInfo[dispatchThreadID];
+    const uint skinnedInfoIndex = resources.skinnedRenderObjectInfoIndices[dispatchThreadID];
+    const RenderObjectSkinnedInfo skinnedInfo = resources.skinnedRenderObjectInfo[skinnedInfoIndex];
 
     const uint meshletCount = resources.objects[skinnedInfo.renderObjectIndex].meshletCount;
     const uint groupMeshletCount = WaveActiveSum(meshletCount);
@@ -277,6 +279,7 @@ void computeSkinning(uint workgroupID: SV_GroupID,
 
 struct UpdateBoundsResources {
     StructuredBuffer<RenderObjectSkinnedInfo> skinnedRenderObjectInfo;
+    StructuredBuffer<uint> skinnedRenderObjectInfoIndices;
     RWStructuredBuffer<RenderObject> objects;
     UGBMeshletsSkinning meshlets;
 }
@@ -297,7 +300,9 @@ void updateBounds(uint workgroupID: SV_GroupID,
     else if (WaveGetLaneCount() == 32)
         waveIndex = groupThreadId >> 5;
 
-    const RenderObjectSkinnedInfo skinnedInfo = resources.skinnedRenderObjectInfo[workgroupID];
+        
+    const uint skinnedInfoIndex = resources.skinnedRenderObjectInfoIndices[workgroupID];
+    const RenderObjectSkinnedInfo skinnedInfo = resources.skinnedRenderObjectInfo[skinnedInfoIndex];
     const RenderObject object = resources.objects[skinnedInfo.renderObjectIndex];
     if (groupThreadId >= object.meshletCount) {
         if (WaveIsFirstLane())

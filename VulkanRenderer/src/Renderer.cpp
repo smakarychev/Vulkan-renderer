@@ -463,6 +463,7 @@ void Renderer::SetupRenderGraph()
             .Meshlets = m_SceneGeometryRGResources.Meshlets,
             .Skins = m_SceneGeometryRGResources.Skins,
             .RenderObjectSkinnedInfos = m_SceneGeometryRGResources.RenderObjectSkinnedInfos,
+            .RenderObjectSkinnedInfoIndices = m_SceneGeometryRGResources.RenderObjectSkinnedInfoIndices,
             .Ugb = m_SceneGeometryRGResources.Attributes,
             .JointMatrices = m_SceneGeometryRGResources.JointMatrices,
             .SkinnedRenderObjectCount = m_Scene->Geometry().SkinnedRenderObjectCount,

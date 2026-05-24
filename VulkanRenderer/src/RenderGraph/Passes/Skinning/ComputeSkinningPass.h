@@ -9,6 +9,7 @@ struct ExecutionInfo
     RG::Resource Meshlets{};
     RG::Resource Skins{};
     RG::Resource RenderObjectSkinnedInfos{};
+    RG::Resource RenderObjectSkinnedInfoIndices{};
     RG::Resource Ugb{};
     RG::Resource JointMatrices{};
     u32 SkinnedRenderObjectCount{0};

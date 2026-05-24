@@ -158,6 +158,7 @@ struct SceneHierarchyNode
 struct SceneHierarchyJoint
 {
     SceneHierarchyHandle Node{};
+    u32 JointMatrixIndex{0};
     glm::mat4 InverseBindMatrix{};
 };
 }

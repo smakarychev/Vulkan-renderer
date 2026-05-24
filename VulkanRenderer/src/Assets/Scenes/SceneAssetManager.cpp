@@ -322,7 +322,7 @@ SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAss
     auto& subscene = scene.Subscenes[sceneIndex];
     /* if scene has many top-level nodes, we need to add dummy parent, to ensure that scene as a whole has transform */
     const bool needDummyParentNode = subscene.Nodes.size() > 1;
-    
+
     auto& nodes = scene.Nodes;
     sceneHierarchy.Nodes.reserve(nodes.size() + (u32)needDummyParentNode);
     if (needDummyParentNode)
@@ -404,6 +404,7 @@ SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAss
         for (auto&& [jointIndex, joint] : std::views::enumerate(skin.JointNodes))
             sceneHierarchy.Joints.push_back({
                 .Node = SceneHierarchyHandle{.Handle = nodesReorder[joint]},
+                .JointMatrixIndex = (u32)jointIndex,
                 .InverseBindMatrix = geometryInfo.JointInverseBindMatrices[jointIndex]
             });
     

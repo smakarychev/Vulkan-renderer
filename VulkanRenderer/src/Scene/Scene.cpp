@@ -129,6 +129,7 @@ Scene::NewInstanceData Scene::AddToHierarchy(lux::SceneInstanceHandle instance, 
     for (auto& joint : instanceHierarchy.Joints)
         m_HierarchyInfo.Joints.push_back({
             .Node = joint.Node.Handle + firstNode,
+            .JointMatrixIndex = addResult.FirstJointMatrix + joint.JointMatrixIndex,
             .InverseBindMatrix = joint.InverseBindMatrix
         });
     
@@ -377,13 +378,13 @@ void Scene::UpdateHierarchy(FrameContext& ctx)
             transforms[nodes[i].Parent.Handle] * nodes[i].LocalTransform.ToMatrix();
     
     std::vector<glm::mat4> skinMatrices(m_HierarchyInfo.Joints.size());
-    for (auto&& [jointIndex, joint] : std::views::enumerate(m_HierarchyInfo.Joints))
+    for (auto& joint : m_HierarchyInfo.Joints)
     {
         const glm::mat4 jointMatrix =  
             transforms[joint.Node.Handle] *
             joint.InverseBindMatrix;
         updateJointMatrix(Device::GetBufferArenaUnderlyingBuffer(Geometry().JointMatrices), 
-            (u32)jointIndex, jointMatrix, *ctx.ResourceUploader);
+            joint.JointMatrixIndex, jointMatrix, *ctx.ResourceUploader);
     }
 
     for (auto&& [i, node] : std::views::enumerate(nodes))

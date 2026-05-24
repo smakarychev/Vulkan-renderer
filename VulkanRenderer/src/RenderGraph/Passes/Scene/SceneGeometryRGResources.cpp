@@ -2,10 +2,14 @@
 #include "SceneGeometryRGResources.h"
 
 #include "RenderGraph/RGGraph.h"
+#include "RenderGraph/Passes/Utility/UploadPass.h"
 #include "Scene/SceneGeometry.h"
 
 SceneGeometryRGResources SceneGeometryRGResources::ForGeometry(const SceneGeometry& geometry, RG::Graph& renderGraph)
 {
+    RG::Resource renderObjectSkinnedInfoIndices = Passes::Upload::addToGraph("UploadRenderObjectSkinnedInfoIndices"_hsv, 
+        renderGraph, geometry.RenderObjectSkinnedInfosIndices);
+    
     return {
         .Meshlets = renderGraph.Import("Meshlets"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Meshlets)),
         .RenderObjects = 
@@ -21,7 +25,8 @@ SceneGeometryRGResources SceneGeometryRGResources::ForGeometry(const SceneGeomet
         .Materials = 
             renderGraph.Import("Materials"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Materials)),
         .RenderObjectSkinnedInfos = 
-            renderGraph.Import("RenderObjectSkinnedInfos"_hsv, 
+            renderGraph.Import("RenderObjectSkinnedInfos"_hsv,
                 Device::GetBufferArenaUnderlyingBuffer(geometry.RenderObjectSkinnedInfos)),
+        .RenderObjectSkinnedInfoIndices = renderObjectSkinnedInfoIndices,
     };
 }

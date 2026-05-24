@@ -39,6 +39,7 @@ public:
     void UpdateMaterials(const lux::SceneAsset& scene, FrameContext& ctx);
     void Delete(const lux::SceneAsset& scene);
     void DeleteRenderObjects(lux::SceneInstanceHandle instance);
+    
 public:
     enum class SceneInfoOffsetType : u8
     {
@@ -75,6 +76,7 @@ public:
     BufferArena Skins{};
     BufferArena Materials{};
     BufferArena RenderObjectSkinnedInfos{};
+    std::vector<u32> RenderObjectSkinnedInfosIndices{};
 
     RenderHandleArray<lux::MaterialHandle> MaterialsCpu;
     
@@ -95,6 +97,7 @@ private:
         u32 SkinnedRenderObjectCount{};
         u32 SkinnedMeshletCount{};
         u32 SkinnedVertexCount{};
+        u32 FirstRenderObjectSkinnedInfoIndex{};
     };
     std::unordered_map<u32, SceneInstanceInfo> m_InstancesInfo;
 

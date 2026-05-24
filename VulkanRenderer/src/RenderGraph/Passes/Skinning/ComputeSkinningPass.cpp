@@ -43,6 +43,7 @@ PrepareSkinningPassData& prepare(StringId name, RG::Graph& renderGraph,
             passData.BindGroup.SetResourcesMeshletsUgb(info.Meshlets);
             passData.BindGroup.SetResourcesSkins(info.Skins);
             passData.BindGroup.SetResourcesSkinnedRenderObjectInfo(info.RenderObjectSkinnedInfos);
+            passData.BindGroup.SetResourcesSkinnedRenderObjectInfoIndices(info.RenderObjectSkinnedInfoIndices);
             
             passData.RenderObjects = passData.BindGroup.SetResourcesObjects(info.RenderObjects);
             passData.SkinDispatchCount = 
@@ -126,6 +127,7 @@ Passes::ComputeSkinning::PassData& updateBounds(StringId name, RG::Graph& render
             passData.RenderObjects = passData.BindGroup.SetResourcesObjects(vertexSkinning.RenderObjects);
             passData.Meshlets = passData.BindGroup.SetResourcesMeshletsUgb(vertexSkinning.Meshlets);
             passData.BindGroup.SetResourcesSkinnedRenderObjectInfo(info.RenderObjectSkinnedInfos);
+            passData.BindGroup.SetResourcesSkinnedRenderObjectInfoIndices(info.RenderObjectSkinnedInfoIndices);
             passData.Ugb = vertexSkinning.Ugb;
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
