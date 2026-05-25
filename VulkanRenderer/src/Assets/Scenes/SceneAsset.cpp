@@ -88,7 +88,7 @@ void SceneHierarchyAnimationChannel::Tick(f32 dt)
     if (Frame >= Timestamps.size() - 1)
     {
         Frame = 0;
-        Timestamp = Timestamps.front();
+        Timestamp = 0;
     }
 }
 }
