@@ -33,10 +33,10 @@ internal float3 pbrShadePointLight(const PbrShadingInfo shadingInfo, const Point
     const float falloff = pointLightFalloff(lightDirection, light.radius);
     lightDirection = normalize(lightDirection);
 
-    const float3 radiance = light.color * light.intensity * falloff;
+    const float3 illuminance = light.color * light.intensity * falloff;
     const float NoL = clamp(dot(shadingInfo.normal, lightDirection), 1e-5f, 1.0f);
 
-    return BRDF(lightDirection, NoL, shadingInfo) * radiance * NoL;
+    return BRDF(lightDirection, NoL, shadingInfo) * illuminance * NoL;
 }
 
 internal float3 pbrShadePointLightsTiles(const ViewInfo view, const PbrShadingInfo shadingInfo,
@@ -179,10 +179,10 @@ public float3 pbrShadeDirectionalLight(const ViewInfo view, const PbrShadingInfo
     const DirectionalLight light, float shadow) {
 
     const float3 lightDirection = -light.direction;
-    const float3 radiance = light.color * light.intensity;
+    const float3 illuminance = light.color * light.intensity;
     const float NoL = clamp(dot(shadingInfo.normal, lightDirection), 1e-5f, 1.0f);
 
-    return BRDF(lightDirection, NoL, shadingInfo) * radiance * NoL * shadow;
+    return BRDF(lightDirection, NoL, shadingInfo) * illuminance * NoL * shadow;
 }
 
 public float3 pbrShadeDirectionalLights(const ViewInfo view, const PbrShadingInfo shadingInfo,
