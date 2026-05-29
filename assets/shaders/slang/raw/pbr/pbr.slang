@@ -100,5 +100,5 @@ internal float pointLightFalloff(float distance2, float radius) {
     const float distance2OverRadius2 = distance2 / (radius * radius);
     const float nom = saturate(1.0f - distance2OverRadius2 * distance2OverRadius2);
     
-    return nom * nom / (distance2 + 1.0f);
+    return nom * nom / max(distance2, 1e-4f);
 }
