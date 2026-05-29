@@ -34,21 +34,9 @@ internal float3 pbrShadePointLight(const PbrShadingInfo shadingInfo, const Point
     lightDirection = normalize(lightDirection);
 
     const float3 radiance = light.color * light.intensity * falloff;
-
-    const float3 H = normalize(lightDirection + shadingInfo.view);
-
-    const float NoH = saturate(dot(shadingInfo.normal, H));
     const float NoL = clamp(dot(shadingInfo.normal, lightDirection), 1e-5f, 1.0f);
-    const float HoL = saturate(dot(H, lightDirection));
 
-    const float D = ggxNormalDistribution(NoH, shadingInfo.roughness);
-    const float V = ggxVSmithHeightCorrelated(shadingInfo.NoV, NoL, shadingInfo.roughness);
-    const float3 F = fresnelSchlick(HoL, shadingInfo.F0, shadingInfo.F90);
-
-    const float3 diffuse = (float3(1.0f) - F) * shadingInfo.diffuseColor * PI_INVERSE;
-    const float3 specular = D * V * F;
-
-    return (specular + diffuse) * radiance * NoL;
+    return BRDF(lightDirection, NoL, shadingInfo) * radiance * NoL;
 }
 
 internal float3 pbrShadePointLightsTiles(const ViewInfo view, const PbrShadingInfo shadingInfo,
@@ -192,21 +180,9 @@ public float3 pbrShadeDirectionalLight(const ViewInfo view, const PbrShadingInfo
 
     const float3 lightDirection = -light.direction;
     const float3 radiance = light.color * light.intensity;
-
-    const float3 H = normalize(lightDirection + shadingInfo.view);
-
-    const float NoH = saturate(dot(shadingInfo.normal, H));
     const float NoL = clamp(dot(shadingInfo.normal, lightDirection), 1e-5f, 1.0f);
-    const float HoL = saturate(dot(H, lightDirection));
 
-    const float D = ggxNormalDistribution(NoH, shadingInfo.roughness);
-    const float V = ggxVSmithHeightCorrelated(shadingInfo.NoV, NoL, shadingInfo.roughness);
-    const float3 F = fresnelSchlick(HoL, shadingInfo.F0, shadingInfo.F90);
-
-    const float3 diffuse = (float3(1.0f) - F) * shadingInfo.diffuseColor * PI_INVERSE;
-    const float3 specular = D * V * F;
-    
-    return (specular + diffuse) * radiance * NoL * shadow;
+    return BRDF(lightDirection, NoL, shadingInfo) * radiance * NoL * shadow;
 }
 
 public float3 pbrShadeDirectionalLights(const ViewInfo view, const PbrShadingInfo shadingInfo,

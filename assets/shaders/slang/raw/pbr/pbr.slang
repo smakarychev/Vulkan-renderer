@@ -93,7 +93,7 @@ public float disneyDiffuse(float NoV, float NoL, float NoH, float linearRoughnes
 }
 
 /// Returns falloff in range of 0 to 1 for a point light
-/// @param lightDirectionUnnormalized unnormalized vector from light towards shaded point
+/// @param lightDirectionUnnormalized unnormalized vector from shaded point towards light
 /// @param radius raduis of a point light
 /// @return Inverted falloff amount
 internal float pointLightFalloff(float3 lightDirectionUnnormalized, float radius) {
@@ -102,4 +102,25 @@ internal float pointLightFalloff(float3 lightDirectionUnnormalized, float radius
     const float nom = saturate(1.0f - distance2OverRadius2 * distance2OverRadius2);
     
     return nom * nom / max(distance2, 1e-4f);
+}
+
+
+/// Evaluates BRDF value
+/// @param lightDirection normalized vector from shaded point towards light
+/// @param NoL cosine between normal and light vector
+/// @return shadingInfo geometry parameters at shaded point
+internal float3 BRDF(float3 lightDirection, float NoL, PbrShadingInfo shadingInfo) {
+    const float3 H = normalize(lightDirection + shadingInfo.view);
+
+    const float NoH = saturate(dot(shadingInfo.normal, H));
+    const float HoL = saturate(dot(H, lightDirection));
+
+    const float D = ggxNormalDistribution(NoH, shadingInfo.roughness);
+    const float V = ggxVSmithHeightCorrelated(shadingInfo.NoV, NoL, shadingInfo.roughness);
+    const float3 F = fresnelSchlick(HoL, shadingInfo.F0, shadingInfo.F90);
+
+    const float3 diffuse = (float3(1.0f) - F) * shadingInfo.diffuseColor * PI_INVERSE;
+    const float3 specular = D * V * F;
+
+    return diffuse + specular;
 }
