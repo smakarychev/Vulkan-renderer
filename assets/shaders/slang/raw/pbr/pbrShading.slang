@@ -30,8 +30,7 @@ public struct PbrShadingResources {
 
 internal float3 pbrShadePointLight(const PbrShadingInfo shadingInfo, const PointLight light) {
     float3 lightDirection = light.position - shadingInfo.position;
-    const float distance2 = dot(lightDirection, lightDirection);
-    const float falloff = pointLightFalloff(distance2, light.radius);
+    const float falloff = pointLightFalloff(lightDirection, light.radius);
     lightDirection = normalize(lightDirection);
 
     const float3 radiance = light.color * light.intensity * falloff;
