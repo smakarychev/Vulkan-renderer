@@ -22,7 +22,6 @@ public:
     u32 Add(lux::CommonLight light);
     void Delete(u32 light);
     
-    void SetScene(Scene& scene) { m_Scene = &scene; }
 
     void SetVisibleLights(const std::vector<lux::CommonLight>& visibleLights) { m_VisibleLights = visibleLights; }
 
@@ -50,7 +49,5 @@ private:
     LightsInfo m_CachedLightsInfo{};
 
     Buffers m_Buffers{};
-    
-    Scene* m_Scene{nullptr};
 };
 
