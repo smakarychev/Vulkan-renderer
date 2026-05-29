@@ -218,11 +218,13 @@ public float3 pbrShadeIbl(const ViewInfo view, const PbrShadingInfo shadingInfo,
     return ambient * shadingInfo.ao;
 }
 
+
 public float3 pbrShade(const ViewInfo view, const PbrShadingInfo shadingInfo, const PbrShadingSamplers samplers,
     const PbrShadingResources resources) {
 
     float3 Lo = pbrShadePointLights(view, shadingInfo, resources);
     Lo += pbrShadeDirectionalLights(view, shadingInfo, resources);
+    Lo *= view.shading.exposure;
     Lo += pbrShadeIbl(view, shadingInfo, samplers, resources);
 
     return Lo;

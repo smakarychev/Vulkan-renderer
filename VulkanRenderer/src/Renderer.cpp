@@ -298,7 +298,7 @@ void Renderer::InitRenderGraph()
         lights.SetSunLight({{
             .Direction = glm::normalize(glm::vec3(0.3f, -1.0f, 0.1f)),
             .Color = glm::vec3(1.0f, 1.0f, 1.0f),
-            .Intensity = 2.5f,
+            .Intensity = 112000.0f,
         }});
         constexpr u32 POINT_LIGHT_COUNT = 32;
         for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
@@ -310,7 +310,7 @@ void Renderer::InitRenderGraph()
                 //.Position = glm::vec3{Random::Float(-39.0f, 39.0f), Random::Float(0.0f, 4.0f), Random::Float(-19.0f, 19.0f)},
                 .Position = pos,
                 .Color = Random::Float3(0.0f, 1.0f),
-                .Intensity = Random::Float(0.5f, 3.7f),
+                .Intensity = Random::Float(1500.0f, 3700.0f),
                 .Radius = rad
             }});
         }
@@ -435,7 +435,7 @@ void Renderer::SetupRenderGraph()
             glm::vec3 euler = glm::eulerAngles(localTransform.Orientation) * 180.0f / glm::pi<f32>();
             ImGui::DragFloat3("Direction", &euler[0], 1e-1f);
             ImGui::ColorEdit3("Color", &commonLight.Color[0]);
-            ImGui::DragFloat("Intensity", &commonLight.Intensity, 1e-2f, 0.0f);
+            ImGui::DragFloat("Intensity", &commonLight.Intensity, 10.0f, 0.0f);
             ImGui::End();
             localTransform.Orientation = glm::quat(euler * glm::pi<f32>() / 180.0f);
             
@@ -634,7 +634,7 @@ void Renderer::SetupRenderGraph()
     m_Graph->Compile(GetFrameContext());
 }
 
-void Renderer::UpdateGlobalRenderGraphResources() const
+void Renderer::UpdateGlobalRenderGraphResources()
 {
     using namespace RG;
     
@@ -707,6 +707,17 @@ void Renderer::UpdateGlobalRenderGraphResources() const
     ImGui::DragFloat("Ozone density", &primaryView.Atmosphere.OzoneDensity, 1e-2f, 0.0f, 100.0f);
     ImGui::End();
 
+    {
+        f32 shutterTimeInverse = 1.0f / m_ExposureSettings.ShutterTime;
+        ImGui::Begin("Camera exposure settings");
+        ImGui::DragFloat("Aperture f stops", &m_ExposureSettings.Aperture, 1e-2f, 0.1f, 30.0f);
+        ImGui::DragFloat("ShutterTime inverse", &shutterTimeInverse, 1e-1f, 0.0f, 200.0f);
+        ImGui::DragFloat("ISO", &m_ExposureSettings.ISO, 1e-1f, 0.0f, 300.0f);
+        m_ExposureSettings.ShutterTime = 1.0f / shutterTimeInverse;
+        ImGui::End();
+    }
+    
+
     primaryView.FrameNumber = (f32)GetFrameContext().FrameNumberTick;
     primaryView.FrameNumberU32 = (u32)GetFrameContext().FrameNumberTick;
 
@@ -715,6 +726,11 @@ void Renderer::UpdateGlobalRenderGraphResources() const
     globalResources.PrimaryCamera = m_Camera.get();
     globalResources.PrimaryViewInfoResource = Passes::Upload::addToGraph(
         "Upload.GlobalGraphData"_hsv, *m_Graph, primaryView);
+    globalResources.PrimaryViewInfoResource = Passes::PbrCameraExposure::addToGraph("CameraExposure"_hsv,
+        *m_Graph, {
+            .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
+            .ExposureSettings = &m_ExposureSettings
+        }).ViewInfo;
 }
 
 RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass, const lux::CommonLight& directionalLight)

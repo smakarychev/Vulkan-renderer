@@ -124,3 +124,15 @@ internal float3 BRDF(float3 lightDirection, float NoL, PbrShadingInfo shadingInf
 
     return diffuse + specular;
 }
+
+/// Returns EV100 value, computed from pbr-camera parameters
+public float computeEV100(float aperture, float shutterTime, float ISO) {
+    return log2((aperture * aperture) / shutterTime * 100 / ISO);
+}
+
+/// Converts EV100 value into camera exposure
+public float convertEV100ToExposure(float EV100) {
+    const float maxLuminance = 1.2f * pow(2.0f, EV100);
+
+    return 1.0f / maxLuminance;
+}

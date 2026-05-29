@@ -259,6 +259,7 @@ internal float aerialPerspectiveMetersToSlice(float m) {
     return m / AERIAL_M_PER_SLICE;
 }
 
+// todo: 
 internal float3 expose(float3 color) {
     const float3 whitePoint = float3(1.08241f, 0.96756f, 0.95003f);
     const float exposure = 8.0f;

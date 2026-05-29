@@ -16,6 +16,7 @@
 #include "RenderGraph/Passes/Scene/SceneGeometryRGResources.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityPassesCommon.h"
 #include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
+#include "RenderGraph/Passes/SceneDraw/PBR/ExposurePass.h"
 #include "RenderGraph/Visualization/RGMermaidExporter.h"
 #include "Vulkan/Device.h"
 #include "Rendering/Swapchain.h"
@@ -80,7 +81,7 @@ private:
     void ExecuteSingleTimePasses();
     void SetupRenderSlimePasses();
     void SetupRenderGraph();
-    void UpdateGlobalRenderGraphResources() const;
+    void UpdateGlobalRenderGraphResources();
 
     RG::CsmData RenderGraphShadows(const ScenePass& scenePass, const lux::CommonLight& directionalLight);
     Passes::SceneMetaDraw::PassData& RenderGraphDepthPrepass(RG::Resource depth, const ScenePass& scenePass);
@@ -229,6 +230,7 @@ private:
     std::array<Texture, 2> m_CloudReprojectionFactor{};
     u32 m_CloudsAccumulationIndex{0};
     u32 m_CloudsAccumulationIndexPrev{1};
+    Passes::PbrCameraExposure::ExposureSettings m_ExposureSettings{};
     Passes::Clouds::CloudsNoiseParameters m_CloudCoverageNoiseParameters{};
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeLowFrequencyNoiseParameters{};
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeHighFrequencyNoiseParameters{};

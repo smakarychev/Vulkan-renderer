@@ -80,6 +80,7 @@ public struct AtmosphereSettings {
 
 [StandaloneType("shadingSettings")]
 public struct ShadingSettings {
+    public float exposure;
     public float environmentPower;
     public bool softShadows;
     public float maxLightCullDistance;
@@ -88,7 +89,7 @@ public struct ShadingSettings {
     public TextureHandle<Texture2D> skyViewLut;
     public TextureHandle<Texture2D> volumetricCloudShadow;
     public TextureHandle<Texture2D> blueNoise128;
-    uint[3] unused0;
+    uint[2] unused0;
 
     public uint directionalLightCount;
     public uint pointLightCount;

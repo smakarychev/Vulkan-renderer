@@ -294,7 +294,8 @@ CloudsRenderInfo renderClouds(float2 screenUv, float3 ro, float3 rd, float maxDe
     float3 inScattering = float3(0.0f);
 
     const float3 l0 = clouds.view.shading.primaryDirectionalLightColor.rgb *
-        clouds.view.shading.primaryDirectionalLightIntensity;
+        clouds.view.shading.primaryDirectionalLightIntensity * 
+        clouds.view.shading.exposure;
     const float3 lightDirection = -clouds.view.shading.primaryDirectionalLightDirection;
     const float mu = dot(rd, lightDirection);
 

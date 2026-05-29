@@ -239,7 +239,8 @@ void aerialPerspectiveLut(
     scatteringInfo.view = resources.view;
     scatteringInfo.globalL = 
         resources.view.shading.primaryDirectionalLightColor.rgb * 
-        resources.view.shading.primaryDirectionalLightIntensity;
+        resources.view.shading.primaryDirectionalLightIntensity * 
+        resources.view.shading.exposure;
     scatteringInfo.sunDir = -resources.view.shading.primaryDirectionalLightDirection;
     scatteringInfo.maxDepth = sliceKm;
     scatteringInfo.sampleCount = max(1.0f, float(dispatchThreadID.z + 1.0f) * 2.0f);
@@ -301,7 +302,8 @@ void skyviewLut(
     scatteringInfo.view = resources.view;
     scatteringInfo.globalL = 
         resources.view.shading.primaryDirectionalLightColor.rgb * 
-        resources.view.shading.primaryDirectionalLightIntensity;
+        resources.view.shading.primaryDirectionalLightIntensity * 
+        resources.view.shading.exposure;
     scatteringInfo.sunDir = sunDir;
     scatteringInfo.maxDepth = MAX_DEPTH;
     scatteringInfo.sampleCount = SKY_STEPS;
