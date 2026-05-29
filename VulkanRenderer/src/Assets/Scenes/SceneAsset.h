@@ -55,6 +55,7 @@ struct SceneLightInfo
 {
     std::vector<CommonLight> Lights;
     
+    void SetSunLight(const DirectionalLight& light);
     void AddLight(const DirectionalLight& light);
     void AddLight(const PointLight& light);
 };
@@ -74,6 +75,7 @@ struct SceneAsset
     SceneLightInfo Lights{};
     SceneHierarchyInfo Hierarchy{};
     
+    void SetSunLight(const DirectionalLight& light);
     void AddLight(const DirectionalLight& light);
     void AddLight(const PointLight& light);
 };
@@ -131,6 +133,7 @@ struct CommonLight
     f32 Intensity{1.0f};
     f32 Radius{1.0f};
     SpotLightData SpotLightData{};
+    bool IsSun{false};
 
     Transform3d GetTransform() const;
 };

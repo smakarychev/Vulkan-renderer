@@ -19,10 +19,7 @@ public:
     };
 public:
     static SceneLight CreateEmpty(DeletionQueue& deletionQueue);
-    u32 Add(lux::CommonLight light);
-    void Delete(u32 light);
     
-
     void SetVisibleLights(const std::vector<lux::CommonLight>& visibleLights) { m_VisibleLights = visibleLights; }
 
     u32 Count() const { return m_Lights.size(); }
@@ -37,6 +34,9 @@ public:
     auto begin() const { return m_Lights.begin(); }
     auto end() const { return m_Lights.end(); }
 private:
+    u32 Add(const lux::CommonLight& light);
+    void Delete(u32 light);
+    
     void OnUpdate(FrameContext& ctx);
     void UpdateDirectionalLight(lux::CommonLight& light, u32 lightIndex, FrameContext& ctx);
     void UpdatePointLight(lux::CommonLight& light, u32 lightIndex, FrameContext& ctx);

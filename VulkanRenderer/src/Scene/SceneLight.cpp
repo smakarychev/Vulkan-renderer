@@ -29,7 +29,7 @@ SceneLight SceneLight::CreateEmpty(DeletionQueue& deletionQueue)
     return light;
 }
 
-u32 SceneLight::Add(lux::CommonLight light)
+u32 SceneLight::Add(const lux::CommonLight& light)
 {
     return m_Lights.insert(light);
 }

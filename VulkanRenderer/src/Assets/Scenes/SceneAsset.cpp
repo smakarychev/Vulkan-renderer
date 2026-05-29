@@ -5,6 +5,18 @@
 
 namespace lux
 {
+void SceneLightInfo::SetSunLight(const DirectionalLight& light)
+{
+    Lights.push_back({
+        .Type = LightType::Directional,
+        .PositionDirection = light.Direction,
+        .Color = light.Color,
+        .Intensity = light.Intensity,
+        .Radius = light.Radius,
+        .IsSun = true,
+    });
+}
+
 void SceneLightInfo::AddLight(const DirectionalLight& light)
 {
     Lights.push_back({
@@ -24,6 +36,20 @@ void SceneLightInfo::AddLight(const PointLight& light)
         .Color = light.Color,
         .Intensity = light.Intensity,
         .Radius = light.Radius,
+    });
+}
+
+void SceneAsset::SetSunLight(const DirectionalLight& light)
+{
+    const u32 lightIndex = (u32)Lights.Lights.size();
+    Lights.SetSunLight(light);
+
+    Hierarchy.Nodes.push_back(SceneHierarchyNode{
+        .Type = SceneHierarchyNodeType::Light,
+        .Depth = 0,
+        .Parent = {SceneHierarchyHandle::INVALID},
+        .LocalTransform = Lights.Lights.back().GetTransform(),
+        .PayloadIndex = lightIndex
     });
 }
 

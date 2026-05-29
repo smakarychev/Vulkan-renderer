@@ -295,7 +295,7 @@ void Renderer::InitRenderGraph()
                 }});
 
         lux::SceneAsset lights = {};
-        lights.AddLight({{
+        lights.SetSunLight({{
             .Direction = glm::normalize(glm::vec3(0.3f, -1.0f, 0.1f)),
             .Color = glm::vec3(1.0f, 1.0f, 1.0f),
             .Intensity = 2.5f,
@@ -426,7 +426,11 @@ void Renderer::SetupRenderGraph()
     
     m_Scene->IterateLights(lux::LightType::Directional, 
         [this](lux::CommonLight& commonLight, Transform3d& localTransform) {
+            if (!commonLight.IsSun)
+                return false;
+            
             m_SunLight = &commonLight;
+            
             ImGui::Begin("Directional Light");
             glm::vec3 euler = glm::eulerAngles(localTransform.Orientation) * 180.0f / glm::pi<f32>();
             ImGui::DragFloat3("Direction", &euler[0], 1e-1f);
@@ -437,8 +441,7 @@ void Renderer::SetupRenderGraph()
             
             return true;
     });
-
-    
+    ASSERT(m_SunLight)
 
     bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
     ImGui::Begin("RenderAtmosphere");
