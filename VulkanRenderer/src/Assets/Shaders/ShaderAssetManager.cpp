@@ -377,6 +377,7 @@ void ShaderAssetManager::ReloadPipeline(PipelineInfo& pipelineInfo, import::Shad
     if (!imported)
         return;
     
+    m_FrameDeletionQueue->Enqueue(pipelineInfo.Pipeline);
     pipelineInfo.ShouldReload = false;
     pipelineInfo.Pipeline = CreatePipeline(importer.GetImportedShaderLoadInfo(), *pipelineInfo.PipelineTemplate, 
         parameters);
