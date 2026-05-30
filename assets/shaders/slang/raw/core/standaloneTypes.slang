@@ -12,6 +12,8 @@ import "scene/visibility/visibility";
 
 struct Resources {
     ViewInfo view;
+    ShadingSettings shs;
+    AtmosphereSettings as;
     SceneVisibilityCountData svcd;
     RenderObject ro;
     RenderObjectSkinnedInfo rosi;

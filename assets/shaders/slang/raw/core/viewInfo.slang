@@ -69,6 +69,7 @@ public struct AtmosphereSettings {
     public float4 mieScattering;
     public float4 mieAbsorption;
     public float4 ozoneAbsorption;
+    [DefaultValue("0.3f, 0.3f, 0.3f, 1.0f")]
     public float4 surfaceAlbedo;
 
     public float surface;
