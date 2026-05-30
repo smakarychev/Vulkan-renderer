@@ -113,7 +113,7 @@ void multiscatteringLut(
 
     const float sphereSolidAngle = 4.0f * PI;
     const float uniformPhase = 1.0f / sphereSolidAngle;
-    const float samplesSqrt = sqrt(MULTISCATTERING_SPHERE_SAMPLES);
+    const uint samplesSqrt = MULTISCATTERING_SPHERE_SAMPLES_SQRT;
 
     float3 multiscattering;
     float3 L;

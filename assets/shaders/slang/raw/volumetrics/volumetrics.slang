@@ -35,6 +35,7 @@ internal static const float TRANSMITTANCE_STEPS = 40.0f;
 internal static const float SKY_STEPS = 30.0f;
 internal static const float MULTISCATTERING_SPHERE_SAMPLES = 64.0f;
 internal static const uint MULTISCATTERING_SPHERE_SAMPLES_INT = 64;
+internal static const uint MULTISCATTERING_SPHERE_SAMPLES_SQRT = 8;
 internal static const float MULTISCATTERING_STEPS = 20.0f;
 
 internal static const float PLANET_RADIUS_OFFSET_UV = 0.01f;
