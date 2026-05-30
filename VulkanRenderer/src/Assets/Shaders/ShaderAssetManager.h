@@ -69,6 +69,12 @@ protected:
 private:
     void OnRawFileModified(const std::filesystem::path& path);
     
+    struct LoadedPipelineInfo
+    {
+        const ShaderPipelineTemplate* PipelineTemplate{nullptr};
+        PipelineLayout Layout{};
+        bool HasTextureHeap{};
+    };
     struct PipelineInfo
     {
         const ShaderPipelineTemplate* PipelineTemplate{nullptr};
@@ -97,9 +103,9 @@ private:
 
         auto operator<=>(const RebakeInfo&) const = default;
     };
-    std::optional<PipelineInfo> DoLoad(import::ShaderImporter& importer, const std::filesystem::path& path);
-    Pipeline CreatePipeline(const assetlib::ShaderLoadInfo& shaderLoadInfo, const PipelineInfo& pipelineInfo, 
-        const ShaderLoadParameters& parameters);
+    std::optional<LoadedPipelineInfo> DoLoad(import::ShaderImporter& importer, const std::filesystem::path& path);
+    Pipeline CreatePipeline(const assetlib::ShaderLoadInfo& shaderLoadInfo, 
+        const ShaderPipelineTemplate& pipelineTemplate, const ShaderLoadParameters& parameters);
     void ReloadPipeline(PipelineInfo& pipelineInfo, import::ShaderImporter& importer, 
         const ShaderLoadParameters& parameters);
     RebakeInfo CreateRebakeInfo(const ShaderNameWithOverrides& name, const ShaderLoadParameters& parameters) const;

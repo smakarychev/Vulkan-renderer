@@ -184,11 +184,16 @@ ShaderHandle ShaderAssetManager::LoadAsset(const ShaderLoadParameters& parameter
     }
     
     const std::filesystem::path rawPath = m_ShaderNameToRawPath[parameters.Name];
-    std::optional<PipelineInfo> newPipeline = DoLoad(importer, rawPath);
-    if (!newPipeline.has_value())
+    std::optional<LoadedPipelineInfo> loadedPipeline = DoLoad(importer, rawPath);
+    if (!loadedPipeline.has_value())
         return {};
-    
-    newPipeline->Pipeline = CreatePipeline(importer.GetImportedShaderLoadInfo(), *newPipeline, parameters);
+
+    const PipelineInfo newPipeline = {
+        .PipelineTemplate = loadedPipeline->PipelineTemplate,
+        .Pipeline = CreatePipeline(importer.GetImportedShaderLoadInfo(), *loadedPipeline->PipelineTemplate, parameters),
+        .Layout = loadedPipeline->Layout,
+        .HasTextureHeap = loadedPipeline->HasTextureHeap,
+    };
     
     auto& pathRebakes = m_RawPathToRebakeInfos[rawPath.string()];
     if (std::ranges::find(pathRebakes, rebakeInfo) == pathRebakes.end())
@@ -198,14 +203,14 @@ ShaderHandle ShaderAssetManager::LoadAsset(const ShaderLoadParameters& parameter
     if (it == m_PipelinesMap.end())
     {
         handle = ShaderHandle((u32)m_Pipelines.size(), 0);
-        m_Pipelines.push_back(*newPipeline);
+        m_Pipelines.push_back(newPipeline);
         m_PipelinesMap[nameWithOverrides] = handle;
     }
     else
     {
         handle = it->second;
         m_FrameDeletionQueue->Enqueue(m_Pipelines[handle.Index()].Pipeline);
-        m_Pipelines[handle.Index()] = *newPipeline;
+        m_Pipelines[handle.Index()] = newPipeline;
     }
 
     return handle;
@@ -256,8 +261,11 @@ void ShaderAssetManager::OnRawFileModified(const std::filesystem::path& path)
                         if (pipelineIt == m_PipelinesMap.end())
                             return;
                         
-                        m_Pipelines[pipelineIt->second.Index()] = *pipelineInfo;
-                        m_Pipelines[pipelineIt->second.Index()].ShouldReload = true;
+                        auto& existingPipeline = m_Pipelines[pipelineIt->second.Index()];
+                        existingPipeline.PipelineTemplate = pipelineInfo->PipelineTemplate;
+                        existingPipeline.HasTextureHeap = pipelineInfo->HasTextureHeap;
+                        existingPipeline.Layout = pipelineInfo->Layout;
+                        existingPipeline.ShouldReload = true;
                     }
                 }
             });
@@ -265,7 +273,7 @@ void ShaderAssetManager::OnRawFileModified(const std::filesystem::path& path)
     }
 }
 
-std::optional<ShaderAssetManager::PipelineInfo> ShaderAssetManager::DoLoad(import::ShaderImporter& importer,
+std::optional<ShaderAssetManager::LoadedPipelineInfo> ShaderAssetManager::DoLoad(import::ShaderImporter& importer,
     const std::filesystem::path& path)
 {
     LUX_LOG_INFO("Loading shader: {}", path.string());
@@ -295,7 +303,7 @@ std::optional<ShaderAssetManager::PipelineInfo> ShaderAssetManager::DoLoad(impor
         })
     );
     
-    PipelineInfo pipelineInfo = {};
+    LoadedPipelineInfo pipelineInfo = {};
     pipelineInfo.PipelineTemplate = pipelineTemplate;
     pipelineInfo.Layout = pipelineTemplate->GetPipelineLayout();
     pipelineInfo.HasTextureHeap = pipelineTemplate->GetSetPresence()[BINDLESS_DESCRIPTORS_INDEX];
@@ -304,7 +312,7 @@ std::optional<ShaderAssetManager::PipelineInfo> ShaderAssetManager::DoLoad(impor
 }
 
 Pipeline ShaderAssetManager::CreatePipeline(const assetlib::ShaderLoadInfo& shaderLoadInfo,
-    const PipelineInfo& pipelineInfo, const ShaderLoadParameters& parameters)
+    const ShaderPipelineTemplate& pipelineTemplate, const ShaderLoadParameters& parameters)
 {
     std::vector<Format> colorFormats;
     std::optional<Format> depthFormat;
@@ -334,17 +342,16 @@ Pipeline ShaderAssetManager::CreatePipeline(const assetlib::ShaderLoadInfo& shad
             depthFormat = formatFromAssetImageFormat(*rasterization.Depth);
     }
 
-    auto* pipelineTemplate = pipelineInfo.PipelineTemplate;
-    ASSERT(pipelineTemplate->GetReflection().Shaders().size() == 1)
+    ASSERT(pipelineTemplate.GetReflection().Shaders().size() == 1)
     std::array<ShaderModule, MAX_PIPELINE_SHADER_COUNT> shaderModules{};
-    std::ranges::fill(shaderModules, pipelineTemplate->GetReflection().Shaders().front());
+    std::ranges::fill(shaderModules, pipelineTemplate.GetReflection().Shaders().front());
 
     const auto& overrides = parameters.Overrides;
     const Pipeline pipeline = Device::CreatePipeline({
-        .PipelineLayout = pipelineTemplate->GetPipelineLayout(),
-        .Shaders = Span((const ShaderModule*)shaderModules.data(), pipelineTemplate->GetShaderStages().size()),
-        .ShaderStages = pipelineTemplate->GetShaderStages(),
-        .ShaderEntryPoints = pipelineTemplate->GetEntryPoints(),
+        .PipelineLayout = pipelineTemplate.GetPipelineLayout(),
+        .Shaders = Span((const ShaderModule*)shaderModules.data(), pipelineTemplate.GetShaderStages().size()),
+        .ShaderStages = pipelineTemplate.GetShaderStages(),
+        .ShaderEntryPoints = pipelineTemplate.GetEntryPoints(),
         .ColorFormats = colorFormats,
         .DepthFormat = depthFormat ? *depthFormat : Format::Undefined,
         .DynamicStates = overrides->PipelineOverrides.DynamicStates.value_or(dynamicStates),
@@ -353,8 +360,8 @@ Pipeline ShaderAssetManager::CreatePipeline(const assetlib::ShaderLoadInfo& shad
         .CullMode = overrides->PipelineOverrides.CullMode.value_or(cullMode),
         .AlphaBlending = overrides->PipelineOverrides.AlphaBlending.value_or(alphaBlending),
         .PrimitiveKind = overrides->PipelineOverrides.PrimitiveKind.value_or(primitiveKind),
-        .Specialization = overrides->Specializations.ToPipelineSpecializationsView(*pipelineTemplate),
-        .IsComputePipeline = pipelineTemplate->IsComputeTemplate(),
+        .Specialization = overrides->Specializations.ToPipelineSpecializationsView(pipelineTemplate),
+        .IsComputePipeline = pipelineTemplate.IsComputeTemplate(),
         .ClampDepth = overrides->PipelineOverrides.ClampDepth.value_or(clampDepth)
     }, Device::DummyDeletionQueue());
     Device::NamePipeline(pipeline, parameters.Name.AsStringView());
@@ -371,7 +378,8 @@ void ShaderAssetManager::ReloadPipeline(PipelineInfo& pipelineInfo, import::Shad
         return;
     
     pipelineInfo.ShouldReload = false;
-    pipelineInfo.Pipeline = CreatePipeline(importer.GetImportedShaderLoadInfo(), pipelineInfo, parameters);
+    pipelineInfo.Pipeline = CreatePipeline(importer.GetImportedShaderLoadInfo(), *pipelineInfo.PipelineTemplate, 
+        parameters);
 }
 
 ShaderAssetManager::RebakeInfo ShaderAssetManager::CreateRebakeInfo(const ShaderNameWithOverrides& name, 
