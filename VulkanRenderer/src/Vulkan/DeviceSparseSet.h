@@ -4,6 +4,8 @@
 
 #include <CoreLib/Containers/SlotMapType.h>
 
+#include <mutex>
+
 template <typename T>
 class DeviceSparseSet
 {
