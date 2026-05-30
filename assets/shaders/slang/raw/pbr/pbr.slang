@@ -104,6 +104,17 @@ internal float pointLightFalloff(float3 lightDirectionUnnormalized, float radius
     return nom * nom / max(distance2, 1e-4f);
 }
 
+/// Returns direction to sample for ibl
+/// @param normal normal vector of a shaded point
+/// @param reflection reflection vector of a shaded point
+/// @param roughness roughness of a shaded point
+/// @return Direction to sample for ibl
+internal float3 specularDominantDirection(float3 normal, float3 reflection, float roughness) {
+    const float smoothness = saturate(1.0f - roughness);
+    const float lerpFactor = smoothness * (sqrt(smoothness) + roughness);
+    
+    return lerp(normal, reflection, lerpFactor);
+}
 
 /// Evaluates BRDF value
 /// @param lightDirection normalized vector from shaded point towards light
