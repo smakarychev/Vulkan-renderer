@@ -13,6 +13,8 @@ public struct PbrShadingInfo {
     public float depth;
     /// View vector from position of shaded pixel in world space to camera position in world space
     public float3 view;
+    /// Reflection vector
+    public float3 R;
     /// Cosine between normal and view vector
     public float NoV;
     /// Roughness 

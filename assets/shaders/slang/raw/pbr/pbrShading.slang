@@ -202,13 +202,13 @@ public float3 pbrShadeSun(const ViewInfo view, const PbrShadingInfo shadingInfo,
     const float3 lightDirection = -view.shading.primaryDirectionalLightDirection;
     const float sunRadius = sin(SUN_ANGULAR_RADIUS);
     const float distanceToSun = cos(SUN_ANGULAR_RADIUS);
-    const float3 R = reflect(-shadingInfo.view, shadingInfo.normal);
     // Gram–Schmidt
-    const float DoR = dot(R, lightDirection);
-    const float3 S = R - DoR * lightDirection;
+    const float DoR = dot(shadingInfo.R, lightDirection);
+    const float3 S = shadingInfo.R - DoR * lightDirection;
     // if reflection direction already points at the sun disk, use it as a light direction
     // otherwise, use the closest point on the disk
-    const float3 L = DoR < distanceToSun ? normalize(distanceToSun * lightDirection + normalize(S) * sunRadius) : R;
+    const float3 L = 
+    DoR < distanceToSun ? normalize(distanceToSun * lightDirection + normalize(S) * sunRadius) : shadingInfo.R;
 
     const float3 illuminance = 
         view.shading.primaryDirectionalLightColor.rgb * 
@@ -221,12 +221,12 @@ public float3 pbrShadeSun(const ViewInfo view, const PbrShadingInfo shadingInfo,
 public float3 pbrShadeIbl(const ViewInfo view, const PbrShadingInfo shadingInfo, const PbrShadingSamplers samplers,
     const PbrShadingResources resources) {
 
-    const float3 R = reflect(-shadingInfo.view, shadingInfo.normal);
     const float3 irradiance = resources.irradianceSH.shade(shadingInfo.normal);
     
     const float linearRoughness = sqrt(shadingInfo.roughness);
     const float lod = linearRoughness * MAX_REFLECTION_LOD;
-    const float3 prefiltered = resources.prefilteredEnvironment.SampleLevel(samplers.environmentSampler, R, lod).rgb;
+    const float3 prefiltered = 
+        resources.prefilteredEnvironment.SampleLevel(samplers.environmentSampler, shadingInfo.R, lod).rgb;
     const float2 brdf = 
         resources.brdf.SampleLevel(samplers.brdfSampler, float2(shadingInfo.NoV, linearRoughness), 0.0f).rg;
 

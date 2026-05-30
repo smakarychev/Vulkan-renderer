@@ -130,6 +130,7 @@ float4 pixelMain(VSOutput input) {
     shadingInfo.viewZ = input.viewZ;
     shadingInfo.depth = input.position.z;
     shadingInfo.view = normalize(resources.view.camera.position - input.positionWs);
+    shadingInfo.R = reflect(-shadingInfo.view, shadingInfo.normal);
     shadingInfo.NoV = clamp(dot(shadingInfo.normal, shadingInfo.view), 1e-5f, 1.0f);
     shadingInfo.roughness = roughness * roughness;
     shadingInfo.metallic = metallic;

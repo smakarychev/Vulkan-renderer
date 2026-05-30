@@ -79,6 +79,7 @@ float4 main(FullScreenVSOutput input) {
     shadingInfo.viewZ = gData.viewZ;
     shadingInfo.depth = gData.depth;
     shadingInfo.view = normalize(resources.view.camera.position - gData.position);
+    shadingInfo.R = reflect(-shadingInfo.view, shadingInfo.normal);
     shadingInfo.NoV = clamp(dot(shadingInfo.normal, shadingInfo.view), 1e-5f, 1.0f);
     shadingInfo.roughness = materialData.roughness * materialData.roughness;
     shadingInfo.metallic = materialData.metallic;
