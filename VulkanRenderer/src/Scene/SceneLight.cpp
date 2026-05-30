@@ -45,6 +45,9 @@ void SceneLight::OnUpdate(FrameContext& ctx)
     u32 pointLightIndex = 0;
     for (auto& light : m_VisibleLights)
     {
+        if (light.IsSun)
+            continue;
+        
         switch (light.Type)
         {
         case lux::LightType::Directional:

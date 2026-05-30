@@ -188,14 +188,34 @@ public float3 pbrShadeDirectionalLight(const ViewInfo view, const PbrShadingInfo
 public float3 pbrShadeDirectionalLights(const ViewInfo view, const PbrShadingInfo shadingInfo,
     const PbrShadingResources resources) {
 
-    float3 Lo = 
-        pbrShadeDirectionalLight(view, shadingInfo, resources.directionalLights[0], shadingInfo.directionalShadow) *
+    float3 Lo = pbrShadeSun(view, shadingInfo, shadingInfo.directionalShadow) *
         view.shading.atmosphereTransmittanceAtView.rgb;
-    for (uint i = 1; i < view.shading.directionalLightCount; i++) {
+    for (uint i = 0; i < view.shading.directionalLightCount; i++) {
         Lo += pbrShadeDirectionalLight(view, shadingInfo, resources.directionalLights[i], 1.0f);
     }
 
     return Lo;
+}
+
+public float3 pbrShadeSun(const ViewInfo view, const PbrShadingInfo shadingInfo, float shadow) {
+    const float SUN_ANGULAR_RADIUS = 0.263f * PI / 180.0f;
+    const float3 lightDirection = -view.shading.primaryDirectionalLightDirection;
+    const float sunRadius = sin(SUN_ANGULAR_RADIUS);
+    const float distanceToSun = cos(SUN_ANGULAR_RADIUS);
+    const float3 R = reflect(-shadingInfo.view, shadingInfo.normal);
+    // Gram–Schmidt
+    const float DoR = dot(R, lightDirection);
+    const float3 S = R - DoR * lightDirection;
+    // if reflection direction already points at the sun disk, use it as a light direction
+    // otherwise, use the closest point on the disk
+    const float3 L = DoR < distanceToSun ? normalize(distanceToSun * lightDirection + normalize(S) * sunRadius) : R;
+
+    const float3 illuminance = 
+        view.shading.primaryDirectionalLightColor.rgb * 
+        view.shading.primaryDirectionalLightIntensity;
+    const float NoL = clamp(dot(shadingInfo.normal, lightDirection), 1e-5f, 1.0f);
+
+    return BRDF(L, NoL, shadingInfo) * illuminance * NoL * shadow;
 }
 
 public float3 pbrShadeIbl(const ViewInfo view, const PbrShadingInfo shadingInfo, const PbrShadingSamplers samplers,
