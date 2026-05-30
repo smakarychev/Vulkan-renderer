@@ -96,6 +96,7 @@ public struct ShadingSettings {
     public bool lightCullingUseZBins;
     public uint2 lightCullTileCount;
 
+    [DefaultValue("1.0f")]
     public float4 atmosphereTransmittanceAtView;
     public float3 primaryDirectionalLightDirection;
     public float primaryDirectionalLightIntensity;
