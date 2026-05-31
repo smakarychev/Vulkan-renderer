@@ -69,7 +69,7 @@ public struct AtmosphereSettings {
     public float4 mieScattering;
     public float4 mieAbsorption;
     public float4 ozoneAbsorption;
-    [DefaultValue("0.3f, 0.3f, 0.3f, 1.0f")]
+    [DefaultValue("0.42f, 0.42f, 0.42f, 1.0f")]
     public float4 surfaceAlbedo;
 
     public float surface;
@@ -102,6 +102,9 @@ public struct ShadingSettings {
     public float3 primaryDirectionalLightDirection;
     public float primaryDirectionalLightIntensity;
     public float4 primaryDirectionalLightColor;
+    public float4 cameraPrimaryDirectionalLightIlluminance;
+    public float4 outerSpacePrimaryDirectionalLightIlluminance;
+    public float4 outerSpacePrimaryDirectionalLightLuminance;
 
     public float4x4 volumetricCloudViewProjection;
     public float4x4 volumetricCloudView;

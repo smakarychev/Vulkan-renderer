@@ -57,17 +57,25 @@ struct TransmittanceAtViewResources {
 
 [shader("compute")]
 [numthreads(1, 1, 1)]
-void transmittanceLutAtView(
+void updateSunParameters(
     uniform ParameterBlock<TransmittanceAtViewSamplers> samplers,
     uniform ParameterBlock<TransmittanceAtViewResources> resources) {
     
-    const float3 position = getViewPosition(resources.view[0].camera.position, resources.view[0].atmosphere.surface);
     const float3 lightDirection = -resources.view[0].shading.primaryDirectionalLightDirection;
-
-    resources.view[0].shading.atmosphereTransmittanceAtView =
-        float4(getAtmosphereTransmittance(
-            position, resources.view[0].atmosphere, lightDirection, resources.transmittanceLut, samplers.sampler), 
-            1.0f);
+    const float3 position = getViewPosition(resources.view[0].camera.position, resources.view[0].atmosphere.surface);
+    
+    resources.view[0].shading.atmosphereTransmittanceAtView = float4(getAtmosphereTransmittance(
+        position, resources.view[0].atmosphere, lightDirection, resources.transmittanceLut, samplers.sampler), 1.0f);
+    
+    resources.view[0].shading.outerSpacePrimaryDirectionalLightIlluminance =
+        resources.view[0].shading.primaryDirectionalLightColor *
+        resources.view[0].shading.primaryDirectionalLightIntensity;
+    resources.view[0].shading.cameraPrimaryDirectionalLightIlluminance =
+        resources.view[0].shading.outerSpacePrimaryDirectionalLightIlluminance *
+        resources.view[0].shading.atmosphereTransmittanceAtView;
+    resources.view[0].shading.outerSpacePrimaryDirectionalLightLuminance =
+        resources.view[0].shading.outerSpacePrimaryDirectionalLightIlluminance /
+        SUN_SOLID_ANGLE;
 }
 
 struct MultiscatteringLutSamplers {
@@ -238,8 +246,7 @@ void aerialPerspectiveLut(
     scatteringInfo.cloudShadow = resources.view.shading.volumetricCloudShadow.desc;
     scatteringInfo.view = resources.view;
     scatteringInfo.globalL = 
-        resources.view.shading.primaryDirectionalLightColor.rgb * 
-        resources.view.shading.primaryDirectionalLightIntensity * 
+        resources.view.shading.outerSpacePrimaryDirectionalLightIlluminance.rgb * 
         resources.view.shading.exposure;
     scatteringInfo.sunDir = -resources.view.shading.primaryDirectionalLightDirection;
     scatteringInfo.maxDepth = sliceKm;
@@ -252,7 +259,7 @@ void aerialPerspectiveLut(
         /*useUniformPhase*/ false>(scatteringInfo, ro, rd);
     const float transmittance = dot(scattering.transmittance, float3(1.0f / 3.0f));
 
-    resources.aerialPerspectiveLut[dispatchThreadID] = float4(expose(scattering.luminance), 1.0f - transmittance);
+    resources.aerialPerspectiveLut[dispatchThreadID] = float4(scattering.luminance, 1.0f - transmittance);
 }
 
 struct SkyviewLutSamplers {
@@ -301,8 +308,7 @@ void skyviewLut(
     scatteringInfo.multiscatteringLut = resources.multiscatteringLut;
     scatteringInfo.view = resources.view;
     scatteringInfo.globalL = 
-        resources.view.shading.primaryDirectionalLightColor.rgb * 
-        resources.view.shading.primaryDirectionalLightIntensity * 
+        resources.view.shading.outerSpacePrimaryDirectionalLightIlluminance.rgb * 
         resources.view.shading.exposure;
     scatteringInfo.sunDir = sunDir;
     scatteringInfo.maxDepth = MAX_DEPTH;
@@ -314,5 +320,5 @@ void skyviewLut(
         /*withSurfaceReflection*/ false,
         /*useUniformPhase*/ false>(scatteringInfo, ro, rd);
 
-    resources.skyView[dispatchThreadID] = float4(expose(scattering.luminance), 1.0f);
+    resources.skyView[dispatchThreadID] = float4(scattering.luminance, 1.0f);
 }

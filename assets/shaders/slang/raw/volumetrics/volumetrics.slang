@@ -43,6 +43,12 @@ internal static const float PLANET_RADIUS_OFFSET_KM = 0.01f;
 
 internal static const float DEFAULT_VIEW_HEIGHT_M = 300.0f;
 
+internal static const float SUN_ANGULAR_DIAMETER_DEGREES = 0.533f;
+internal static const float SUN_ANGULAR_RADIUS_DEGREES = SUN_ANGULAR_DIAMETER_DEGREES* 0.5f;
+internal static const float SUN_ANGULAR_DIAMETER = SUN_ANGULAR_DIAMETER_DEGREES * PI / 180.0f;
+internal static const float SUN_ANGULAR_RADIUS = SUN_ANGULAR_DIAMETER * 0.5f;
+internal static const float SUN_SOLID_ANGLE = TAU * (1.0f - cos(SUN_ANGULAR_RADIUS));
+
 internal float3 getViewPosition(float3 cameraPos, float surfaceRadius) {
     const float baseViewHeight = DEFAULT_VIEW_HEIGHT_M * 1e-3f;
     
@@ -232,16 +238,14 @@ internal float2 multiscatteringUvFromRMu(const AtmosphereSettings atmosphere, fl
     return uv;
 }
 
-internal float3 getSunLuminance(float3 ro, float3 rd, float3 sunDir, float surfaceRadius) {
-    const float apertureDegrees = 0.545f;
-    const float3 sunLuminance = float3(8e+6f);
-    const float cosHalfApex = cos(0.5f * apertureDegrees * PI / 180.0f);
+internal float3 getSunLuminance(float3 sunLuminance, float3 ro, float3 rd, float3 sunDir, float surfaceRadius) {
+    const float cosHalfApex = cos(SUN_ANGULAR_RADIUS);
     const float cosViewSun = dot(rd, sunDir);
 
     if (cosViewSun > cosHalfApex) {
         const float depthSurface = intersectSphere(ro, rd, float3(0.0f), surfaceRadius).depth;
         if (depthSurface == 0.0f) {
-            return sunLuminance * clamp(3 * (cosViewSun - cosHalfApex) / (cosHalfApex), 0.0, 1.0f);
+            return sunLuminance * saturate(2.0f * (cosViewSun - cosHalfApex) / (1.0f - cosHalfApex));
         }
     }
 
@@ -258,12 +262,5 @@ internal float aerialPerspectiveKmToSlice(float km) {
 
 internal float aerialPerspectiveMetersToSlice(float m) {
     return m / AERIAL_M_PER_SLICE;
-}
-
-// todo: 
-internal float3 expose(float3 color) {
-    const float3 whitePoint = float3(1.08241f, 0.96756f, 0.95003f);
-    const float exposure = 2.5f;
-    return float3(1.0 - exp(-color.rgb / whitePoint * exposure));
 }
 

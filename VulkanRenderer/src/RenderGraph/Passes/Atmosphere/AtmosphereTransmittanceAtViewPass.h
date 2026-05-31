@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include "RenderGraph/RGResource.h"
 
-namespace Passes::AtmosphereLutTransmittanceAtView
+namespace Passes::AtmosphereUpdateSunParameters
 {
 struct ExecutionInfo
 {

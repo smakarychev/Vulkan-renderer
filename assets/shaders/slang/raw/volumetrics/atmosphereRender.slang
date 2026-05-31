@@ -55,9 +55,14 @@ float4 atmosphereRender(FullScreenVSOutput input,
             
             L = resources.skyviewLut.SampleLevel(samplers.sampler, skyViewUv, 0).rgb;
 #if ATMOSPHERE_PRIMARY_VIEW
-            L += getSunLuminance(position, rd, sunDir, resources.view.atmosphere.surface) *
-                 resources.view.shading.atmosphereTransmittanceAtView.rgb *
-                 resources.view.shading.primaryDirectionalLightColor.rgb;
+            {
+                float3 sunLuminance = getSunLuminance(
+                    resources.view.shading.outerSpacePrimaryDirectionalLightLuminance.rgb,
+                    position, rd, sunDir, resources.view.atmosphere.surface) *
+                    resources.view.shading.atmosphereTransmittanceAtView.rgb;
+                sunLuminance = min(64000.0f, resources.view.shading.exposure * sunLuminance);
+                L += sunLuminance;
+            }
 #endif // ATMOSPHERE_PRIMARY_VIEW
 
             return float4(L, 1.0f);

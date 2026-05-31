@@ -293,8 +293,7 @@ CloudsRenderInfo renderClouds(float2 screenUv, float3 ro, float3 rd, float maxDe
     float transmittance = 1.0f;
     float3 inScattering = float3(0.0f);
 
-    const float3 l0 = clouds.view.shading.primaryDirectionalLightColor.rgb *
-        clouds.view.shading.primaryDirectionalLightIntensity * 
+    const float3 l0 = clouds.view.shading.outerSpacePrimaryDirectionalLightIlluminance.rgb *
         clouds.view.shading.exposure;
     const float3 lightDirection = -clouds.view.shading.primaryDirectionalLightDirection;
     const float mu = dot(rd, lightDirection);
@@ -361,8 +360,6 @@ CloudsRenderInfo renderClouds(float2 screenUv, float3 ro, float3 rd, float maxDe
     }
 
     const float avgDepth = depthWeightedTransmittance / max(depthWeightedTransmittanceTotal, 1e-7f);
-
-    inScattering = expose(inScattering);
 
 #if CLOUDS_PRIMARY_VIEW
     const float4 aerialPerspective = getAerialPerspective(avgDepth, screenUv,

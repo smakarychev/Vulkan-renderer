@@ -60,7 +60,7 @@ AtmosphereSettings AtmosphereSettings::EarthDefault()
         .MieScattering = glm::vec4{0.003996f, 0.003996f, 0.003996f, 1.0f},
         .MieAbsorption = glm::vec4{0.0044f, 0.0044f, 0.0044f, 1.0f},
         .OzoneAbsorption = glm::vec4{0.000650f, 0.001881f, 0.000085f, 1.0f},
-        .SurfaceAlbedo = glm::vec4{0.3f, 0.3f, 0.3f, 1.0f},
+        .SurfaceAlbedo = glm::vec4{0.42f, 0.42f, 0.42f, 1.0f},
         .Surface = 6360.0f,
         .Atmosphere = 6460.0f,
         .RayleighDensity = 1.0f,

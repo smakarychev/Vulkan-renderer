@@ -65,6 +65,7 @@
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
 #include "RenderGraph/Passes/SceneDraw/PBR/DiffuseIrradianceSHPass.h"
 #include "RenderGraph/Passes/SceneDraw/PBR/EnvironmentPrefilterPass.h"
+#include "RenderGraph/Passes/SceneDraw/PBR/ExposurePass.h"
 #include "RenderGraph/Passes/Shadows/ShadowCamerasGpuPass.h"
 #include "RenderGraph/Passes/Skinning/ComputeSkinningPass.h"
 #include "RenderGraph/Passes/Utility/EquirectangularToCubemapPass.h"
@@ -296,9 +297,9 @@ void Renderer::InitRenderGraph()
 
         lux::SceneAsset lights = {};
         lights.SetSunLight({{
-            .Direction = glm::normalize(glm::vec3(0.3f, -1.0f, 0.1f)),
+            .Direction = glm::normalize(glm::vec3(-0.5f, -0.6f, 0.74f)),
             .Color = glm::vec3(1.0f, 1.0f, 1.0f),
-            .Intensity = 112000.0f,
+            .Intensity = 120000.0f,
         }});
         constexpr u32 POINT_LIGHT_COUNT = 32;
         for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
@@ -1169,11 +1170,7 @@ Passes::Atmosphere::LutPasses::PassData& Renderer::RenderGraphAtmosphereLutPasse
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
     });
 
-    m_Graph->GetBlackboard().Get<RG::GlobalResources>().PrimaryViewInfoResource =
-        Passes::AtmosphereLutTransmittanceAtView::addToGraph("AtmosphereTransmittanceAtView"_hsv, *m_Graph, {
-            .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
-            .TransmittanceLut = luts.TransmittanceLut 
-    }).ViewInfo;
+    m_Graph->GetBlackboard().Get<RG::GlobalResources>().PrimaryViewInfoResource = luts.ViewInfo;
     
     Passes::ImGuiTexture::addToGraph("Atmosphere.Transmittance.Lut"_hsv, *m_Graph, luts.TransmittanceLut);
     Passes::ImGuiTexture::addToGraph("Atmosphere.Multiscattering.Lut"_hsv, *m_Graph, luts.MultiscatteringLut);

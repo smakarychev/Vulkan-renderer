@@ -1,28 +1,28 @@
 ﻿#include "rendererpch.h"
 #include "AtmosphereTransmittanceAtViewPass.h"
 
-#include "RenderGraph/Passes/Generated/AtmosphereLutTransmittanceAtViewBindGroupRG.generated.h"
+#include "RenderGraph/Passes/Generated/AtmosphereUpdateSunParametersBindGroupRG.generated.h"
 
-Passes::AtmosphereLutTransmittanceAtView::PassData& Passes::AtmosphereLutTransmittanceAtView::addToGraph(StringId name,
+Passes::AtmosphereUpdateSunParameters::PassData& Passes::AtmosphereUpdateSunParameters::addToGraph(StringId name,
     RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
-    using PassDataBind = PassDataWithBind<PassData, AtmosphereLutTransmittanceAtViewBindGroupRG>;
+    using PassDataBind = PassDataWithBind<PassData, AtmosphereUpdateSunParametersBindGroupRG>;
 
     return renderGraph.AddRenderPass<PassDataBind>(name,
         [&](Graph& graph, PassDataBind& passData)
         {
-            CPU_PROFILE_FRAME("Atmosphere.TransmittanceLutAtView.Setup")
+            CPU_PROFILE_FRAME("Atmosphere.AtmosphereUpdateSunParameters.Setup")
 
-            passData.BindGroup = AtmosphereLutTransmittanceAtViewBindGroupRG(graph);
+            passData.BindGroup = AtmosphereUpdateSunParametersBindGroupRG(graph);
 
             passData.ViewInfo = passData.BindGroup.SetResourcesView(info.ViewInfo);
             passData.BindGroup.SetResourcesTransmittanceLut(info.TransmittanceLut);
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
-            CPU_PROFILE_FRAME("Atmosphere.TransmittanceLutAtView")
-            GPU_PROFILE_FRAME("Atmosphere.TransmittanceLutAtView")
+            CPU_PROFILE_FRAME("Atmosphere.AtmosphereUpdateSunParameters")
+            GPU_PROFILE_FRAME("Atmosphere.AtmosphereUpdateSunParameters")
 
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);

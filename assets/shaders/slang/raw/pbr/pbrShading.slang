@@ -188,8 +188,7 @@ public float3 pbrShadeDirectionalLight(const ViewInfo view, const PbrShadingInfo
 public float3 pbrShadeDirectionalLights(const ViewInfo view, const PbrShadingInfo shadingInfo,
     const PbrShadingResources resources) {
 
-    float3 Lo = pbrShadeSun(view, shadingInfo, shadingInfo.directionalShadow) *
-        view.shading.atmosphereTransmittanceAtView.rgb;
+    float3 Lo = pbrShadeSun(view, shadingInfo, shadingInfo.directionalShadow);
     for (uint i = 0; i < view.shading.directionalLightCount; i++) {
         Lo += pbrShadeDirectionalLight(view, shadingInfo, resources.directionalLights[i], 1.0f);
     }
@@ -198,7 +197,7 @@ public float3 pbrShadeDirectionalLights(const ViewInfo view, const PbrShadingInf
 }
 
 public float3 pbrShadeSun(const ViewInfo view, const PbrShadingInfo shadingInfo, float shadow) {
-    const float SUN_ANGULAR_RADIUS = 0.263f * PI / 180.0f;
+    const float SUN_ANGULAR_RADIUS = 0.533f * 0.5f * PI / 180.0f;
     const float3 lightDirection = -view.shading.primaryDirectionalLightDirection;
     const float sunRadius = sin(SUN_ANGULAR_RADIUS);
     const float distanceToSun = cos(SUN_ANGULAR_RADIUS);
@@ -210,9 +209,7 @@ public float3 pbrShadeSun(const ViewInfo view, const PbrShadingInfo shadingInfo,
     const float3 L = 
     DoR < distanceToSun ? normalize(distanceToSun * lightDirection + normalize(S) * sunRadius) : shadingInfo.R;
 
-    const float3 illuminance = 
-        view.shading.primaryDirectionalLightColor.rgb * 
-        view.shading.primaryDirectionalLightIntensity;
+    const float3 illuminance = view.shading.cameraPrimaryDirectionalLightIlluminance.rgb;
     const float NoL = clamp(dot(shadingInfo.normal, lightDirection), 1e-5f, 1.0f);
 
     return BRDF(L, NoL, shadingInfo) * illuminance * NoL * shadow;
