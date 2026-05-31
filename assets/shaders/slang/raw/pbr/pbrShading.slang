@@ -223,11 +223,11 @@ public float3 pbrShadeIbl(const ViewInfo view, const PbrShadingInfo shadingInfo,
     const float linearRoughness = sqrt(shadingInfo.roughness);
     const float lod = linearRoughness * MAX_REFLECTION_LOD;
 
-    const float3 specularDirection = specularDominantDirection(shadingInfo.normal, shadingInfo.R, linearRoughness);
+    const float3 specularDirection = specularDominantDirection(shadingInfo.normal, shadingInfo.R, shadingInfo.roughness);
     const float3 prefiltered = 
         resources.prefilteredEnvironment.SampleLevel(samplers.environmentSampler, specularDirection, lod).rgb;
     const float2 brdf = 
-        resources.brdf.SampleLevel(samplers.brdfSampler, float2(shadingInfo.NoV, linearRoughness), 0.0f).rg;
+        resources.brdf.SampleLevel(samplers.brdfSampler, float2(shadingInfo.NoV, shadingInfo.roughness), 0.0f).rg;
 
     const float3 diffuse = irradiance * shadingInfo.diffuseColor;
     const float3 specular = (shadingInfo.F0 * brdf.x + shadingInfo.F90 * brdf.y) * prefiltered;
