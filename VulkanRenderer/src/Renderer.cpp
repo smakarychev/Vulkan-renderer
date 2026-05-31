@@ -676,6 +676,10 @@ void Renderer::UpdateGlobalRenderGraphResources()
         primaryView.Shading.PrimaryDirectionalLightDirection = m_SunLight->PositionDirection;
         primaryView.Shading.PrimaryDirectionalLightColor = glm::vec4(m_SunLight->Color, 1.0f);
         primaryView.Shading.PrimaryDirectionalLightIntensity = m_SunLight->Intensity;
+        primaryView.Shading.OuterSpacePrimaryDirectionalLightIlluminance = 
+            glm::vec4(m_SunLight->Color, 1.0f) * m_SunLight->Intensity;
+        primaryView.Shading.CameraPrimaryDirectionalLightIlluminance = 
+            primaryView.Shading.OuterSpacePrimaryDirectionalLightIlluminance;
     }
 
     const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
