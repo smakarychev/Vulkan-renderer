@@ -1206,6 +1206,7 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
         
     auto& cloudsEnvironment = Passes::Clouds::VP::Environment::addToGraph("Clouds.Environment"_hsv, *m_Graph, {
         .PrimaryView = &m_Graph->GetGlobalResources().PrimaryViewInfo,
+        .PrimaryViewResource = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .CloudCoverage = cloudMaps.Coverage,
         .CloudProfile = cloudMaps.Profile,
         .CloudShapeLowFrequencyMap = cloudMaps.ShapeLowFrequency,

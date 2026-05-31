@@ -9,6 +9,7 @@ namespace Passes::Clouds::VP::Environment
 struct ExecutionInfo
 {
     const ViewInfoGPU* PrimaryView{nullptr};
+    RG::Resource PrimaryViewResource{};
     RG::Resource CloudCoverage{};
     RG::Resource CloudProfile{};
     RG::Resource CloudShapeLowFrequencyMap{};

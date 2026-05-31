@@ -7,6 +7,8 @@
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/Passes/Clouds/CloudCommon.h"
 #include "RenderGraph/Passes/Generated/CloudsVPEnvironmentBlurBindGroupRG.generated.h"
+#include "RenderGraph/Passes/Utility/CopyBufferPass.h"
+#include "RenderGraph/Passes/Utility/CopyToBufferPass.h"
 #include "Rendering/Image/ImageUtility.h"
 
 namespace
@@ -48,12 +50,21 @@ Passes::Clouds::VP::Environment::PassData& renderPass(StringId name, RG::Graph& 
 
                 const Camera camera = Camera::EnvironmentCapture(info.PrimaryView->Camera.Position,
                     (u32)environmentSize, faceIndex);
-                ViewInfoGPU viewInfo = *info.PrimaryView;
-                viewInfo.Camera = CameraGPU::FromCamera(camera, {environmentSize, environmentSize});
                 Resource viewInfoResource = graph.Create("ViewInfo"_hsv, RGBufferDescription{
                     .SizeBytes = sizeof(ViewInfoGPU)
                 });
-                viewInfoResource = graph.Upload(viewInfoResource, viewInfo);
+                viewInfoResource = Passes::CopyToBuffer::addToGraph(name.Concatenate(".CopyView"), graph, {
+                    .Source = {CameraGPU::FromCamera(camera, {environmentSize, environmentSize})},
+                    .Destination = viewInfoResource,
+                    .DestinationOffset = offsetof(ViewInfoGPU, ViewInfoGPU::Camera)
+                }).Destination;
+                viewInfoResource = Passes::CopyBuffer::addToGraph(name.Concatenate(".CopyShadingInfo"), graph, {
+                    .Source = info.PrimaryViewResource,
+                    .Destination = viewInfoResource,
+                    .SizeBytes = sizeof(ShadingSettings),
+                    .SourceOffset = offsetof(ViewInfoGPU, ViewInfoGPU::Shading),
+                    .DestinationOffset = offsetof(ViewInfoGPU, ViewInfoGPU::Shading),
+                }).Destination;
 
                 auto& clouds = Passes::Clouds::VP::addToGraph(
                     name.Concatenate(".Clouds").AddVersion(faceIndex), graph, {
