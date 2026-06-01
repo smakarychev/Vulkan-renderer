@@ -82,9 +82,13 @@ void loadReduce4(in int2 coord, in int level, out float val) {
 
 #define NVPRO_PYRAMID_LOAD_REDUCE4 loadReduce4
 
+#if HIZ_MIN_MAX_DEPTH_BUFFER
+groupshared MinMaxBuffer sMinMax;
+#endif // HIZ_MIN_MAX_DEPTH_BUFFER
+
 [shader("compute")]
 [numthreads(8, 8, 1)]
-void blitPass(int2 dispatchId : SV_DispatchThreadID) {
+void blitPass(int2 dispatchId : SV_DispatchThreadID, uint localInvocationIndex: SV_GroupIndex) {
     const float2 imageSizeInverse = 1.0f / levelSize(0);
     const float2 uv = float2(dispatchId + 0.5f) * imageSizeInverse;
     
@@ -93,16 +97,29 @@ void blitPass(int2 dispatchId : SV_DispatchThreadID) {
 #if HIZ_MIN_MAX
     depthSample.g = resources.input.SampleLevel(samplers.maxSampler, uv, 0).r;
 #if HIZ_MIN_MAX_DEPTH_BUFFER
+
+    if (localInvocationIndex == 0) {
+        sMinMax.min = ~0u;
+        sMinMax.max = 0u;
+    }
+    GroupMemoryBarrierWithGroupSync();
     
     if (depthSample.r != 0) {
         const float min = WaveActiveMin(depthSample.r);
         const float max = WaveActiveMax(depthSample.g);
         
         if (WaveIsFirstLane()) {
-            InterlockedMin(resources.minMax[0].min, asuint(min));
-            InterlockedMax(resources.minMax[0].max, asuint(max));
+            InterlockedMin(sMinMax.min, asuint(min));
+            InterlockedMax(sMinMax.max, asuint(max));
         }
     }
+    GroupMemoryBarrierWithGroupSync();
+
+    if (localInvocationIndex == 0) {
+        InterlockedMin(resources.minMax[0].min, sMinMax.min);
+        InterlockedMax(resources.minMax[0].max, sMinMax.max);
+    }
+    
 #endif // HIZ_MIN_MAX_DEPTH_BUFFER
 
     resources.output[0][dispatchId] = depthSample.rg;
