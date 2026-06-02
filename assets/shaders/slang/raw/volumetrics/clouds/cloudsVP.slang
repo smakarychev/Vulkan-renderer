@@ -159,7 +159,7 @@ void cloudsVPShadow(
 #endif // VERTICAL
 
 struct CloudsVPEnvironmentBlurSamplers {
-    [ImmutableSampler(SamplerFlags.Linear)]
+    [ImmutableSampler(SamplerFlags.Linear | SamplerFlags.ClampEdge)]
     SamplerState sampler;
 }
 
