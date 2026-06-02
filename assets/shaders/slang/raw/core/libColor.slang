@@ -19,6 +19,10 @@ public float3 tonemap(float3 color, float exposure) {
     return outColor;
 }
 
+public float luminance(float3 color) {
+    return dot(color, float3(0.2126729f,  0.7151522f, 0.0721750f));
+}
+
 }
 
 internal float3 toColor(uint x) {

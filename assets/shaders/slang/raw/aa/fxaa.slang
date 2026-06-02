@@ -1,6 +1,7 @@
 module fxaa;
 
 import "core/attributes";
+import "core/lib";
 
 struct FxaaSamplers {
     [ImmutableSampler(SamplerFlags.Linear | SamplerFlags.ClampEdge)]
@@ -28,7 +29,7 @@ float3 getColor(float2 uv) {
 }
 
 float luminance(float2 uv) {
-    return dot(getColor(uv), float3(0.2126729f,  0.7151522f, 0.0721750f));
+    return color.luminance(getColor(uv));
 }
 
 struct Luma {
