@@ -65,7 +65,7 @@ void expandMeshlets(
 
     if (groupThreadId == 0) {
          if (REOCCLUSION)
-            InterlockedAdd(resources.visibilityCountData[0].expandedMeshletsCountSecondStage, renderObject.meshletCount,
+            InterlockedAdd(resources.visibilityCountData[0].occludedMeshlets, renderObject.meshletCount,
                 sMeshletOffset);
         else
             InterlockedAdd(resources.visibilityCountData[0].expandedMeshletsCount, renderObject.meshletCount,

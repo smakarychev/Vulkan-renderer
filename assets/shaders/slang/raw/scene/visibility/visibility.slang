@@ -16,7 +16,6 @@ public struct SceneVisibilityCountData {
     public uint occludedMeshlets;
 
     public uint expandedMeshletsCount;
-    public uint expandedMeshletsCountSecondStage;
 }
 
 

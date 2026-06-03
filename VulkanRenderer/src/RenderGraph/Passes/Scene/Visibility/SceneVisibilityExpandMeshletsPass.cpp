@@ -71,8 +71,14 @@ PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo&
             resources.RenderObjects = passData.BindGroup.SetResourcesRenderObjects(resources.RenderObjects);
             resources.RenderObjectHandles = passData.BindGroup.SetResourcesObjectHandles(resources.RenderObjectHandles);
             passData.BindGroup.SetResourcesVisibleRenderObjects(resources.VisibleRenderObjectsData);
-            resources.ExpandedMeshlets =
-                passData.BindGroup.SetResourcesExpandedMeshlets(resources.ExpandedMeshlets);
+            
+            if (info.Stage == SceneVisibilityStage::Reocclusion)
+                resources.OccludedMeshletsData =
+                    passData.BindGroup.SetResourcesExpandedMeshlets(resources.OccludedMeshletsData);
+            else
+                resources.ExpandedMeshlets =
+                    passData.BindGroup.SetResourcesExpandedMeshlets(resources.ExpandedMeshlets);
+            
             resources.VisibilityCountData =
                 passData.BindGroup.SetResourcesVisibilityCountData(resources.VisibilityCountData);
 

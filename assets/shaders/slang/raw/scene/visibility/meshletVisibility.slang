@@ -154,25 +154,27 @@ void meshletVisibility(
 
     uint expandedCount = 0;
     if (REOCCLUSION)
-        expandedCount = resources.visibilityCountData[0].expandedMeshletsCountSecondStage;
+        expandedCount = resources.visibilityCountData[0].occludedMeshlets;
     else
         expandedCount = resources.visibilityCountData[0].expandedMeshletsCount;
     if (dispatchThreadID >= expandedCount)
         return;
 
-    const SceneVisibilityElement meshletVisiblityElement = resources.expandedMeshlets[dispatchThreadID];
-    if (REOCCLUSION)
+    if (REOCCLUSION) {
+        const SceneVisibilityElement meshletVisiblityElement = resources.occludedMeshlets[dispatchThreadID];
         visibilitySecondStage(
             meshletVisiblityElement.renderObjectHandle,
-            meshletVisiblityElement.meshletId, 
-            meshletVisiblityElement.viewMask, 
+            meshletVisiblityElement.meshletId,
+            meshletVisiblityElement.viewMask,
             viewCount);
-    else
+    } else {
+        const SceneVisibilityElement meshletVisiblityElement = resources.expandedMeshlets[dispatchThreadID];
         visibilityFirstStage(
             meshletVisiblityElement.renderObjectHandle,
             meshletVisiblityElement.meshletId, 
             meshletVisiblityElement.viewMask, 
             viewCount);
+    }
 }
 
 inline void compact<let isFirstStage : bool>(
