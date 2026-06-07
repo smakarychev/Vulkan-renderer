@@ -8,6 +8,8 @@
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGCommon.h"
 #include "RenderGraph/Passes/Atmosphere/AtmosphereRenderPass.h"
+#include "RenderGraph/Passes/Utility/CopyBufferPass.h"
+#include "RenderGraph/Passes/Utility/CopyToBufferPass.h"
 #include "Rendering/Image/ImageUtility.h"
 
 Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addToGraph(StringId name,
@@ -44,8 +46,16 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                 ViewInfoGPU viewInfo = *info.PrimaryView;
                 viewInfo.Camera = CameraGPU::FromCamera(camera, {environmentSize, environmentSize});
                 Resource viewInfoResource = graph.Create("ViewInfo"_hsv, RGBufferDescription{
-                    .SizeBytes = sizeof(ViewInfoGPU)});
+                    .SizeBytes = sizeof(ViewInfoGPU)
+                });
                 viewInfoResource = graph.Upload(viewInfoResource, viewInfo);
+                viewInfoResource = CopyBuffer::addToGraph(name.Concatenate(".CopyShadingInfo"), graph, {
+                    .Source = info.PrimaryViewResource,
+                    .Destination = viewInfoResource,
+                    .SizeBytes = sizeof(ShadingSettings),
+                    .SourceOffset = offsetof(ViewInfoGPU, ViewInfoGPU::Shading),
+                    .DestinationOffset = offsetof(ViewInfoGPU, ViewInfoGPU::Shading),
+                }).Destination;
 
                 faces[i] = graph.SplitImage(passData.Color,
                     {.ImageViewKind = ImageViewKind::Image2d, .LayerBase = (i8)faceIndex, .Layers = 1});

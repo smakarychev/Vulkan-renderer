@@ -56,12 +56,17 @@ float4 atmosphereRender(FullScreenVSOutput input,
             L = resources.skyviewLut.SampleLevel(samplers.sampler, skyViewUv, 0).rgb;
 #if ATMOSPHERE_PRIMARY_VIEW
             {
+                
                 float3 sunLuminance = getSunLuminance(
                     resources.view.shading.outerSpacePrimaryDirectionalLightLuminance.rgb,
                     position, rd, sunDir, resources.view.atmosphere.surface) *
                     resources.view.shading.atmosphereTransmittanceAtView.rgb;
                 sunLuminance = min(64000.0f, resources.view.shading.exposure * sunLuminance);
                 L += sunLuminance;
+            }
+#else  // ATMOSPHERE_PRIMARY_VIEW
+            {
+                L *= resources.view.shading.exposureToFixedExposureMultiplier;
             }
 #endif // ATMOSPHERE_PRIMARY_VIEW
 
@@ -71,7 +76,9 @@ float4 atmosphereRender(FullScreenVSOutput input,
 
 #if ATMOSPHERE_PRIMARY_VIEW
     const float linearDepth = -Camera.linearizeReverseZInf(depth, resources.view.camera.near);
-    return getAerialPerspective(linearDepth, input.uv, resources.aerialPerspectiveLut, samplers.sampler);
+    const float4 aerialPerspective = 
+        getAerialPerspective(linearDepth, input.uv, resources.aerialPerspectiveLut, samplers.sampler);
+    return float4(aerialPerspective.rgb * resources.view.shading.fixedExposureToExposureMultiplier, aerialPerspective.a);
 #endif // ATMOSPHERE_PRIMARY_VIEW
 
     return float4(L, 1.0f);

@@ -294,7 +294,7 @@ CloudsRenderInfo renderClouds(float2 screenUv, float3 ro, float3 rd, float maxDe
     float3 inScattering = float3(0.0f);
 
     const float3 l0 = clouds.view.shading.outerSpacePrimaryDirectionalLightIlluminance.rgb *
-        clouds.view.shading.exposure;
+        clouds.view.shading.fixedExposure;
     const float3 lightDirection = -clouds.view.shading.primaryDirectionalLightDirection;
     const float mu = dot(rd, lightDirection);
 
@@ -364,7 +364,9 @@ CloudsRenderInfo renderClouds(float2 screenUv, float3 ro, float3 rd, float maxDe
 #if CLOUDS_PRIMARY_VIEW
     const float4 aerialPerspective = getAerialPerspective(avgDepth, screenUv,
         atmosphere.aerialPerspectiveLut, atmosphere.samplerEdge);
-    inScattering = (1.0f - aerialPerspective.a) * inScattering + aerialPerspective.rgb * (1.0f - transmittance);
+    inScattering = 
+        (1.0f - aerialPerspective.a) * inScattering + 
+        aerialPerspective.rgb * (1.0f - transmittance);
 #endif // CLOUDS_PRIMARY_VIEW
 
     HeightFogShadingParameters fogParameters = HeightFogShadingParameters(atmosphere);

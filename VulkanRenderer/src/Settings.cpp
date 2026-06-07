@@ -46,6 +46,26 @@ void Settings::initCvars()
         "Flag if renderer should render sky as physically correct atmosphere "
         "possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
     
+    
+    CVarF32 pbrExposureCompensation("Renderer.EVCompensation"_hsv,
+        "EV100 compensation value", 1);
+    CVarF32 pbrExposureHistogramMin("Renderer.ExposureHistogramMin"_hsv,
+        "Percentage of how many bottom-values to drop when calculating luminance histogram", 10.0f);
+    CVarF32 pbrExposureHistogramMax("Renderer.ExposureHistogramMax"_hsv,
+        "Percentage of how many top-values to drop when calculating luminance histogram", 10.0f);
+    CVarF32 pbrEnvironmentCaptureExposure("Renderer.FixedExposure"_hsv,
+        "Fixed exposure used for environment capture, and other effects that are calculated in multiple frames, EV", 8);
+    CVarI32 pbrLuminanceHistogramBins("Renderer.LuminanceHistogramBins"_hsv,
+        "Count of bins used for automatic camera exposure", 128);
+    CVarF32 pbrLuminanceHistogramMinLog("Renderer.LuminanceHistogramMinLog"_hsv,
+        "Log2 of minimal frame luminance", -10.0f);
+    CVarF32 pbrLuminanceHistogramMaxLog("Renderer.LuminanceHistogramMaxLog"_hsv,
+        "Log2 of maximal frame luminance", 20.0f);
+    CVarF32 pbrLuminanceExposureAdaptationUpRate("Renderer.LuminanceExposureAdaptationUpRate"_hsv,
+    "Eye-adaptation rate for automatic camera exposure going from dark to bright", 3.0f);
+    CVarF32 pbrLuminanceExposureAdaptationDownRate("Renderer.LuminanceExposureAdaptationDownRate"_hsv,
+        "Eye-adaptation rate for automatic camera exposure going from bright to dark", 1.0f);
+    
     CVarI32 prefilterMapResolution("Renderer.IBL.PrefilterResolution"_hsv,
         "Resolution of environment prefilter map", 256);
     CVarI32 prefilterMapResolutionRealtime("Renderer.IBL.PrefilterResolutionRealtime"_hsv,

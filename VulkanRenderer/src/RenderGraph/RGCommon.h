@@ -2,7 +2,6 @@
 
 #include "RGResource.h"
 #include "ViewInfoGPU.h"
-#include "Rendering/Shader/ShaderPipelineTemplate.h"
 
 class Camera;
 
@@ -14,6 +13,7 @@ namespace RG
         glm::uvec2 Resolution{};
         const Camera* PrimaryCamera{nullptr}; 
         ViewInfoGPU PrimaryViewInfo{};
+        Buffer PrimaryViewInfoBuffer{};
         Resource PrimaryViewInfoResource{};
     };
 }

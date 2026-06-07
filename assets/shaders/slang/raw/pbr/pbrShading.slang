@@ -244,7 +244,6 @@ public float3 pbrShade(const ViewInfo view, const PbrShadingInfo shadingInfo, co
     float3 Lo = pbrShadePointLights(view, shadingInfo, resources);
     Lo += pbrShadeDirectionalLights(view, shadingInfo, resources);
     Lo *= view.shading.exposure;
-    Lo += pbrShadeIbl(view, shadingInfo, samplers, resources);
-
+    Lo += pbrShadeIbl(view, shadingInfo, samplers, resources) * view.shading.fixedExposureToExposureMultiplier;
     return Lo;
 }

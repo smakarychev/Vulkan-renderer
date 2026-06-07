@@ -157,6 +157,9 @@ void cloudComposition(
 
     float2 imageSize;
     resources.sceneColor.GetDimensions(imageSize.x, imageSize.y);
+    if (coord.x >= imageSize.x || coord.y >= imageSize.y)
+        return;
+    
     const float2 uv = (float2(coord) + 0.5f) / imageSize;
 
     const float sceneDepth =
@@ -170,12 +173,11 @@ void cloudComposition(
         resources.composed[coord] = float4(sceneColor, 1.0f);
     } else {
         const float4 cloudColor = resources.cloudColor.SampleLevel(samplers.samplerEdge, uv, 0.0f);
-        resources.composed[coord] = float4(sceneColor * cloudColor.a + cloudColor.rgb, 1.0f);
+        resources.composed[coord] = float4(
+            sceneColor * cloudColor.a + 
+            cloudColor.rgb * resources.view.shading.fixedExposureToExposureMultiplier, 1.0f);
     }
 }
-
-
-
 
 float getReprojectionFactor(float prev, float current) {
     return lerp(prev, current, 1.0f - exp(-0.07f));

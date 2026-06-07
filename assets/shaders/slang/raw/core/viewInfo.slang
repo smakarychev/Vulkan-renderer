@@ -81,7 +81,19 @@ public struct AtmosphereSettings {
 
 [StandaloneType("shadingSettings")]
 public struct ShadingSettings {
+    [DefaultValue("1.0f")]
     public float exposure;
+    [DefaultValue("1.0f")]
+    public float exposureInverse;
+    [DefaultValue("1.0f")]
+    public float fixedExposureToExposureMultiplier;
+    [DefaultValue("1.0f")]
+    public float exposureToFixedExposureMultiplier;
+    [DefaultValue("1.0f")]
+    public float fixedExposure;
+    [DefaultValue("1.0f")]
+    public float fixedExposureInverse;
+
     public float environmentPower;
     public bool softShadows;
     public float maxLightCullDistance;
@@ -90,12 +102,12 @@ public struct ShadingSettings {
     public TextureHandle<Texture2D> skyViewLut;
     public TextureHandle<Texture2D> volumetricCloudShadow;
     public TextureHandle<Texture2D> blueNoise128;
-    uint[2] unused0;
 
     public uint directionalLightCount;
     public uint pointLightCount;
     public bool lightCullingUseZBins;
     public uint2 lightCullTileCount;
+    public uint _padding[1];
 
     [DefaultValue("1.0f")]
     public float4 atmosphereTransmittanceAtView;
@@ -119,7 +131,8 @@ public struct ViewInfo {
 
     public ShadingSettings shading;
 
+    public float dt;
     public float frameNumber;
     public uint frameNumberU32;
-    uint unused1[2];
+    uint unused1[1];
 };

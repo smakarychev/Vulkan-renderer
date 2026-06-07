@@ -9,6 +9,7 @@ namespace Passes::Atmosphere::Environment
 struct ExecutionInfo
 {
     const ViewInfoGPU* PrimaryView{nullptr};
+    RG::Resource PrimaryViewResource{};
     RG::Resource SkyViewLut{};
     /* optional external color image resource */
     RG::Resource ColorIn{};

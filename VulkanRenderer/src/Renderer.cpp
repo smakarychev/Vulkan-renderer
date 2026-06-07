@@ -68,6 +68,7 @@
 #include "RenderGraph/Passes/SceneDraw/PBR/ExposurePass.h"
 #include "RenderGraph/Passes/Shadows/ShadowCamerasGpuPass.h"
 #include "RenderGraph/Passes/Skinning/ComputeSkinningPass.h"
+#include "RenderGraph/Passes/Utility/CopyToBufferPass.h"
 #include "RenderGraph/Passes/Utility/EquirectangularToCubemapPass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/MipMapPass.h"
@@ -539,8 +540,25 @@ void Renderer::SetupRenderGraph()
     {
         colorWithSky = RenderGraphSkyBox(color, depth);
     }
+    
+    Resource colorPreAntialiasing = colorWithSky;
+    auto& exposure = Passes::PbrCameraExposure::addToGraph("CameraExposure"_hsv,
+        *m_Graph, {
+            .ViewInfo = m_Graph->Import(
+                "PrimaryView"_hsv, m_Graph->GetGlobalResources().PrimaryViewInfoBuffer),
+            .Color = colorPreAntialiasing,
+            .ExposureSettings = &m_ExposureSettings,
+        });
+    
+    if (exposure.HistogramVisualization.IsValid())
+    {
+        if (m_ExposureSettings.VisualizationInfo.AsOverlay)
+            colorPreAntialiasing = exposure.HistogramVisualization;
+        else 
+            Passes::ImGuiTexture::addToGraph("LuminanceHistogram"_hsv, *m_Graph, exposure.HistogramVisualization);
+    }
 
-    auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, {.Color = colorWithSky});
+    auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, {.Color = colorPreAntialiasing});
     Resource finalColor = fxaa.AntiAliased;
 
     if (CVars::Get().GetI32CVar("Postprocessing.CRT"_hsv).value_or(false))
@@ -646,7 +664,21 @@ void Renderer::UpdateGlobalRenderGraphResources()
     if (!blackboard.TryGet<GlobalResources>())
     {
         ViewInfoGPU primaryView = ViewInfoGPU::Default();
-        blackboard.Update<GlobalResources>({.PrimaryViewInfo = primaryView});
+        Buffer primaryViewBuffer = Device::CreateBuffer({
+            .Description = {
+                .SizeBytes = sizeof(ViewInfoGPU),
+                .Usage = BufferUsage::Ordinary | BufferUsage::Source | BufferUsage::Uniform | BufferUsage::Storage
+            },
+        });
+        Resource primaryViewResource = Passes::CopyToBuffer::addToGraph("CopyInitialPrimaryView"_hsv, *m_Graph, {
+            .Source = {primaryView},
+            .Destination = m_Graph->Import("InitialPrimaryView"_hsv, primaryViewBuffer)
+        }).Destination;
+        blackboard.Update<GlobalResources>({
+            .PrimaryViewInfo = primaryView, 
+            .PrimaryViewInfoBuffer = primaryViewBuffer,
+            .PrimaryViewInfoResource = primaryViewResource,
+        });
     }
 
     GlobalResources& globalResources = blackboard.Get<GlobalResources>();
@@ -718,24 +750,46 @@ void Renderer::UpdateGlobalRenderGraphResources()
         ImGui::DragFloat("Aperture f stops", &m_ExposureSettings.Aperture, 1e-2f, 0.1f, 30.0f);
         ImGui::DragFloat("ShutterTime inverse", &shutterTimeInverse, 1e-1f, 0.0f, 200.0f);
         ImGui::DragFloat("ISO", &m_ExposureSettings.ISO, 1e-1f, 0.0f, 300.0f);
+        ImGui::Checkbox("Auto", &m_ExposureSettings.UseAutomaticExposure);
+        ImGui::Checkbox("Visualize", &m_ExposureSettings.Visualize);
+        ImGui::Checkbox("Overlay", &m_ExposureSettings.VisualizationInfo.AsOverlay);
         m_ExposureSettings.ShutterTime = 1.0f / shutterTimeInverse;
         ImGui::End();
     }
-    
 
+    primaryView.Dt = 1.0f / 60.0f;
     primaryView.FrameNumber = (f32)GetFrameContext().FrameNumberTick;
     primaryView.FrameNumberU32 = (u32)GetFrameContext().FrameNumberTick;
+    
+    primaryView.Shading.FixedExposure = Passes::PbrCameraExposure::convertEV100ToExposure(
+        *CVars::Get().GetF32CVar("Renderer.FixedExposure"_hsv));
+    primaryView.Shading.FixedExposureInverse = 1.0f / primaryView.Shading.FixedExposure;
 
     globalResources.FrameNumberTick = GetFrameContext().FrameNumberTick;
     globalResources.Resolution = GetFrameContext().Resolution;
     globalResources.PrimaryCamera = m_Camera.get();
-    globalResources.PrimaryViewInfoResource = Passes::Upload::addToGraph(
-        "Upload.GlobalGraphData"_hsv, *m_Graph, primaryView);
-    globalResources.PrimaryViewInfoResource = Passes::PbrCameraExposure::addToGraph("CameraExposure"_hsv,
+    
+    if (globalResources.FrameNumberTick > 0)
+        globalResources.PrimaryViewInfoResource = m_Graph->Import(
+            "PrimaryView"_hsv, globalResources.PrimaryViewInfoBuffer);
+
+    const u64 shadingInfoExposeOffsetBegin = offsetof(ViewInfoGPU, Shading) + offsetof(ShadingSettings, Exposure);
+    const u64 shadingInfoExposeOffsetEnd = offsetof(ViewInfoGPU, Shading) + 
+        offsetof(ShadingSettings, ExposureToFixedExposureMultiplier) +
+        sizeof(ShadingSettings::ExposureToFixedExposureMultiplier);
+    globalResources.PrimaryViewInfoResource = Passes::CopyToBuffer::addToGraph("CopyPrimaryViewInfoChunk"_hsv,
         *m_Graph, {
-            .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
-            .ExposureSettings = &m_ExposureSettings
-        }).ViewInfo;
+            .Source = Span<const std::byte>({primaryView}).subspan(0, shadingInfoExposeOffsetBegin),
+            .Destination = globalResources.PrimaryViewInfoResource,
+            .DestinationOffset = 0
+    }).Destination;
+    globalResources.PrimaryViewInfoResource = Passes::CopyToBuffer::addToGraph("CopyPrimaryViewInfoChunk"_hsv,
+        *m_Graph, {
+            .Source = Span<const std::byte>({primaryView}).subspan(
+                shadingInfoExposeOffsetEnd, sizeof(primaryView) - shadingInfoExposeOffsetEnd),
+            .Destination = globalResources.PrimaryViewInfoResource,
+            .DestinationOffset = shadingInfoExposeOffsetEnd
+    }).Destination;
 }
 
 RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass, const lux::CommonLight& directionalLight)
@@ -1190,6 +1244,7 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
     
     auto& environment = Passes::Atmosphere::Environment::addToGraph("Atmosphere.Environment"_hsv, *m_Graph, {
         .PrimaryView = &m_Graph->GetGlobalResources().PrimaryViewInfo,
+        .PrimaryViewResource = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .SkyViewLut = lut.SkyViewLut,
         .ColorIn = m_SkyAtmosphereWithCloudsEnvironment.HasValue() ?
             m_Graph->Import("AtmosphereEnvironment.Imported"_hsv, m_SkyAtmosphereWithCloudsEnvironment,

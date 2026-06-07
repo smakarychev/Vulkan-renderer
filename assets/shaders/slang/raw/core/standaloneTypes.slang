@@ -9,6 +9,7 @@ import "shadow/shadow";
 import "skinning/skinning";
 import "volumetrics/volumetrics";
 import "scene/visibility/visibility";
+import "pbr/cameraExposure";
 
 struct Resources {
     ViewInfo view;
@@ -36,6 +37,7 @@ struct Resources {
     CloudsNoiseParameters cnp;
     SkinDispatchInfo sdi;
     SkinnedVertex sv;
+    ExposureFromHistogramOutput efho;
 }
 
 ParameterBlock<Resources> resources;

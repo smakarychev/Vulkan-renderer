@@ -199,6 +199,7 @@ private:
     
     std::unique_ptr<RG::Graph> m_Graph;
     std::unique_ptr<RG::RGMermaidExporter> m_MermaidExporter;
+    
     RG::Resource m_Ssao{};
     TileLightsInfo m_TileLightsInfo{};
     ClusterLightsInfo m_ClusterLightsInfo{};

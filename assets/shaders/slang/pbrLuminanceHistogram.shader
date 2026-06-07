@@ -1,8 +1,8 @@
 {
-  "name": "pbrCameraExposure",
+  "name": "pbrLuminanceHistogram",
   "entryPoints": [
     {
-      "name": "cameraExposureFromParameters",
+      "name": "luminanceHistogram",
       "path": "pbr/cameraExposure.slang"
     }
   ]

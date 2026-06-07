@@ -247,7 +247,7 @@ void aerialPerspectiveLut(
     scatteringInfo.view = resources.view;
     scatteringInfo.globalL = 
         resources.view.shading.outerSpacePrimaryDirectionalLightIlluminance.rgb * 
-        resources.view.shading.exposure;
+        resources.view.shading.fixedExposure;
     scatteringInfo.sunDir = -resources.view.shading.primaryDirectionalLightDirection;
     scatteringInfo.maxDepth = sliceKm;
     scatteringInfo.sampleCount = max(1.0f, float(dispatchThreadID.z + 1.0f) * 2.0f);
