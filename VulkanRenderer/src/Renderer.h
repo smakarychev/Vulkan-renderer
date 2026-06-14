@@ -17,6 +17,7 @@
 #include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityPassesCommon.h"
 #include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
 #include "RenderGraph/Passes/SceneDraw/PBR/ExposurePass.h"
+#include "RenderGraph/Passes/SceneDraw/PBR/TonemappingPass.h"
 #include "RenderGraph/Visualization/RGMermaidExporter.h"
 #include "Vulkan/Device.h"
 #include "Rendering/Swapchain.h"
@@ -232,6 +233,7 @@ private:
     u32 m_CloudsAccumulationIndex{0};
     u32 m_CloudsAccumulationIndexPrev{1};
     Passes::PbrCameraExposure::ExposureSettings m_ExposureSettings{};
+    Passes::PbrTonemapping::TonemappingType m_TonemappingType{Passes::PbrTonemapping::TonemappingType::Agx};
     Passes::Clouds::CloudsNoiseParameters m_CloudCoverageNoiseParameters{};
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeLowFrequencyNoiseParameters{};
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeHighFrequencyNoiseParameters{};

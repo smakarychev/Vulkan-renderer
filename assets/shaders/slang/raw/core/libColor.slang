@@ -12,13 +12,6 @@ public float3 heatmap(float t) {
     return float3(sin(t), sin(2.0f * t), cos(t));
 }
 
-public float3 tonemap(float3 color, float exposure) {
-    float3 outColor = uncharted2Tonemap(color * exposure);
-    outColor = outColor * (1.0f / uncharted2Tonemap(float3(11.2f)));
-    
-    return outColor;
-}
-
 public float luminance(float3 color) {
     return dot(color, float3(0.2126729f,  0.7151522f, 0.0721750f));
 }
@@ -37,15 +30,4 @@ internal uint hash(uint x) {
     const uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
 
     return (word >> 22u) ^ word;
-}
-
-internal float3 uncharted2Tonemap(float3 color) {
-	float A = 0.15f;
-	float B = 0.50f;
-	float C = 0.10f;
-	float D = 0.20f;
-	float E = 0.02f;
-	float F = 0.30f;
-	float W = 11.2f;
-	return ((color*(A*color+C*B)+D*E)/(color*(A*color+B)+D*F))-E/F;
 }

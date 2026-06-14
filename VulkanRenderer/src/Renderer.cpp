@@ -541,24 +541,54 @@ void Renderer::SetupRenderGraph()
         colorWithSky = RenderGraphSkyBox(color, depth);
     }
     
-    Resource colorPreAntialiasing = colorWithSky;
+    Resource colorPreTonemapping = colorWithSky;
     auto& exposure = Passes::PbrCameraExposure::addToGraph("CameraExposure"_hsv,
         *m_Graph, {
             .ViewInfo = m_Graph->Import(
                 "PrimaryView"_hsv, m_Graph->GetGlobalResources().PrimaryViewInfoBuffer),
-            .Color = colorPreAntialiasing,
+            .Color = colorPreTonemapping,
             .ExposureSettings = &m_ExposureSettings,
         });
     
     if (exposure.HistogramVisualization.IsValid())
     {
         if (m_ExposureSettings.VisualizationInfo.AsOverlay)
-            colorPreAntialiasing = exposure.HistogramVisualization;
+            colorPreTonemapping = exposure.HistogramVisualization;
         else 
             Passes::ImGuiTexture::addToGraph("LuminanceHistogram"_hsv, *m_Graph, exposure.HistogramVisualization);
     }
+    
+    Resource colorTonemapped = colorPreTonemapping;
+    {
+        namespace Tonemapping = Passes::PbrTonemapping;
+        ImGui::Begin("Tonemapper");
+        u32 currentTonemapper = (u32)m_TonemappingType;
+        if (ImGui::BeginCombo("Tonemappers", Tonemapping::tonemappingTypeToString(m_TonemappingType).data(), 0))
+        {
+            for (u32 i = 0; i < (u32)Tonemapping::TonemappingType::MaxValue; i++)
+            {
+                const bool isSelected = (currentTonemapper == i);
+                if (ImGui::Selectable(Tonemapping::tonemappingTypeToString((Tonemapping::TonemappingType)i).data(), 
+                    isSelected))
+                    currentTonemapper = i;
 
-    auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, {.Color = colorPreAntialiasing});
+                if (isSelected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::End();
+        
+        m_TonemappingType = (Tonemapping::TonemappingType)currentTonemapper;
+        auto& tonemapping = Tonemapping::addToGraph("Tonemapping"_hsv, *m_Graph, {
+            .Color = colorPreTonemapping,
+            .Type = m_TonemappingType
+        });
+        colorTonemapped = tonemapping.Color;
+    }
+    
+    auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, {.Color = colorTonemapped});
+    
     Resource finalColor = fxaa.AntiAliased;
 
     if (CVars::Get().GetI32CVar("Postprocessing.CRT"_hsv).value_or(false))

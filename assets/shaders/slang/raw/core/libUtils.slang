@@ -45,3 +45,8 @@ public uint3 unflatten3d(uint index, uint3 size) {
 public uint flatten3d(uint3 coords, uint3 size) {
     return coords.x + coords.y * size.x + coords.z * size.x * size.y;
 }
+
+/// Get value squared
+public float sqr(float value) {
+    return value * value;
+}
