@@ -172,7 +172,13 @@ internal float3 getCloudDirectScattering(const AtmosphereSettings atmosphere, co
 }
 
 internal float3 getCloudAmbientScattering(const CloudLayerVPInfo layer, const CloudsShadingInfo shading) {
-    const float verticalGradient = remap01(layer.relativeHeight, 0.1f, 0.6f);
+#if CLOUDS_PRIMARY_VIEW
+    const float ambientLow = 0.1f;
+#else // CLOUDS_PRIMARY_VIEW
+    const float ambientLow = 0.0f;
+#endif // CLOUDS_PRIMARY_VIEW
+
+    const float verticalGradient = remap01(layer.relativeHeight, ambientLow, 0.6f);
     const float ambientMultiplier = 2.5f;
     const float3 ambient = shading.irradiance.shadeConstant() * ambientMultiplier * verticalGradient;
     const float scattering = pow(1.0f - layer.dimensionalProfile, 0.5f);
