@@ -207,10 +207,10 @@ public float3 pbrShadeSun(const ViewInfo view, const PbrShadingInfo shadingInfo,
     // if reflection direction already points at the sun disk, use it as a light direction
     // otherwise, use the closest point on the disk
     const float3 L = 
-    DoR < distanceToSun ? normalize(distanceToSun * lightDirection + normalize(S) * sunRadius) : shadingInfo.R;
+        DoR < distanceToSun ? normalize(distanceToSun * lightDirection + normalize(S) * sunRadius) : shadingInfo.R;
 
     const float3 illuminance = view.shading.cameraPrimaryDirectionalLightIlluminance.rgb;
-    const float NoL = clamp(dot(shadingInfo.normal, lightDirection), 1e-5f, 1.0f);
+    const float NoL = clamp(dot(shadingInfo.normal, L), 1e-5f, 1.0f);
 
     return BRDF(L, NoL, shadingInfo) * illuminance * NoL * shadow;
 }
