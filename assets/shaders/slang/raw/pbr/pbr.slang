@@ -143,7 +143,7 @@ public float computeEV100(float aperture, float shutterTime, float ISO) {
 
 /// Returns EV100 value, computed from scene luminance
 public float computeEV100(float luminance) {
-    return log2(luminance * 100.0f / 12.5f);
+    return log2(luminance) + 3.0f;
 }
 
 /// Converts EV100 value into camera exposure
@@ -151,4 +151,9 @@ public float convertEV100ToExposure(float EV100) {
     const float maxLuminance = 1.2f * pow(2.0f, EV100);
 
     return 1.0f / maxLuminance;
+}
+
+/// Converts EV100 value into luminance
+public float convertEV100ToLuminance(float EV100) {
+    return exp2(EV100 - 3.0f);
 }
