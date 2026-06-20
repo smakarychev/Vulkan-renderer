@@ -233,7 +233,7 @@ private:
     u32 m_CloudsAccumulationIndex{0};
     u32 m_CloudsAccumulationIndexPrev{1};
     Passes::PbrCameraExposure::ExposureSettings m_ExposureSettings{};
-    Passes::PbrTonemapping::TonemappingType m_TonemappingType{Passes::PbrTonemapping::TonemappingType::Agx};
+    Passes::PbrTonemapping::TonemappingType m_TonemappingType{Passes::PbrTonemapping::TonemappingType::GT7};
     Passes::Clouds::CloudsNoiseParameters m_CloudCoverageNoiseParameters{};
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeLowFrequencyNoiseParameters{};
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeHighFrequencyNoiseParameters{};

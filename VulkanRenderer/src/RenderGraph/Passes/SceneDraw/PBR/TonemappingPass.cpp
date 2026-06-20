@@ -18,6 +18,7 @@ Passes::PbrTonemapping::PassData& Passes::PbrTonemapping::addToGraph(StringId na
             passData.BindGroup = PbrTonemappingBindGroupRG(graph, ShaderSpecializations(
                 ShaderSpecialization{"TONEMAPPING_TYPE"_hsv, (u32)info.Type}
             ));
+            
             passData.Color = passData.BindGroup.SetResourcesColor(info.Color);
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
@@ -50,6 +51,8 @@ std::string_view Passes::PbrTonemapping::tonemappingTypeToString(TonemappingType
         return "PbrNeutral";
     case TonemappingType::Agx:
         return "Agx";
+    case TonemappingType::GT7:
+        return "GT7";
     default:
         return "Unknown";
     }

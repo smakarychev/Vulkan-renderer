@@ -66,6 +66,7 @@
 #include "RenderGraph/Passes/SceneDraw/PBR/DiffuseIrradianceSHPass.h"
 #include "RenderGraph/Passes/SceneDraw/PBR/EnvironmentPrefilterPass.h"
 #include "RenderGraph/Passes/SceneDraw/PBR/ExposurePass.h"
+#include "RenderGraph/Passes/SceneDraw/PBR/TonemappingPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowCamerasGpuPass.h"
 #include "RenderGraph/Passes/Skinning/ComputeSkinningPass.h"
 #include "RenderGraph/Passes/Utility/CopyToBufferPass.h"

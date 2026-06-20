@@ -10,6 +10,7 @@ enum class TonemappingType : u8
     Hable,
     PbrNeutral,
     Agx,
+    GT7,
     
     MaxValue,
 };
@@ -17,7 +18,7 @@ enum class TonemappingType : u8
 struct ExecutionInfo
 {
     RG::Resource Color{};
-    TonemappingType Type{TonemappingType::Agx};
+    TonemappingType Type{TonemappingType::GT7};
 };
 struct PassData
 {
