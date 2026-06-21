@@ -416,9 +416,9 @@ void SceneAssetManager::LoadNodes(SceneHierarchyInfo& sceneHierarchy, const asse
     }
     
     u32 jointIndex = 0;
-    for (auto& skin : geometryInfo.Skins)
+    for (auto& skinJoint : geometryInfo.SkinJoints)
     {
-        for (auto& joint : skin.JointNodes)
+        for (auto& joint : skinJoint.JointNodes)
         {
             sceneHierarchy.Joints.push_back({
                 .Node = SceneHierarchyHandle{.Handle = nodesReorder[joint]},
@@ -563,7 +563,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
     std::unordered_map<assetlib::AssetId, u32> importedMaterials;
     std::vector<ImportedMeshInfo> importedMeshes;
     std::vector<ImportedSkinInfo> importedSkins;
-    std::vector<SkinInfo> skinnedRenderObjectsInfo;
+    std::vector<SkinInfo> skins;
     u32 totalBlendShapeCount{0};
 
     auto getMaterialIndex = [&importedMaterials, &geometry, this](const assetlib::MeshPrimitiveMaterial& material) ->
@@ -603,7 +603,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
     auto preload = [&]() -> bool {
         importedMeshes.reserve(scene.Meshes.size());
         importedSkins.reserve(scene.Skins.size());
-        skinnedRenderObjectsInfo.reserve(scene.Meshes.size());
+        skins.reserve(scene.Meshes.size());
         
         for (assetlib::AssetId mesh : scene.Meshes)
         {
@@ -639,8 +639,8 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
         {
             if (node.Skin != assetlib::SCENE_UNSET_INDEX)
             {
-                const u32 skinIndex = (u32)skinnedRenderObjectsInfo.size();
-                skinnedRenderObjectsInfo.push_back({.SkinIndex = node.Skin, .MeshIndex = node.Mesh});
+                const u32 skinIndex = (u32)skins.size();
+                skins.push_back({.SkinIndex = node.Skin, .MeshIndex = node.Mesh});
                 importedMeshes[node.Mesh].SkinIndex = skinIndex;
             }
         }
@@ -652,7 +652,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
         return false;
     
     geometry.RenderObjects.reserve(importedMeshes.size());
-    geometry.SceneBlendShapeRenderObjects.reserve(totalBlendShapeCount);
+    geometry.SceneBlendShapes.reserve(totalBlendShapeCount);
     for (auto&& [bufferInfo, mesh, skinIndex] : importedMeshes)
     {
         ASSERT(mesh.Primitives.size() < 2, "Render objects with more than 1 primitives are not supported")
@@ -675,7 +675,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
             
             const u32 blendShapeCount = (u32)primitive.BlendShapes.size();
             const u32 firstBlendShape = blendShapeCount == 0 ? SceneRenderObject::INVALID : 
-                (u32)geometry.SceneBlendShapeRenderObjects.size();
+                (u32)geometry.SceneBlendShapes.size();
             
             for (auto& blendShape : primitive.BlendShapes)
             {
@@ -687,18 +687,18 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
                 auto* normals = normalsAttribute ? &accessors[normalsAttribute->Accessor] : nullptr;
                 auto* tangents = tangentsAttribute ? &accessors[tangentsAttribute->Accessor] : nullptr;
                 
-                geometry.SceneBlendShapeRenderObjects.push_back({
+                geometry.SceneBlendShapes.push_back({
                     .Name = blendShape.Name,
                     .Weight = blendShape.Weight,
                     .FirstPosition = positions ? (u32)positions->OffsetBytes / (u32)sizeof(glm::vec3) + 
                         bufferInfo->FirstVertex : 
-                        SceneBlendShapeRenderObject::INVALID,
+                        SceneBlendShape::INVALID,
                     .FirstNormal = normals ? (u32)normals->OffsetBytes / (u32)sizeof(glm::vec3) + 
                         bufferInfo->FirstVertex: 
-                        SceneBlendShapeRenderObject::INVALID,
+                        SceneBlendShape::INVALID,
                     .FirstTangent = tangents ? (u32)tangents->OffsetBytes / (u32)sizeof(glm::vec4) + 
                         bufferInfo->FirstVertex : 
-                        SceneBlendShapeRenderObject::INVALID,
+                        SceneBlendShape::INVALID,
                 });
             }
 
@@ -709,21 +709,21 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
                 .VertexCount = positionsAccessor.Count,
                 .FirstMeshlet = firstMeshlet,
                 .MeshletCount = meshletsCount,
-                .SkinnedRenderObjectIndex = skinIndex,
-                .BlendShapeRenderObjectIndex = firstBlendShape,
-                .BlendShapeRenderObjectCount = blendShapeCount,
+                .SkinIndex = skinIndex,
+                .BlendShapeIndex = firstBlendShape,
+                .BlendShapeCount = blendShapeCount,
                 .BoundingBox = primitive.BoundingBox,
                 .BoundingSphere = primitive.BoundingSphere,
             });
         }
     }
     
-    geometry.Skins.reserve(scene.Skins.size());
+    geometry.SkinJoints.reserve(scene.Skins.size());
     for (auto& skin : scene.Skins)
-        geometry.Skins.push_back({.JointNodes = skin.JointNodes});
+        geometry.SkinJoints.push_back({.JointNodes = skin.JointNodes});
     
-    geometry.SkinnedRenderObjects.reserve(skinnedRenderObjectsInfo.size());
-    for (auto&& [skinIndex, meshIndex] : skinnedRenderObjectsInfo)
+    geometry.Skins.reserve(skins.size());
+    for (auto&& [skinIndex, meshIndex] : skins)
     {
         auto& skinInfo = importedSkins[skinIndex];
         auto& skin = scene.Skins[skinIndex];
@@ -746,11 +746,10 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
                 assetlib::MeshAttribute::WEIGHTS0_NAME)->Accessor].OffsetBytes /
             sizeof(glm::vec4)) + meshBuffer->FirstWeight;
         
-        geometry.SkinnedRenderObjects.push_back({
+        geometry.Skins.push_back({
             .FirstJointMatrix = firstJointMatrix,
             .FirstJoint = firstJoint,
             .FirstWeight = firstWeight,
-            .SkinIndex = skinIndex 
         });
     }
     

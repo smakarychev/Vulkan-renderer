@@ -13,10 +13,10 @@ struct DirectionalLight;
 
 namespace lux
 {
-struct SceneBlendShapeRenderObject;
-struct SceneSkin;
+struct SceneBlendShape;
+struct SceneSkinJoints;
 struct SceneHierarchyJoint;
-struct SceneSkinnedRenderObject;
+struct SceneSkin;
 struct SceneRenderObject;
 struct CommonLight;
 struct SceneHierarchyNode;
@@ -34,9 +34,9 @@ struct SceneGeometryInfo
     std::vector<glm::vec4> Weights;
 
     std::vector<SceneRenderObject> RenderObjects;
-    std::vector<SceneSkinnedRenderObject> SkinnedRenderObjects;
-    std::vector<SceneBlendShapeRenderObject> SceneBlendShapeRenderObjects;
     std::vector<SceneSkin> Skins;
+    std::vector<SceneBlendShape> SceneBlendShapes;
+    std::vector<SceneSkinJoints> SkinJoints;
     std::vector<MaterialGPU> Materials;
     std::vector<assetlib::SceneAssetMeshlet> Meshlets;
     std::vector<glm::mat4> JointInverseBindMatrices;
@@ -95,22 +95,21 @@ struct SceneRenderObject
     u32 VertexCount{};
     u32 FirstMeshlet{};
     u32 MeshletCount{};
-    u32 SkinnedRenderObjectIndex{INVALID};
-    u32 BlendShapeRenderObjectIndex{INVALID};
-    u32 BlendShapeRenderObjectCount{};
+    u32 SkinIndex{INVALID};
+    u32 BlendShapeIndex{INVALID};
+    u32 BlendShapeCount{};
     AABB BoundingBox{};
     Sphere BoundingSphere{};
 };
 
-struct SceneSkinnedRenderObject
+struct SceneSkin
 {
     u32 FirstJointMatrix{};
     u32 FirstJoint{};
     u32 FirstWeight{};
-    u32 SkinIndex{};
 };
 
-struct SceneBlendShapeRenderObject
+struct SceneBlendShape
 {
     static constexpr u32 INVALID = ~0lu;
     
@@ -121,7 +120,7 @@ struct SceneBlendShapeRenderObject
     u32 FirstTangent{INVALID};
 };
 
-struct SceneSkin
+struct SceneSkinJoints
 {
     std::vector<u32> JointNodes;
 };

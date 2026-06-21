@@ -204,15 +204,14 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
     const SceneInfoOffsets& sceneInfoOffsets = m_SceneInfoOffsets[&scene];
 
     const u64 renderObjectsSizeBytes = geometry.RenderObjects.size() * sizeof(RenderObjectGPU);
-    const u64 renderObjectSkinnedInfosSizeBytes = geometry.SkinnedRenderObjects.size() * 
-        sizeof(RenderObjectSkinnedInfoGPU);
+    const u64 renderObjectSkinnedInfosSizeBytes = geometry.Skins.size() * sizeof(RenderObjectSkinnedInfoGPU);
     const u32 jointCount = std::ranges::fold_left(
-        geometry.Skins, 0u, [](u32 sum, auto& skin) -> u32 { return sum + (u32)skin.JointNodes.size(); });
+        geometry.SkinJoints, 0u, [](u32 sum, auto& skin) -> u32 { return sum + (u32)skin.JointNodes.size(); });
     u32 skinnedVertexCount{};
     u32 skinnedMeshletCount{};
     for (auto& renderObject : geometry.RenderObjects)
     {
-        if (renderObject.SkinnedRenderObjectIndex == lux::SceneRenderObject::INVALID)
+        if (renderObject.SkinIndex == lux::SceneRenderObject::INVALID)
             continue;
         
         skinnedVertexCount += renderObject.VertexCount;
@@ -221,7 +220,7 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
     const u64 jointMatricesSizeBytes = jointCount * sizeof(glm::mat4);
     const u64 skinnedVerticesSizeBytes = skinnedVertexCount * sizeof(SkinnedVertexGPU);
     const u64 skinnedMeshletBoundsSizeBytes = skinnedMeshletCount * sizeof(MeshletBoundsGPU);
-    const u64 skinsSizeBytes = geometry.SkinnedRenderObjects.size() * sizeof(SkinGPU);
+    const u64 skinsSizeBytes = geometry.Skins.size() * sizeof(SkinGPU);
     const bool hasSkinInfo = skinsSizeBytes > 0;
 
     SceneInstanceInfo instanceInfo = {};
@@ -292,7 +291,7 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
         const u32 renderObjectFirstIndex = renderObject.FirstIndex;
         const u32 renderObjectFirstVertex = renderObject.FirstVertex;
         const u32 renderObjectMaterial = renderObject.Material;
-        const bool hasSkin = renderObject.SkinnedRenderObjectIndex != lux::SceneRenderObject::INVALID;
+        const bool hasSkin = renderObject.SkinIndex != lux::SceneRenderObject::INVALID;
 
         renderObjects[renderObjectIndex] = {
             {
@@ -309,7 +308,7 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
                 .MeshletBoundIndex = sceneInfoOffsets.ElementOffsets[(u32)MeshletBounds] + renderObject.FirstMeshlet,
                 .MeshletCount = renderObject.MeshletCount,
                 .SkinIndex = hasSkin ? 
-                    renderObject.SkinnedRenderObjectIndex + currentSkinOffset : lux::SceneRenderObject::INVALID,
+                    renderObject.SkinIndex + currentSkinOffset : lux::SceneRenderObject::INVALID,
             }
         };
 
@@ -343,7 +342,7 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
             }
         });
 
-        for (auto&& [skinIndex, skin] : std::views::enumerate(geometry.SkinnedRenderObjects))
+        for (auto&& [skinIndex, skin] : std::views::enumerate(geometry.Skins))
             skins[skinIndex] = SkinGPU{
                 {
                     .JointMatrixIndex = skin.FirstJointMatrix + currentJointMatrixOffset,
@@ -353,7 +352,7 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
                 }
             };
 
-        instanceInfo.SkinnedRenderObjectCount = (u32)geometry.SkinnedRenderObjects.size();
+        instanceInfo.SkinnedRenderObjectCount = (u32)geometry.Skins.size();
         instanceInfo.SkinnedMeshletCount = skinnedMeshletCount;
         instanceInfo.SkinnedVertexCount = skinnedVertexCount;
         instanceInfo.FirstRenderObjectSkinnedInfoIndex = currentRenderObjectSkinnedInfoIndex;
