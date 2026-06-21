@@ -52,8 +52,9 @@ enum class GeometryBufferViewType : u8
     AnimationPositionKeyframe = 10,
     AnimationOrientationKeyframe = 11,
     AnimationScaleKeyframe = 12,
+    AnimationWeightKeyframe = 13,
             
-    MaxVal = 13,
+    MaxVal = 14,
 };
 struct GeometryBufferView
 {

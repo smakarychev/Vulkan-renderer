@@ -31,7 +31,7 @@ struct glz::meta<lux::assetlib::SceneAssetAnimationSamplerType> : lux::assetlib:
 template <>
 struct glz::meta<lux::assetlib::SceneAssetAnimationChannelType> : lux::assetlib::reflection::CamelCase {
     using enum lux::assetlib::SceneAssetAnimationChannelType;
-    static constexpr auto value = glz::enumerate(Translation, Orientation, Scale);
+    static constexpr auto value = glz::enumerate(Translation, Orientation, Scale, Weight);
 };
 template <> struct ::glz::meta<lux::assetlib::SceneAssetAnimationChannel> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::SceneAssetAnimation> : lux::assetlib::reflection::CamelCase {};

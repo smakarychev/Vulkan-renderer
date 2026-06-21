@@ -274,7 +274,10 @@ std::optional<SceneAsset> SceneAssetManager::DoLoad(import::SceneImporter& impor
     std::unordered_map<assetlib::AssetId, BufferInfo> importedBuffers;
     std::optional<SceneGeometryInfo> geometryInfo = LoadGeometryInfo(sceneAsset, importedBuffers);
     if (!geometryInfo.has_value())
+    {
         LUX_LOG_ERROR("Failed to load geometry info for scene: {}", path.string());
+        return std::nullopt;
+    }
     
     SceneHierarchyInfo hierarchyInfo = LoadHierarchyInfo(sceneAsset, *geometryInfo, importedBuffers);
     
@@ -470,7 +473,7 @@ void SceneAssetManager::LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const
         {
             auto& timestampsAccessor = accessors[channel.TimestampsAccessor];                
             auto& keyframesAccessor = accessors[channel.KeyframesAccessor];    
-            ASSERT(timestampsAccessor.Count == keyframesAccessor.Count)
+            ASSERT(timestampsAccessor.Count == keyframesAccessor.Count / channel.KeyframeElementCount)
 
             auto sceneAnimationIt = std::ranges::find_if(sceneHierarchy.Animations, [&channel](auto& animation) {
                 return animation.Node == channel.TargetNode;
@@ -492,6 +495,7 @@ void SceneAssetManager::LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const
             SceneHierarchyAnimationChannel animationChannel = {
                 .Type = channelType,
                 .SamplerType = samplerType,
+                .KeyframeElementsCount = channel.KeyframeElementCount,
             };
             
             copyAccessorToVector(animationChannel.Timestamps, timestampsAccessor, bufferInfo->Buffer, 
@@ -520,6 +524,14 @@ void SceneAssetManager::LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const
                     copyAccessorToVector(animationChannel.Keyframes, keyframesAccessor, bufferInfo->Buffer,
                         sizeof(glm::vec3), sizeof(animationChannel.Keyframes[0]));
                     sceneAnimationIt->ScaleChannel =  
+                        sceneHierarchy.AnimationChannels.insert(std::move(animationChannel));
+                    break;
+                }
+            case SceneHierarchyAnimationChannelType::Weight:
+                {
+                    copyAccessorToVector(animationChannel.Keyframes, keyframesAccessor, bufferInfo->Buffer,
+                        sizeof(f32), sizeof(animationChannel.Keyframes[0]));
+                    sceneAnimationIt->WeightChannel =  
                         sceneHierarchy.AnimationChannels.insert(std::move(animationChannel));
                     break;
                 }
@@ -552,6 +564,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
     std::vector<ImportedMeshInfo> importedMeshes;
     std::vector<ImportedSkinInfo> importedSkins;
     std::vector<SkinInfo> skinnedRenderObjectsInfo;
+    u32 totalBlendShapeCount{0};
 
     auto getMaterialIndex = [&importedMaterials, &geometry, this](const assetlib::MeshPrimitiveMaterial& material) ->
         u32
@@ -608,6 +621,9 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
             if (!bufferInfo)
                 return false;
         
+            totalBlendShapeCount += std::ranges::fold_left(importedMesh.Primitives, 0u, [](u32 sum, auto& primitive) {
+                return sum + (u32)primitive.BlendShapes.size();
+            });  
             importedMeshes.push_back({.BufferInfo = bufferInfo, .MeshAsset = importedMesh});
         }
 
@@ -636,23 +652,55 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
         return false;
     
     geometry.RenderObjects.reserve(importedMeshes.size());
+    geometry.SceneBlendShapeRenderObjects.reserve(totalBlendShapeCount);
     for (auto&& [bufferInfo, mesh, skinIndex] : importedMeshes)
     {
-        ASSERT(mesh.Primitives.size() < 2, "Render objects with more that 1 primitives are not supported")
+        ASSERT(mesh.Primitives.size() < 2, "Render objects with more than 1 primitives are not supported")
+        
+        auto& accessors = bufferInfo->Buffer.Header.Accessors;
         for (auto& primitive : mesh.Primitives)
         {
-            const u32 firstIndex = (u32)(bufferInfo->Buffer.Header.Accessors[primitive.IndicesAccessor].OffsetBytes /
+            const u32 firstIndex = (u32)(accessors[primitive.IndicesAccessor].OffsetBytes /
                 sizeof(assetlib::SceneAssetIndexType)) + bufferInfo->FirstIndex;
             const assetlib::GeometryBufferAccessor& positionsAccessor = 
-                bufferInfo->Buffer.Header.Accessors[primitive.FindAttribute(
-                    assetlib::MeshPrimitive::ATTRIBUTE_POSITION_NAME)->Accessor];
+                accessors[primitive.FindAttribute(
+                    assetlib::MeshAttribute::POSITION_NAME)->Accessor];
             const u32 firstVertex = (u32)(positionsAccessor.OffsetBytes / sizeof(glm::vec3)) + bufferInfo->FirstVertex;
             const u32 firstMeshlet = (u32)(
-                bufferInfo->Buffer.Header.Accessors[primitive.FindAttribute(
-                    assetlib::MeshPrimitive::ATTRIBUTE_MESHLET_NAME)->Accessor].OffsetBytes /
+                accessors[primitive.FindAttribute(
+                    assetlib::MeshAttribute::MESHLET_NAME)->Accessor].OffsetBytes /
                 sizeof(assetlib::SceneAssetMeshlet)) + bufferInfo->FirstMeshlet;
-            const u32 meshletsCount = bufferInfo->Buffer.Header.Accessors[primitive.FindAttribute(
-                assetlib::MeshPrimitive::ATTRIBUTE_MESHLET_NAME)->Accessor].Count;
+            const u32 meshletsCount = accessors[primitive.FindAttribute(
+                assetlib::MeshAttribute::MESHLET_NAME)->Accessor].Count;
+            
+            const u32 blendShapeCount = (u32)primitive.BlendShapes.size();
+            const u32 firstBlendShape = blendShapeCount == 0 ? SceneRenderObject::INVALID : 
+                (u32)geometry.SceneBlendShapeRenderObjects.size();
+            
+            for (auto& blendShape : primitive.BlendShapes)
+            {
+                auto* positionsAttribute = blendShape.FindAttribute(assetlib::MeshAttribute::POSITION_NAME);
+                auto* normalsAttribute = blendShape.FindAttribute(assetlib::MeshAttribute::NORMAL_NAME);
+                auto* tangentsAttribute = blendShape.FindAttribute(assetlib::MeshAttribute::TANGENT_NAME);
+                
+                auto* positions = positionsAttribute ? &accessors[positionsAttribute->Accessor] : nullptr;
+                auto* normals = normalsAttribute ? &accessors[normalsAttribute->Accessor] : nullptr;
+                auto* tangents = tangentsAttribute ? &accessors[tangentsAttribute->Accessor] : nullptr;
+                
+                geometry.SceneBlendShapeRenderObjects.push_back({
+                    .Name = blendShape.Name,
+                    .Weight = blendShape.Weight,
+                    .FirstPosition = positions ? (u32)positions->OffsetBytes / (u32)sizeof(glm::vec3) + 
+                        bufferInfo->FirstVertex : 
+                        SceneBlendShapeRenderObject::INVALID,
+                    .FirstNormal = normals ? (u32)normals->OffsetBytes / (u32)sizeof(glm::vec3) + 
+                        bufferInfo->FirstVertex: 
+                        SceneBlendShapeRenderObject::INVALID,
+                    .FirstTangent = tangents ? (u32)tangents->OffsetBytes / (u32)sizeof(glm::vec4) + 
+                        bufferInfo->FirstVertex : 
+                        SceneBlendShapeRenderObject::INVALID,
+                });
+            }
 
             geometry.RenderObjects.push_back({
                 .Material = getMaterialIndex(primitive.Material),
@@ -662,6 +710,8 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
                 .FirstMeshlet = firstMeshlet,
                 .MeshletCount = meshletsCount,
                 .SkinnedRenderObjectIndex = skinIndex,
+                .BlendShapeRenderObjectIndex = firstBlendShape,
+                .BlendShapeRenderObjectCount = blendShapeCount,
                 .BoundingBox = primitive.BoundingBox,
                 .BoundingSphere = primitive.BoundingSphere,
             });
@@ -682,15 +732,18 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
         
         const BufferInfo* skinBuffer = skinInfo.BufferInfo;
         const BufferInfo* meshBuffer = meshInfo.BufferInfo;
+        
+        auto& skinAccessors = skinBuffer->Buffer.Header.Accessors;
+        auto& meshAccessors = meshBuffer->Buffer.Header.Accessors;
 
         const u32 firstJointMatrix =
-            (u32)(skinBuffer->Buffer.Header.Accessors[skin.InverseBindMatrixAccessor].OffsetBytes /
+            (u32)(skinAccessors[skin.InverseBindMatrixAccessor].OffsetBytes /
                 sizeof(glm::mat4)) + skinBuffer->FirstJointMatrix;
-        const u32 firstJoint = (u32)(meshBuffer->Buffer.Header.Accessors[mesh.FindAttribute(
-                assetlib::MeshPrimitive::ATTRIBUTE_JOINTS0_NAME)->Accessor].OffsetBytes /
+        const u32 firstJoint = (u32)(meshAccessors[mesh.FindAttribute(
+                assetlib::MeshAttribute::JOINTS0_NAME)->Accessor].OffsetBytes /
             sizeof(glm::u16vec4)) + meshBuffer->FirstJoint;
-        const u32 firstWeight = (u32)(meshBuffer->Buffer.Header.Accessors[mesh.FindAttribute(
-                assetlib::MeshPrimitive::ATTRIBUTE_WEIGHTS0_NAME)->Accessor].OffsetBytes /
+        const u32 firstWeight = (u32)(meshAccessors[mesh.FindAttribute(
+                assetlib::MeshAttribute::WEIGHTS0_NAME)->Accessor].OffsetBytes /
             sizeof(glm::vec4)) + meshBuffer->FirstWeight;
         
         geometry.SkinnedRenderObjects.push_back({

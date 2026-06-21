@@ -10,16 +10,30 @@ struct glz::meta<lux::assetlib::MeshPrimitiveTextureFilter> : lux::assetlib::ref
 };
 template <> struct ::glz::meta<lux::assetlib::MeshPrimitiveTextureSample> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::MeshPrimitiveMaterial> : lux::assetlib::reflection::CamelCase {};
-template <> struct ::glz::meta<lux::assetlib::MeshPrimitive::Attribute> : lux::assetlib::reflection::CamelCase {};
+template <> struct ::glz::meta<lux::assetlib::MeshAttribute> : lux::assetlib::reflection::CamelCase {};
+template <> struct ::glz::meta<lux::assetlib::MeshPrimitiveBlendShape> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::MeshPrimitive> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::MeshAsset> : lux::assetlib::reflection::CamelCase {};
 
-
-const lux::assetlib::MeshPrimitive::Attribute* lux::assetlib::MeshPrimitive::FindAttribute(std::string_view name) const
+namespace
 {
-    auto it = std::ranges::find_if(Attributes, [&](auto& attribute) { return attribute.Name == name; });
+const lux::assetlib::MeshAttribute* findAttribute(std::string_view name,
+    const std::vector<lux::assetlib::MeshAttribute>& attributes)
+{
+    auto it = std::ranges::find_if(attributes, [&](auto& attribute) { return attribute.Name == name; });
     
-    return it == Attributes.end() ? nullptr : &*it;
+    return it == attributes.end() ? nullptr : &*it;
+}
+}
+
+const lux::assetlib::MeshAttribute* lux::assetlib::MeshPrimitiveBlendShape::FindAttribute(std::string_view name) const
+{
+    return findAttribute(name, Attributes);
+}
+
+const lux::assetlib::MeshAttribute* lux::assetlib::MeshPrimitive::FindAttribute(std::string_view name) const
+{
+    return findAttribute(name, Attributes);
 }
 
 namespace lux::assetlib::sceneMesh

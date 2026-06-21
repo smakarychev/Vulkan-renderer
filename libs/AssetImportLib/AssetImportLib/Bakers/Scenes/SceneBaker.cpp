@@ -32,6 +32,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 
+#include <ranges>
 
 #define CHECK_RETURN_IO_ERROR(x, error, ...) \
 ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, __VA_ARGS__)
@@ -223,6 +224,9 @@ struct ProcessContext
     AccessorProxy<glm::vec3> AnimationScaleKeyframes{
         .ViewIndex = (u32)assetlib::GeometryBufferViewType::AnimationScaleKeyframe
     };
+    AccessorProxy<f32> AnimationWeightKeyframes{
+        .ViewIndex = (u32)assetlib::GeometryBufferViewType::AnimationWeightKeyframe
+    };
 
     assetlib::SceneAsset SceneAsset{};
     assetlib::GeometryBufferAsset GeometryBufferAsset{};
@@ -279,6 +283,8 @@ public:
             "AnimationKeyframeOrientations";
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::AnimationScaleKeyframe].Name = 
             "AnimationKeyframeScales";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::AnimationWeightKeyframe].Name = 
+            "AnimationKeyframeWeights";
 
         auto writeAndUpdateView = [&geometryBufferHeader, this](auto accessorProxy) {
             const u64 sizeBytes = accessorProxy.Data.size() * sizeof(accessorProxy.Data[0]);
@@ -303,6 +309,7 @@ public:
         writeAndUpdateView(AnimationPositionKeyframes);
         writeAndUpdateView(AnimationOrientationKeyframes);
         writeAndUpdateView(AnimationScaleKeyframes);
+        writeAndUpdateView(AnimationWeightKeyframes);
         
         GeometryBufferAsset.Header.SizeBytes = GeometryBufferAsset.Data.size();
     }
@@ -764,10 +771,11 @@ IoResult<std::vector<glm::u16vec4>> readJoints(tinygltf::Model& gltf, const tiny
     return joints;
 }
 
-IoResult<std::vector<glm::vec4>> readKeyframeOrientations(tinygltf::Model& gltf, 
+template <typename Target, typename RawByte, typename RawUByte, typename RawShort, typename RawUShort> 
+IoResult<std::vector<Target>> decodeAnimationAccessorFormat(tinygltf::Model& gltf, 
     const tinygltf::Accessor& keyframesAccessor)
 {
-    std::vector<glm::vec4> keyframes;
+    std::vector<Target> keyframes;
     switch (keyframesAccessor.componentType)
     {
     case TINYGLTF_COMPONENT_TYPE_FLOAT:
@@ -777,38 +785,38 @@ IoResult<std::vector<glm::vec4>> readKeyframeOrientations(tinygltf::Model& gltf,
         }
     case TINYGLTF_COMPONENT_TYPE_BYTE:
         {
-            std::vector<glm::i8vec4> rawKeyframes;
+            std::vector<RawByte> rawKeyframes;
             copyBufferToVector(rawKeyframes, gltf, keyframesAccessor);
             keyframes.reserve(rawKeyframes.size());
             for (auto frame : rawKeyframes) 
-                keyframes.push_back(glm::max(glm::vec4(frame) / 127.0f, -1.0f));
+                keyframes.push_back(glm::max(Target(frame) / 127.0f, -1.0f));
             break;
         }
     case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
         {
-            std::vector<glm::u8vec4> rawKeyframes;
+            std::vector<RawUByte> rawKeyframes;
             copyBufferToVector(rawKeyframes, gltf, keyframesAccessor);
             keyframes.reserve(rawKeyframes.size());
             for (auto frame : rawKeyframes) 
-                keyframes.push_back(glm::vec4(frame) / 255.0f);
+                keyframes.push_back(Target(frame) / 255.0f);
             break;
         }
     case TINYGLTF_COMPONENT_TYPE_SHORT:
         {
-            std::vector<glm::i16vec4> rawKeyframes;
+            std::vector<RawShort> rawKeyframes;
             copyBufferToVector(rawKeyframes, gltf, keyframesAccessor);
             keyframes.reserve(rawKeyframes.size());
             for (auto frame : rawKeyframes) 
-                keyframes.push_back(glm::max(glm::vec4(frame) / 32767.0f, -1.0f));
+                keyframes.push_back(glm::max(Target(frame) / 32767.0f, -1.0f));
             break;
         }
     case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
         {
-            std::vector<glm::u16vec4> rawKeyframes;
+            std::vector<RawUShort> rawKeyframes;
             copyBufferToVector(rawKeyframes, gltf, keyframesAccessor);
             keyframes.reserve(rawKeyframes.size());
             for (auto frame : rawKeyframes) 
-                keyframes.push_back(glm::vec4(frame) / 65535.0f);
+                keyframes.push_back(Target(frame) / 65535.0f);
             break;
         }
     default:
@@ -820,6 +828,18 @@ IoResult<std::vector<glm::vec4>> readKeyframeOrientations(tinygltf::Model& gltf,
     }
     
     return keyframes;
+}
+
+IoResult<std::vector<glm::vec4>> readKeyframeOrientations(tinygltf::Model& gltf, 
+    const tinygltf::Accessor& keyframesAccessor)
+{
+    return decodeAnimationAccessorFormat<glm::vec4, glm::i8vec4, glm::u8vec4, glm::i16vec4, glm::u16vec4>(
+        gltf, keyframesAccessor);
+}
+
+IoResult<std::vector<f32>> readKeyframeWeights(tinygltf::Model& gltf, const tinygltf::Accessor& keyframesAccessor)
+{
+    return decodeAnimationAccessorFormat<f32, i8, u8, i16, u16>(gltf, keyframesAccessor);
 }
 
 std::string getMeshName(ProcessContext& ctx, tinygltf::Mesh& mesh)
@@ -870,22 +890,22 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
         std::vector<glm::vec4> weights;
         for (auto& attribute : primitive.attributes)
         {
-            tinygltf::Accessor& attributeAccessor = gltf.accessors[attribute.second];
-            if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_POSITION_NAME)
+            const tinygltf::Accessor& attributeAccessor = gltf.accessors[attribute.second];
+            if (attribute.first == assetlib::MeshAttribute::POSITION_NAME)
                 copyBufferToVector(positions, gltf, attributeAccessor);
-            else if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_NORMAL_NAME)
+            else if (attribute.first == assetlib::MeshAttribute::NORMAL_NAME)
                 copyBufferToVector(normals, gltf, attributeAccessor);
-            else if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_TANGENT_NAME)
+            else if (attribute.first == assetlib::MeshAttribute::TANGENT_NAME)
                 copyBufferToVector(tangents, gltf, attributeAccessor);
-            else if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_UV0_NAME)
+            else if (attribute.first == assetlib::MeshAttribute::UV0_NAME)
                 copyBufferToVector(uvs, gltf, attributeAccessor);
-            else if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_JOINTS0_NAME)
+            else if (attribute.first == assetlib::MeshAttribute::JOINTS0_NAME)
             {
                 auto jointsRead = readJoints(gltf, attributeAccessor);
                 CHECK_RETURN_IO_ERROR_PROPAGATE(jointsRead)
                 joints = std::move(*jointsRead);
             }
-            else if (attribute.first == assetlib::MeshPrimitive::ATTRIBUTE_WEIGHTS0_NAME)
+            else if (attribute.first == assetlib::MeshAttribute::WEIGHTS0_NAME)
                 copyBufferToVector(weights, gltf, attributeAccessor);
         }
         CHECK_RETURN_IO_ERROR(!positions.empty(), IoError::ErrorCode::GeneralError,
@@ -916,39 +936,80 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
         auto&& [meshlets, meshletIndices] = utils::createMeshlets(attributes, *indices);
         auto&& [sphere, box] = utils::meshBoundingVolumes(meshlets);
         
-        std::vector<assetlib::MeshPrimitive::Attribute> meshAttributes;
-        auto addAttribute = [&ctx, &meshAttributes](auto& source, auto& destination, std::string_view name) {
-            u32 accessorIndex = (u32)ctx.GeometryBufferAsset.Header.Accessors.size();
+        auto addAttribute = [&ctx](auto& source, auto& destination, auto& attributes, 
+            std::string_view name) {
+            
+            const u32 accessorIndex = (u32)ctx.GeometryBufferAsset.Header.Accessors.size();
             ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(source, destination));
-            meshAttributes.push_back(assetlib::MeshPrimitive::Attribute{
+            attributes.push_back(assetlib::MeshAttribute{
                 .Name = std::string(name),
                 .Accessor = accessorIndex
             });
         };
         
-        addAttribute(positions, ctx.Positions, assetlib::MeshPrimitive::ATTRIBUTE_POSITION_NAME);
-        addAttribute(normals, ctx.Normals, assetlib::MeshPrimitive::ATTRIBUTE_NORMAL_NAME);
-        addAttribute(tangents, ctx.Tangents, assetlib::MeshPrimitive::ATTRIBUTE_TANGENT_NAME);
-        addAttribute(uvs, ctx.UVs, assetlib::MeshPrimitive::ATTRIBUTE_UV0_NAME);
+        std::vector<assetlib::MeshAttribute> meshAttributes;
+        addAttribute(positions, ctx.Positions, meshAttributes, assetlib::MeshAttribute::POSITION_NAME);
+        addAttribute(normals, ctx.Normals, meshAttributes, assetlib::MeshAttribute::NORMAL_NAME);
+        addAttribute(tangents, ctx.Tangents, meshAttributes, assetlib::MeshAttribute::TANGENT_NAME);
+        addAttribute(uvs, ctx.UVs, meshAttributes, assetlib::MeshAttribute::UV0_NAME);
         if (!joints.empty())
         {
             ASSERT(joints.size() == weights.size())
-            addAttribute(joints, ctx.Joints, assetlib::MeshPrimitive::ATTRIBUTE_JOINTS0_NAME);
-            addAttribute(weights, ctx.Weights, assetlib::MeshPrimitive::ATTRIBUTE_WEIGHTS0_NAME);
+            addAttribute(joints, ctx.Joints, meshAttributes, assetlib::MeshAttribute::JOINTS0_NAME);
+            addAttribute(weights, ctx.Weights, meshAttributes, assetlib::MeshAttribute::WEIGHTS0_NAME);
         }
-        addAttribute(meshlets, ctx.Meshlets, assetlib::MeshPrimitive::ATTRIBUTE_MESHLET_NAME);
+        addAttribute(meshlets, ctx.Meshlets, meshAttributes, assetlib::MeshAttribute::MESHLET_NAME);
 
+        std::vector<assetlib::MeshPrimitiveBlendShape> blendShapes;
+        blendShapes.reserve(primitive.targets.size());
+        for (auto&& [targetIndex, target] : std::views::enumerate(primitive.targets))
+        {
+            assetlib::MeshPrimitiveBlendShape blendShape = {};
+            
+            for (auto&& [attributeName, accessorIndex] : target)
+            {
+                const tinygltf::Accessor& attributeAccessor = gltf.accessors[accessorIndex];
+                if (attributeName == assetlib::MeshAttribute::POSITION_NAME)
+                {
+                    std::vector<glm::vec3> targetData;
+                    copyBufferToVector(targetData, gltf, attributeAccessor);
+                    addAttribute(targetData, ctx.Positions, blendShape.Attributes, attributeName);
+                }
+                else if (attributeName == assetlib::MeshAttribute::NORMAL_NAME)
+                {
+                    std::vector<glm::vec3> targetData;
+                    copyBufferToVector(targetData, gltf, attributeAccessor);
+                    addAttribute(targetData, ctx.Normals, blendShape.Attributes, attributeName);
+                }
+                else if (attributeName == assetlib::MeshAttribute::TANGENT_NAME)
+                {
+                    std::vector<glm::vec4> targetData;
+                    copyBufferToVector(targetData, gltf, attributeAccessor);
+                    addAttribute(targetData, ctx.Tangents, blendShape.Attributes, attributeName);
+                }
+            }
+            
+            if ((u64)targetIndex < mesh.weights.size())
+                blendShape.Weight = (f32)mesh.weights[targetIndex];
+            
+            blendShapes.push_back(std::move(blendShape));
+        }
+        
         const u32 indicesAccessorIndex = (u32)ctx.GeometryBufferAsset.Header.Accessors.size();
         ctx.GeometryBufferAsset.Header.Accessors.push_back(ctx.CreateAccessor(meshletIndices, ctx.Indices));
         assetlib::MeshPrimitive bakedPrimitive = {
             .Attributes = std::move(meshAttributes),
+            .BlendShapes = std::move(blendShapes),
             .Material = primitive.material == -1 ? assetlib::MeshPrimitiveMaterial{} : ctx.Materials[primitive.material],
             .IndicesAccessor = indicesAccessorIndex,
             .BoundingSphere = sphere,
             .BoundingBox = box,
         };
         
-        ctx.MeshAssets.push_back({.Asset = {.Primitives = {bakedPrimitive}}, .Name = getMeshName(ctx, mesh)});
+        ctx.MeshAssets.push_back({
+            .Asset = {.Primitives = {std::move(bakedPrimitive)}},
+            .Name = getMeshName(ctx, mesh)
+        });
     }
 
     return {};
@@ -997,6 +1058,8 @@ IoResult<assetlib::SceneAssetAnimationChannelType> getAnimationChannelType(const
         return assetlib::SceneAssetAnimationChannelType::Orientation;
     if (channel.target_path == "scale")
         return assetlib::SceneAssetAnimationChannelType::Scale;
+    if (channel.target_path == "weights")
+        return assetlib::SceneAssetAnimationChannelType::Weight;
 
     CHECK_RETURN_IO_ERROR(false, IoError::ErrorCode::GeneralError, "Unsupported animation channel type: {}",
         channel.target_path)
@@ -1040,6 +1103,7 @@ IoResult<void> processAnimation(ProcessContext& ctx, tinygltf::Model& gltf, tiny
         
         tinygltf::Accessor& keyframeAccessor = gltf.accessors[sampler.output];
         u32 keyframeAccessorIndex = (u32)ctx.GeometryBufferAsset.Header.Accessors.size();
+        u32 keyframeElementCount = 1;
         switch (*channelType) 
         {
         case assetlib::SceneAssetAnimationChannelType::Translation:
@@ -1067,6 +1131,20 @@ IoResult<void> processAnimation(ProcessContext& ctx, tinygltf::Model& gltf, tiny
                     ctx.CreateAccessor(scales, ctx.AnimationScaleKeyframes));
                 break;
             }
+        case assetlib::SceneAssetAnimationChannelType::Weight:
+            {
+                auto readWeights = readKeyframeWeights(gltf, keyframeAccessor);
+                CHECK_RETURN_IO_ERROR_PROPAGATE(readWeights)
+                std::vector<f32> weights = std::move(*readWeights);
+                ctx.GeometryBufferAsset.Header.Accessors.push_back(
+                    ctx.CreateAccessor(weights, ctx.AnimationWeightKeyframes));
+                
+                CHECK_RETURN_IO_ERROR(gltf.nodes[channel.target_node].mesh != -1, IoError::ErrorCode::WrongFormat,
+                    "Invalid animation target for weight channel")
+                const auto& mesh = gltf.meshes[gltf.nodes[channel.target_node].mesh];
+                keyframeElementCount = (u32)mesh.weights.size();
+                break;
+            }
         }
         
         channels.push_back({
@@ -1074,7 +1152,8 @@ IoResult<void> processAnimation(ProcessContext& ctx, tinygltf::Model& gltf, tiny
             .SamplerType = *samplerType,
             .TargetNode = (u32)channel.target_node,
             .TimestampsAccessor = timestampAccessorIndex,
-            .KeyframesAccessor = keyframeAccessorIndex
+            .KeyframesAccessor = keyframeAccessorIndex,
+            .KeyframeElementCount = keyframeElementCount,
         });
     }
     
@@ -1102,7 +1181,7 @@ IoResult<void> createGeometryBufferAssets(ProcessContext& ctx)
     return {};
 }
 
-std::filesystem::path getMeshAssetPath(ProcessContext& ctx, ProcessContext::MeshInfo& mesh)
+std::filesystem::path getMeshAssetPath(ProcessContext& ctx, const ProcessContext::MeshInfo& mesh)
 {
     return ctx.ScenePath.parent_path() / mesh.Name;
 }

@@ -75,7 +75,7 @@ struct SceneAssetSkin
 {
     AssetId GeometryBuffer{AssetId::CreateEmpty()};
     u32 InverseBindMatrixAccessor{SCENE_UNSET_INDEX};
-    std::vector<u32> JointNodes;
+    std::vector<u32> JointNodes{};
 };
 
 enum class SceneAssetAnimationSamplerType : u8
@@ -85,7 +85,7 @@ enum class SceneAssetAnimationSamplerType : u8
 
 enum class SceneAssetAnimationChannelType : u8
 {
-    Translation, Orientation, Scale
+    Translation, Orientation, Scale, Weight
 };
 
 struct SceneAssetAnimationChannel
@@ -95,6 +95,8 @@ struct SceneAssetAnimationChannel
     u32 TargetNode{SCENE_UNSET_INDEX};
     u32 TimestampsAccessor{SCENE_UNSET_INDEX};
     u32 KeyframesAccessor{SCENE_UNSET_INDEX};
+    /* mainly used for blend shapes, where keyframe type is a float array */
+    u32 KeyframeElementCount{1};
 };
 
 struct SceneAssetAnimation

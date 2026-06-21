@@ -29,27 +29,39 @@ struct MeshPrimitiveMaterial
     MeshPrimitiveTextureSample OcclusionSample{};
 };
 
+struct MeshAttribute
+{
+    static constexpr std::string_view POSITION_NAME = "POSITION";
+    static constexpr std::string_view NORMAL_NAME = "NORMAL";
+    static constexpr std::string_view TANGENT_NAME = "TANGENT";
+    static constexpr std::string_view UV0_NAME = "TEXCOORD_0";
+    static constexpr std::string_view JOINTS0_NAME = "JOINTS_0";
+    static constexpr std::string_view WEIGHTS0_NAME = "WEIGHTS_0";
+    static constexpr std::string_view MESHLET_NAME = "MESHLET";
+    
+    std::string Name{};
+    u32 Accessor{MESH_UNSET_INDEX};
+};
+
+struct MeshPrimitiveBlendShape
+{
+    std::string Name{};
+    std::vector<MeshAttribute> Attributes{};
+    f32 Weight{0.0f};
+public:
+    const MeshAttribute* FindAttribute(std::string_view name) const;
+};
+
 struct MeshPrimitive
 {
-    static constexpr std::string_view ATTRIBUTE_POSITION_NAME = "POSITION";
-    static constexpr std::string_view ATTRIBUTE_NORMAL_NAME = "NORMAL";
-    static constexpr std::string_view ATTRIBUTE_TANGENT_NAME = "TANGENT";
-    static constexpr std::string_view ATTRIBUTE_UV0_NAME = "TEXCOORD_0";
-    static constexpr std::string_view ATTRIBUTE_JOINTS0_NAME = "JOINTS_0";
-    static constexpr std::string_view ATTRIBUTE_WEIGHTS0_NAME = "WEIGHTS_0";
-    static constexpr std::string_view ATTRIBUTE_MESHLET_NAME = "MESHLET";
-    struct Attribute
-    {
-        std::string Name;
-        u32 Accessor{MESH_UNSET_INDEX};
-    };
-    std::vector<Attribute> Attributes{};
+    std::vector<MeshAttribute> Attributes{};
+    std::vector<MeshPrimitiveBlendShape> BlendShapes{};
     MeshPrimitiveMaterial Material{};
     u32 IndicesAccessor{MESH_UNSET_INDEX};
     Sphere BoundingSphere{};
     AABB BoundingBox{};
 public:
-    const Attribute* FindAttribute(std::string_view name) const;
+    const MeshAttribute* FindAttribute(std::string_view name) const;
 };
 
 struct MeshAsset

@@ -13,6 +13,7 @@ struct DirectionalLight;
 
 namespace lux
 {
+struct SceneBlendShapeRenderObject;
 struct SceneSkin;
 struct SceneHierarchyJoint;
 struct SceneSkinnedRenderObject;
@@ -34,6 +35,7 @@ struct SceneGeometryInfo
 
     std::vector<SceneRenderObject> RenderObjects;
     std::vector<SceneSkinnedRenderObject> SkinnedRenderObjects;
+    std::vector<SceneBlendShapeRenderObject> SceneBlendShapeRenderObjects;
     std::vector<SceneSkin> Skins;
     std::vector<MaterialGPU> Materials;
     std::vector<assetlib::SceneAssetMeshlet> Meshlets;
@@ -94,6 +96,8 @@ struct SceneRenderObject
     u32 FirstMeshlet{};
     u32 MeshletCount{};
     u32 SkinnedRenderObjectIndex{INVALID};
+    u32 BlendShapeRenderObjectIndex{INVALID};
+    u32 BlendShapeRenderObjectCount{};
     AABB BoundingBox{};
     Sphere BoundingSphere{};
 };
@@ -104,6 +108,17 @@ struct SceneSkinnedRenderObject
     u32 FirstJoint{};
     u32 FirstWeight{};
     u32 SkinIndex{};
+};
+
+struct SceneBlendShapeRenderObject
+{
+    static constexpr u32 INVALID = ~0lu;
+    
+    std::string Name{};
+    f32 Weight{};
+    u32 FirstPosition{INVALID};
+    u32 FirstNormal{INVALID};
+    u32 FirstTangent{INVALID};
 };
 
 struct SceneSkin
@@ -170,7 +185,7 @@ struct SceneHierarchyJoint
 
 enum class SceneHierarchyAnimationChannelType : u8
 {
-    Translation, Orientation, Scale
+    Translation, Orientation, Scale, Weight
 };
 enum class SceneHierarchyAnimationSamplerType : u8
 {
@@ -186,8 +201,10 @@ struct SceneHierarchyAnimationChannel
         glm::vec3 Translation;
         glm::quat Orientation;
         glm::vec3 Scale;
+        f32 Weight;
     };
     std::vector<Keyframe> Keyframes{};
+    u32 KeyframeElementsCount{0};
     std::vector<f32> Timestamps{};
     Keyframe Interpolated{};
     f32 Timestamp{};
@@ -204,5 +221,6 @@ struct SceneHierarchyAnimation
     u32 TranslationChannel{INVALID};
     u32 OrientationChannel{INVALID};
     u32 ScaleChannel{INVALID};
+    u32 WeightChannel{INVALID};
 };
 }

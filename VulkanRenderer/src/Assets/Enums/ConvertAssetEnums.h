@@ -443,6 +443,9 @@ constexpr SceneHierarchyAnimationChannelType animationChannelTypeFromAssetAnimat
     static_assert(
         (u8)SceneHierarchyAnimationChannelType::Scale == (u8)
         assetlib::SceneAssetAnimationChannelType::Scale);
+    static_assert(
+        (u8)SceneHierarchyAnimationChannelType::Weight == (u8)
+        assetlib::SceneAssetAnimationChannelType::Weight);
 
     return (SceneHierarchyAnimationChannelType)(channel);
 }
