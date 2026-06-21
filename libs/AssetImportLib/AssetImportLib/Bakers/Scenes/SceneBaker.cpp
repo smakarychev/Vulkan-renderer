@@ -549,9 +549,9 @@ void processNode(ProcessContext& ctx, tinygltf::Model&, tinygltf::Node& node)
 
         if (!node.matrix.empty())
         {
-            glm::dvec3 scew;
+            glm::dvec3 skew;
             glm::dvec4 perspective;
-            glm::decompose(*(glm::dmat4*)node.matrix.data(), scale, rotation, translation, scew, perspective);
+            glm::decompose(*(glm::dmat4*)node.matrix.data(), scale, rotation, translation, skew, perspective);
         }
         else
         {
