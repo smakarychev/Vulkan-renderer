@@ -828,6 +828,26 @@ std::string getMeshName(ProcessContext& ctx, tinygltf::Mesh& mesh)
     if (meshName.empty())
         meshName = std::format("_unnamed_mesh_{}", ctx.MeshAssets.size());
     
+    for (char& c : meshName)
+    {
+        switch (c)
+        {
+        case '/':
+        case '\\':
+        case '*':
+        case '?':
+        case '\"':
+        case '<':
+        case '>':
+        case '|':
+        case ':':
+            c = '_';
+            break;
+        default:
+            break;
+        }
+    }
+    
     return meshName;
 }
 
