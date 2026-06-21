@@ -627,7 +627,7 @@ void copyBufferToVector(std::vector<T>& vec, tinygltf::Model& gltf, const tinygl
 }
 
 void generateTriangleNormals(std::vector<glm::vec3>& normals,
-    const std::vector<glm::vec3>& positions, const std::vector<u32> indices)
+    const std::vector<glm::vec3>& positions, const std::vector<u32>& indices)
 {
     normals.resize(positions.size());
     for (u32 i = 0; i < indices.size(); i += 3)
