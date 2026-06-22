@@ -114,6 +114,16 @@ SceneGeometry SceneGeometry::CreateEmpty(DeletionQueue& deletionQueue)
             .VirtualSizeBytes = DEFAULT_ARENA_VIRTUAL_SIZE_BYTES
         },
         deletionQueue);
+    geometry.BlendShapes = Device::CreateBufferArena({
+            .Buffer = Device::CreateBuffer({
+                .Description = {
+                    .SizeBytes = DEFAULT_BLEND_SHAPES_BUFFER_ARENA_SIZE_BYTES,
+                    .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
+                },
+            }, deletionQueue),
+            .VirtualSizeBytes = DEFAULT_ARENA_VIRTUAL_SIZE_BYTES
+        },
+        deletionQueue);
     geometry.Materials = Device::CreateBufferArena({
             .Buffer = Device::CreateBuffer({
                 .Description = {
@@ -204,24 +214,30 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
     const SceneInfoOffsets& sceneInfoOffsets = m_SceneInfoOffsets[&scene];
 
     const u64 renderObjectsSizeBytes = geometry.RenderObjects.size() * sizeof(RenderObjectGPU);
-    const u64 renderObjectSkinnedInfosSizeBytes = geometry.Skins.size() * sizeof(RenderObjectSkinnedInfoGPU);
     const u32 jointCount = std::ranges::fold_left(
         geometry.SkinJoints, 0u, [](u32 sum, auto& skin) -> u32 { return sum + (u32)skin.JointNodes.size(); });
-    u32 skinnedVertexCount{};
+    
+    u32 skinnedRenderObjectCount{};
     u32 skinnedMeshletCount{};
+    u32 skinnedVertexCount{};
     for (auto& renderObject : geometry.RenderObjects)
     {
-        if (renderObject.SkinIndex == lux::SceneRenderObject::INVALID)
+        if (renderObject.SkinIndex == lux::SceneRenderObject::INVALID && renderObject.BlendShapeCount == 0)
             continue;
         
-        skinnedVertexCount += renderObject.VertexCount;
+        skinnedRenderObjectCount += 1;
         skinnedMeshletCount += renderObject.MeshletCount;
+        skinnedVertexCount += renderObject.VertexCount;
     }
+    const u64 renderObjectSkinnedInfosSizeBytes = skinnedRenderObjectCount * sizeof(RenderObjectSkinnedInfoGPU);
     const u64 jointMatricesSizeBytes = jointCount * sizeof(glm::mat4);
     const u64 skinnedVerticesSizeBytes = skinnedVertexCount * sizeof(SkinnedVertexGPU);
     const u64 skinnedMeshletBoundsSizeBytes = skinnedMeshletCount * sizeof(MeshletBoundsGPU);
     const u64 skinsSizeBytes = geometry.Skins.size() * sizeof(SkinGPU);
-    const bool hasSkinInfo = skinsSizeBytes > 0;
+    const u64 blendShapesSizeBytes = geometry.BlendShapes.size() * sizeof(BlendShapeGPU);
+    const bool instanceHasSkins = skinsSizeBytes > 0;
+    const bool instanceHasBlendShapes = blendShapesSizeBytes > 0;
+    const bool instanceHasSkinsOrBlendShapes = instanceHasSkins || instanceHasBlendShapes;
 
     SceneInstanceInfo instanceInfo = {};
     instanceInfo.RenderObjectsSuballocation = suballocateResizeIfFailed(RenderObjects,
@@ -232,18 +248,34 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
     u32 currentRenderObjectSkinnedInfoOffset = 0;
     u32 currentRenderObjectSkinnedInfoIndex = (u32)RenderObjectSkinnedInfosIndices.size();
     u32 currentSkinOffset = 0;
+    u32 currentBlendShapeOffset = 0;
     u32 currentJointMatrixOffset = 0;
     u32 currentSkinnedVertexOffset = 0;
     u32 currentSkinnedMeshletBoundOffset = 0;
-    if (hasSkinInfo)
+    if (instanceHasSkinsOrBlendShapes)
     {
         instanceInfo.RenderObjectSkinnedInfosSuballocation = suballocateResizeIfFailed(RenderObjectSkinnedInfos,
             renderObjectSkinnedInfosSizeBytes, 0, ctx.CommandList);
         
-        instanceInfo.JointMatricesSuballocation = suballocateResizeIfFailed(JointMatrices,
-            jointMatricesSizeBytes, 0, ctx.CommandList);
+        if (instanceHasSkins)
+        {
+            instanceInfo.JointMatricesSuballocation = suballocateResizeIfFailed(JointMatrices,
+                jointMatricesSizeBytes, 0, ctx.CommandList);
+            
+            instanceInfo.SkinsSuballocation = suballocateResizeIfFailed(Skins, skinsSizeBytes, 0, ctx.CommandList);
+            
+            currentSkinOffset = (u32)(instanceInfo.SkinsSuballocation.Description.Offset / sizeof(SkinGPU));
         
-        instanceInfo.SkinsSuballocation = suballocateResizeIfFailed(Skins, skinsSizeBytes, 0, ctx.CommandList);
+            currentJointMatrixOffset =
+                (u32)(instanceInfo.JointMatricesSuballocation.Description.Offset / sizeof(glm::mat4));
+        }
+        if (instanceHasBlendShapes)
+        {
+            instanceInfo.BlendShapesSuballocation = suballocateResizeIfFailed(BlendShapes, 
+                blendShapesSizeBytes, 0, ctx.CommandList);
+            currentBlendShapeOffset = 
+                (u32)(instanceInfo.BlendShapesSuballocation.Description.Offset / sizeof(BlendShapeGPU));
+        }
         
         instanceInfo.SkinnedVertexSuballocation = suballocateResizeIfFailed(Attributes, skinnedVerticesSizeBytes, 
             sizeof(SkinnedVertexGPU), ctx.CommandList);
@@ -255,14 +287,8 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
             (u32)(instanceInfo.RenderObjectSkinnedInfosSuballocation.Description.Offset /
                 sizeof(RenderObjectSkinnedInfoGPU));
         
-        currentSkinOffset = (u32)(instanceInfo.SkinsSuballocation.Description.Offset / sizeof(SkinGPU));
-        
-        currentJointMatrixOffset =
-            (u32)(instanceInfo.JointMatricesSuballocation.Description.Offset / sizeof(glm::mat4));
-        
         currentSkinnedVertexOffset = 
             (u32)(instanceInfo.SkinnedVertexSuballocation.Description.Offset / sizeof(SkinnedVertexGPU));
-        
         
         currentSkinnedMeshletBoundOffset =
             (u32)(instanceInfo.SkinnedMeshletBoundSuballocation.Description.Offset / sizeof(MeshletBoundsGPU));
@@ -288,10 +314,9 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
     {
         using enum SceneInfoOffsetType;
 
-        const u32 renderObjectFirstIndex = renderObject.FirstIndex;
-        const u32 renderObjectFirstVertex = renderObject.FirstVertex;
         const u32 renderObjectMaterial = renderObject.Material;
         const bool hasSkin = renderObject.SkinIndex != lux::SceneRenderObject::INVALID;
+        const bool hasBlendShape = renderObject.BlendShapeCount > 0;
 
         renderObjects[renderObjectIndex] = {
             {
@@ -299,20 +324,23 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
                 .Transform = glm::mat4(1.0f),
                 .BoundingSphere = glm::vec4(renderObject.BoundingSphere.Center, renderObject.BoundingSphere.Radius),
                 .MaterialId = sceneInfoOffsets.ElementOffsets[(u32)Materials] + renderObjectMaterial,
-                .PositionIndex = sceneInfoOffsets.ElementOffsets[(u32)Position] + renderObjectFirstVertex,
-                .NormalIndex = sceneInfoOffsets.ElementOffsets[(u32)Normal] + renderObjectFirstVertex,
-                .TangentIndex = sceneInfoOffsets.ElementOffsets[(u32)Tangent] + renderObjectFirstVertex,
-                .UvIndex = sceneInfoOffsets.ElementOffsets[(u32)Uv] + renderObjectFirstVertex,
-                .IndexIndex = sceneInfoOffsets.ElementOffsets[(u32)Index] + renderObjectFirstIndex,
+                .PositionIndex = sceneInfoOffsets.ElementOffsets[(u32)Position] + renderObject.FirstPosition,
+                .NormalIndex = sceneInfoOffsets.ElementOffsets[(u32)Normal] + renderObject.FirstNormal,
+                .TangentIndex = sceneInfoOffsets.ElementOffsets[(u32)Tangent] + renderObject.FirstTangent,
+                .UvIndex = sceneInfoOffsets.ElementOffsets[(u32)Uv] + renderObject.FirstUv,
+                .IndexIndex = sceneInfoOffsets.ElementOffsets[(u32)Index] + renderObject.FirstIndex,
                 .MeshletIndex = sceneInfoOffsets.ElementOffsets[(u32)Meshlets] + renderObject.FirstMeshlet,
                 .MeshletBoundIndex = sceneInfoOffsets.ElementOffsets[(u32)MeshletBounds] + renderObject.FirstMeshlet,
                 .MeshletCount = renderObject.MeshletCount,
                 .SkinIndex = hasSkin ? 
                     renderObject.SkinIndex + currentSkinOffset : lux::SceneRenderObject::INVALID,
+                .BlendShapeIndex = hasBlendShape ? renderObject.BlendShapeIndex + currentBlendShapeOffset :
+                    lux::SceneRenderObject::INVALID,
+                .BlendShapeCount = renderObject.BlendShapeCount,
             }
         };
 
-        if (hasSkin)
+        if (hasSkin || hasBlendShape)
         {
             RenderObjectSkinnedInfosIndices.push_back(currentRenderObjectSkinnedInfoOffset + skinnedInfoIndex);
             renderObjectSkinnedInfos[skinnedInfoIndex++] = {
@@ -322,6 +350,9 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
                     .PositionIndex = renderObjects[renderObjectIndex].PositionIndex,
                     .NormalIndex = renderObjects[renderObjectIndex].NormalIndex,
                     .TangentIndex = renderObjects[renderObjectIndex].TangentIndex,
+                    .BlendShapeIndex = renderObjects[renderObjectIndex].BlendShapeIndex,
+                    .BlendShapeCount = renderObjects[renderObjectIndex].BlendShapeCount,
+                    .HasSkin = (b32)hasSkin,
                     .SkinnedVertexIndex = currentSkinnedVertexOffset,
                     .SkinnedMeshletBoundIndex = currentSkinnedMeshletBoundOffset,
                     .VertexCount = renderObject.VertexCount
@@ -332,27 +363,60 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
         }
     }
 
-    if (hasSkinInfo)
+    if (instanceHasSkinsOrBlendShapes)
     {
-        SkinGPU* skins = ctx.ResourceUploader->MapBuffer<SkinGPU>({
-            .Buffer = Device::GetBufferArenaUnderlyingBuffer(Skins),
-            .Description = {
-                .SizeBytes = skinsSizeBytes,
-                .Offset = instanceInfo.SkinsSuballocation.Description.Offset
-            }
-        });
-
-        for (auto&& [skinIndex, skin] : std::views::enumerate(geometry.Skins))
-            skins[skinIndex] = SkinGPU{
-                {
-                    .JointMatrixIndex = skin.FirstJointMatrix + currentJointMatrixOffset,
-                    .JointIndex = skin.FirstJoint + sceneInfoOffsets.ElementOffsets[(u32)SceneInfoOffsetType::Joint],
-                    .JointOffset = sceneInfoOffsets.ElementOffsets[(u32)SceneInfoOffsetType::Joint],
-                    .WeightIndex = skin.FirstWeight + sceneInfoOffsets.ElementOffsets[(u32)SceneInfoOffsetType::Weight],
+        if (instanceHasSkins)
+        {
+            SkinGPU* skins = ctx.ResourceUploader->MapBuffer<SkinGPU>({
+                .Buffer = Device::GetBufferArenaUnderlyingBuffer(Skins),
+                .Description = {
+                    .SizeBytes = skinsSizeBytes,
+                    .Offset = instanceInfo.SkinsSuballocation.Description.Offset
                 }
-            };
+            });
 
-        instanceInfo.SkinnedRenderObjectCount = (u32)geometry.Skins.size();
+            for (auto&& [skinIndex, skin] : std::views::enumerate(geometry.Skins))
+                skins[skinIndex] = SkinGPU{
+                    {
+                        .JointMatrixIndex = skin.FirstJointMatrix + currentJointMatrixOffset,
+                        .JointIndex = skin.FirstJoint + sceneInfoOffsets.ElementOffsets[(u32)SceneInfoOffsetType::Joint],
+                        .JointOffset = sceneInfoOffsets.ElementOffsets[(u32)SceneInfoOffsetType::Joint],
+                        .WeightIndex = skin.FirstWeight + 
+                            sceneInfoOffsets.ElementOffsets[(u32)SceneInfoOffsetType::Weight],
+                    }
+                };
+        }
+
+        if (instanceHasBlendShapes)
+        {
+            using enum SceneInfoOffsetType;
+            
+            BlendShapeGPU* blendShapes = ctx.ResourceUploader->MapBuffer<BlendShapeGPU>({
+                .Buffer = Device::GetBufferArenaUnderlyingBuffer(BlendShapes),
+                .Description = {
+                    .SizeBytes = blendShapesSizeBytes,
+                    .Offset = instanceInfo.BlendShapesSuballocation.Description.Offset
+                }
+            });
+
+            for (auto&& [blendShapeIndex, blendShape] : std::views::enumerate(geometry.BlendShapes))
+                blendShapes[blendShapeIndex] = BlendShapeGPU{
+                    {
+                        .PositionIndex = blendShape.FirstPosition == lux::SceneBlendShape::INVALID ?
+                            lux::SceneBlendShape::INVALID :
+                            sceneInfoOffsets.ElementOffsets[(u32)Position] + blendShape.FirstPosition,
+                        .NormalIndex = blendShape.FirstNormal == lux::SceneBlendShape::INVALID ?
+                            lux::SceneBlendShape::INVALID :
+                            sceneInfoOffsets.ElementOffsets[(u32)Normal] + blendShape.FirstNormal,
+                        .TangentIndex = blendShape.FirstTangent == lux::SceneBlendShape::INVALID ?
+                            lux::SceneBlendShape::INVALID :
+                            sceneInfoOffsets.ElementOffsets[(u32)Tangent] + blendShape.FirstTangent,
+                        .Weight = blendShape.Weight,
+                    }
+                };
+        }
+        
+        instanceInfo.SkinnedRenderObjectCount = skinnedRenderObjectCount;
         instanceInfo.SkinnedMeshletCount = skinnedMeshletCount;
         instanceInfo.SkinnedVertexCount = skinnedVertexCount;
         instanceInfo.FirstRenderObjectSkinnedInfoIndex = currentRenderObjectSkinnedInfoIndex;
@@ -367,7 +431,8 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
     return {
         .FirstRenderObject = firstRenderObject,
         .FirstJoint = sceneInfoOffsets.ElementOffsets[(u32)SceneInfoOffsetType::Joint],
-        .FirstJointMatrix = currentJointMatrixOffset
+        .FirstJointMatrix = currentJointMatrixOffset,
+        .FirstBlendShape = currentBlendShapeOffset,
     };
 }
 
@@ -414,8 +479,15 @@ void SceneGeometry::DeleteRenderObjects(lux::SceneInstanceHandle instance)
     if (instanceInfo.SkinnedRenderObjectCount > 0)
     {
         Device::BufferArenaFree(RenderObjectSkinnedInfos, instanceInfo.RenderObjectSkinnedInfosSuballocation.Handle);
-        Device::BufferArenaFree(JointMatrices, instanceInfo.JointMatricesSuballocation.Handle);
-        Device::BufferArenaFree(Skins, instanceInfo.SkinsSuballocation.Handle);
+        if (instanceInfo.SkinsSuballocation.Handle != INVALID_BUFFER_SUBALLOCATION_HANDLE)
+        {
+            Device::BufferArenaFree(JointMatrices, instanceInfo.JointMatricesSuballocation.Handle);
+            Device::BufferArenaFree(Skins, instanceInfo.SkinsSuballocation.Handle);
+        }
+        if (instanceInfo.BlendShapesSuballocation.Handle != INVALID_BUFFER_SUBALLOCATION_HANDLE)
+        {
+            Device::BufferArenaFree(BlendShapes, instanceInfo.BlendShapesSuballocation.Handle);
+        }
         Device::BufferArenaFree(Attributes, instanceInfo.SkinnedVertexSuballocation.Handle);
         Device::BufferArenaFree(Meshlets, instanceInfo.SkinnedMeshletBoundSuballocation.Handle);
         SkinnedRenderObjectCount -= instanceInfo.SkinnedRenderObjectCount;

@@ -93,6 +93,7 @@ VertexSkinningPassData& skinVertices(StringId name, RG::Graph& renderGraph,
             passData.BindGroup.SetResourcesSkinDispatchesInfo(prepareSkinning.SkinDispatchesInfo);
             passData.BindGroup.SetResourcesSkinDispatchCount(prepareSkinning.SkinDispatchCount);
             passData.BindGroup.SetResourcesJointMatrices(info.JointMatrices);
+            passData.BindGroup.SetResourcesBlendShapes(info.BlendShapes);
             
             passData.RenderObjects = prepareSkinning.RenderObjects;
             passData.Meshlets = passData.BindGroup.SetResourcesMeshletsUgb(info.Meshlets);

@@ -492,45 +492,41 @@ void SceneAssetManager::LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const
             const SceneHierarchyAnimationSamplerType samplerType = animationSamplerTypeFromAssetAnimationSamplerType(
                 channel.SamplerType);
 
-            SceneHierarchyAnimationChannel animationChannel = {
-                .Type = channelType,
-                .SamplerType = samplerType,
-                .KeyframeElementsCount = channel.KeyframeElementCount,
-            };
+            SceneHierarchyAnimationChannel animationChannel(channelType, samplerType, channel.KeyframeElementCount);
             
-            copyAccessorToVector(animationChannel.Timestamps, timestampsAccessor, bufferInfo->Buffer, 
+            copyAccessorToVector(animationChannel.TimestampsMutable(), timestampsAccessor, bufferInfo->Buffer, 
                 sizeof(f32), sizeof(f32));
 
             switch (channelType) 
             {
             case SceneHierarchyAnimationChannelType::Translation:
                 {
-                    copyAccessorToVector(animationChannel.Keyframes, keyframesAccessor, bufferInfo->Buffer,
-                        sizeof(glm::vec3), sizeof(animationChannel.Keyframes[0]));
+                    copyAccessorToVector(animationChannel.KeyframesMutable(), keyframesAccessor, bufferInfo->Buffer,
+                        sizeof(glm::vec3), sizeof(animationChannel.KeyframesMutable()[0]));
                     sceneAnimationIt->TranslationChannel = 
                         sceneHierarchy.AnimationChannels.insert(std::move(animationChannel));
                     break;
                 }
             case SceneHierarchyAnimationChannelType::Orientation:
                 {
-                    copyAccessorToVector(animationChannel.Keyframes, keyframesAccessor, bufferInfo->Buffer,
-                        sizeof(glm::quat), sizeof(animationChannel.Keyframes[0]));
+                    copyAccessorToVector(animationChannel.KeyframesMutable(), keyframesAccessor, bufferInfo->Buffer,
+                        sizeof(glm::quat), sizeof(animationChannel.KeyframesMutable()[0]));
                     sceneAnimationIt->OrientationChannel =  
                         sceneHierarchy.AnimationChannels.insert(std::move(animationChannel));
                     break;
                 }
             case SceneHierarchyAnimationChannelType::Scale:
                 {
-                    copyAccessorToVector(animationChannel.Keyframes, keyframesAccessor, bufferInfo->Buffer,
-                        sizeof(glm::vec3), sizeof(animationChannel.Keyframes[0]));
+                    copyAccessorToVector(animationChannel.KeyframesMutable(), keyframesAccessor, bufferInfo->Buffer,
+                        sizeof(glm::vec3), sizeof(animationChannel.KeyframesMutable()[0]));
                     sceneAnimationIt->ScaleChannel =  
                         sceneHierarchy.AnimationChannels.insert(std::move(animationChannel));
                     break;
                 }
             case SceneHierarchyAnimationChannelType::Weight:
                 {
-                    copyAccessorToVector(animationChannel.Keyframes, keyframesAccessor, bufferInfo->Buffer,
-                        sizeof(f32), sizeof(animationChannel.Keyframes[0]));
+                    copyAccessorToVector(animationChannel.KeyframesMutable(), keyframesAccessor, bufferInfo->Buffer,
+                        sizeof(f32), sizeof(animationChannel.KeyframesMutable()[0]));
                     sceneAnimationIt->WeightChannel =  
                         sceneHierarchy.AnimationChannels.insert(std::move(animationChannel));
                     break;
@@ -652,7 +648,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
         return false;
     
     geometry.RenderObjects.reserve(importedMeshes.size());
-    geometry.SceneBlendShapes.reserve(totalBlendShapeCount);
+    geometry.BlendShapes.reserve(totalBlendShapeCount);
     for (auto&& [bufferInfo, mesh, skinIndex] : importedMeshes)
     {
         ASSERT(mesh.Primitives.size() < 2, "Render objects with more than 1 primitives are not supported")
@@ -663,9 +659,17 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
             const u32 firstIndex = (u32)(accessors[primitive.IndicesAccessor].OffsetBytes /
                 sizeof(assetlib::SceneAssetIndexType)) + bufferInfo->FirstIndex;
             const assetlib::GeometryBufferAccessor& positionsAccessor = 
-                accessors[primitive.FindAttribute(
-                    assetlib::MeshAttribute::POSITION_NAME)->Accessor];
-            const u32 firstVertex = (u32)(positionsAccessor.OffsetBytes / sizeof(glm::vec3)) + bufferInfo->FirstVertex;
+                accessors[primitive.FindAttribute(assetlib::MeshAttribute::POSITION_NAME)->Accessor];
+            const assetlib::GeometryBufferAccessor& normalsAccessor = 
+                accessors[primitive.FindAttribute(assetlib::MeshAttribute::NORMAL_NAME)->Accessor];
+            const assetlib::GeometryBufferAccessor& tangentAccessor = 
+                accessors[primitive.FindAttribute(assetlib::MeshAttribute::TANGENT_NAME)->Accessor];
+            const assetlib::GeometryBufferAccessor& uvAccessor = 
+                accessors[primitive.FindAttribute(assetlib::MeshAttribute::UV0_NAME)->Accessor];
+            const u32 firstPosition = (u32)(positionsAccessor.OffsetBytes / sizeof(glm::vec3)) + bufferInfo->FirstVertex;
+            const u32 firstNormal = (u32)(normalsAccessor.OffsetBytes / sizeof(glm::vec3)) + bufferInfo->FirstVertex;
+            const u32 firstTangent = (u32)(tangentAccessor.OffsetBytes / sizeof(glm::vec4)) + bufferInfo->FirstVertex;
+            const u32 firstUv = (u32)(uvAccessor.OffsetBytes / sizeof(glm::vec2)) + bufferInfo->FirstVertex;
             const u32 firstMeshlet = (u32)(
                 accessors[primitive.FindAttribute(
                     assetlib::MeshAttribute::MESHLET_NAME)->Accessor].OffsetBytes /
@@ -675,7 +679,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
             
             const u32 blendShapeCount = (u32)primitive.BlendShapes.size();
             const u32 firstBlendShape = blendShapeCount == 0 ? SceneRenderObject::INVALID : 
-                (u32)geometry.SceneBlendShapes.size();
+                (u32)geometry.BlendShapes.size();
             
             for (auto& blendShape : primitive.BlendShapes)
             {
@@ -687,7 +691,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
                 auto* normals = normalsAttribute ? &accessors[normalsAttribute->Accessor] : nullptr;
                 auto* tangents = tangentsAttribute ? &accessors[tangentsAttribute->Accessor] : nullptr;
                 
-                geometry.SceneBlendShapes.push_back({
+                geometry.BlendShapes.push_back({
                     .Name = blendShape.Name,
                     .Weight = blendShape.Weight,
                     .FirstPosition = positions ? (u32)positions->OffsetBytes / (u32)sizeof(glm::vec3) + 
@@ -705,7 +709,10 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
             geometry.RenderObjects.push_back({
                 .Material = getMaterialIndex(primitive.Material),
                 .FirstIndex = firstIndex,
-                .FirstVertex = firstVertex,
+                .FirstPosition = firstPosition,
+                .FirstNormal = firstNormal,
+                .FirstTangent = firstTangent,
+                .FirstUv = firstUv,
                 .VertexCount = positionsAccessor.Count,
                 .FirstMeshlet = firstMeshlet,
                 .MeshletCount = meshletsCount,

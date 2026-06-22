@@ -101,10 +101,16 @@ Scene::NewInstanceData Scene::AddToHierarchy(lux::SceneInstanceHandle instance, 
     {
         const bool isTopLevel = node.Parent == lux::SceneHierarchyHandle::INVALID;
         u32 payloadIndex = node.PayloadIndex;
+        u32 blendShapeIndex = lux::SceneHierarchyHandle::INVALID;
         switch (node.Type)
         {
         case lux::SceneHierarchyNodeType::Mesh:
-            payloadIndex += addResult.FirstRenderObject;
+            {
+                auto& renderObject = sceneAsset.Geometry.RenderObjects[payloadIndex];
+                if (renderObject.BlendShapeIndex != lux::SceneRenderObject::INVALID)
+                    blendShapeIndex = renderObject.BlendShapeIndex + addResult.FirstBlendShape;
+                payloadIndex += addResult.FirstRenderObject;
+            }
             break;
         case lux::SceneHierarchyNodeType::Light:
             payloadIndex = m_Lights.Add(sceneAsset.Lights.Lights[payloadIndex]);
@@ -121,6 +127,7 @@ Scene::NewInstanceData Scene::AddToHierarchy(lux::SceneInstanceHandle instance, 
                 baseTransform.Combine(node.LocalTransform) :
                 node.LocalTransform,
             .PayloadIndex = payloadIndex,
+            .BlendShapeBaseIndex = blendShapeIndex,
             .Instance = instance
         });
     }
@@ -146,6 +153,9 @@ Scene::NewInstanceData Scene::AddToHierarchy(lux::SceneInstanceHandle instance, 
             .ScaleChannel = animation.ScaleChannel == lux::SceneHierarchyAnimation::INVALID ?
                 animation.ScaleChannel : 
                 animationChannels.insert(instanceHierarchy.AnimationChannels[animation.ScaleChannel]),
+            .WeightChannel = animation.WeightChannel == lux::SceneHierarchyAnimation::INVALID ?
+                animation.WeightChannel : 
+                animationChannels.insert(instanceHierarchy.AnimationChannels[animation.WeightChannel]),
         });
     
     return {
@@ -317,6 +327,8 @@ void Scene::Sweep(bool reclaimHandles)
                 m_HierarchyInfo.AnimationChannels.erase(animation.OrientationChannel);
             if (animation.ScaleChannel != lux::SceneHierarchyHandle::INVALID)
                 m_HierarchyInfo.AnimationChannels.erase(animation.ScaleChannel);
+            if (animation.WeightChannel != lux::SceneHierarchyHandle::INVALID)
+                m_HierarchyInfo.AnimationChannels.erase(animation.WeightChannel);
             
             std::swap(animation, m_HierarchyInfo.Animations.back());
             m_HierarchyInfo.Animations.pop_back();
@@ -386,6 +398,14 @@ void updateJointMatrix(Buffer jointMatrices, u32 jointIndex, const glm::mat4& tr
         jointIndex * sizeof(glm::mat4));
 }
 
+void updateBlendShapeWeight(Buffer blendShapes, u32 blendShapeIndex, f32 weight, ResourceUploader& uploader)
+{
+    uploader.UpdateBuffer(
+        blendShapes,
+        weight,
+        blendShapeIndex * sizeof(BlendShapeGPU) + offsetof(BlendShapeGPU, Weight));
+}
+
 void updateLight(lux::CommonLight& light, const glm::mat4& transform)
 {
     switch (light.Type)
@@ -409,111 +429,27 @@ void Scene::UpdateHierarchy(FrameContext& ctx)
     UpdateTransforms(ctx);
 }
 
-namespace
-{
-glm::vec3 interpolateTranslations(const glm::vec3& current, const glm::vec3& next, f32 t,
-    lux::SceneHierarchyAnimationSamplerType samplerType)
-{
-    switch (samplerType)
-    {
-    case lux::SceneHierarchyAnimationSamplerType::Linear:
-        return glm::mix(current, next, t);
-    case lux::SceneHierarchyAnimationSamplerType::Step:
-        return current;
-    case lux::SceneHierarchyAnimationSamplerType::CubicSpline:
-        ASSERT(false)
-        break;
-    }
-    
-    return current;
-}
-glm::vec3 interpolateScales(const glm::vec3& current, const glm::vec3& next, f32 t,
-    lux::SceneHierarchyAnimationSamplerType samplerType)
-{
-    return interpolateTranslations(current, next, t, samplerType);
-}
-glm::quat interpolateOrientations(const glm::quat& current, const glm::quat& next, f32 t,
-    lux::SceneHierarchyAnimationSamplerType samplerType)
-{
-    switch (samplerType)
-    {
-    case lux::SceneHierarchyAnimationSamplerType::Linear:
-        return glm::slerp(current, next, t);
-    case lux::SceneHierarchyAnimationSamplerType::Step:
-        return current;
-    case lux::SceneHierarchyAnimationSamplerType::CubicSpline:
-        ASSERT(false)
-        break;
-    }
-    
-    return current;
-}
-}
-
 void Scene::UpdateAnimations(FrameContext& ctx)
 {
     auto& channels = m_HierarchyInfo.AnimationChannels;
     
     for (auto& animationChannel : channels)
-    {
-        if (animationChannel.Keyframes.size() < 2)
-        {
-            animationChannel.Interpolated = animationChannel.Keyframes.front();
-            continue;
-        }
-        
-        const u32 frame = animationChannel.Frame;
-        const u32 nextFrame = animationChannel.Frame + 1;
-        const f32 t = Math::ilerp(
-            animationChannel.Timestamps[frame],
-            animationChannel.Timestamps[nextFrame],
-            animationChannel.Timestamp
-        );
         animationChannel.Tick(ctx.Dt);
-        if (t < 0)
-        {
-            animationChannel.Interpolated = animationChannel.Keyframes.front();
-            continue;
-        }
-        
-        switch (animationChannel.Type) 
-        {
-        case lux::SceneHierarchyAnimationChannelType::Translation:
-            {
-                const glm::vec3 translation = animationChannel.Keyframes[frame].Translation;
-                const glm::vec3 translationNext = animationChannel.Keyframes[nextFrame].Translation;
-                animationChannel.Interpolated.Translation =
-                    interpolateTranslations(translation, translationNext, t, animationChannel.SamplerType);
-                break;
-            }
-        case lux::SceneHierarchyAnimationChannelType::Orientation:
-            {
-                const glm::quat orientation = animationChannel.Keyframes[frame].Orientation;
-                const glm::quat orientationNext = animationChannel.Keyframes[nextFrame].Orientation;
-                animationChannel.Interpolated.Orientation =
-                    interpolateOrientations(orientation, orientationNext, t, animationChannel.SamplerType);
-                break;
-            }
-        case lux::SceneHierarchyAnimationChannelType::Scale:
-            {
-                const glm::vec3 scale = animationChannel.Keyframes[frame].Scale;
-                const glm::vec3 scaleNext = animationChannel.Keyframes[nextFrame].Scale;
-                animationChannel.Interpolated.Scale =
-                    interpolateScales(scale, scaleNext, t, animationChannel.SamplerType);
-                break;
-            }
-        }
-    }
     
     for (auto& animation : m_HierarchyInfo.Animations)
     {
         auto& node = m_HierarchyInfo.Nodes[animation.Node.Handle];
         if (animation.TranslationChannel != lux::SceneHierarchyAnimation::INVALID)
-            node.LocalTransform.Position = channels[animation.TranslationChannel].Interpolated.Translation;
+            node.LocalTransform.Position = channels[animation.TranslationChannel].GetInterpolated().Translation;
         if (animation.OrientationChannel != lux::SceneHierarchyAnimation::INVALID)
-            node.LocalTransform.Orientation = channels[animation.OrientationChannel].Interpolated.Orientation;
+            node.LocalTransform.Orientation = channels[animation.OrientationChannel].GetInterpolated().Orientation;
         if (animation.ScaleChannel != lux::SceneHierarchyAnimation::INVALID)
-            node.LocalTransform.Scale = channels[animation.ScaleChannel].Interpolated.Scale;
+            node.LocalTransform.Scale = channels[animation.ScaleChannel].GetInterpolated().Scale;
+        if (animation.WeightChannel != lux::SceneHierarchyAnimation::INVALID)
+            for (u32 element = 0; element < channels[animation.WeightChannel].ElementCount(); element++)
+                updateBlendShapeWeight(Device::GetBufferArenaUnderlyingBuffer(Geometry().BlendShapes),
+                    node.BlendShapeBaseIndex + element,
+                    channels[animation.WeightChannel].GetInterpolated(element).Weight, *ctx.ResourceUploader);
     }
 }
 

@@ -11,6 +11,7 @@ struct SceneGeometryRGResources
     RG::Resource Indices{};
     RG::Resource JointMatrices{};
     RG::Resource Skins{};
+    RG::Resource BlendShapes{};
     RG::Resource Materials{};
     RG::Resource RenderObjectSkinnedInfos{};
     RG::Resource RenderObjectSkinnedInfoIndices{};

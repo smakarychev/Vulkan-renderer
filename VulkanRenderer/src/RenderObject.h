@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include "RenderGraph/Passes/Generated/Types/BlendShapeUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/MeshletBoundsUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/MeshletUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/RenderObjectSkinnedInfoUniform.generated.h"
@@ -39,6 +40,8 @@ struct RenderObjectGPU : gen::RenderObject {};
 struct RenderObjectSkinnedInfoGPU : gen::RenderObjectSkinnedInfo {};
 
 struct SkinGPU : gen::Skin {};
+
+struct BlendShapeGPU : gen::BlendShape {};
 
 struct SkinnedVertexGPU : gen::SkinnedVertex {};
 

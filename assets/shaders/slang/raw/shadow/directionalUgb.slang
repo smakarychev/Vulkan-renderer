@@ -32,7 +32,7 @@ VSOutput main(uint baseInstance : SV_StartInstanceLocation, uint vertexID: SV_Ve
     
     float4 position;
     [branch]
-    if (WaveActiveBitOr(renderObject.skinIndex != ~0u)) {
+    if (WaveActiveBitOr(renderObject.isDeformed())) {
         SkinnedVertex vertex = resources.ugb.skinnedVertex(renderObject.positionIndex + vertexOffset);
         position = float4(vertex.position, 1.0f);
     }

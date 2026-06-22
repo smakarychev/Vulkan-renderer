@@ -1,6 +1,6 @@
 ﻿#include "SceneBaker.h"
 
-#include "SceneUtils.h"
+#include "Private/SceneUtils.h"
 
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
@@ -882,58 +882,47 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
         auto indices = readIndices(gltf, indexAccessor);
         CHECK_RETURN_IO_ERROR_PROPAGATE(indices)
 
-        std::vector<glm::vec3> positions;
-        std::vector<glm::vec3> normals;
-        std::vector<glm::vec4> tangents;
-        std::vector<glm::vec2> uvs;
-        std::vector<glm::u16vec4> joints;
-        std::vector<glm::vec4> weights;
+        utils::Attributes attributes = {};
         for (auto& attribute : primitive.attributes)
         {
             const tinygltf::Accessor& attributeAccessor = gltf.accessors[attribute.second];
             if (attribute.first == assetlib::MeshAttribute::POSITION_NAME)
-                copyBufferToVector(positions, gltf, attributeAccessor);
+                copyBufferToVector(attributes.Positions, gltf, attributeAccessor);
             else if (attribute.first == assetlib::MeshAttribute::NORMAL_NAME)
-                copyBufferToVector(normals, gltf, attributeAccessor);
+                copyBufferToVector(attributes.Normals, gltf, attributeAccessor);
             else if (attribute.first == assetlib::MeshAttribute::TANGENT_NAME)
-                copyBufferToVector(tangents, gltf, attributeAccessor);
+                copyBufferToVector(attributes.Tangents, gltf, attributeAccessor);
             else if (attribute.first == assetlib::MeshAttribute::UV0_NAME)
-                copyBufferToVector(uvs, gltf, attributeAccessor);
+                copyBufferToVector(attributes.UVs, gltf, attributeAccessor);
             else if (attribute.first == assetlib::MeshAttribute::JOINTS0_NAME)
             {
                 auto jointsRead = readJoints(gltf, attributeAccessor);
                 CHECK_RETURN_IO_ERROR_PROPAGATE(jointsRead)
-                joints = std::move(*jointsRead);
+                attributes.Joints = std::move(*jointsRead);
             }
             else if (attribute.first == assetlib::MeshAttribute::WEIGHTS0_NAME)
-                copyBufferToVector(weights, gltf, attributeAccessor);
+                copyBufferToVector(attributes.Weights, gltf, attributeAccessor);
         }
-        CHECK_RETURN_IO_ERROR(!positions.empty(), IoError::ErrorCode::GeneralError,
+        CHECK_RETURN_IO_ERROR(!attributes.Positions.empty(), IoError::ErrorCode::GeneralError,
             "Failed to process mesh {}. The mesh has no positions data", mesh.name)
 
-        const bool hasNormals = !normals.empty();
-        const bool hasTangents = !tangents.empty();
-        const bool hasUVs = !uvs.empty();
+        const bool hasNormals = !attributes.Normals.empty();
+        const bool hasTangents = !attributes.Tangents.empty();
+        const bool hasUVs = !attributes.UVs.empty();
 
         if (!hasNormals)
-            generateTriangleNormals(normals, positions, *indices);
+            generateTriangleNormals(attributes.Normals, attributes.Positions, *indices);
         if (!hasTangents && hasUVs)
-            generateTriangleTangents(tangents, positions, normals, uvs, *indices);
+            generateTriangleTangents(attributes.Tangents, attributes.Positions, attributes.Normals, attributes.UVs, 
+                *indices);
         if (!hasTangents)
-            tangents.resize(positions.size(), glm::vec4{0.0f, 0.0f, 1.0f, 1.0f});
+            attributes.Tangents.resize(attributes.Positions.size(), glm::vec4{0.0f, 0.0f, 1.0f, 1.0f});
         if (!hasUVs)
-            uvs.resize(positions.size(), glm::vec2{0.0});
+            attributes.UVs.resize(attributes.Positions.size(), glm::vec2{0.0});
 
-        utils::Attributes attributes{
-            .Positions = &positions,
-            .Normals = &normals,
-            .Tangents = &tangents,
-            .UVs = &uvs,
-            .Joints = &joints,
-            .Weights = &weights
-        };
-        utils::remapMesh(attributes, *indices);
-        auto&& [meshlets, meshletIndices] = utils::createMeshlets(attributes, *indices);
+        utils::RemapContext remapContext = {};
+        utils::remapMesh(remapContext, attributes, *indices);
+        auto&& [meshlets, meshletIndices] = utils::createMeshlets(remapContext, attributes, *indices);
         auto&& [sphere, box] = utils::meshBoundingVolumes(meshlets);
         
         auto addAttribute = [&ctx](auto& source, auto& destination, auto& attributes, 
@@ -948,15 +937,15 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
         };
         
         std::vector<assetlib::MeshAttribute> meshAttributes;
-        addAttribute(positions, ctx.Positions, meshAttributes, assetlib::MeshAttribute::POSITION_NAME);
-        addAttribute(normals, ctx.Normals, meshAttributes, assetlib::MeshAttribute::NORMAL_NAME);
-        addAttribute(tangents, ctx.Tangents, meshAttributes, assetlib::MeshAttribute::TANGENT_NAME);
-        addAttribute(uvs, ctx.UVs, meshAttributes, assetlib::MeshAttribute::UV0_NAME);
-        if (!joints.empty())
+        addAttribute(attributes.Positions, ctx.Positions, meshAttributes, assetlib::MeshAttribute::POSITION_NAME);
+        addAttribute(attributes.Normals, ctx.Normals, meshAttributes, assetlib::MeshAttribute::NORMAL_NAME);
+        addAttribute(attributes.Tangents, ctx.Tangents, meshAttributes, assetlib::MeshAttribute::TANGENT_NAME);
+        addAttribute(attributes.UVs, ctx.UVs, meshAttributes, assetlib::MeshAttribute::UV0_NAME);
+        if (!attributes.Joints.empty())
         {
-            ASSERT(joints.size() == weights.size())
-            addAttribute(joints, ctx.Joints, meshAttributes, assetlib::MeshAttribute::JOINTS0_NAME);
-            addAttribute(weights, ctx.Weights, meshAttributes, assetlib::MeshAttribute::WEIGHTS0_NAME);
+            ASSERT(attributes.Joints.size() == attributes.Weights.size())
+            addAttribute(attributes.Joints, ctx.Joints, meshAttributes, assetlib::MeshAttribute::JOINTS0_NAME);
+            addAttribute(attributes.Weights, ctx.Weights, meshAttributes, assetlib::MeshAttribute::WEIGHTS0_NAME);
         }
         addAttribute(meshlets, ctx.Meshlets, meshAttributes, assetlib::MeshAttribute::MESHLET_NAME);
 
@@ -966,28 +955,29 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
         {
             assetlib::MeshPrimitiveBlendShape blendShape = {};
             
+            utils::Attributes blendShapeAttributes = {};
             for (auto&& [attributeName, accessorIndex] : target)
             {
                 const tinygltf::Accessor& attributeAccessor = gltf.accessors[accessorIndex];
                 if (attributeName == assetlib::MeshAttribute::POSITION_NAME)
-                {
-                    std::vector<glm::vec3> targetData;
-                    copyBufferToVector(targetData, gltf, attributeAccessor);
-                    addAttribute(targetData, ctx.Positions, blendShape.Attributes, attributeName);
-                }
+                    copyBufferToVector(blendShapeAttributes.Positions, gltf, attributeAccessor);
                 else if (attributeName == assetlib::MeshAttribute::NORMAL_NAME)
-                {
-                    std::vector<glm::vec3> targetData;
-                    copyBufferToVector(targetData, gltf, attributeAccessor);
-                    addAttribute(targetData, ctx.Normals, blendShape.Attributes, attributeName);
-                }
+                    copyBufferToVector(blendShapeAttributes.Normals, gltf, attributeAccessor);
                 else if (attributeName == assetlib::MeshAttribute::TANGENT_NAME)
-                {
-                    std::vector<glm::vec4> targetData;
-                    copyBufferToVector(targetData, gltf, attributeAccessor);
-                    addAttribute(targetData, ctx.Tangents, blendShape.Attributes, attributeName);
-                }
+                    copyBufferToVector(blendShapeAttributes.Tangents, gltf, attributeAccessor);
             }
+
+            utils::remapBlendShapeAttributes(remapContext, blendShapeAttributes);
+            
+            if (!blendShapeAttributes.Positions.empty())
+                addAttribute(blendShapeAttributes.Positions, ctx.Positions, blendShape.Attributes,
+                    assetlib::MeshAttribute::POSITION_NAME);
+            if (!blendShapeAttributes.Normals.empty())
+                addAttribute(blendShapeAttributes.Normals, ctx.Normals, blendShape.Attributes, 
+                    assetlib::MeshAttribute::NORMAL_NAME);
+            if (!blendShapeAttributes.Tangents.empty())
+                addAttribute(blendShapeAttributes.Tangents, ctx.Tangents, blendShape.Attributes, 
+                    assetlib::MeshAttribute::TANGENT_NAME);
             
             if ((u64)targetIndex < mesh.weights.size())
                 blendShape.Weight = (f32)mesh.weights[targetIndex];

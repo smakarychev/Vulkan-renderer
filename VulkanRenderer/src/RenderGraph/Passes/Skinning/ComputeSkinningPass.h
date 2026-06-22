@@ -12,6 +12,7 @@ struct ExecutionInfo
     RG::Resource RenderObjectSkinnedInfoIndices{};
     RG::Resource Ugb{};
     RG::Resource JointMatrices{};
+    RG::Resource BlendShapes{};
     u32 SkinnedRenderObjectCount{0};
     u32 SkinnedMeshletCount{0};
 };

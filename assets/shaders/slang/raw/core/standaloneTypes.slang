@@ -19,6 +19,7 @@ struct Resources {
     RenderObject ro;
     RenderObjectSkinnedInfo rosi;
     Skin sk;
+    BlendShape bs;
     Meshlet mshlt;
     MeshletBounds mshltbnds;
     DrawInfo di;

@@ -464,7 +464,7 @@ void Renderer::SetupRenderGraph()
     
     if (m_Scene->Geometry().SkinnedRenderObjectCount > 0)
     {
-        auto skinning = Passes::ComputeSkinning::addToGraph("Skinning"_hsv, *m_Graph, {
+        auto& skinning = Passes::ComputeSkinning::addToGraph("Skinning"_hsv, *m_Graph, {
             .RenderObjects = m_SceneGeometryRGResources.RenderObjects,
             .Meshlets = m_SceneGeometryRGResources.Meshlets,
             .Skins = m_SceneGeometryRGResources.Skins,
@@ -472,6 +472,7 @@ void Renderer::SetupRenderGraph()
             .RenderObjectSkinnedInfoIndices = m_SceneGeometryRGResources.RenderObjectSkinnedInfoIndices,
             .Ugb = m_SceneGeometryRGResources.Attributes,
             .JointMatrices = m_SceneGeometryRGResources.JointMatrices,
+            .BlendShapes = m_SceneGeometryRGResources.BlendShapes,
             .SkinnedRenderObjectCount = m_Scene->Geometry().SkinnedRenderObjectCount,
             .SkinnedMeshletCount = m_Scene->Geometry().SkinnedMeshletCount
         });

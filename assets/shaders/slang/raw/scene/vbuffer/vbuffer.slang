@@ -79,7 +79,7 @@ public struct VBufferGeometryData {
         float3x3 tangents;
         float handedness;
         [branch]
-        if (renderObject.skinIndex != ~0u) {
+        if (renderObject.isDeformed()) {
             SkinnedVertex vertexA = ugb.skinnedVertex(renderObject.positionIndex + indices.x);
             SkinnedVertex vertexB = ugb.skinnedVertex(renderObject.positionIndex + indices.y);
             SkinnedVertex vertexC = ugb.skinnedVertex(renderObject.positionIndex + indices.z);

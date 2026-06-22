@@ -24,6 +24,8 @@ SceneGeometryRGResources SceneGeometryRGResources::ForGeometry(const SceneGeomet
             renderGraph.Import("JointMatrices"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.JointMatrices)),
         .Skins = 
             renderGraph.Import("Skins"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Skins)),
+        .BlendShapes = 
+            renderGraph.Import("BlendShapes"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.BlendShapes)),
         .Materials = 
             renderGraph.Import("Materials"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Materials)),
         .RenderObjectSkinnedInfos = 

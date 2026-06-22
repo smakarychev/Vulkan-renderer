@@ -35,7 +35,7 @@ struct SceneGeometryInfo
 
     std::vector<SceneRenderObject> RenderObjects;
     std::vector<SceneSkin> Skins;
-    std::vector<SceneBlendShape> SceneBlendShapes;
+    std::vector<SceneBlendShape> BlendShapes;
     std::vector<SceneSkinJoints> SkinJoints;
     std::vector<MaterialGPU> Materials;
     std::vector<assetlib::SceneAssetMeshlet> Meshlets;
@@ -91,7 +91,10 @@ struct SceneRenderObject
     
     u32 Material{};
     u32 FirstIndex{};
-    u32 FirstVertex{};
+    u32 FirstPosition{};
+    u32 FirstNormal{};
+    u32 FirstTangent{};
+    u32 FirstUv{};
     u32 VertexCount{};
     u32 FirstMeshlet{};
     u32 MeshletCount{};
@@ -168,11 +171,13 @@ enum class SceneHierarchyNodeType : u16
 
 struct SceneHierarchyNode
 {
+    static constexpr u32 INVALID = ~0u;
     SceneHierarchyNodeType Type{SceneHierarchyNodeType::Dummy};
     u16 Depth{0};
     SceneHierarchyHandle Parent{};
     Transform3d LocalTransform{};
     u32 PayloadIndex{0};
+    u32 BlendShapeBaseIndex{INVALID};
     SceneInstanceHandle Instance{};
 };
 struct SceneHierarchyJoint
@@ -192,9 +197,6 @@ enum class SceneHierarchyAnimationSamplerType : u8
 };
 struct SceneHierarchyAnimationChannel
 {
-    SceneHierarchyAnimationChannelType Type{SceneHierarchyAnimationChannelType::Translation};
-    SceneHierarchyAnimationSamplerType SamplerType{SceneHierarchyAnimationSamplerType::Linear};
-
     union Keyframe
     {
         glm::vec3 Translation;
@@ -202,14 +204,40 @@ struct SceneHierarchyAnimationChannel
         glm::vec3 Scale;
         f32 Weight;
     };
-    std::vector<Keyframe> Keyframes{};
-    u32 KeyframeElementsCount{0};
-    std::vector<f32> Timestamps{};
-    Keyframe Interpolated{};
-    f32 Timestamp{};
-    u32 Frame{};
-    
+ 
+    SceneHierarchyAnimationChannel(
+        SceneHierarchyAnimationChannelType type, SceneHierarchyAnimationSamplerType samplerType, u32 elementCount);
     void Tick(f32 dt);
+    const Keyframe& GetInterpolated() const;
+    const Keyframe& GetInterpolated(u32 elementIndex) const;
+    
+    std::vector<Keyframe>& KeyframesMutable() { return m_Keyframes; }
+    std::vector<f32>& TimestampsMutable() { return m_Timestamps; }
+    u32 ElementCount() const { return m_KeyframeElementCount; }
+private:
+    void Interpolate();
+    void InterpolateTranslation(f32 t);
+    void InterpolateOrientation(f32 t);
+    void InterpolateScale(f32 t);
+    void InterpolateWeight(f32 t);
+    void UpdateTimestamp(f32 dt);
+    void UpdateTimestampPositive();
+    void UpdateTimestampNegative();
+    const Keyframe& GetKeyframe() const;
+    const Keyframe& GetKeyframe(u32 elementIndex) const;
+    const Keyframe& GetNextKeyframe() const;
+    const Keyframe& GetNextKeyframe(u32 elementIndex) const;
+private:
+    SceneHierarchyAnimationChannelType m_Type{SceneHierarchyAnimationChannelType::Translation};
+    SceneHierarchyAnimationSamplerType m_SamplerType{SceneHierarchyAnimationSamplerType::Linear};
+    u32 m_KeyframeElementCount{0};
+    
+    std::vector<Keyframe> m_InterpolatedArray{};
+    f32 m_Timestamp{};
+    u32 m_Frame{};
+    
+    std::vector<Keyframe> m_Keyframes{};
+    std::vector<f32> m_Timestamps{};
 };
 
 struct SceneHierarchyAnimation

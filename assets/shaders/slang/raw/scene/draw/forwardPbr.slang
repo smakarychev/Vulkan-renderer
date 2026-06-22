@@ -61,7 +61,7 @@ VSOutput vertexMain(uint baseInstance : SV_StartInstanceLocation, uint vertexID:
     float4 tangent;
 
     [branch]
-    if (WaveActiveBitOr(renderObject.skinIndex != ~0u)) {
+    if (WaveActiveBitOr(renderObject.isDeformed())) {
         SkinnedVertex vertex = resources.ugb.skinnedVertex(renderObject.positionIndex + vertexOffset);
         positionWs = float4(vertex.position, 1.0f);
         normal = vertex.normal;

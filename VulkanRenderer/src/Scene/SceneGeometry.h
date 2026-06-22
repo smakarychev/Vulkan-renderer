@@ -30,6 +30,7 @@ public:
         u32 FirstRenderObject{0};
         u32 FirstJoint{0};
         u32 FirstJointMatrix{0};
+        u32 FirstBlendShape{0};
     };
 public:
     static SceneGeometry CreateEmpty(DeletionQueue& deletionQueue);
@@ -74,6 +75,7 @@ public:
     BufferArena RenderObjects{};
     BufferArena JointMatrices{};
     BufferArena Skins{};
+    BufferArena BlendShapes{};
     BufferArena Materials{};
     BufferArena RenderObjectSkinnedInfos{};
     std::vector<u32> RenderObjectSkinnedInfosIndices{};
@@ -92,6 +94,7 @@ private:
         BufferSuballocation RenderObjectSkinnedInfosSuballocation{};
         BufferSuballocation JointMatricesSuballocation{};
         BufferSuballocation SkinsSuballocation{};
+        BufferSuballocation BlendShapesSuballocation{};
         BufferSuballocation SkinnedVertexSuballocation{};
         BufferSuballocation SkinnedMeshletBoundSuballocation{};
         u32 SkinnedRenderObjectCount{};
@@ -111,5 +114,6 @@ private:
     static constexpr u64 DEFAULT_SKINNED_RENDER_OBJECTS_BUFFER_ARENA_SIZE_BYTES = 1llu * 512 * 1024;
     static constexpr u64 DEFAULT_JOINT_MATRICES_BUFFER_ARENA_SIZE_BYTES = 1llu * 1024 * 1024;
     static constexpr u64 DEFAULT_SKINS_BUFFER_ARENA_SIZE_BYTES = 1llu * 1024 * 1024;
+    static constexpr u64 DEFAULT_BLEND_SHAPES_BUFFER_ARENA_SIZE_BYTES = 1llu * 512 * 1024;
     static constexpr u64 DEFAULT_MATERIALS_BUFFER_ARENA_SIZE_BYTES = 1llu * 512 * 1024;
 };

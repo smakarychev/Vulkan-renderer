@@ -9,17 +9,20 @@ static const uint SKIN_VERTEX_DISPATCH_COUNT = 128;
 
 [StandaloneType("skinDispatchInfo")]
 public struct SkinDispatchInfo {
-    public uint renderObjectIndex;
     public uint sourceMeshletBoundIndex;
     public uint sourcePosition;
     public uint sourceNormal;
     public uint sourceTangent;
     public uint sourceJoint;
     public uint sourceWeight;
+    public uint blendShapeIndex;
+    public uint blendShapeCount;
     public uint jointMatrixOffset;
+    public uint vertexCount;
+    public uint vertexOffset;
     public uint skinnedVertexIndex;
     public uint skinnedMeshletBoundIndex;
-    public uint vertexCount;
+    public float4x4 renderObjectTransform;
 }
 
 [StandaloneType("renderObjectSkinnedInfo")]
@@ -29,6 +32,9 @@ public struct RenderObjectSkinnedInfo {
     public uint positionIndex;
     public uint normalIndex;
     public uint tangentIndex;
+    public uint blendShapeIndex;
+    public uint blendShapeCount;
+    public bool hasSkin;
     public uint skinnedVertexIndex;
     public uint skinnedMeshletBoundIndex;
     public uint vertexCount;
@@ -40,6 +46,14 @@ public struct Skin {
     public uint jointIndex;
     public uint jointOffset;
     public uint weightIndex;
+}
+
+[StandaloneType("blendShape")]
+public struct BlendShape {
+    public uint positionIndex;
+    public uint normalIndex;
+    public uint tangentIndex;
+    public float weight;
 }
 
 struct PrepareComputeSkinningResources {
@@ -80,23 +94,37 @@ void prepareComputeSkinning(uint dispatchThreadID: SV_DispatchThreadID,
     resources.objects[skinnedInfo.renderObjectIndex].tangentIndex = skinnedInfo.skinnedVertexIndex;
     resources.objects[skinnedInfo.renderObjectIndex].meshletBoundIndex = skinnedInfo.skinnedMeshletBoundIndex;
     const RenderObject object = resources.objects[skinnedInfo.renderObjectIndex];
-    const Skin skin = resources.skins[object.skinIndex];
+    Skin skin;
+    if (skinnedInfo.hasSkin)
+        skin = resources.skins[object.skinIndex];
 
     uint vertexOffset = 0;
     for (uint i = 0; i < meshletCount; i++) {
         const Meshlet meshlet = resources.meshlets.meshlet(object.meshletIndex + i);
         SkinDispatchInfo skinDispatchInfo;
-        skinDispatchInfo.renderObjectIndex = skinnedInfo.renderObjectIndex;
+        skinDispatchInfo.renderObjectTransform = object.transform;
         skinDispatchInfo.sourceMeshletBoundIndex = skinnedInfo.meshletBoundIndex + i;
-        skinDispatchInfo.vertexCount = meshlet.vertexCount;
         
         skinDispatchInfo.sourcePosition = skinnedInfo.positionIndex + vertexOffset;
         skinDispatchInfo.sourceNormal = skinnedInfo.normalIndex + vertexOffset;
         skinDispatchInfo.sourceTangent = skinnedInfo.tangentIndex + vertexOffset;
-        skinDispatchInfo.sourceJoint = skin.jointIndex + vertexOffset;
-        skinDispatchInfo.sourceWeight = skin.weightIndex + vertexOffset;
 
-        skinDispatchInfo.jointMatrixOffset = skin.jointMatrixIndex;
+        if (skinnedInfo.hasSkin) {
+            skinDispatchInfo.sourceJoint = skin.jointIndex + vertexOffset;
+            skinDispatchInfo.sourceWeight = skin.weightIndex + vertexOffset;
+            skinDispatchInfo.jointMatrixOffset = skin.jointMatrixIndex;
+        } else {
+            skinDispatchInfo.sourceJoint = ~0u;
+            skinDispatchInfo.sourceWeight = ~0u;
+            skinDispatchInfo.jointMatrixOffset = ~0u;
+        }
+        
+        skinDispatchInfo.blendShapeIndex = skinnedInfo.blendShapeIndex;
+        skinDispatchInfo.blendShapeCount = skinnedInfo.blendShapeCount;
+        
+        skinDispatchInfo.vertexCount = meshlet.vertexCount;
+        skinDispatchInfo.vertexOffset = vertexOffset;
+
         skinDispatchInfo.skinnedVertexIndex = object.positionIndex + vertexOffset;
         skinDispatchInfo.skinnedMeshletBoundIndex = object.meshletBoundIndex + i;
 
@@ -183,6 +211,7 @@ struct ComputeSkinningResources {
     UGBMeshletsSkinning meshlets;
 
     StructuredBuffer<float4x4> jointMatrices;
+    StructuredBuffer<BlendShape> blendShapes;
 }
 
 struct AABB {
@@ -214,25 +243,48 @@ void computeSkinning(uint workgroupID: SV_GroupID,
             sAabbs[waveIndex] = AABB(float3(1e+11), float3(-1e+11));
         return;
     }
-  
-    float4x4 skinMatrix = float4x4(0.0f);
-    const float4 weights = resources.ugb.weight(skinDispatchInfo.sourceWeight + groupThreadId);
-    const uint16_t4 joints = resources.ugb.joint(skinDispatchInfo.sourceJoint + groupThreadId) + 
-        skinDispatchInfo.jointMatrixOffset;
-
-    skinMatrix +=
-        weights.x * resources.jointMatrices[joints.x] +
-        weights.y * resources.jointMatrices[joints.y] +
-        weights.z * resources.jointMatrices[joints.z] +
-        weights.w * resources.jointMatrices[joints.w];
 
     float3 position = resources.ugb.position(skinDispatchInfo.sourcePosition + groupThreadId);
     float3 normal = resources.ugb.normal(skinDispatchInfo.sourceNormal + groupThreadId);
     float4 tangent = resources.ugb.tangent(skinDispatchInfo.sourceTangent + groupThreadId);
 
-    position = mul(float4(position, 1.0f), skinMatrix).xyz;
-    normal = mul(normal, float3x3(skinMatrix));
-    tangent.xyz = mul(tangent.xyz, float3x3(skinMatrix));
+    for (uint i = 0; i < skinDispatchInfo.blendShapeCount; i++) {
+        const BlendShape blendShape = resources.blendShapes[skinDispatchInfo.blendShapeIndex + i];
+        if (blendShape.positionIndex != ~0u) {
+            const uint blendPositionIndex = blendShape.positionIndex + skinDispatchInfo.vertexOffset + groupThreadId;
+            position += resources.ugb.position(blendPositionIndex) * blendShape.weight;
+        }
+        if (blendShape.normalIndex != ~0u) {
+            const uint blendNormalIndex = blendShape.normalIndex + skinDispatchInfo.vertexOffset + groupThreadId;
+            normal += resources.ugb.normal(blendNormalIndex) * blendShape.weight;
+        }
+        if (blendShape.tangentIndex != ~0u) {
+            const uint blendTangentIndex = blendShape.tangentIndex + skinDispatchInfo.vertexOffset + groupThreadId;
+            tangent += resources.ugb.tangent(blendTangentIndex) * blendShape.weight;
+        }
+    }
+
+    [branch]
+    if (WaveActiveBitOr(skinDispatchInfo.sourceJoint != ~0u)) {
+        float4x4 skinMatrix = float4x4(0.0f);
+        const float4 weights = resources.ugb.weight(skinDispatchInfo.sourceWeight + groupThreadId);
+        const uint16_t4 joints = resources.ugb.joint(skinDispatchInfo.sourceJoint + groupThreadId) + 
+            skinDispatchInfo.jointMatrixOffset;
+
+        skinMatrix +=
+            weights.x * resources.jointMatrices[joints.x] +
+            weights.y * resources.jointMatrices[joints.y] +
+            weights.z * resources.jointMatrices[joints.z] +
+            weights.w * resources.jointMatrices[joints.w];
+
+        position = mul(float4(position, 1.0f), skinMatrix).xyz;
+        normal = mul(normal, float3x3(skinMatrix));
+        tangent.xyz = mul(tangent.xyz, float3x3(skinMatrix));
+    } else {
+        position = mul(float4(position, 1.0f), skinDispatchInfo.renderObjectTransform).xyz;
+        normal = mul(normal, float3x3(skinDispatchInfo.renderObjectTransform));
+        tangent.xyz = mul(tangent.xyz, float3x3(skinDispatchInfo.renderObjectTransform));
+    }
 
     resources.ugb.writeSkinnedVertex(
         skinDispatchInfo.skinnedVertexIndex + groupThreadId, SkinnedVertex(position, normal, tangent));

@@ -19,8 +19,10 @@ public struct RenderObject {
     public uint meshletBoundIndex;
     public uint meshletCount;
     public uint skinIndex;
+    public uint blendShapeIndex;
+    public uint blendShapeCount;
 
-    public bool isSkinned() { return skinIndex != ~0u; }
+    public bool isDeformed() { return skinIndex != ~0u || blendShapeCount > 0; }
 }
 
 // todo: compress, see remedy alan wake 2
