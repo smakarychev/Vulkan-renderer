@@ -171,6 +171,14 @@ struct AccessorDataTypeTraits<u8>
 };
 
 template <>
+struct AccessorDataTypeTraits<u32>
+{
+    static constexpr assetlib::GeometryBufferAccessorType TYPE = assetlib::GeometryBufferAccessorType::Scalar;
+    static constexpr assetlib::GeometryBufferAccessorComponentType COMPONENT_TYPE =
+        assetlib::GeometryBufferAccessorComponentType::U32;
+};
+
+template <>
 struct AccessorDataTypeTraits<f32>
 {
     static constexpr assetlib::GeometryBufferAccessorType TYPE = assetlib::GeometryBufferAccessorType::Scalar;
@@ -226,6 +234,9 @@ struct ProcessContext
     };
     AccessorProxy<f32> AnimationWeightKeyframes{
         .ViewIndex = (u32)assetlib::GeometryBufferViewType::AnimationWeightKeyframe
+    };
+    AccessorProxy<u32> SparseIndices{
+        .ViewIndex = (u32)assetlib::GeometryBufferViewType::SparseAccessorIndex
     };
 
     assetlib::SceneAsset SceneAsset{};
@@ -285,6 +296,8 @@ public:
             "AnimationKeyframeScales";
         geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::AnimationWeightKeyframe].Name = 
             "AnimationKeyframeWeights";
+        geometryBufferHeader.BufferViews[(u32)assetlib::GeometryBufferViewType::SparseAccessorIndex].Name = 
+            "SparseAccessorIndices";
 
         auto writeAndUpdateView = [&geometryBufferHeader, this](auto accessorProxy) {
             const u64 sizeBytes = accessorProxy.Data.size() * sizeof(accessorProxy.Data[0]);
@@ -310,6 +323,7 @@ public:
         writeAndUpdateView(AnimationOrientationKeyframes);
         writeAndUpdateView(AnimationScaleKeyframes);
         writeAndUpdateView(AnimationWeightKeyframes);
+        writeAndUpdateView(SparseIndices);
         
         GeometryBufferAsset.Header.SizeBytes = GeometryBufferAsset.Data.size();
     }
@@ -610,105 +624,7 @@ void processSubscene(ProcessContext& ctx, tinygltf::Model&, tinygltf::Scene& sub
 }
 
 template <typename T>
-void copyBufferToVector(std::vector<T>& vec, tinygltf::Model& gltf, const tinygltf::Accessor& accessor)
-{
-    const tinygltf::BufferView& bufferView = gltf.bufferViews[accessor.bufferView];
-    const tinygltf::Buffer& buffer = gltf.buffers[bufferView.buffer];
-    const u64 elementSizeBytes =
-        (u64)tinygltf::GetNumComponentsInType(accessor.type) *
-        (u64)tinygltf::GetComponentSizeInBytes(accessor.componentType);
-    ASSERT(elementSizeBytes == sizeof(T))
-    const u64 sizeBytes = elementSizeBytes * accessor.count;
-    const u64 offset = bufferView.byteOffset + accessor.byteOffset;
-    const u32 stride = accessor.ByteStride(bufferView);
-
-    vec.resize(accessor.count);
-
-    if (stride == elementSizeBytes)
-        memcpy(vec.data(), buffer.data.data() + offset, sizeBytes);
-    else
-        for (u32 i = 0; i < accessor.count; i++)
-            memcpy(vec.data() + i * elementSizeBytes,
-                buffer.data.data() + offset + (u64)i * stride,
-                elementSizeBytes);
-}
-
-void generateTriangleNormals(std::vector<glm::vec3>& normals,
-    const std::vector<glm::vec3>& positions, const std::vector<u32>& indices)
-{
-    normals.resize(positions.size());
-    for (u32 i = 0; i < indices.size(); i += 3)
-    {
-        const glm::vec3 a = positions[indices[i + 1]] - positions[indices[i + 0]];
-        const glm::vec3 b = positions[indices[i + 2]] - positions[indices[i + 0]];
-        const glm::vec3 normal = glm::normalize(glm::cross(a, b));
-        normals[indices[i + 0]] = normal;
-        normals[indices[i + 1]] = normal;
-        normals[indices[i + 2]] = normal;
-    }
-}
-
-void generateTriangleTangents(std::vector<glm::vec4>& tangents,
-    const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& normals,
-    const std::vector<glm::vec2>& uvs, const std::vector<u32>& indices)
-{
-    struct GeometryInfo
-    {
-        const std::vector<glm::vec3>* Positions{};
-        const std::vector<glm::vec3>* Normals{};
-        const std::vector<glm::vec2>* Uvs{};
-        std::vector<glm::vec4>* Tangents{};
-        const std::vector<u32>* Indices{};
-    };
-    GeometryInfo gi = {
-        .Positions = &positions,
-        .Normals = &normals,
-        .Uvs = &uvs,
-        .Tangents = &tangents,
-        .Indices = &indices
-    };
-
-    tangents.resize(normals.size());
-
-    SMikkTSpaceInterface interface = {};
-    interface.m_getNumFaces = [](const SMikkTSpaceContext* ctx)
-    {
-        return (i32)((GeometryInfo*)ctx->m_pUserData)->Indices->size() / 3;
-    };
-    interface.m_getNumVerticesOfFace = [](const SMikkTSpaceContext*, const i32) { return 3; };
-    interface.m_getPosition = [](const SMikkTSpaceContext* ctx, f32 position[], const i32 face, const i32 vertex)
-    {
-        GeometryInfo* info = (GeometryInfo*)ctx->m_pUserData;
-        const u32 index = (*info->Indices)[face * 3 + vertex];
-        memcpy(position, &(*info->Positions)[index], sizeof(glm::vec3));
-    };
-    interface.m_getNormal = [](const SMikkTSpaceContext* ctx, f32 normal[], const i32 face, const i32 vertex)
-    {
-        GeometryInfo* info = (GeometryInfo*)ctx->m_pUserData;
-        const u32 index = (*info->Indices)[face * 3 + vertex];
-        memcpy(normal, &(*info->Normals)[index], sizeof(glm::vec3));
-    };
-    interface.m_getTexCoord = [](const SMikkTSpaceContext* ctx, f32 uv[], const i32 face, const i32 vertex)
-    {
-        GeometryInfo* info = (GeometryInfo*)ctx->m_pUserData;
-        const u32 index = (*info->Indices)[face * 3 + vertex];
-        memcpy(uv, &(*info->Uvs)[index], sizeof(glm::vec2));
-    };
-    interface.m_setTSpaceBasic = [](const SMikkTSpaceContext* ctx, const f32 tangent[], const f32 sign,
-        const i32 face, const i32 vertex)
-        {
-            GeometryInfo* info = (GeometryInfo*)ctx->m_pUserData;
-            const u32 index = (*info->Indices)[face * 3 + vertex];
-
-            memcpy(&(*info->Tangents)[index], tangent, sizeof(glm::vec3));
-            (*info->Tangents)[index][3] = sign;
-        };
-
-    SMikkTSpaceContext context = {};
-    context.m_pUserData = &gi;
-    context.m_pInterface = &interface;
-    genTangSpaceDefault(&context);
-}
+void copyBufferToVector(std::vector<T>& vec, tinygltf::Model& gltf, const tinygltf::Accessor& accessor);
 
 IoResult<std::vector<u32>> readIndices(tinygltf::Model& gltf, const tinygltf::Accessor& indexAccessor)
 {
@@ -842,6 +758,153 @@ IoResult<std::vector<f32>> readKeyframeWeights(tinygltf::Model& gltf, const tiny
     return decodeAnimationAccessorFormat<f32, i8, u8, i16, u16>(gltf, keyframesAccessor);
 }
 
+template <typename T>
+void copyBufferToVector(std::vector<T>& vec, tinygltf::Model& gltf, const tinygltf::Accessor& accessor)
+{
+    const tinygltf::BufferView& bufferView = gltf.bufferViews[accessor.bufferView];
+    const tinygltf::Buffer& buffer = gltf.buffers[bufferView.buffer];
+    const u64 elementSizeBytes =
+        (u64)tinygltf::GetNumComponentsInType(accessor.type) *
+        (u64)tinygltf::GetComponentSizeInBytes(accessor.componentType);
+    ASSERT(elementSizeBytes == sizeof(T))
+    const u64 sizeBytes = elementSizeBytes * accessor.count;
+    const u64 offset = bufferView.byteOffset + accessor.byteOffset;
+    const u32 stride = accessor.ByteStride(bufferView);
+
+    vec.resize(accessor.count);
+
+    if (stride == elementSizeBytes)
+        memcpy(vec.data(), buffer.data.data() + offset, sizeBytes);
+    else
+        for (u32 i = 0; i < accessor.count; i++)
+            memcpy(vec.data() + i * elementSizeBytes,
+                buffer.data.data() + offset + (u64)i * stride,
+                elementSizeBytes);
+}
+
+using SparseIndicatorVector = std::vector<glm::u16vec4>;
+constexpr u16 NOT_PRESENT_SPARSE_INDICATOR = (u16)~0u;
+constexpr u32 POSITIONS_SPARSE_INDICATOR_ELEMENT = 0;
+constexpr u32 NORMALS_SPARSE_INDICATOR_ELEMENT = 1;
+constexpr u32 TANGENTS_SPARSE_INDICATOR_ELEMENT = 2;
+
+template <typename T>
+void copyBufferToVectorSparseAccessor(std::vector<T>& vec, u32& sparseCount, SparseIndicatorVector& indicators,
+    u32 indicatorType, tinygltf::Model& gltf, const tinygltf::Accessor& accessor)
+{
+    ASSERT(accessor.sparse.isSparse)
+
+    auto& sparse = accessor.sparse;
+    
+    tinygltf::Accessor indexAccessor = {};
+    indexAccessor.type = TINYGLTF_TYPE_SCALAR;
+    indexAccessor.componentType = sparse.indices.componentType;
+    indexAccessor.bufferView = sparse.indices.bufferView;
+    indexAccessor.byteOffset = sparse.indices.byteOffset;
+    indexAccessor.count = sparse.count;
+    
+    tinygltf::Accessor dataAccessor = {};
+    dataAccessor.type = accessor.type;
+    dataAccessor.componentType = accessor.componentType;
+    dataAccessor.bufferView = sparse.values.bufferView;
+    dataAccessor.byteOffset = sparse.values.byteOffset;
+    dataAccessor.count = sparse.count;
+    
+    auto indices = readIndices(gltf, indexAccessor);
+    if (!indices.has_value())
+        return;
+    
+    std::vector<T> dataSparse;
+    copyBufferToVector(dataSparse, gltf, dataAccessor);
+    
+    sparseCount = (u32)dataSparse.size();
+    
+    vec.resize(accessor.count, T{});
+    indicators.resize(accessor.count, glm::u16vec4(NOT_PRESENT_SPARSE_INDICATOR));
+    for (auto&& [local, global] : std::views::enumerate(*indices))
+    {
+        vec[global] = dataSparse[local];
+        indicators[global][(i32)indicatorType] = 1;
+    }
+}
+
+void generateTriangleNormals(std::vector<glm::vec3>& normals,
+    const std::vector<glm::vec3>& positions, const std::vector<u32>& indices)
+{
+    normals.resize(positions.size());
+    for (u32 i = 0; i < indices.size(); i += 3)
+    {
+        const glm::vec3 a = positions[indices[i + 1]] - positions[indices[i + 0]];
+        const glm::vec3 b = positions[indices[i + 2]] - positions[indices[i + 0]];
+        const glm::vec3 normal = glm::normalize(glm::cross(a, b));
+        normals[indices[i + 0]] = normal;
+        normals[indices[i + 1]] = normal;
+        normals[indices[i + 2]] = normal;
+    }
+}
+
+void generateTriangleTangents(std::vector<glm::vec4>& tangents,
+    const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& normals,
+    const std::vector<glm::vec2>& uvs, const std::vector<u32>& indices)
+{
+    struct GeometryInfo
+    {
+        const std::vector<glm::vec3>* Positions{};
+        const std::vector<glm::vec3>* Normals{};
+        const std::vector<glm::vec2>* Uvs{};
+        std::vector<glm::vec4>* Tangents{};
+        const std::vector<u32>* Indices{};
+    };
+    GeometryInfo gi = {
+        .Positions = &positions,
+        .Normals = &normals,
+        .Uvs = &uvs,
+        .Tangents = &tangents,
+        .Indices = &indices
+    };
+
+    tangents.resize(normals.size());
+
+    SMikkTSpaceInterface interface = {};
+    interface.m_getNumFaces = [](const SMikkTSpaceContext* ctx)
+    {
+        return (i32)((GeometryInfo*)ctx->m_pUserData)->Indices->size() / 3;
+    };
+    interface.m_getNumVerticesOfFace = [](const SMikkTSpaceContext*, const i32) { return 3; };
+    interface.m_getPosition = [](const SMikkTSpaceContext* ctx, f32 position[], const i32 face, const i32 vertex)
+    {
+        GeometryInfo* info = (GeometryInfo*)ctx->m_pUserData;
+        const u32 index = (*info->Indices)[face * 3 + vertex];
+        memcpy(position, &(*info->Positions)[index], sizeof(glm::vec3));
+    };
+    interface.m_getNormal = [](const SMikkTSpaceContext* ctx, f32 normal[], const i32 face, const i32 vertex)
+    {
+        GeometryInfo* info = (GeometryInfo*)ctx->m_pUserData;
+        const u32 index = (*info->Indices)[face * 3 + vertex];
+        memcpy(normal, &(*info->Normals)[index], sizeof(glm::vec3));
+    };
+    interface.m_getTexCoord = [](const SMikkTSpaceContext* ctx, f32 uv[], const i32 face, const i32 vertex)
+    {
+        GeometryInfo* info = (GeometryInfo*)ctx->m_pUserData;
+        const u32 index = (*info->Indices)[face * 3 + vertex];
+        memcpy(uv, &(*info->Uvs)[index], sizeof(glm::vec2));
+    };
+    interface.m_setTSpaceBasic = [](const SMikkTSpaceContext* ctx, const f32 tangent[], const f32 sign,
+        const i32 face, const i32 vertex)
+        {
+            GeometryInfo* info = (GeometryInfo*)ctx->m_pUserData;
+            const u32 index = (*info->Indices)[face * 3 + vertex];
+
+            memcpy(&(*info->Tangents)[index], tangent, sizeof(glm::vec3));
+            (*info->Tangents)[index][3] = sign;
+        };
+
+    SMikkTSpaceContext context = {};
+    context.m_pUserData = &gi;
+    context.m_pInterface = &interface;
+    genTangSpaceDefault(&context);
+}
+
 std::string getMeshName(ProcessContext& ctx, tinygltf::Mesh& mesh)
 {
     std::string meshName = mesh.name;
@@ -935,6 +998,52 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
                 .Accessor = accessorIndex
             });
         };
+        auto addAttributeSparse = [&ctx]<typename DataVec>(DataVec& source, u32 sparseCount,
+            SparseIndicatorVector& indicators, u32 indicatorType, auto& indicesDestination, auto& destination,
+            auto& attributes, std::string_view name) {
+            std::vector<u32> sparseIndices(sparseCount);
+            DataVec sparseData(sparseCount);
+
+            u32 sparseIndex = 0;
+            for (u32 i = 0; i < indicators.size(); i++)
+            {
+                if (indicators[i][(i32)indicatorType] == NOT_PRESENT_SPARSE_INDICATOR)
+                    continue;
+
+                sparseIndices[sparseIndex] = i;
+                sparseData[sparseIndex] = source[i];
+                sparseIndex += 1;
+            }
+            
+            const assetlib::GeometryBufferAccessor indicesAccessor = ctx.CreateAccessor(
+                sparseIndices, indicesDestination);
+            const assetlib::GeometryBufferAccessor dataAccessor = ctx.CreateAccessor(sparseData, destination);
+                
+            const assetlib::GeometryBufferAccessor sparseAccessor = {
+                .ComponentType = dataAccessor.ComponentType,
+                .Count = (u32)source.size(),
+                .Type = dataAccessor.Type,
+                .Sparse = assetlib::GeometryBufferAccessor::SparseAccessor{
+                    .Count = sparseCount,
+                    .Indices = {
+                        .BufferView = indicesAccessor.BufferView,
+                        .OffsetBytes = indicesAccessor.OffsetBytes,
+                        .ComponentType = indicesAccessor.ComponentType
+                    },
+                    .Data = {
+                        .BufferView = dataAccessor.BufferView,
+                        .OffsetBytes = dataAccessor.OffsetBytes
+                    }
+                }
+            };
+
+            const u32 accessorIndex = (u32)ctx.GeometryBufferAsset.Header.Accessors.size();
+            ctx.GeometryBufferAsset.Header.Accessors.push_back(sparseAccessor);
+            attributes.push_back(assetlib::MeshAttribute{
+                .Name = std::string(name),
+                .Accessor = accessorIndex
+            });
+        };
         
         std::vector<assetlib::MeshAttribute> meshAttributes;
         addAttribute(attributes.Positions, ctx.Positions, meshAttributes, assetlib::MeshAttribute::POSITION_NAME);
@@ -956,29 +1065,66 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
             assetlib::MeshPrimitiveBlendShape blendShape = {};
             
             utils::Attributes blendShapeAttributes = {};
+            bool hasSparse = false;
+            u32 sparsePositionCount = 0;
+            u32 sparseNormalCount = 0;
+            u32 sparseTangentCount = 0;
+            
+            SparseIndicatorVector sparseIndicatorVector;
+            
             for (auto&& [attributeName, accessorIndex] : target)
             {
                 const tinygltf::Accessor& attributeAccessor = gltf.accessors[accessorIndex];
+                const bool isSparse = attributeAccessor.sparse.isSparse;
+                hasSparse = hasSparse || isSparse;
+                
                 if (attributeName == assetlib::MeshAttribute::POSITION_NAME)
-                    copyBufferToVector(blendShapeAttributes.Positions, gltf, attributeAccessor);
+                    isSparse ?
+                        copyBufferToVectorSparseAccessor(
+                            blendShapeAttributes.Positions, sparsePositionCount, sparseIndicatorVector,
+                            POSITIONS_SPARSE_INDICATOR_ELEMENT, gltf, attributeAccessor) :
+                        copyBufferToVector(blendShapeAttributes.Positions, gltf, attributeAccessor);
                 else if (attributeName == assetlib::MeshAttribute::NORMAL_NAME)
-                    copyBufferToVector(blendShapeAttributes.Normals, gltf, attributeAccessor);
+                    isSparse ?
+                        copyBufferToVectorSparseAccessor(
+                            blendShapeAttributes.Normals, sparseNormalCount, sparseIndicatorVector,
+                            NORMALS_SPARSE_INDICATOR_ELEMENT, gltf, attributeAccessor) :
+                        copyBufferToVector(blendShapeAttributes.Normals, gltf, attributeAccessor);
                 else if (attributeName == assetlib::MeshAttribute::TANGENT_NAME)
-                    copyBufferToVector(blendShapeAttributes.Tangents, gltf, attributeAccessor);
+                    isSparse ?
+                        copyBufferToVectorSparseAccessor(
+                            blendShapeAttributes.Tangents, sparseTangentCount, sparseIndicatorVector,
+                            TANGENTS_SPARSE_INDICATOR_ELEMENT, gltf, attributeAccessor) :
+                        copyBufferToVector(blendShapeAttributes.Tangents, gltf, attributeAccessor);
             }
 
+            if (hasSparse)
+                blendShapeAttributes.Joints = std::move(sparseIndicatorVector);
             utils::remapBlendShapeAttributes(remapContext, blendShapeAttributes);
-            
+            sparseIndicatorVector = std::move(blendShapeAttributes.Joints);
+
             if (!blendShapeAttributes.Positions.empty())
-                addAttribute(blendShapeAttributes.Positions, ctx.Positions, blendShape.Attributes,
-                    assetlib::MeshAttribute::POSITION_NAME);
+                sparsePositionCount > 0 ?
+                    addAttributeSparse(blendShapeAttributes.Positions, sparsePositionCount, sparseIndicatorVector,
+                        POSITIONS_SPARSE_INDICATOR_ELEMENT, ctx.SparseIndices, ctx.Positions, blendShape.Attributes,
+                        assetlib::MeshAttribute::POSITION_NAME) :
+                    addAttribute(blendShapeAttributes.Positions, ctx.Positions, blendShape.Attributes,
+                        assetlib::MeshAttribute::POSITION_NAME);
             if (!blendShapeAttributes.Normals.empty())
-                addAttribute(blendShapeAttributes.Normals, ctx.Normals, blendShape.Attributes, 
-                    assetlib::MeshAttribute::NORMAL_NAME);
+                sparseNormalCount > 0 ?
+                    addAttributeSparse(blendShapeAttributes.Normals, sparseNormalCount, sparseIndicatorVector,
+                        NORMALS_SPARSE_INDICATOR_ELEMENT, ctx.SparseIndices, ctx.Normals, blendShape.Attributes,
+                        assetlib::MeshAttribute::NORMAL_NAME) :
+                    addAttribute(blendShapeAttributes.Normals, ctx.Normals, blendShape.Attributes,
+                        assetlib::MeshAttribute::NORMAL_NAME);
             if (!blendShapeAttributes.Tangents.empty())
-                addAttribute(blendShapeAttributes.Tangents, ctx.Tangents, blendShape.Attributes, 
-                    assetlib::MeshAttribute::TANGENT_NAME);
-            
+                sparseTangentCount > 0 ?
+                    addAttributeSparse(blendShapeAttributes.Tangents, sparseTangentCount, sparseIndicatorVector,
+                        TANGENTS_SPARSE_INDICATOR_ELEMENT, ctx.SparseIndices, ctx.Tangents, blendShape.Attributes,
+                        assetlib::MeshAttribute::TANGENT_NAME) :
+                    addAttribute(blendShapeAttributes.Tangents, ctx.Tangents, blendShape.Attributes,
+                        assetlib::MeshAttribute::TANGENT_NAME);
+
             if ((u64)targetIndex < mesh.weights.size())
                 blendShape.Weight = (f32)mesh.weights[targetIndex];
             

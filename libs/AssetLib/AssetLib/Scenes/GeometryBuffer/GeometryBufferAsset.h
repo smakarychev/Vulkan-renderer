@@ -23,12 +23,31 @@ enum class GeometryBufferAccessorType : u8
 };
 struct GeometryBufferAccessor
 {
+    struct SparseAccessor
+    {
+        struct IndicesAccessor
+        {
+            u32 BufferView{GEOMETRY_UNSET_INDEX};
+            u64 OffsetBytes{0};
+            GeometryBufferAccessorComponentType ComponentType{GeometryBufferAccessorComponentType::U8};
+        };
+        struct DataAccessor
+        {
+            u32 BufferView{GEOMETRY_UNSET_INDEX};
+            u64 OffsetBytes{0};
+        };
+        
+        u32 Count{0};
+        IndicesAccessor Indices{};
+        DataAccessor Data{};
+    };
     u32 BufferView{GEOMETRY_UNSET_INDEX};
     u64 OffsetBytes{0};
     GeometryBufferAccessorComponentType ComponentType{GeometryBufferAccessorComponentType::U8};
     u32 Count{0};
     GeometryBufferAccessorType Type{GeometryBufferAccessorType::Scalar};
     bool Normalize{false};
+    std::optional<SparseAccessor> Sparse{};
 };
 enum class GeometryBufferViewType : u8
 {
@@ -53,8 +72,10 @@ enum class GeometryBufferViewType : u8
     AnimationOrientationKeyframe = 11,
     AnimationScaleKeyframe = 12,
     AnimationWeightKeyframe = 13,
+    
+    SparseAccessorIndex = 14,
             
-    MaxVal = 14,
+    MaxVal = 15,
 };
 struct GeometryBufferView
 {

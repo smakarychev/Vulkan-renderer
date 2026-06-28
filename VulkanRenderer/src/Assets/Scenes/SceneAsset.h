@@ -107,9 +107,11 @@ struct SceneRenderObject
 
 struct SceneSkin
 {
-    u32 FirstJointMatrix{};
-    u32 FirstJoint{};
-    u32 FirstWeight{};
+    static constexpr u32 INVALID = ~0lu;
+    
+    u32 FirstJointMatrix{INVALID};
+    u32 FirstJoint{INVALID};
+    u32 FirstWeight{INVALID};
 };
 
 struct SceneBlendShape

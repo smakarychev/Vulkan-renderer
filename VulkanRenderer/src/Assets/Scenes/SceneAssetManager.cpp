@@ -231,17 +231,6 @@ void SceneAssetManager::UnregisterMaterials(SceneHandle sceneHandle)
 
 namespace 
 {
-template <typename T>
-void appendToVector(std::vector<T>& vec, const std::byte* data, u64 sizeBytes)
-{
-    ASSERT(sizeBytes % sizeof(T) == 0, "Data size in bytes is not a multiple of element size")
-    ASSERT((u64)data % alignof(T) == 0, "Data is not aligned properly")
-
-    u32 currentOffset = (u32)vec.size();
-    vec.resize(currentOffset + sizeBytes / sizeof(T));
-    memcpy(vec.data() + currentOffset, data, sizeBytes);
-}
-
 LightType lightTypeAssetLightType(assetlib::SceneAssetLightType lightType)
 {
     static_assert((u32)assetlib::SceneAssetLightType::Directional == (u32)LightType::Directional);
@@ -271,7 +260,7 @@ std::optional<SceneAsset> SceneAssetManager::DoLoad(import::SceneImporter& impor
     if (willBake) 
         m_AssetSystem->ScanAssetsDirectory(path.parent_path());
 
-    std::unordered_map<assetlib::AssetId, BufferInfo> importedBuffers;
+    std::unordered_map<assetlib::AssetId, assetlib::GeometryBufferAsset> importedBuffers;
     std::optional<SceneGeometryInfo> geometryInfo = LoadGeometryInfo(sceneAsset, importedBuffers);
     if (!geometryInfo.has_value())
     {
@@ -289,7 +278,7 @@ std::optional<SceneAsset> SceneAssetManager::DoLoad(import::SceneImporter& impor
 }
 
 std::optional<SceneGeometryInfo> SceneAssetManager::LoadGeometryInfo(const assetlib::SceneAsset& scene, 
-    std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers)
+    std::unordered_map<assetlib::AssetId, assetlib::GeometryBufferAsset>& importedBuffers)
 { 
     SceneGeometryInfo geometryInfo = {};
     
@@ -320,7 +309,8 @@ SceneLightInfo SceneAssetManager::LoadLightsInfo(const assetlib::SceneAsset& sce
 }
 
 SceneHierarchyInfo SceneAssetManager::LoadHierarchyInfo(const assetlib::SceneAsset& scene, 
-    SceneGeometryInfo& geometryInfo, std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers)
+    SceneGeometryInfo& geometryInfo, 
+    std::unordered_map<assetlib::AssetId, assetlib::GeometryBufferAsset>& importedBuffers)
 {
     SceneHierarchyInfo sceneHierarchy = {};
     
@@ -434,7 +424,7 @@ void SceneAssetManager::LoadNodes(SceneHierarchyInfo& sceneHierarchy, const asse
 }
 
 void SceneAssetManager::LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const assetlib::SceneAsset& scene,
-    SceneGeometryInfo& geometry, std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers)
+    SceneGeometryInfo& geometry, std::unordered_map<assetlib::AssetId, assetlib::GeometryBufferAsset>& importedBuffers)
 {
     auto copyAccessorToVector = [](auto& vector, const assetlib::GeometryBufferAccessor& accessor,
         const assetlib::GeometryBufferAsset& buffer, u64 accessorElementSizeBytes, u64 vectorElementSizeBytes) {
@@ -467,7 +457,7 @@ void SceneAssetManager::LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const
         if (!bufferInfo)
             continue;
         
-        auto& accessors = bufferInfo->Buffer.Header.Accessors;
+        auto& accessors = bufferInfo->Header.Accessors;
         
         for (auto& channel : animation.Channels)
         {
@@ -494,14 +484,14 @@ void SceneAssetManager::LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const
 
             SceneHierarchyAnimationChannel animationChannel(channelType, samplerType, channel.KeyframeElementCount);
             
-            copyAccessorToVector(animationChannel.TimestampsMutable(), timestampsAccessor, bufferInfo->Buffer, 
+            copyAccessorToVector(animationChannel.TimestampsMutable(), timestampsAccessor, *bufferInfo, 
                 sizeof(f32), sizeof(f32));
 
             switch (channelType) 
             {
             case SceneHierarchyAnimationChannelType::Translation:
                 {
-                    copyAccessorToVector(animationChannel.KeyframesMutable(), keyframesAccessor, bufferInfo->Buffer,
+                    copyAccessorToVector(animationChannel.KeyframesMutable(), keyframesAccessor, *bufferInfo,
                         sizeof(glm::vec3), sizeof(animationChannel.KeyframesMutable()[0]));
                     sceneAnimationIt->TranslationChannel = 
                         sceneHierarchy.AnimationChannels.insert(std::move(animationChannel));
@@ -509,7 +499,7 @@ void SceneAssetManager::LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const
                 }
             case SceneHierarchyAnimationChannelType::Orientation:
                 {
-                    copyAccessorToVector(animationChannel.KeyframesMutable(), keyframesAccessor, bufferInfo->Buffer,
+                    copyAccessorToVector(animationChannel.KeyframesMutable(), keyframesAccessor, *bufferInfo,
                         sizeof(glm::quat), sizeof(animationChannel.KeyframesMutable()[0]));
                     sceneAnimationIt->OrientationChannel =  
                         sceneHierarchy.AnimationChannels.insert(std::move(animationChannel));
@@ -517,7 +507,7 @@ void SceneAssetManager::LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const
                 }
             case SceneHierarchyAnimationChannelType::Scale:
                 {
-                    copyAccessorToVector(animationChannel.KeyframesMutable(), keyframesAccessor, bufferInfo->Buffer,
+                    copyAccessorToVector(animationChannel.KeyframesMutable(), keyframesAccessor, *bufferInfo,
                         sizeof(glm::vec3), sizeof(animationChannel.KeyframesMutable()[0]));
                     sceneAnimationIt->ScaleChannel =  
                         sceneHierarchy.AnimationChannels.insert(std::move(animationChannel));
@@ -525,7 +515,7 @@ void SceneAssetManager::LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const
                 }
             case SceneHierarchyAnimationChannelType::Weight:
                 {
-                    copyAccessorToVector(animationChannel.KeyframesMutable(), keyframesAccessor, bufferInfo->Buffer,
+                    copyAccessorToVector(animationChannel.KeyframesMutable(), keyframesAccessor, *bufferInfo,
                         sizeof(f32), sizeof(animationChannel.KeyframesMutable()[0]));
                     sceneAnimationIt->WeightChannel =  
                         sceneHierarchy.AnimationChannels.insert(std::move(animationChannel));
@@ -539,17 +529,19 @@ void SceneAssetManager::LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const
 }
 
 bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene, 
-    std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers)
+    std::unordered_map<assetlib::AssetId, assetlib::GeometryBufferAsset>& importedBuffers)
 {
     struct ImportedMeshInfo
     {
-        BufferInfo* BufferInfo{nullptr};
+        assetlib::GeometryBufferAsset* Buffer{nullptr};
         assetlib::MeshAsset MeshAsset{};
         u32 SkinIndex{SceneRenderObject::INVALID};
     };
     struct ImportedSkinInfo
     {
-        BufferInfo* BufferInfo{nullptr};
+        assetlib::GeometryBufferAsset* Buffer{nullptr};
+        u32 FirstJointMatrix{SceneSkin::INVALID};
+        bool IsLoaded() const { return FirstJointMatrix != SceneSkin::INVALID; }
     };
     struct SkinInfo
     {
@@ -620,7 +612,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
             totalBlendShapeCount += std::ranges::fold_left(importedMesh.Primitives, 0u, [](u32 sum, auto& primitive) {
                 return sum + (u32)primitive.BlendShapes.size();
             });  
-            importedMeshes.push_back({.BufferInfo = bufferInfo, .MeshAsset = importedMesh});
+            importedMeshes.push_back({.Buffer = bufferInfo, .MeshAsset = importedMesh});
         }
 
         for (auto& skin : scene.Skins)
@@ -628,7 +620,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
             auto* bufferInfo = GetGeometryBuffer(geometry, skin.GeometryBuffer, importedBuffers);
             if (!bufferInfo)
                 return false;
-            importedSkins.push_back({.BufferInfo = bufferInfo});
+            importedSkins.push_back({.Buffer = bufferInfo});
         }
         
         for (auto& node : scene.Nodes)
@@ -643,39 +635,84 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
         
         return true;
     };
+
+    auto readAccessor = [&]<typename T>(const assetlib::GeometryBufferAsset& buffer,
+        const assetlib::GeometryBufferAccessor& accessor, std::vector<T>& destinationVector) -> u32 {
+            
+        const u32 fistElement = (u32)destinationVector.size();
+        auto& bufferHeader = buffer.Header;
+
+        if (accessor.Sparse.has_value())
+        {
+            auto& sparse = *accessor.Sparse;
+            ASSERT(sparse.Indices.ComponentType == assetlib::GeometryBufferAccessorComponentType::U32)
+            
+            const auto& indicesView = bufferHeader.BufferViews[sparse.Indices.BufferView];
+            const auto& dataView = bufferHeader.BufferViews[sparse.Data.BufferView];
+
+            const Span indices(
+                (const u32*)(buffer.Data.data() + indicesView.OffsetBytes + sparse.Indices.OffsetBytes), sparse.Count);
+            const Span data(
+                (const T*)(buffer.Data.data() + dataView.OffsetBytes + sparse.Data.OffsetBytes), sparse.Count);
+
+            std::vector<u32> sparseIndices;
+            std::vector<T> sparseData;
+            sparseIndices.append_range(indices);
+            sparseData.append_range(data);
+            
+            destinationVector.insert(destinationVector.end(), accessor.Count, T{});
+            for (auto&& [denseIndex, sparseIndex] : std::views::enumerate(sparseIndices))
+                destinationVector[fistElement + sparseIndex] = sparseData[denseIndex];
+            
+            return fistElement;
+        }
+    
+        const auto& view = bufferHeader.BufferViews[accessor.BufferView];
+        const Span<const T> data(
+            (const T*)(buffer.Data.data() + view.OffsetBytes + accessor.OffsetBytes), 
+            accessor.Count);
+    
+        destinationVector.append_range(data);
+            
+        return fistElement;
+    };
+    auto readAttributeAccessor = [&]<typename T>(const assetlib::GeometryBufferAsset& buffer,
+        const assetlib::MeshAttribute* attribute, std::vector<T>& destinationVector) -> u32 {
+        if (attribute == nullptr)
+            return SceneRenderObject::INVALID;
+        
+        return readAccessor(buffer, buffer.Header.Accessors[attribute->Accessor], destinationVector);
+    };
     
     if (!preload())
         return false;
     
     geometry.RenderObjects.reserve(importedMeshes.size());
     geometry.BlendShapes.reserve(totalBlendShapeCount);
-    for (auto&& [bufferInfo, mesh, skinIndex] : importedMeshes)
+    for (auto&& [buffer, mesh, skinIndex] : importedMeshes)
     {
         ASSERT(mesh.Primitives.size() < 2, "Render objects with more than 1 primitives are not supported")
         
-        auto& accessors = bufferInfo->Buffer.Header.Accessors;
+        auto& accessors = buffer->Header.Accessors;
         for (auto& primitive : mesh.Primitives)
         {
-            const u32 firstIndex = (u32)(accessors[primitive.IndicesAccessor].OffsetBytes /
-                sizeof(assetlib::SceneAssetIndexType)) + bufferInfo->FirstIndex;
-            const assetlib::GeometryBufferAccessor& positionsAccessor = 
-                accessors[primitive.FindAttribute(assetlib::MeshAttribute::POSITION_NAME)->Accessor];
-            const assetlib::GeometryBufferAccessor& normalsAccessor = 
-                accessors[primitive.FindAttribute(assetlib::MeshAttribute::NORMAL_NAME)->Accessor];
-            const assetlib::GeometryBufferAccessor& tangentAccessor = 
-                accessors[primitive.FindAttribute(assetlib::MeshAttribute::TANGENT_NAME)->Accessor];
-            const assetlib::GeometryBufferAccessor& uvAccessor = 
-                accessors[primitive.FindAttribute(assetlib::MeshAttribute::UV0_NAME)->Accessor];
-            const u32 firstPosition = (u32)(positionsAccessor.OffsetBytes / sizeof(glm::vec3)) + bufferInfo->FirstVertex;
-            const u32 firstNormal = (u32)(normalsAccessor.OffsetBytes / sizeof(glm::vec3)) + bufferInfo->FirstVertex;
-            const u32 firstTangent = (u32)(tangentAccessor.OffsetBytes / sizeof(glm::vec4)) + bufferInfo->FirstVertex;
-            const u32 firstUv = (u32)(uvAccessor.OffsetBytes / sizeof(glm::vec2)) + bufferInfo->FirstVertex;
-            const u32 firstMeshlet = (u32)(
-                accessors[primitive.FindAttribute(
-                    assetlib::MeshAttribute::MESHLET_NAME)->Accessor].OffsetBytes /
-                sizeof(assetlib::SceneAssetMeshlet)) + bufferInfo->FirstMeshlet;
-            const u32 meshletsCount = accessors[primitive.FindAttribute(
-                assetlib::MeshAttribute::MESHLET_NAME)->Accessor].Count;
+            
+            const auto* positionAttribute = primitive.FindAttribute(assetlib::MeshAttribute::POSITION_NAME);
+            const u32 vertexCount = accessors[positionAttribute->Accessor].Count;
+            const u32 firstIndex = readAccessor(*buffer, accessors[primitive.IndicesAccessor], geometry.Indices);
+            const u32 firstPosition = readAttributeAccessor(*buffer, positionAttribute, geometry.Positions); 
+            const u32 firstNormal = readAttributeAccessor(*buffer,
+                primitive.FindAttribute(assetlib::MeshAttribute::NORMAL_NAME),
+                geometry.Normals); 
+            const u32 firstTangent = readAttributeAccessor(*buffer,
+                primitive.FindAttribute(assetlib::MeshAttribute::TANGENT_NAME),
+                geometry.Tangents); 
+            const u32 firstUv = readAttributeAccessor(*buffer,
+                primitive.FindAttribute(assetlib::MeshAttribute::UV0_NAME),
+                geometry.UVs); 
+            const auto* meshletAttribute = primitive.FindAttribute(assetlib::MeshAttribute::MESHLET_NAME);
+            const u32 firstMeshlet = readAttributeAccessor(*buffer, meshletAttribute, geometry.Meshlets); 
+            const u32 meshletCount = accessors[meshletAttribute->Accessor].Count;
             
             const u32 blendShapeCount = (u32)primitive.BlendShapes.size();
             const u32 firstBlendShape = blendShapeCount == 0 ? SceneRenderObject::INVALID : 
@@ -683,26 +720,22 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
             
             for (auto& blendShape : primitive.BlendShapes)
             {
-                auto* positionsAttribute = blendShape.FindAttribute(assetlib::MeshAttribute::POSITION_NAME);
-                auto* normalsAttribute = blendShape.FindAttribute(assetlib::MeshAttribute::NORMAL_NAME);
-                auto* tangentsAttribute = blendShape.FindAttribute(assetlib::MeshAttribute::TANGENT_NAME);
-                
-                auto* positions = positionsAttribute ? &accessors[positionsAttribute->Accessor] : nullptr;
-                auto* normals = normalsAttribute ? &accessors[normalsAttribute->Accessor] : nullptr;
-                auto* tangents = tangentsAttribute ? &accessors[tangentsAttribute->Accessor] : nullptr;
+                const u32 firstBlendPosition = readAttributeAccessor(*buffer,
+                    blendShape.FindAttribute(assetlib::MeshAttribute::POSITION_NAME),
+                    geometry.Positions); 
+                const u32 firstBlendNormal = readAttributeAccessor(*buffer,
+                    blendShape.FindAttribute(assetlib::MeshAttribute::NORMAL_NAME),
+                    geometry.Normals); 
+                const u32 firstBlendTangent = readAttributeAccessor(*buffer,
+                    blendShape.FindAttribute(assetlib::MeshAttribute::TANGENT_NAME),
+                    geometry.Tangents);
                 
                 geometry.BlendShapes.push_back({
                     .Name = blendShape.Name,
                     .Weight = blendShape.Weight,
-                    .FirstPosition = positions ? (u32)positions->OffsetBytes / (u32)sizeof(glm::vec3) + 
-                        bufferInfo->FirstVertex : 
-                        SceneBlendShape::INVALID,
-                    .FirstNormal = normals ? (u32)normals->OffsetBytes / (u32)sizeof(glm::vec3) + 
-                        bufferInfo->FirstVertex: 
-                        SceneBlendShape::INVALID,
-                    .FirstTangent = tangents ? (u32)tangents->OffsetBytes / (u32)sizeof(glm::vec4) + 
-                        bufferInfo->FirstVertex : 
-                        SceneBlendShape::INVALID,
+                    .FirstPosition = firstBlendPosition,
+                    .FirstNormal = firstBlendNormal,
+                    .FirstTangent = firstBlendTangent,
                 });
             }
 
@@ -713,9 +746,9 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
                 .FirstNormal = firstNormal,
                 .FirstTangent = firstTangent,
                 .FirstUv = firstUv,
-                .VertexCount = positionsAccessor.Count,
+                .VertexCount = vertexCount,
                 .FirstMeshlet = firstMeshlet,
-                .MeshletCount = meshletsCount,
+                .MeshletCount = meshletCount,
                 .SkinIndex = skinIndex,
                 .BlendShapeIndex = firstBlendShape,
                 .BlendShapeCount = blendShapeCount,
@@ -733,30 +766,27 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
     for (auto&& [skinIndex, meshIndex] : skins)
     {
         auto& skinInfo = importedSkins[skinIndex];
+        
         auto& skin = scene.Skins[skinIndex];
         auto& meshInfo = importedMeshes[meshIndex];
         auto& mesh = importedMeshes[meshIndex].MeshAsset.Primitives.front();
-        
-        const BufferInfo* skinBuffer = skinInfo.BufferInfo;
-        const BufferInfo* meshBuffer = meshInfo.BufferInfo;
-        
-        auto& skinAccessors = skinBuffer->Buffer.Header.Accessors;
-        auto& meshAccessors = meshBuffer->Buffer.Header.Accessors;
+            
+        const assetlib::GeometryBufferAsset* skinBuffer = skinInfo.Buffer;
+        const assetlib::GeometryBufferAsset* meshBuffer = meshInfo.Buffer;
 
-        const u32 firstJointMatrix =
-            (u32)(skinAccessors[skin.InverseBindMatrixAccessor].OffsetBytes /
-                sizeof(glm::mat4)) + skinBuffer->FirstJointMatrix;
-        const u32 firstJoint = (u32)(meshAccessors[mesh.FindAttribute(
-                assetlib::MeshAttribute::JOINTS0_NAME)->Accessor].OffsetBytes /
-            sizeof(glm::u16vec4)) + meshBuffer->FirstJoint;
-        const u32 firstWeight = (u32)(meshAccessors[mesh.FindAttribute(
-                assetlib::MeshAttribute::WEIGHTS0_NAME)->Accessor].OffsetBytes /
-            sizeof(glm::vec4)) + meshBuffer->FirstWeight;
+        if (!skinInfo.IsLoaded())
+        {
+            auto& skinAccessors = skinBuffer->Header.Accessors;
+            skinInfo.FirstJointMatrix = readAccessor(*skinBuffer, skinAccessors[skin.InverseBindMatrixAccessor],
+                geometry.JointInverseBindMatrices);
+        }
         
         geometry.Skins.push_back({
-            .FirstJointMatrix = firstJointMatrix,
-            .FirstJoint = firstJoint,
-            .FirstWeight = firstWeight,
+            .FirstJointMatrix = skinInfo.FirstJointMatrix,
+            .FirstJoint = readAttributeAccessor(*meshBuffer,
+                mesh.FindAttribute(assetlib::MeshAttribute::JOINTS0_NAME), geometry.Joints),
+            .FirstWeight = readAttributeAccessor(*meshBuffer,
+                mesh.FindAttribute(assetlib::MeshAttribute::WEIGHTS0_NAME), geometry.Weights)
         });
     }
     
@@ -777,51 +807,19 @@ std::optional<assetlib::GeometryBufferAsset> SceneAssetManager::LoadGeometryBuff
     if (!imported.has_value())
         return std::nullopt;
     
-    auto& importedBuffer = importer.GetImportedBuffer().Asset;
-    const std::byte* bufferData = importedBuffer.Data.data();
-    auto& views = importedBuffer.Header.BufferViews;
-
-    appendToVector(geometry.Indices,
-        bufferData + views[(u32)Index].OffsetBytes, views[(u32)Index].LengthBytes);
-    appendToVector(geometry.Positions,
-        bufferData + views[(u32)Position].OffsetBytes, views[(u32)Position].LengthBytes);
-    appendToVector(geometry.Normals,
-        bufferData + views[(u32)Normal].OffsetBytes, views[(u32)Normal].LengthBytes);
-    appendToVector(geometry.Tangents,
-        bufferData + views[(u32)Tangent].OffsetBytes, views[(u32)Tangent].LengthBytes);
-    appendToVector(geometry.UVs,
-        bufferData + views[(u32)Uv].OffsetBytes, views[(u32)Uv].LengthBytes);
-    appendToVector(geometry.Joints,
-        bufferData + views[(u32)Joint].OffsetBytes, views[(u32)Joint].LengthBytes);
-    appendToVector(geometry.Weights,
-        bufferData + views[(u32)Weight].OffsetBytes, views[(u32)Weight].LengthBytes);
-    appendToVector(geometry.Meshlets,
-        bufferData + views[(u32)Meshlet].OffsetBytes, views[(u32)Meshlet].LengthBytes);
-    appendToVector(geometry.JointInverseBindMatrices,
-        bufferData + views[(u32)InverseBindMatrix].OffsetBytes, views[(u32)InverseBindMatrix].LengthBytes);
-    
-    return importedBuffer;
+    return importer.GetImportedBuffer().Asset;
 }
 
-SceneAssetManager::BufferInfo* SceneAssetManager::GetGeometryBuffer(SceneGeometryInfo& geometry,
-    assetlib::AssetId buffer, std::unordered_map<assetlib::AssetId, BufferInfo>& importedBuffers)
+assetlib::GeometryBufferAsset* SceneAssetManager::GetGeometryBuffer(SceneGeometryInfo& geometry,
+    assetlib::AssetId buffer, std::unordered_map<assetlib::AssetId, assetlib::GeometryBufferAsset>& importedBuffers)
 {
     if (!importedBuffers.contains(buffer))
     {
-        BufferInfo bufferInfo = {
-            .FirstIndex = (u32)geometry.Indices.size(),
-            .FirstVertex = (u32)geometry.Positions.size(),
-            .FirstMeshlet = (u32)geometry.Meshlets.size(),
-            .FirstJointMatrix = (u32)geometry.JointInverseBindMatrices.size(),
-            .FirstJoint = (u32)geometry.Joints.size(),
-            .FirstWeight = (u32)geometry.Weights.size(),
-        };
         auto importedBuffer = LoadGeometryBuffer(geometry, buffer);
         if (!importedBuffer.has_value())
             return nullptr;
 
-        bufferInfo.Buffer = std::move(*importedBuffer);
-        importedBuffers.emplace(buffer, std::move(bufferInfo));
+        importedBuffers.emplace(buffer, std::move(*importedBuffer));
     }
 
     return &importedBuffers.at(buffer);

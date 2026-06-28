@@ -15,6 +15,12 @@ struct glz::meta<lux::assetlib::GeometryBufferAccessorType> : lux::assetlib::ref
     using enum lux::assetlib::GeometryBufferAccessorType;
     static constexpr auto value = glz::enumerate(Scalar, Vec2, Vec3, Vec4, Mat2, Mat3, Mat4);
 };
+template <> struct ::glz::meta<lux::assetlib::GeometryBufferAccessor::SparseAccessor::IndicesAccessor>
+    : lux::assetlib::reflection::CamelCase {};
+template <> struct ::glz::meta<lux::assetlib::GeometryBufferAccessor::SparseAccessor::DataAccessor> 
+    : lux::assetlib::reflection::CamelCase {};
+template <> struct ::glz::meta<lux::assetlib::GeometryBufferAccessor::SparseAccessor> 
+    : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::GeometryBufferAccessor> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::GeometryBufferView> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::GeometryBufferHeader> : lux::assetlib::reflection::CamelCase {};
