@@ -789,7 +789,7 @@ constexpr u32 NORMALS_SPARSE_INDICATOR_ELEMENT = 1;
 constexpr u32 TANGENTS_SPARSE_INDICATOR_ELEMENT = 2;
 
 template <typename T>
-void copyBufferToVectorSparseAccessor(std::vector<T>& vec, u32& sparseCount, SparseIndicatorVector& indicators,
+void copyBufferToVectorSparseAccessor(std::vector<T>& vec, SparseIndicatorVector& indicators,
     u32 indicatorType, tinygltf::Model& gltf, const tinygltf::Accessor& accessor)
 {
     ASSERT(accessor.sparse.isSparse)
@@ -816,8 +816,6 @@ void copyBufferToVectorSparseAccessor(std::vector<T>& vec, u32& sparseCount, Spa
     
     std::vector<T> dataSparse;
     copyBufferToVector(dataSparse, gltf, dataAccessor);
-    
-    sparseCount = (u32)dataSparse.size();
     
     vec.resize(accessor.count, T{});
     indicators.resize(accessor.count, glm::u16vec4(NOT_PRESENT_SPARSE_INDICATOR));
@@ -998,22 +996,26 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
                 .Accessor = accessorIndex
             });
         };
-        auto addAttributeSparse = [&ctx]<typename DataVec>(DataVec& source, u32 sparseCount,
+        auto addAttributeSparse = [&ctx]<typename DataVec>(DataVec& source,
             SparseIndicatorVector& indicators, u32 indicatorType, auto& indicesDestination, auto& destination,
             auto& attributes, std::string_view name) {
-            std::vector<u32> sparseIndices(sparseCount);
-            DataVec sparseData(sparseCount);
+                
+            const u32 denseCount = (u32)source.size();
+            std::vector<u32> sparseIndices(denseCount);
+            DataVec sparseData(denseCount);
 
-            u32 sparseIndex = 0;
+            u32 sparseCount = 0;
             for (u32 i = 0; i < indicators.size(); i++)
             {
                 if (indicators[i][(i32)indicatorType] == NOT_PRESENT_SPARSE_INDICATOR)
                     continue;
 
-                sparseIndices[sparseIndex] = i;
-                sparseData[sparseIndex] = source[i];
-                sparseIndex += 1;
+                sparseIndices[sparseCount] = i;
+                sparseData[sparseCount] = source[i];
+                sparseCount += 1;
             }
+            sparseIndices.resize(sparseCount);
+            sparseData.resize(sparseCount);
             
             const assetlib::GeometryBufferAccessor indicesAccessor = ctx.CreateAccessor(
                 sparseIndices, indicesDestination);
@@ -1066,9 +1068,9 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
             
             utils::Attributes blendShapeAttributes = {};
             bool hasSparse = false;
-            u32 sparsePositionCount = 0;
-            u32 sparseNormalCount = 0;
-            u32 sparseTangentCount = 0;
+            bool hasSparsePosition = false;
+            bool hasSparseNormal = false;
+            bool hasSparseTangent = false;
             
             SparseIndicatorVector sparseIndicatorVector;
             
@@ -1079,23 +1081,32 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
                 hasSparse = hasSparse || isSparse;
                 
                 if (attributeName == assetlib::MeshAttribute::POSITION_NAME)
+                {
+                    hasSparsePosition = isSparse;
                     isSparse ?
                         copyBufferToVectorSparseAccessor(
-                            blendShapeAttributes.Positions, sparsePositionCount, sparseIndicatorVector,
+                            blendShapeAttributes.Positions, sparseIndicatorVector,
                             POSITIONS_SPARSE_INDICATOR_ELEMENT, gltf, attributeAccessor) :
                         copyBufferToVector(blendShapeAttributes.Positions, gltf, attributeAccessor);
+                }
                 else if (attributeName == assetlib::MeshAttribute::NORMAL_NAME)
+                {
+                    hasSparseNormal = isSparse;
                     isSparse ?
                         copyBufferToVectorSparseAccessor(
-                            blendShapeAttributes.Normals, sparseNormalCount, sparseIndicatorVector,
+                            blendShapeAttributes.Normals, sparseIndicatorVector,
                             NORMALS_SPARSE_INDICATOR_ELEMENT, gltf, attributeAccessor) :
                         copyBufferToVector(blendShapeAttributes.Normals, gltf, attributeAccessor);
+                }
                 else if (attributeName == assetlib::MeshAttribute::TANGENT_NAME)
+                {
+                    hasSparseTangent = isSparse;
                     isSparse ?
                         copyBufferToVectorSparseAccessor(
-                            blendShapeAttributes.Tangents, sparseTangentCount, sparseIndicatorVector,
+                            blendShapeAttributes.Tangents, sparseIndicatorVector,
                             TANGENTS_SPARSE_INDICATOR_ELEMENT, gltf, attributeAccessor) :
                         copyBufferToVector(blendShapeAttributes.Tangents, gltf, attributeAccessor);
+                }
             }
 
             if (hasSparse)
@@ -1104,22 +1115,22 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
             sparseIndicatorVector = std::move(blendShapeAttributes.Joints);
 
             if (!blendShapeAttributes.Positions.empty())
-                sparsePositionCount > 0 ?
-                    addAttributeSparse(blendShapeAttributes.Positions, sparsePositionCount, sparseIndicatorVector,
+                hasSparsePosition ?
+                    addAttributeSparse(blendShapeAttributes.Positions, sparseIndicatorVector,
                         POSITIONS_SPARSE_INDICATOR_ELEMENT, ctx.SparseIndices, ctx.Positions, blendShape.Attributes,
                         assetlib::MeshAttribute::POSITION_NAME) :
                     addAttribute(blendShapeAttributes.Positions, ctx.Positions, blendShape.Attributes,
                         assetlib::MeshAttribute::POSITION_NAME);
             if (!blendShapeAttributes.Normals.empty())
-                sparseNormalCount > 0 ?
-                    addAttributeSparse(blendShapeAttributes.Normals, sparseNormalCount, sparseIndicatorVector,
+                hasSparseNormal ?
+                    addAttributeSparse(blendShapeAttributes.Normals, sparseIndicatorVector,
                         NORMALS_SPARSE_INDICATOR_ELEMENT, ctx.SparseIndices, ctx.Normals, blendShape.Attributes,
                         assetlib::MeshAttribute::NORMAL_NAME) :
                     addAttribute(blendShapeAttributes.Normals, ctx.Normals, blendShape.Attributes,
                         assetlib::MeshAttribute::NORMAL_NAME);
             if (!blendShapeAttributes.Tangents.empty())
-                sparseTangentCount > 0 ?
-                    addAttributeSparse(blendShapeAttributes.Tangents, sparseTangentCount, sparseIndicatorVector,
+                hasSparseTangent ?
+                    addAttributeSparse(blendShapeAttributes.Tangents, sparseIndicatorVector,
                         TANGENTS_SPARSE_INDICATOR_ELEMENT, ctx.SparseIndices, ctx.Tangents, blendShape.Attributes,
                         assetlib::MeshAttribute::TANGENT_NAME) :
                     addAttribute(blendShapeAttributes.Tangents, ctx.Tangents, blendShape.Attributes,
