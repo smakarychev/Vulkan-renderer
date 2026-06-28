@@ -1236,6 +1236,8 @@ namespace RG
 
     Resource Graph::Create(StringId name, const RGBufferDescription& description)
     {
+        ASSERT(description.SizeBytes > 0)
+        
         const Resource resource = Resource::Buffer((u16)m_Buffers.size(), 0);
         BufferResource buffer = {};
         buffer.Name = name;
