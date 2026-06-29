@@ -934,6 +934,7 @@ std::string getMeshName(ProcessContext& ctx, tinygltf::Mesh& mesh)
 
 IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Mesh& mesh)
 {
+    std::vector<assetlib::MeshPrimitive> meshPrimitives;
     for (auto& primitive : mesh.primitives)
     {
         CHECK_RETURN_IO_ERROR(primitive.mode == TINYGLTF_MODE_TRIANGLES, IoError::ErrorCode::GeneralError,
@@ -1153,11 +1154,13 @@ IoResult<void> processMesh(ProcessContext& ctx, tinygltf::Model& gltf, tinygltf:
             .BoundingBox = box,
         };
         
-        ctx.MeshAssets.push_back({
-            .Asset = {.Primitives = {std::move(bakedPrimitive)}},
-            .Name = getMeshName(ctx, mesh)
-        });
+        meshPrimitives.push_back(std::move(bakedPrimitive));
     }
+    
+    ctx.MeshAssets.push_back({
+        .Asset = {.Primitives = std::move(meshPrimitives)},
+        .Name = getMeshName(ctx, mesh)
+    });
 
     return {};
 }

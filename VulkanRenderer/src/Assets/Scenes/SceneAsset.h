@@ -13,6 +13,7 @@ struct DirectionalLight;
 
 namespace lux
 {
+struct SceneMeshRenderObjects;
 struct SceneBlendShape;
 struct SceneSkinJoints;
 struct SceneHierarchyJoint;
@@ -33,6 +34,7 @@ struct SceneGeometryInfo
     std::vector<glm::u16vec4> Joints;
     std::vector<glm::vec4> Weights;
 
+    std::vector<SceneMeshRenderObjects> MeshRenderObjects;
     std::vector<SceneRenderObject> RenderObjects;
     std::vector<SceneSkin> Skins;
     std::vector<SceneBlendShape> BlendShapes;
@@ -84,6 +86,14 @@ struct SceneAsset
 
 using SceneHandle = AssetHandle<SceneAsset>;
 using SceneInstanceHandle = u32;
+
+struct SceneMeshRenderObjects
+{
+    static constexpr u32 INVALID = ~0lu;
+    
+    u32 FirstRenderObject{};
+    u32 RenderObjectCount{};
+};
 
 struct SceneRenderObject
 {
@@ -171,6 +181,27 @@ enum class SceneHierarchyNodeType : u16
     Dummy, Mesh, Light
 };
 
+union SceneHierarchyPayload
+{
+    static constexpr u32 INVALID = ~0u;
+    
+    struct MeshPayload
+    {
+        u32 FirstRenderObject{INVALID};
+        u32 RenderObjectCount{INVALID};
+        u32 FirstBlendShape{INVALID};
+    };
+    struct LightPayload
+    {
+        u32 Index{};
+    };
+    struct DummyPayload {};
+    
+    MeshPayload Mesh{};
+    LightPayload Light;
+    DummyPayload Dummy;
+};
+
 struct SceneHierarchyNode
 {
     static constexpr u32 INVALID = ~0u;
@@ -178,8 +209,7 @@ struct SceneHierarchyNode
     u16 Depth{0};
     SceneHierarchyHandle Parent{};
     Transform3d LocalTransform{};
-    u32 PayloadIndex{0};
-    u32 BlendShapeBaseIndex{INVALID};
+    SceneHierarchyPayload Payload{};
     SceneInstanceHandle Instance{};
 };
 struct SceneHierarchyJoint

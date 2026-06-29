@@ -125,7 +125,7 @@ void Scene::IterateLights(lux::LightType lightType, Fn&& callback)
         if (node.Type != lux::SceneHierarchyNodeType::Light)
             continue;
 
-        lux::CommonLight& light = m_Lights.Get(node.PayloadIndex);
+        lux::CommonLight& light = m_Lights.Get(node.Payload.Light.Index);
         if (light.Type == lightType && callback(light, node.LocalTransform))
             break;
     }

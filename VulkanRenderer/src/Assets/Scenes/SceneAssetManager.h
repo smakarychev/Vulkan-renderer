@@ -90,13 +90,11 @@ private:
     void LoadNodes(SceneHierarchyInfo& sceneHierarchy, const assetlib::SceneAsset& scene, 
         const SceneGeometryInfo& geometryInfo);
     void LoadAnimations(SceneHierarchyInfo& sceneHierarchy, const assetlib::SceneAsset& scene,
-        SceneGeometryInfo& geometry, 
         std::unordered_map<assetlib::AssetId, assetlib::GeometryBufferAsset>& importedBuffers);
     bool LoadMeshesAndSkins(SceneGeometryInfo& geometry, const assetlib::SceneAsset& scene, 
         std::unordered_map<assetlib::AssetId, assetlib::GeometryBufferAsset>& importedBuffers);
-    std::optional<assetlib::GeometryBufferAsset> LoadGeometryBuffer(SceneGeometryInfo& geometry, 
-        assetlib::AssetId buffer);
-    assetlib::GeometryBufferAsset* GetGeometryBuffer(SceneGeometryInfo& geometry, assetlib::AssetId buffer, 
+    std::optional<assetlib::GeometryBufferAsset> LoadGeometryBuffer(assetlib::AssetId buffer);
+    assetlib::GeometryBufferAsset* GetGeometryBuffer(assetlib::AssetId buffer, 
         std::unordered_map<assetlib::AssetId, assetlib::GeometryBufferAsset>& importedBuffers);
     MaterialGPU LoadMaterial(const SceneGeometryInfo::MaterialInfo& materialInfo, const MaterialAsset& materialAsset);
     TextureHandle LoadTexture(u32 uvIndex, ImageHandle image, TextureHandle fallback);

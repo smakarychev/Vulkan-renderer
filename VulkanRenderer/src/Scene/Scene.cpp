@@ -100,20 +100,23 @@ Scene::NewInstanceData Scene::AddToHierarchy(lux::SceneInstanceHandle instance, 
     for (auto& node : instanceHierarchy.Nodes)
     {
         const bool isTopLevel = node.Parent == lux::SceneHierarchyHandle::INVALID;
-        u32 payloadIndex = node.PayloadIndex;
-        u32 blendShapeIndex = lux::SceneHierarchyHandle::INVALID;
+        lux::SceneHierarchyPayload payload = {};
         switch (node.Type)
         {
         case lux::SceneHierarchyNodeType::Mesh:
             {
-                auto& renderObject = sceneAsset.Geometry.RenderObjects[payloadIndex];
-                if (renderObject.BlendShapeIndex != lux::SceneRenderObject::INVALID)
-                    blendShapeIndex = renderObject.BlendShapeIndex + addResult.FirstBlendShape;
-                payloadIndex += addResult.FirstRenderObject;
+                auto& mesh = node.Payload.Mesh;
+                payload.Mesh = {
+                    .FirstRenderObject = mesh.FirstRenderObject + addResult.FirstRenderObject,
+                    .RenderObjectCount = mesh.RenderObjectCount,
+                    .FirstBlendShape = mesh.FirstBlendShape != lux::SceneHierarchyPayload::INVALID ?
+                        mesh.FirstBlendShape + addResult.FirstBlendShape :
+                        lux::SceneHierarchyPayload::INVALID
+                };
             }
             break;
         case lux::SceneHierarchyNodeType::Light:
-            payloadIndex = m_Lights.Add(sceneAsset.Lights.Lights[payloadIndex]);
+            payload.Light.Index = m_Lights.Add(sceneAsset.Lights.Lights[node.Payload.Light.Index]);
             break;
         case lux::SceneHierarchyNodeType::Dummy:
         default:
@@ -126,8 +129,7 @@ Scene::NewInstanceData Scene::AddToHierarchy(lux::SceneInstanceHandle instance, 
             .LocalTransform = isTopLevel ?
                 baseTransform.Combine(node.LocalTransform) :
                 node.LocalTransform,
-            .PayloadIndex = payloadIndex,
-            .BlendShapeBaseIndex = blendShapeIndex,
+            .Payload = payload,
             .Instance = instance
         });
     }
@@ -345,7 +347,7 @@ void Scene::Sweep(bool reclaimHandles)
         if (reorder[i] == lux::SceneHierarchyHandle::INVALID)
         {
             if (node.Type == lux::SceneHierarchyNodeType::Light)
-                m_Lights.Delete(node.PayloadIndex);
+                m_Lights.Delete(node.Payload.Light.Index);
             continue;
         }
         
@@ -446,10 +448,21 @@ void Scene::UpdateAnimations(FrameContext& ctx)
         if (animation.ScaleChannel != lux::SceneHierarchyAnimation::INVALID)
             node.LocalTransform.Scale = channels[animation.ScaleChannel].GetInterpolated().Scale;
         if (animation.WeightChannel != lux::SceneHierarchyAnimation::INVALID)
-            for (u32 element = 0; element < channels[animation.WeightChannel].ElementCount(); element++)
-                updateBlendShapeWeight(Device::GetBufferArenaUnderlyingBuffer(Geometry().BlendShapes),
-                    node.BlendShapeBaseIndex + element,
-                    channels[animation.WeightChannel].GetInterpolated(element).Weight, *ctx.ResourceUploader);
+        {
+            auto& mesh = node.Payload.Mesh;
+            const u32 blendShapeCount = channels[animation.WeightChannel].ElementCount();
+            for (u32 renderObjectIndex = 0; renderObjectIndex < mesh.RenderObjectCount; renderObjectIndex++)
+            {
+                const u32 blendShapeOffset = renderObjectIndex * blendShapeCount;
+                for (u32 element = 0; element < channels[animation.WeightChannel].ElementCount(); element++)
+                {
+                    const u32 blendShapeIndex = element + mesh.FirstBlendShape + blendShapeOffset;
+                    updateBlendShapeWeight(Device::GetBufferArenaUnderlyingBuffer(Geometry().BlendShapes),
+                        blendShapeIndex, channels[animation.WeightChannel].GetInterpolated(element).Weight,
+                        *ctx.ResourceUploader);
+                }
+            }
+        }
     }
 }
 
@@ -480,14 +493,19 @@ void Scene::UpdateTransforms(FrameContext& ctx)
         {
         case lux::SceneHierarchyNodeType::Mesh:
             {
-                auto& previousTransform = m_RenderObjectPreviousTransforms[node.PayloadIndex];
-                updateRenderObject(Device::GetBufferArenaUnderlyingBuffer(Geometry().RenderObjects), node.PayloadIndex,
-                    previousTransform, transforms[i], *ctx.ResourceUploader);
-                m_RenderObjectPreviousTransforms[node.PayloadIndex] = transforms[i];
+                auto& mesh = node.Payload.Mesh;
+                for (u32 renderObjectIndex = 0; renderObjectIndex < mesh.RenderObjectCount; renderObjectIndex++)
+                {
+                    const u32 globalIndex = mesh.FirstRenderObject + renderObjectIndex;
+                    auto& previousTransform = m_RenderObjectPreviousTransforms[globalIndex];
+                    updateRenderObject(Device::GetBufferArenaUnderlyingBuffer(Geometry().RenderObjects), globalIndex,
+                        previousTransform, transforms[i], *ctx.ResourceUploader);
+                    m_RenderObjectPreviousTransforms[globalIndex] = transforms[i];
+                }
             }
             break;
         case lux::SceneHierarchyNodeType::Light:
-            updateLight(Lights().Get(node.PayloadIndex), transforms[i]);
+            updateLight(Lights().Get(node.Payload.Light.Index), transforms[i]);
             break;
         case lux::SceneHierarchyNodeType::Dummy:
         default:

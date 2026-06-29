@@ -49,7 +49,7 @@ void SceneAsset::SetSunLight(const DirectionalLight& light)
         .Depth = 0,
         .Parent = {SceneHierarchyHandle::INVALID},
         .LocalTransform = Lights.Lights.back().GetTransform(),
-        .PayloadIndex = lightIndex
+        .Payload = {.Light = {lightIndex}}
     });
 }
 
@@ -63,7 +63,7 @@ void SceneAsset::AddLight(const DirectionalLight& light)
         .Depth = 0,
         .Parent = {SceneHierarchyHandle::INVALID},
         .LocalTransform = Lights.Lights.back().GetTransform(),
-        .PayloadIndex = lightIndex
+        .Payload = {.Light = {lightIndex}}
     });
 }
 
@@ -77,7 +77,7 @@ void SceneAsset::AddLight(const PointLight& light)
         .Depth = 0,
         .Parent = {SceneHierarchyHandle::INVALID},
         .LocalTransform = Lights.Lights.back().GetTransform(),
-        .PayloadIndex = lightIndex
+        .Payload = {.Light = {lightIndex}}
     });
 }
 
