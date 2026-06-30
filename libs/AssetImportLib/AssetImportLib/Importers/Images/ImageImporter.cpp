@@ -113,7 +113,8 @@ IoResult<void> ImageImporter::WriteMetadata(const std::filesystem::path& metaPat
             rawPath.extension() != IMAGE_ASSET_RAW_HDR_EXTENSION &&
             rawPath.extension() != IMAGE_ASSET_RAW_JPG_EXTENSION &&
             rawPath.extension() != IMAGE_ASSET_RAW_JPEG_EXTENSION,
-        .BakedFormat = format
+        .BakedFormat = format,
+        .HdrExposure = isHrdImage ? 1.0f : std::optional<f32>{std::nullopt}
     };
     
     return WritePackedMetadata(metaPath, assetlib::image::packMeta(imageMeta), "image");

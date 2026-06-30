@@ -12,6 +12,7 @@ struct ImageMeta
     bool RuntimeMipmaps{true};
     bool IsCubemap{false};
     ImageFormat BakedFormat{ImageFormat::RGBA8_SRGB};
+    std::optional<f32> HdrExposure{std::nullopt};
 };
 
 namespace image

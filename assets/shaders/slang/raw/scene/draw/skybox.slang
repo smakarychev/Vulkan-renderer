@@ -43,5 +43,8 @@ VSOutput vertexMain(uint vertexID: SV_VertexID) {
 
 [shader("pixel")]
 float4 pixelMain(VSOutput input, uniform float lodBias) {
-    return resources.skybox.SampleLevel(samplers.sampler, input.cubeUv, lodBias);
+    const float3 color = resources.skybox.Sample(samplers.sampler, input.cubeUv, 0).rgb * 
+        resources.view.shading.fixedExposureToExposureMultiplier;
+    
+    return float4(color, 1.0f);
 }

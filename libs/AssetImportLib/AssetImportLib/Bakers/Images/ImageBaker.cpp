@@ -389,6 +389,17 @@ VkFormat vkFormatFromImageFormat(assetlib::ImageFormat format)
     return (VkFormat)(u32)format;
 }
 
+void preExposeHdr(f32* pixelsRgba, u32 pixelCount, f32 exposure)
+{
+    static constexpr u32 CHANNELS = 4;
+    for (u32 pixel = 0; pixel < pixelCount; pixel++)
+    {
+        pixelsRgba[pixel * CHANNELS + 0] *= exposure;
+        pixelsRgba[pixel * CHANNELS + 1] *= exposure;
+        pixelsRgba[pixel * CHANNELS + 2] *= exposure;
+    }
+}
+
 IoResult<assetlib::ImageAsset> readUncompressedHdr(const assetlib::ImageMeta& meta)
 {
     i32 width, height, channels;
@@ -398,6 +409,8 @@ IoResult<assetlib::ImageAsset> readUncompressedHdr(const assetlib::ImageMeta& me
     const u64 sizeBytes = (u64)width * (u64)height * 4llu * sizeof(f32);
     std::vector imageData((std::byte*)pixels, (std::byte*)pixels + sizeBytes);
     stbi_image_free(pixels);
+    if (meta.HdrExposure.has_value())
+        preExposeHdr((f32*)imageData.data(), (u32)(width * height), *meta.HdrExposure);
 
     return assetlib::ImageAsset{
         .Header = {

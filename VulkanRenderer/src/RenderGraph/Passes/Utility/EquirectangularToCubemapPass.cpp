@@ -11,7 +11,7 @@ namespace
 using PassData = Passes::EquirectangularToCubemap::PassData;
 
 PassData& convertEquirectangularToCubemapPass(StringId name, RG::Graph& renderGraph,
-    RG::Resource equirectangular, Texture cubemap)
+    RG::Resource equirectangular, RG::Resource cubemap, f32 exposure)
 {
     using namespace RG;
 
@@ -24,22 +24,24 @@ PassData& convertEquirectangularToCubemapPass(StringId name, RG::Graph& renderGr
 
             passData.BindGroup = EquirectangularToCubemapBindGroupRG(graph);
 
-            passData.Cubemap = passData.BindGroup.SetResourcesCubemap(graph.Import("Cubemap"_hsv, cubemap));
-            passData.Equirectangular = passData.BindGroup.SetResourcesEquirectangular(equirectangular);
+            passData.BindGroup.SetResourcesEquirectangular(equirectangular);
+            passData.Cubemap = passData.BindGroup.SetResourcesCubemap(cubemap);
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("EquirectangularToCubemap")
             GPU_PROFILE_FRAME("EquirectangularToCubemap")
 
-            auto& cubemapDescription = graph.GetImageDescription(passData.Cubemap);
+            auto& cubemapDescription = graph.GetImageDescription(cubemap);
 
             struct PushConstants
             {
                 glm::vec2 CubemapResolutionInverse{};
+                f32 Exposure{};
             };
             PushConstants pushConstants = {
-                .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemapDescription.Width}
+                .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemapDescription.Width},
+                .Exposure = exposure,
             };
 
             auto& cmd = frameContext.CommandList;
@@ -57,29 +59,20 @@ PassData& convertEquirectangularToCubemapPass(StringId name, RG::Graph& renderGr
 }
 
 Passes::EquirectangularToCubemap::PassData& Passes::EquirectangularToCubemap::addToGraph(StringId name,
-    RG::Graph& renderGraph, Texture equirectangular, Texture cubemap)
-{
-    return addToGraph(name, renderGraph,
-        renderGraph.Import("Equirectangular"_hsv, equirectangular, ImageLayout::Readonly),
-        cubemap);
-}
-
-Passes::EquirectangularToCubemap::PassData& Passes::EquirectangularToCubemap::addToGraph(StringId name,
-    RG::Graph& renderGraph, RG::Resource equirectangular, Texture cubemap)
+    RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
-
+    
     return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
-        {
-            auto& convert = convertEquirectangularToCubemapPass(name.Concatenate(".Convert"), graph,
-                equirectangular, cubemap);
+       [&](Graph& graph, PassData& passData)
+       {
+           auto& convert = convertEquirectangularToCubemapPass(name.Concatenate(".Convert"), graph,
+               info.Equirectangular, info.Cubemap, info.Exposure);
 
-            auto& mipmap = Mipmap::addToGraph(name.Concatenate(".Mipmap"), graph, convert.Cubemap);
-            passData.Equirectangular = convert.Equirectangular;
-            passData.Cubemap = mipmap.Texture;
-        },
-        [=](const PassData&, FrameContext&, const Graph&)
-        {
-        });
+           auto& mipmap = Mipmap::addToGraph(name.Concatenate(".Mipmap"), graph, convert.Cubemap);
+           passData.Cubemap = mipmap.Texture;
+       },
+       [=](const PassData&, FrameContext&, const Graph&)
+       {
+       });
 }

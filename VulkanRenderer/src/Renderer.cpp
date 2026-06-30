@@ -372,8 +372,14 @@ void Renderer::ExecuteSingleTimePasses()
     
     m_Graph->Reset();
 
-    RG::Resource cubemap = Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox"_hsv, *m_Graph,
-        m_ImageAssetManager->Get(equirectangular), m_SkyboxTexture).Cubemap;
+    const RG::Resource cubemap = Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox"_hsv, *m_Graph, {
+        .Equirectangular = m_Graph->Import(
+            "Equirectangular"_hsv, m_ImageAssetManager->Get(equirectangular), ImageLayout::Readonly),
+        .Cubemap = m_Graph->Import("Cubemap"_hsv, m_SkyboxTexture),
+        .Exposure = Passes::PbrCameraExposure::convertEV100ToExposure(
+            *CVars::Get().GetF32CVar("Renderer.FixedExposure"_hsv))
+    }).Cubemap;
+    
     Passes::DiffuseIrradianceSH::addToGraph(
         "Scene.DiffuseIrradianceSH"_hsv, *m_Graph, cubemap, m_IrradianceSH, false);
     Passes::EnvironmentPrefilter::addToGraph(
