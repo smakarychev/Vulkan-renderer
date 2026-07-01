@@ -35,11 +35,20 @@ struct LiminanceHistogramBinsSamplers {
     SamplerState sampler;
 }
 
+struct HistogramBin {
+    uint low;
+    uint high;
+
+    uint64_t count() { 
+        return (uint64_t(high) << 32llu) | low;
+    }
+}
+
 struct LiminanceHistogramBinsResources {
     ConstantBuffer<ViewInfo> view;
     Texture2D color;
 
-    RWStructuredBuffer<uint> bins;
+    RWStructuredBuffer<HistogramBin> bins;
 }
 
 groupshared uint[LUMINANCE_HISTOGRAM_BINS] sBins;
@@ -52,6 +61,7 @@ void luminanceHistogram(
     uint localInvocationIndex: SV_GroupIndex,
     uniform float minLogLuminance,
     uniform float logLuminanceRangeInverse,
+    uniform float centerMeteringStrength,
     uniform ParameterBlock<LiminanceHistogramBinsResources> resources,
     uniform ParameterBlock<LiminanceHistogramBinsSamplers> samplers) {
         
@@ -63,21 +73,38 @@ void luminanceHistogram(
     resources.color.GetDimensions(imageSize.x, imageSize.y);
     float2 imageSizeInverse = 1.0f / imageSize;
 
+    const float2 uv = float2(dispatchThreadID + 0.5f) * imageSizeInverse;
+
     const float3 sample = 
-        resources.color.SampleLevel(samplers.sampler, float2(dispatchThreadID + 0.5f) * imageSizeInverse, 0).rgb * 
+        resources.color.SampleLevel(samplers.sampler, uv, 0).rgb * 
         resources.view.shading.exposureInverse;
     const float luminance = color.luminance(sample);
     if (luminance < 1e-4f)
         return;
+
     
     const float luminanceLogScaled = saturate((log2(luminance) - minLogLuminance) * logLuminanceRangeInverse);
-    const uint bin = uint((LUMINANCE_HISTOGRAM_BINS - 1) * luminanceLogScaled);
+    const float binFloat = (LUMINANCE_HISTOGRAM_BINS - 1) * luminanceLogScaled;
+    const uint mainBin = uint(binFloat);
+    const uint nextBin = min(mainBin + 1, LUMINANCE_HISTOGRAM_BINS - 1);
+    
+    float nextBinWeight = fract(binFloat);
+    float mainBinWeight = 1.0f - nextBinWeight;
+    const float centerMetering = pow(1.0f - distance(uv, float2(0.5f)), centerMeteringStrength);
+    nextBinWeight *= centerMetering;
+    mainBinWeight *= centerMetering;
 
-    InterlockedAdd(sBins[bin], 1);
+    InterlockedAdd(sBins[mainBin], encodeNormalizedFloatAsUint(mainBinWeight));
+    InterlockedAdd(sBins[nextBin], encodeNormalizedFloatAsUint(nextBinWeight));
     GroupMemoryBarrierWithGroupSync();
 
-    if (localInvocationIndex < LUMINANCE_HISTOGRAM_BINS)
-        InterlockedAdd(resources.bins[localInvocationIndex], sBins[localInvocationIndex]);
+    if (localInvocationIndex < LUMINANCE_HISTOGRAM_BINS) {
+        uint currentBinWeight;
+        InterlockedAdd(resources.bins[localInvocationIndex].low, sBins[localInvocationIndex], currentBinWeight);
+        const bool overflows = sBins[localInvocationIndex] + currentBinWeight < currentBinWeight;
+        if (overflows)
+            InterlockedAdd(resources.bins[localInvocationIndex].high, 1u);
+    }
 }
 
 [StandaloneType("exposureFromHistogramOutput")]
@@ -87,11 +114,12 @@ public struct ExposureFromHistogramOutput {
     public float currentEV;
     public float firstAccountedEV;
     public float firstNotAccountedEV;
+    public uint64_t aboveZeroLuminancePixelCount;
 }
 
 struct ExposureFromHistogramResources {
     RWStructuredBuffer<ViewInfo> view;
-    RWStructuredBuffer<uint> bins;
+    RWStructuredBuffer<HistogramBin> bins;
     RWStructuredBuffer<ExposureFromHistogramOutput> output;
 }
 
@@ -106,40 +134,41 @@ void cameraExposureFromHistogram(
     uniform float evCompensation,
     uniform float histogramMin,
     uniform float histogramMax,
-    uniform uint pixelCount,
     uniform ParameterBlock<ExposureFromHistogramResources> resources) {
 
-    uint totalCount = 0;
-    uint totalCountWeighted = 0;
+    uint64_t totalCount = 0;
+    uint64_t totalCountWeighted = 0;
 
     [unroll]
     for (uint i = 0; i < LUMINANCE_HISTOGRAM_BINS; i++) {
-        totalCount += resources.bins[i];
-        totalCountWeighted += resources.bins[i] * i;
+        const uint64_t binCount = resources.bins[i].count();
+        totalCount += binCount;
+        totalCountWeighted += binCount * i;
     }
 
-    const uint countMin = uint(histogramMin * totalCount);
-    const uint countMax = uint(histogramMax * totalCount);
+    const uint64_t countMin = uint64_t(histogramMin * totalCount);
+    const uint64_t countMax = uint64_t(histogramMax * totalCount);
     totalCount = 0;
     totalCountWeighted = 0;
-    uint countWithSkipped = 0;
+    uint64_t countWithSkipped = 0;
     uint firstBin = ~0u;
     uint lastBin = 0u;
     for (uint i = 0; i < LUMINANCE_HISTOGRAM_BINS; i++) {
-        const uint minCount = countWithSkipped;
-        const uint maxCount = countWithSkipped + resources.bins[i];
+        const uint64_t binCount = resources.bins[i].count();
+        const uint64_t minCount = countWithSkipped;
+        const uint64_t maxCount = countWithSkipped + binCount;
         countWithSkipped = maxCount;
 
         if (maxCount <= countMin || minCount >= countMax)
             continue;
 
-        uint newCount = 0;
+        uint64_t newCount = 0;
         if (minCount <= countMin) {
             newCount = (maxCount - countMin);
         } else if (maxCount >= countMax) {
             newCount = (countMax - minCount);
         } else {
-            newCount = resources.bins[i];
+            newCount = binCount;
         }
 
         totalCount += newCount;
@@ -149,7 +178,7 @@ void cameraExposureFromHistogram(
         lastBin = i;
     }
 
-    const uint aboveZeroLuminancePixelCount = max(1u, totalCount);
+    const uint64_t aboveZeroLuminancePixelCount = max(1llu, totalCount);
     const float weightedAverageLog = (float(totalCountWeighted) / float(aboveZeroLuminancePixelCount));
     const float weightedAverage = exp2(binToLogLuminance(weightedAverageLog, minLogLuminance, logLuminanceRange));
 
@@ -175,10 +204,11 @@ void cameraExposureFromHistogram(
         minLogLuminance, logLuminanceRange));
     resources.output[0].firstNotAccountedEV = fromLogLuminanceToEV100(binToLogLuminance((float)lastBin + 1.0f,
         minLogLuminance, logLuminanceRange));
+    resources.output[0].aboveZeroLuminancePixelCount = aboveZeroLuminancePixelCount;
 }
 
 struct VisualizeLuminanceHistogramResources {
-    StructuredBuffer<uint> bins;
+    StructuredBuffer<HistogramBin> bins;
     StructuredBuffer<ExposureFromHistogramOutput> histogramOutput;
     RWTexture2D color;
 }
@@ -189,7 +219,6 @@ void visualizeLuminanceHistogram(uint2 dispatchThreadID: SV_DispatchThreadID,
     uniform float minLogLuminance,
     uniform float logLuminanceRange,
     uniform float evCompensation,
-    uniform uint pixelCount,
     uniform ParameterBlock<VisualizeLuminanceHistogramResources> resources) {
 
     float2 imageSize;
@@ -201,7 +230,8 @@ void visualizeLuminanceHistogram(uint2 dispatchThreadID: SV_DispatchThreadID,
 
     const float2 uv = float2(dispatchThreadID + 0.5f) * imageSizeInverse;
 
-    float4 color = plotHistogram(uv, minLogLuminance, logLuminanceRange, pixelCount, resources);
+    float4 color = plotHistogram(uv, minLogLuminance, logLuminanceRange, 
+        resources.histogramOutput[0].aboveZeroLuminancePixelCount, resources);
     resources.color[dispatchThreadID] = color;
 }
 
@@ -219,7 +249,6 @@ void visualizeLuminanceHistogramOverlay(uint2 dispatchThreadID: SV_DispatchThrea
     uniform float minLogLuminance,
     uniform float logLuminanceRange,
     uniform float evCompensation,
-    uniform uint pixelCount,
     uniform ParameterBlock<VisualizeLuminanceHistogramResources> resources) {
 
     float2 imageSize;
@@ -236,7 +265,8 @@ void visualizeLuminanceHistogramOverlay(uint2 dispatchThreadID: SV_DispatchThrea
     const float2 plotUv = (uv - plotUvRangeMin) / (plotUvRangeMax - plotUvRangeMin);
     float4 histogramPlot = float4(0.0f);
     if (all(plotUv > 0.0f) && all(plotUv < 1.0f))
-        histogramPlot += plotHistogram(plotUv, minLogLuminance, logLuminanceRange, pixelCount, resources);
+        histogramPlot += plotHistogram(plotUv, minLogLuminance, logLuminanceRange, 
+            resources.histogramOutput[0].aboveZeroLuminancePixelCount, resources);
     float4 sceneColor = resources.color[dispatchThreadID];
     const float luminance = color.luminance(sceneColor.rgb / 
         convertEV100ToExposure(resources.histogramOutput[0].currentEV));
@@ -251,12 +281,12 @@ void visualizeLuminanceHistogramOverlay(uint2 dispatchThreadID: SV_DispatchThrea
 }
 
 float4 plotHistogram(
-    float2 uv, float minLogLuminance, float logLuminanceRange, uint pixelCount,
+    float2 uv, float minLogLuminance, float logLuminanceRange, uint64_t pixelCount,
     ParameterBlock<VisualizeLuminanceHistogramResources> resources) {
 
     const uint binIndex = uint(uv.x * LUMINANCE_HISTOGRAM_BINS);
     // for better visualization, we take the sqrt of the in-bin-count, otherwise, the bars will be too squashed
-    const float barHeight = sqrt((float)resources.bins[binIndex] / (float)pixelCount);
+    const float barHeight = sqrt((float)resources.bins[binIndex].count() / (float)pixelCount);
     const float ev = fromLogLuminanceToEV100(binToLogLuminance((float)binIndex, minLogLuminance, logLuminanceRange));
     const float barEvWidth = 
         fromLogLuminanceToEV100(binToLogLuminance((float)binIndex + 1, minLogLuminance, logLuminanceRange)) - ev;
@@ -307,4 +337,11 @@ float fromExposureToEV100(float exposure) {
 
 float binToLogLuminance(float bin, float minLogLuminance, float logLuminanceRange) {
     return bin / (LUMINANCE_HISTOGRAM_BINS - 1) * logLuminanceRange + minLogLuminance;
+}
+
+// super arbitrary, but have to be less than 1 << (32 - LUMINANCE_HISTOGRAM_BINS - 1)
+static const uint FLOAT_ENCODE_MULTIPLIER = 1 << 20;
+
+uint encodeNormalizedFloatAsUint(float val) {
+    return uint(val * FLOAT_ENCODE_MULTIPLIER);
 }

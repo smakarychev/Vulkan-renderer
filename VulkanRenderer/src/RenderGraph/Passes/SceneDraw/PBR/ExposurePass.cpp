@@ -67,7 +67,6 @@ struct LuminanceHistogramPassData
 {
     RG::Resource Color{};
     RG::Resource Bins{};
-    u32 PixelCount{};
 };
 LuminanceHistogramPassData& calculateLuminanceHistogram(StringId name, RG::Graph& renderGraph, 
     const Passes::PbrCameraExposure::ExecutionInfo& info)
@@ -82,17 +81,15 @@ LuminanceHistogramPassData& calculateLuminanceHistogram(StringId name, RG::Graph
 
             passData.BindGroup = PbrLuminanceHistogramBindGroupRG(graph);
             
-            auto& colorDescription = graph.GetImageDescription(info.Color);
             passData.Bins = graph.Create("LuminanceHistogramBins"_hsv, RGBufferDescription{
-                .SizeBytes = *CVars::Get().GetI32CVar("Renderer.LuminanceHistogramBins"_hsv) * sizeof(u32)
+                .SizeBytes = *CVars::Get().GetI32CVar("Renderer.LuminanceHistogramBins"_hsv) * sizeof(u64)
             }); 
-            std::vector<u32> zeroBins(*CVars::Get().GetI32CVar("Renderer.LuminanceHistogramBins"_hsv), 0);
+            std::vector<u64> zeroBins(*CVars::Get().GetI32CVar("Renderer.LuminanceHistogramBins"_hsv), 0);
             passData.Bins = graph.Upload(passData.Bins, zeroBins);
             
             passData.BindGroup.SetResourcesView(info.ViewInfo);
             passData.Color = passData.BindGroup.SetResourcesColor(info.Color);
             passData.Bins = passData.BindGroup.SetResourcesBins(passData.Bins);
-            passData.PixelCount = colorDescription.Width * colorDescription.Height;
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
@@ -104,6 +101,7 @@ LuminanceHistogramPassData& calculateLuminanceHistogram(StringId name, RG::Graph
             {
                 f32 MinLogLuminance{};
                 f32 LogLuminanceRangeInverse{};
+                f32 CenterMeteringStrength{};
             };
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
@@ -113,7 +111,8 @@ LuminanceHistogramPassData& calculateLuminanceHistogram(StringId name, RG::Graph
                     .MinLogLuminance = *CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMinLog"_hsv),
                     .LogLuminanceRangeInverse = 1.0f / 
                         (*CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMaxLog"_hsv) -
-                         *CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMinLog"_hsv))
+                         *CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMinLog"_hsv)),
+                    .CenterMeteringStrength = info.ExposureSettings->CenterMeteringStrength
                 }}
             });
             cmd.Dispatch({
@@ -126,7 +125,6 @@ struct ExposureFromLuminanceHistogramPassData : Passes::PbrCameraExposure::PassD
 {
     RG::Resource Bins{};
     RG::Resource Output{};
-    u32 PixelCount{};
 };
 ExposureFromLuminanceHistogramPassData& exposureFromLuminanceHistogram(StringId name, RG::Graph& renderGraph,
     const LuminanceHistogramPassData& histogramPassData, const Passes::PbrCameraExposure::ExecutionInfo& info)
@@ -147,7 +145,6 @@ ExposureFromLuminanceHistogramPassData& exposureFromLuminanceHistogram(StringId 
             passData.ViewInfo = passData.BindGroup.SetResourcesView(info.ViewInfo);
             passData.Bins = passData.BindGroup.SetResourcesBins(histogramPassData.Bins);
             passData.Output = passData.BindGroup.SetResourcesOutput(passData.Output);
-            passData.PixelCount = histogramPassData.PixelCount;
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
@@ -163,7 +160,6 @@ ExposureFromLuminanceHistogramPassData& exposureFromLuminanceHistogram(StringId 
                 f32 EVCompensation{};
                 f32 HistogramMin{};
                 f32 HistogramMax{};
-                u32 PixelCount{};
             };
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
@@ -178,7 +174,6 @@ ExposureFromLuminanceHistogramPassData& exposureFromLuminanceHistogram(StringId 
                     .EVCompensation = *CVars::Get().GetF32CVar("Renderer.EVCompensation"_hsv),
                     .HistogramMin = *CVars::Get().GetF32CVar("Renderer.ExposureHistogramMin"_hsv) / 100.0f,
                     .HistogramMax = 1.0f - *CVars::Get().GetF32CVar("Renderer.ExposureHistogramMax"_hsv) / 100.0f,
-                    .PixelCount = passData.PixelCount
                 }}});
             cmd.Dispatch({
                 .Invocations = {1, 1, 1},
@@ -226,7 +221,6 @@ VisualizeLuminanceHistogramPassData& visualizeLuminanceHistogram(StringId name, 
                 f32 MinLogLuminance{};
                 f32 LogLuminanceRange{};
                 f32 EVCompensation{};
-                u32 PixelCount{};
             };
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
@@ -237,7 +231,6 @@ VisualizeLuminanceHistogramPassData& visualizeLuminanceHistogram(StringId name, 
                     .LogLuminanceRange = (*CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMaxLog"_hsv) -
                         *CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMinLog"_hsv)),
                     .EVCompensation = *CVars::Get().GetF32CVar("Renderer.EVCompensation"_hsv),
-                    .PixelCount = exposureFromHistogramPassData.PixelCount
                 }}});
             cmd.Dispatch({
                 .Invocations = {description.Width, description.Height, 1},
@@ -275,7 +268,6 @@ VisualizeLuminanceHistogramPassData& visualizeLuminanceHistogramOverlay(StringId
                 f32 MinLogLuminance{};
                 f32 LogLuminanceRange{};
                 f32 EVCompensation{};
-                u32 PixelCount{};
             };
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
@@ -286,7 +278,6 @@ VisualizeLuminanceHistogramPassData& visualizeLuminanceHistogramOverlay(StringId
                     .LogLuminanceRange = (*CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMaxLog"_hsv) -
                         *CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMinLog"_hsv)),
                     .EVCompensation = *CVars::Get().GetF32CVar("Renderer.EVCompensation"_hsv),
-                    .PixelCount = description.Width * description.Height
                 }}});
             cmd.Dispatch({
                 .Invocations = {description.Width, description.Height, 1},

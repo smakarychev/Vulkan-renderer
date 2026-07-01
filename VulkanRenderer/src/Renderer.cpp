@@ -788,6 +788,7 @@ void Renderer::UpdateGlobalRenderGraphResources()
         ImGui::DragFloat("Aperture f stops", &m_ExposureSettings.Aperture, 1e-2f, 0.1f, 30.0f);
         ImGui::DragFloat("ShutterTime inverse", &shutterTimeInverse, 1e-1f, 0.0f, 200.0f);
         ImGui::DragFloat("ISO", &m_ExposureSettings.ISO, 1e-1f, 0.0f, 300.0f);
+        ImGui::DragFloat("Center metering", &m_ExposureSettings.CenterMeteringStrength, 1e-2f, 0.0f, 32.0f);
         ImGui::Checkbox("Auto", &m_ExposureSettings.UseAutomaticExposure);
         ImGui::Checkbox("Visualize", &m_ExposureSettings.Visualize);
         ImGui::Checkbox("Overlay", &m_ExposureSettings.VisualizationInfo.AsOverlay);
