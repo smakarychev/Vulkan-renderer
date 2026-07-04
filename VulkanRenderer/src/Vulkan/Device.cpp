@@ -1546,7 +1546,7 @@ void DeviceResources::DestroyCmdsOfPool(CommandPool pool)
 struct QueueInfo
 {
     /* technically any family index is possible;
-     * practically GPUs have only a few*/
+     * practically GPUs have only a few */
     static constexpr u32 UNSET_FAMILY = std::numeric_limits<u32>::max();
     VkQueue Queue{VK_NULL_HANDLE};
     u32 Family{UNSET_FAMILY};
@@ -1601,6 +1601,7 @@ struct Device::State
     };
 
     ImmediateSubmitContext GetSubmitContext();
+    void FreeSubmitContext(const ImmediateSubmitContext& ctx);
 
     VkDevice Device{VK_NULL_HANDLE};
     DeviceResources Resources;
@@ -1613,6 +1614,7 @@ struct Device::State
 
     GLFWwindow* Window{nullptr};
 
+    std::mutex SubmitContextMutex{};
     std::vector<ImmediateSubmitContext> SubmitContexts;
 
     VkDescriptorPool ImGuiPool;
@@ -1629,12 +1631,16 @@ struct Device::State
 
 ImmediateSubmitContext Device::State::GetSubmitContext()
 {
-    if (!s_State.SubmitContexts.empty())
     {
-        ImmediateSubmitContext ctx = SubmitContexts.back();
-        SubmitContexts.pop_back();
+        std::scoped_lock lock(s_State.SubmitContextMutex);
+        
+        if (!s_State.SubmitContexts.empty())
+        {
+            ImmediateSubmitContext ctx = SubmitContexts.back();
+            SubmitContexts.pop_back();
 
-        return ctx;
+            return ctx;
+        }
     }
 
     ImmediateSubmitContext ctx = {};
@@ -1648,6 +1654,13 @@ ImmediateSubmitContext Device::State::GetSubmitContext()
     ctx.QueueKind = QueueKind::Graphics;
 
     return ctx;
+}
+
+void Device::State::FreeSubmitContext(const ImmediateSubmitContext& ctx)
+{
+    std::scoped_lock lock(s_State.SubmitContextMutex);
+    
+    s_State.SubmitContexts.push_back(ctx);
 }
 
 Device::State Device::s_State = State{};
@@ -4314,7 +4327,7 @@ void Device::FreeSubmitContext(const ImmediateSubmitContext& ctx)
     ResetFence(ctx.Fence);
     ResetPool(ctx.CommandPool);
 
-    s_State.SubmitContexts.push_back(ctx);
+    s_State.FreeSubmitContext(ctx);
 }
 
 DeviceResources& Device::Resources()
