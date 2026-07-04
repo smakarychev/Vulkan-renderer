@@ -115,17 +115,17 @@ std::optional<MaterialAsset> MaterialAssetManager::DoLoad(import::MaterialImport
         .AlphaCutoff = materialAsset.AlphaCutoff,
         .DoubleSided = materialAsset.DoubleSided,
         .OcclusionStrength = materialAsset.OcclusionStrength,
-        .BaseColorTexture = LoadTexture(m_ImageAssetManager, materialAsset.BaseColorTexture),
-        .EmissiveTexture = LoadTexture(m_ImageAssetManager, materialAsset.EmissiveTexture),
-        .NormalTexture = LoadTexture(m_ImageAssetManager, materialAsset.NormalTexture),
-        .MetallicRoughnessTexture = LoadTexture(m_ImageAssetManager, materialAsset.MetallicRoughnessTexture),
-        .OcclusionTexture = LoadTexture(m_ImageAssetManager, materialAsset.OcclusionTexture),
+        .BaseColorTexture = LoadTexture(materialAsset.BaseColorTexture),
+        .EmissiveTexture = LoadTexture(materialAsset.EmissiveTexture),
+        .NormalTexture = LoadTexture(materialAsset.NormalTexture),
+        .MetallicRoughnessTexture = LoadTexture(materialAsset.MetallicRoughnessTexture),
+        .OcclusionTexture = LoadTexture(materialAsset.OcclusionTexture),
     };
 
     return material;
 }
 
-ImageHandle MaterialAssetManager::LoadTexture(ImageAssetManager* imageAssetManager, assetlib::AssetId imageAsset) const
+ImageHandle MaterialAssetManager::LoadTexture(assetlib::AssetId imageAsset) const
 {
     if (!imageAsset.HasValue())
         return {};
@@ -135,6 +135,6 @@ ImageHandle MaterialAssetManager::LoadTexture(ImageAssetManager* imageAssetManag
     if (imageInfo == nullptr)
         return {};
 
-    return imageAssetManager->LoadResource({.Path = imageInfo->Path});
+    return m_ImageAssetManager->LoadResource({.Path = imageInfo->Path});
 }
 }

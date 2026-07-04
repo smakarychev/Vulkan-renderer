@@ -40,7 +40,7 @@ protected:
     
 private:
     std::optional<MaterialAsset> DoLoad(import::MaterialImporter& importer, const std::filesystem::path& path) const;
-    ImageHandle LoadTexture(ImageAssetManager* imageAssetManager, assetlib::AssetId imageAsset) const;
+    ImageHandle LoadTexture(assetlib::AssetId imageAsset) const;
 
 private:
     AssetFreeListMap<MaterialAsset> m_Materials;
