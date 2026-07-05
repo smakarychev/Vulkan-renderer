@@ -42,6 +42,7 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
                     ShaderSpecializations(ShaderSpecialization{"REAL_TIME"_hsv, realTime}));
 
                 passData.PrefilteredTexture = passData.BindGroup.SetResourcesPrefiltered(mips[mipmap]);
+                mips[mipmap] = passData.PrefilteredTexture;
                 passData.Cubemap = passData.BindGroup.SetResourcesEnvironment(cubemap);
             },
             [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
