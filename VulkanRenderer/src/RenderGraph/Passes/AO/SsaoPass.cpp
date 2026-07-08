@@ -17,7 +17,7 @@ namespace
 {
 constexpr u32 MAX_SAMPLES_COUNT{256};
 
-std::pair<Texture, Buffer> generateSamples(u32 count)
+std::pair<Image, Buffer> generateSamples(u32 count)
 {
     static constexpr u32 RANDOM_SIZE = 4;
     std::vector<u32> pixels((u64)RANDOM_SIZE * (u64)RANDOM_SIZE);
@@ -32,7 +32,7 @@ std::pair<Texture, Buffer> generateSamples(u32 count)
         pixel = Images::toRGBA8SNorm(glm::vec4{randomDir, 1.0f});
     }
 
-    Texture noise = Device::CreateImage({
+    const Image noise = Device::CreateImage({
         .DataSource = Span<const std::byte>(pixels),
         .Description = ImageDescription{
             .Width = RANDOM_SIZE,
@@ -59,7 +59,7 @@ std::pair<Texture, Buffer> generateSamples(u32 count)
         samples[i] = glm::vec4{sample, 1.0f};
     }
 
-    Buffer samplesBuffer = Device::CreateBuffer({
+    const Buffer samplesBuffer = Device::CreateBuffer({
         .Description {
             .SizeBytes = samples.size() * sizeof(glm::vec4),
             .Usage = BufferUsage::Ordinary | BufferUsage::Mappable | BufferUsage::Uniform,
@@ -83,7 +83,7 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
     };
     struct Samples
     {
-        Texture NoiseTexture{};
+        Image NoiseTexture{};
         Buffer SamplesBuffer{};
     };
 
