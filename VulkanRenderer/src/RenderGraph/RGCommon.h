@@ -7,16 +7,13 @@ class Camera;
 
 namespace RG
 {
-    struct GlobalResources
-    {
-        u64 FrameNumberTick{0};
-        glm::uvec2 Resolution{};
-        const Camera* PrimaryCamera{nullptr}; 
-        ViewInfoGPU PrimaryViewInfo{};
-        Buffer PrimaryViewInfoBuffer{};
-        Resource PrimaryViewInfoResource{};
-    };
+struct GlobalResources
+{
+    u64 FrameNumberTick{0};
+    glm::uvec2 Resolution{};
+    const Camera* PrimaryCamera{nullptr};
+    ViewInfoGPU PrimaryViewInfo{};
+    Buffer PrimaryViewInfoBuffer{};
+    Resource PrimaryViewInfoResource{};
+};
 }
-
-
-

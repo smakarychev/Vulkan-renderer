@@ -11,45 +11,68 @@ struct DependencyInfoCreateInfo;
 
 namespace RG
 {
-    struct BufferResource;
-    struct ImageResource;
-    struct ResourceAccess;
-    class Pass;
+struct BufferResource;
+struct ImageResource;
+struct ResourceAccess;
+class Pass;
 
-    class GraphWatcher
+class GraphWatcher
+{
+public:
+    GraphWatcher() = default;
+    GraphWatcher(const GraphWatcher&) = delete;
+    GraphWatcher& operator=(const GraphWatcher&) = delete;
+    GraphWatcher(GraphWatcher&&) = delete;
+    GraphWatcher& operator=(GraphWatcher&&) = delete;
+    virtual ~GraphWatcher() = default;
+
+    virtual void OnPassOrderFinalized(const std::vector<std::unique_ptr<Pass>>& passes)
     {
-    public:
-        GraphWatcher() = default;
-        GraphWatcher(const GraphWatcher&) = delete;
-        GraphWatcher& operator=(const GraphWatcher&) = delete;
-        GraphWatcher(GraphWatcher&&) = delete;
-        GraphWatcher& operator=(GraphWatcher&&) = delete;
-        virtual ~GraphWatcher() = default;
+    }
 
-        virtual void OnPassOrderFinalized(const std::vector<std::unique_ptr<Pass>>& passes) {}
-        virtual void OnBufferResourcesFinalized(const std::vector<BufferResource>& buffers) {}
-        virtual void OnImageResourcesFinalized(const std::vector<ImageResource>& images) {}
-        virtual void OnBufferAccessesFinalized(const std::vector<ResourceAccess>& accesses) {}
-        virtual void OnImagesAccessesFinalized(const std::vector<ResourceAccess>& accesses) {}
-        struct BarrierInfo
+    virtual void OnBufferResourcesFinalized(const std::vector<BufferResource>& buffers)
+    {
+    }
+
+    virtual void OnImageResourcesFinalized(const std::vector<ImageResource>& images)
+    {
+    }
+
+    virtual void OnBufferAccessesFinalized(const std::vector<ResourceAccess>& accesses)
+    {
+    }
+
+    virtual void OnImagesAccessesFinalized(const std::vector<ResourceAccess>& accesses)
+    {
+    }
+
+    struct BarrierInfo
+    {
+        enum class Type : u8
         {
-            enum class Type : u8
-            {
-                Barrier,
-                SplitBarrier,
-            };
-            Type BarrierType{Type::Barrier};
-            Resource Resource{};
-            const DependencyInfoCreateInfo* DependencyInfo{nullptr};
+            Barrier,
+            SplitBarrier,
         };
-        virtual void OnBarrierAdded(const BarrierInfo& barrierInfo, const Pass& firstPass, const Pass& secondPass) {}
-        virtual void OnReset() {}
-    protected:
-        static u32 GetResourceIndex(Resource resource);
+
+        Type BarrierType{Type::Barrier};
+        Resource Resource{};
+        const DependencyInfoCreateInfo* DependencyInfo{nullptr};
     };
 
-    inline u32 GraphWatcher::GetResourceIndex(Resource resource)
+    virtual void OnBarrierAdded(const BarrierInfo& barrierInfo, const Pass& firstPass, const Pass& secondPass)
     {
-        return resource.m_Index;
     }
+
+    virtual void OnReset()
+    {
+    }
+
+protected:
+    static u32 GetResourceIndex(Resource resource);
+};
+
+inline u32 GraphWatcher::GetResourceIndex(Resource resource)
+{
+    return resource.m_Index;
+}
 }

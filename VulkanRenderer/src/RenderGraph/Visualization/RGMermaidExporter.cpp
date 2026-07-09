@@ -7,82 +7,82 @@
 
 namespace RG
 {
-    void RGMermaidExporter::OnPassOrderFinalized(const std::vector<std::unique_ptr<Pass>>& passes)
-    {
-        for (auto& pass : passes)
-            m_Stream << std::format("\tpass.\"{}\"[/Pass {}/]\n", pass->Name().Hash(), pass->Name());
-    }
+void RGMermaidExporter::OnPassOrderFinalized(const std::vector<std::unique_ptr<Pass>>& passes)
+{
+    for (auto& pass : passes)
+        m_Stream << std::format("\tpass.\"{}\"[/Pass {}/]\n", pass->Name().Hash(), pass->Name());
+}
 
-    void RGMermaidExporter::OnBufferResourcesFinalized(const std::vector<BufferResource>& buffers)
+void RGMermaidExporter::OnBufferResourcesFinalized(const std::vector<BufferResource>& buffers)
+{
+    for (u32 bufferIndex = 0; bufferIndex < buffers.size(); bufferIndex++)
     {
-        for (u32 bufferIndex = 0; bufferIndex < buffers.size(); bufferIndex++)
+        auto& buffer = buffers.at(bufferIndex);
+        m_BufferIndexToDescription[bufferIndex] = std::format("\tbuffer.{}[\"{}\n\t{}\n\t{}\"]\n",
+            bufferIndex, buffer.Name,
+            buffer.Description.SizeBytes,
+            BufferTraits::bufferUsageToString(buffer.Description.Usage));
+    }
+}
+
+void RGMermaidExporter::OnImageResourcesFinalized(const std::vector<ImageResource>& images)
+{
+    for (u32 imageIndex = 0; imageIndex < images.size(); imageIndex++)
+    {
+        auto& image = images.at(imageIndex);
+        m_ImageIndexToDescription[imageIndex] = std::format("\timage.{}[\"{}\n\t{} x {} x {}\n\t{}\"]\n",
+            imageIndex, image.Name,
+            image.Description.Dimensions().x, image.Description.Dimensions().y, image.Description.Dimensions().z,
+            ImageTraits::imageUsageToString(image.Description.Usage));
+    }
+}
+
+void RGMermaidExporter::OnBarrierAdded(const BarrierInfo& barrierInfo,
+    const Pass& firstPass, const Pass& secondPass)
+{
+    const u32 resourceIndex = GetResourceIndex(barrierInfo.Resource);
+    std::string tag;
+    if (barrierInfo.Resource.IsBuffer())
+    {
+        tag = "buffer";
+        if (!m_DumpedBufferDescriptions.contains(resourceIndex))
         {
-            auto& buffer = buffers.at(bufferIndex);
-            m_BufferIndexToDescription[bufferIndex] = std::format("\tbuffer.{}[\"{}\n\t{}\n\t{}\"]\n",
-                bufferIndex, buffer.Name,
-                buffer.Description.SizeBytes,
-                BufferTraits::bufferUsageToString(buffer.Description.Usage));
+            m_Stream << m_BufferIndexToDescription[resourceIndex];
+            m_DumpedBufferDescriptions.insert(resourceIndex);
+        }
+    }
+    else
+    {
+        tag = "image";
+        if (!m_DumpedImageDescriptions.contains(resourceIndex))
+        {
+            m_Stream << m_ImageIndexToDescription[resourceIndex];
+            m_DumpedImageDescriptions.insert(resourceIndex);
         }
     }
 
-    void RGMermaidExporter::OnImageResourcesFinalized(const std::vector<ImageResource>& images)
-    {
-        for (u32 imageIndex = 0; imageIndex < images.size(); imageIndex++)
-        {
-            auto& image = images.at(imageIndex);
-            m_ImageIndexToDescription[imageIndex] = std::format("\timage.{}[\"{}\n\t{} x {} x {}\n\t{}\"]\n",
-                imageIndex, image.Name,
-                image.Description.Dimensions().x, image.Description.Dimensions().y, image.Description.Dimensions().z,
-                ImageTraits::imageUsageToString(image.Description.Usage));
-        }
-    }
+    if (&firstPass != &secondPass)
+        m_Stream << std::format("\tpass.\"{}\" --> {}.{}\n", firstPass.Name().Hash(), tag, resourceIndex);
 
-    void RGMermaidExporter::OnBarrierAdded(const BarrierInfo& barrierInfo,
-        const Pass& firstPass, const Pass& secondPass)
-    {
-        const u32 resourceIndex = GetResourceIndex(barrierInfo.Resource);
-        std::string tag;
-        if (barrierInfo.Resource.IsBuffer())
-        {
-            tag = "buffer";
-            if (!m_DumpedBufferDescriptions.contains(resourceIndex))
-            {
-                m_Stream << m_BufferIndexToDescription[resourceIndex];
-                m_DumpedBufferDescriptions.insert(resourceIndex);
-            }
-        }
-        else
-        {
-            tag = "image";
-            if (!m_DumpedImageDescriptions.contains(resourceIndex))
-            {
-                m_Stream << m_ImageIndexToDescription[resourceIndex];
-                m_DumpedImageDescriptions.insert(resourceIndex);
-            }
-        }
-        
-        if (&firstPass != &secondPass)
-            m_Stream << std::format("\tpass.\"{}\" --> {}.{}\n", firstPass.Name().Hash(), tag, resourceIndex);
-        
-        m_Stream << std::format("\t{}.{} --> pass.\"{}\"\n", tag, resourceIndex, secondPass.Name().Hash());
-    }
-    
-    void RGMermaidExporter::OnReset()
-    {
-        m_Stream.str({});
-        m_Stream << std::format("graph LR\n");
-        m_BufferIndexToDescription = {};
-        m_ImageIndexToDescription = {};
-        m_DumpedBufferDescriptions = {};
-        m_DumpedImageDescriptions = {};
-    }
+    m_Stream << std::format("\t{}.{} --> pass.\"{}\"\n", tag, resourceIndex, secondPass.Name().Hash());
+}
 
-    void RGMermaidExporter::ExportToHtml(const std::filesystem::path& outputPath) const
-    {
-        std::filesystem::create_directories(outputPath.parent_path());
-        std::ofstream out(outputPath);
+void RGMermaidExporter::OnReset()
+{
+    m_Stream.str({});
+    m_Stream << std::format("graph LR\n");
+    m_BufferIndexToDescription = {};
+    m_ImageIndexToDescription = {};
+    m_DumpedBufferDescriptions = {};
+    m_DumpedImageDescriptions = {};
+}
 
-        static constexpr std::string_view templateString = R"(
+void RGMermaidExporter::ExportToHtml(const std::filesystem::path& outputPath) const
+{
+    std::filesystem::create_directories(outputPath.parent_path());
+    std::ofstream out(outputPath);
+
+    static constexpr std::string_view templateString = R"(
             <!DOCTYPE html>
             <html lang="en">
             <head>
@@ -130,7 +130,7 @@ namespace RG
             </body>
             </html>
         )";
-        
-        std::print(out, templateString, m_Stream.str());
-    }
+
+    std::print(out, templateString, m_Stream.str());
+}
 }

@@ -6,108 +6,113 @@
 
 namespace RG
 {
-    enum class ResourceAccessFlags
-    {
-        None = 0,
+enum class ResourceAccessFlags
+{
+    None = 0,
 
-        Vertex      = BIT(1),
-        Pixel       = BIT(2),
-        Compute     = BIT(3),
+    Vertex = BIT(1),
+    Pixel = BIT(2),
+    Compute = BIT(3),
 
-        Index       = BIT(4),
-        Indirect    = BIT(5),
-        Conditional = BIT(6),
-        
-        Attribute   = BIT(7),
-        Uniform     = BIT(8),
-        Storage     = BIT(9),
+    Index = BIT(4),
+    Indirect = BIT(5),
+    Conditional = BIT(6),
 
-        Sampled     = BIT(10),
+    Attribute = BIT(7),
+    Uniform = BIT(8),
+    Storage = BIT(9),
 
-        Blit        = BIT(11),
-        Copy        = BIT(12),
+    Sampled = BIT(10),
 
-        Readback    = BIT(13),
-    };
-    CREATE_ENUM_FLAGS_OPERATORS(ResourceAccessFlags)
+    Blit = BIT(11),
+    Copy = BIT(12),
 
-    enum class AccessType : u8
-    {
-        None = 0,
-        Read    = BIT(1),
-        Write   = BIT(2),
-        Split   = BIT(3),
-        Merge   = BIT(4),
+    Readback = BIT(13),
+};
 
-        ReadWrite = Read | Write,
-    };
-    CREATE_ENUM_FLAGS_OPERATORS(AccessType)
-    
-    struct ResourceAccess
-    {
-        static constexpr u32 NO_PASS = ~0u;
-        u32 PassIndex{NO_PASS};
-        Resource Resource{};
-        AccessType Type{AccessType::None};
-        PipelineStage Stage{PipelineStage::None};
-        PipelineAccess Access{PipelineAccess::None};
+CREATE_ENUM_FLAGS_OPERATORS(ResourceAccessFlags)
 
-        bool OfType(AccessType type) const { return enumHasAny(Type, type); }
-        bool IsSplitOrMerge() const { return enumHasAny(Type, AccessType::Split | AccessType::Merge); }
-        bool HasReadOrWrite() const { return enumHasAny(Type, AccessType::ReadWrite); }
-        bool HasRead() const { return enumHasAny(Type, AccessType::Read); }
-        bool HasWrite() const { return enumHasAny(Type, AccessType::Write); }
-        bool IsReadOnly() const { return Type == AccessType::Read; }
-    };
+enum class AccessType : u8
+{
+    None = 0,
+    Read = BIT(1),
+    Write = BIT(2),
+    Split = BIT(3),
+    Merge = BIT(4),
 
-    struct RenderTargetAccessDescription
-    {
-        AttachmentLoad OnLoad{AttachmentLoad::Load};
-        AttachmentStore OnStore{AttachmentStore::Store};
-        ColorClearValue ClearColor{};
-    };
+    ReadWrite = Read | Write,
+};
 
-    struct DepthStencilTargetAccessDescription
-    {
-        AttachmentLoad OnLoad{AttachmentLoad::Load};
-        AttachmentStore OnStore{AttachmentStore::Store};
-        DepthStencilClearValue ClearDepthStencil{};
-    };
+CREATE_ENUM_FLAGS_OPERATORS(AccessType)
 
-    struct RenderTargetAccess
-    {
-        Resource Resource{};
-        RenderTargetAccessDescription Description{};
-    };
+struct ResourceAccess
+{
+    static constexpr u32 NO_PASS = ~0u;
+    u32 PassIndex{NO_PASS};
+    Resource Resource{};
+    AccessType Type{AccessType::None};
+    PipelineStage Stage{PipelineStage::None};
+    PipelineAccess Access{PipelineAccess::None};
 
-    struct DepthStencilTargetAccess
-    {
-        Resource Resource{};
-        DepthStencilTargetAccessDescription Description{};
-        std::optional<DepthBias> DepthBias{std::nullopt};
-    };
+    bool OfType(AccessType type) const { return enumHasAny(Type, type); }
+    bool IsSplitOrMerge() const { return enumHasAny(Type, AccessType::Split | AccessType::Merge); }
+    bool HasReadOrWrite() const { return enumHasAny(Type, AccessType::ReadWrite); }
+    bool HasRead() const { return enumHasAny(Type, AccessType::Read); }
+    bool HasWrite() const { return enumHasAny(Type, AccessType::Write); }
+    bool IsReadOnly() const { return Type == AccessType::Read; }
+};
 
-    enum class AccessConflictType : u8
-    {
-        Execution, Memory, Layout
-    };
-    struct ResourceAccessConflict
-    {
-        AccessConflictType Type{AccessConflictType::Execution};
-        u32 FirstPassIndex{0};
-        u32 SecondPassIndex{0};
-        Resource Resource{};
-        PipelineStage FirstStage{PipelineStage::None};
-        PipelineStage SecondStage{PipelineStage::None};
-        PipelineAccess FirstAccess{PipelineAccess::None};
-        PipelineAccess SecondAccess{PipelineAccess::None};
-    };
-    using BufferResourceAccessConflict = ResourceAccessConflict;
-    struct ImageResourceAccessConflict
-    {
-        ResourceAccessConflict AccessConflict{};
-        ImageLayout FirstLayout{};
-        ImageLayout SecondLayout{};
-        ImageSubresourceDescription Subresource{};
-    };
+struct RenderTargetAccessDescription
+{
+    AttachmentLoad OnLoad{AttachmentLoad::Load};
+    AttachmentStore OnStore{AttachmentStore::Store};
+    ColorClearValue ClearColor{};
+};
+
+struct DepthStencilTargetAccessDescription
+{
+    AttachmentLoad OnLoad{AttachmentLoad::Load};
+    AttachmentStore OnStore{AttachmentStore::Store};
+    DepthStencilClearValue ClearDepthStencil{};
+};
+
+struct RenderTargetAccess
+{
+    Resource Resource{};
+    RenderTargetAccessDescription Description{};
+};
+
+struct DepthStencilTargetAccess
+{
+    Resource Resource{};
+    DepthStencilTargetAccessDescription Description{};
+    std::optional<DepthBias> DepthBias{std::nullopt};
+};
+
+enum class AccessConflictType : u8
+{
+    Execution, Memory, Layout
+};
+
+struct ResourceAccessConflict
+{
+    AccessConflictType Type{AccessConflictType::Execution};
+    u32 FirstPassIndex{0};
+    u32 SecondPassIndex{0};
+    Resource Resource{};
+    PipelineStage FirstStage{PipelineStage::None};
+    PipelineStage SecondStage{PipelineStage::None};
+    PipelineAccess FirstAccess{PipelineAccess::None};
+    PipelineAccess SecondAccess{PipelineAccess::None};
+};
+
+using BufferResourceAccessConflict = ResourceAccessConflict;
+
+struct ImageResourceAccessConflict
+{
+    ResourceAccessConflict AccessConflict{};
+    ImageLayout FirstLayout{};
+    ImageLayout SecondLayout{};
+    ImageSubresourceDescription Subresource{};
+};
 }

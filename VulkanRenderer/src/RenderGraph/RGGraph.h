@@ -54,7 +54,7 @@ public:
     Resource ImportPersistent(StringId name, PersistentImageResource image);
     Resource Import(StringId name, Buffer buffer);
     Resource Import(StringId name, Image image, ImageLayout layout = ImageLayout::Undefined);
-    void Export(Resource resource, PersistentBufferResource& buffer, DeletionQueue& deletionQueue, 
+    void Export(Resource resource, PersistentBufferResource& buffer, DeletionQueue& deletionQueue,
         BufferUsage additionalUsage = BufferUsage::None);
     void Export(Resource resource, PersistentImageResource& image, DeletionQueue& deletionQueue,
         ImageUsage additionalUsage = ImageUsage::None);
@@ -118,7 +118,8 @@ public:
     const lux::ShaderAsset& SetShader(StringId name) const;
     const lux::ShaderAsset& SetShader(StringId name, StringId variant) const;
     const lux::ShaderAsset& SetShader(StringId name, ShaderOverridesView&& overrides) const;
-    const lux::ShaderAsset& SetShader(StringId name, std::optional<StringId> variant, ShaderOverridesView&& overrides) const;
+    const lux::ShaderAsset& SetShader(StringId name, std::optional<StringId> variant,
+        ShaderOverridesView&& overrides) const;
     const lux::ShaderAsset& HandleShaderError(StringId name) const;
     const lux::ShaderAsset& GetShader() const;
 
@@ -173,6 +174,7 @@ private:
         Resource Resource{};
         DeletionQueue* DeletionQueue{nullptr};
     };
+
     struct PersistentImageInfo
     {
         Image Image{};
@@ -180,6 +182,7 @@ private:
         Resource Resource{};
         DeletionQueue* DeletionQueue{nullptr};
     };
+
     std::vector<PersistentBufferInfo> m_PersistentBuffers;
     std::vector<PersistentImageInfo> m_PersistentImages;
 
