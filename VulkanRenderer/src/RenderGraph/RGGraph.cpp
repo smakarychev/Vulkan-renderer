@@ -966,16 +966,16 @@ std::vector<ImageResourceAccessConflict> Graph::FindImageResourceConflicts()
                    ImageLayout::Readonly :
                    ImageLayout::General;
     };
-    auto updateImageStateOnPureMerge = [](ImageResource& resource) -> ImageResourceState
+    auto updateImageStateOnPureMerge = [](RGImage& image) -> RGImageState
     {
         bool isDivergent = false;
-        for (u32 i = 1; i < resource.Extras.size(); i++)
-            isDivergent |= resource.Extras[i].Layout != resource.Extras[i - 1].Layout;
+        for (u32 i = 1; i < image.Extras.size(); i++)
+            isDivergent |= image.Extras[i].Layout != image.Extras[i - 1].Layout;
 
         if (!isDivergent)
-            resource.Layout = resource.Extras.front().Layout;
+            image.Layout = image.Extras.front().Layout;
 
-        return isDivergent ? ImageResourceState::Divergent : ImageResourceState::Merged;
+        return isDivergent ? RGImageState::Divergent : RGImageState::Merged;
     };
 
     std::vector<ImageResourceAccessConflict> imageConflicts;
@@ -985,7 +985,7 @@ std::vector<ImageResourceAccessConflict> Graph::FindImageResourceConflicts()
 
     /* all images start in Merged (not diverged) state */
     for (auto& image : m_Images)
-        image.State = ImageResourceState::Merged;
+        image.State = RGImageState::Merged;
 
     for (auto& access : m_ImageAccesses)
     {
@@ -993,9 +993,9 @@ std::vector<ImageResourceAccessConflict> Graph::FindImageResourceConflicts()
         auto& image = m_Images[index];
 
         if (access.OfType(AccessType::Split))
-            image.State = ImageResourceState::Split;
+            image.State = RGImageState::Split;
         else if (access.OfType(AccessType::Merge))
-            image.State = access.HasReadOrWrite() ? ImageResourceState::Divergent : updateImageStateOnPureMerge(image);
+            image.State = access.HasReadOrWrite() ? RGImageState::Divergent : updateImageStateOnPureMerge(image);
         if (!access.HasReadOrWrite())
             continue;
 
@@ -1022,9 +1022,9 @@ std::vector<ImageResourceAccessConflict> Graph::FindImageResourceConflicts()
                                               image.Extras[access.Resource.m_Extra].Layout;
         const ImageLayout newLayout = inferDesiredLayout(access, image.Description);
 
-        if (image.State == ImageResourceState::Divergent)
+        if (image.State == RGImageState::Divergent)
         {
-            image.State = ImageResourceState::Merged;
+            image.State = RGImageState::Merged;
             if (HasChangedAllSplitLayouts(imageConflicts, conflict, image, newLayout))
                 continue;
             image.Layout = newLayout;
@@ -1057,7 +1057,7 @@ std::vector<ImageResourceAccessConflict> Graph::FindImageResourceConflicts()
 }
 
 bool Graph::HasChangedAllSplitLayouts(std::vector<ImageResourceAccessConflict>& conflicts,
-    ResourceAccessConflict& baseConflict, ImageResource& image, ImageLayout newLayout)
+    ResourceAccessConflict& baseConflict, RGImage& image, ImageLayout newLayout)
 {
     /* every subresource might have its own layout */
     bool needLayoutChange = image.Extras.front().Layout != newLayout;
@@ -1102,7 +1102,7 @@ bool Graph::HasChangedAllSplitLayouts(std::vector<ImageResourceAccessConflict>& 
 }
 
 void Graph::ChangeMainImageLayout(std::vector<ImageResourceAccessConflict>& conflicts,
-    ResourceAccessConflict& baseConflict, ImageResource& image, ImageLayout newLayout)
+    ResourceAccessConflict& baseConflict, RGImage& image, ImageLayout newLayout)
 {
     baseConflict.Type = AccessConflictType::Layout;
     ImageResourceAccessConflict layoutConflict = {
@@ -1118,9 +1118,9 @@ void Graph::ChangeMainImageLayout(std::vector<ImageResourceAccessConflict>& conf
 }
 
 void Graph::ChangeSubresourceImageLayout(std::vector<ImageResourceAccessConflict>& conflicts,
-    ResourceAccessConflict& baseConflict, ImageResource& image, u32 subresourceIndex, ImageLayout newLayout)
+    ResourceAccessConflict& baseConflict, RGImage& image, u32 subresourceIndex, ImageLayout newLayout)
 {
-    ASSERT(image.State == ImageResourceState::Split)
+    ASSERT(image.State == RGImageState::Split)
 
     baseConflict.Type = AccessConflictType::Layout;
     ImageResourceAccessConflict layoutConflict = {
@@ -1292,7 +1292,7 @@ void Graph::PostProcessPersistentResources()
     {
         if (!persistent.Resource.IsValid())
             continue;
-        ASSERT(m_Images[persistent.Resource.m_Index].State != ImageResourceState::Divergent)
+        ASSERT(m_Images[persistent.Resource.m_Index].State != RGImageState::Divergent)
         persistent.Layout = m_Images[persistent.Resource.m_Index].Layout;
     }
 }
@@ -1342,7 +1342,7 @@ Resource Graph::Create(StringId name, const RGBufferDescription& description)
     ASSERT(description.SizeBytes > 0)
 
     const Resource resource = Resource::Buffer((u16)m_Buffers.size(), 0);
-    BufferResource buffer = {};
+    RGBuffer buffer = {};
     buffer.Name = name;
     buffer.Description = CreateBufferDescription(description);
     m_Buffers.push_back(buffer);
@@ -1358,7 +1358,7 @@ Resource Graph::Create(StringId name, const RGImageDescription& description)
 Resource Graph::Create(StringId name, ResourceCreationFlags creationFlags, const RGImageDescription& description)
 {
     Resource resource = Resource::Image((u16)m_Images.size(), 0);
-    ImageResource image = {};
+    RGImage image = {};
     image.Name = name;
     image.Description = CreateImageDescription(description);
     if (enumHasAny(description.Inference, RGImageInference::Views))
@@ -1461,7 +1461,7 @@ Resource Graph::Import(StringId name, Buffer buffer)
 {
     Resource resource = Resource::Buffer((u16)m_Buffers.size(), 0);
     resource.AddFlags(ResourceFlags::Imported);
-    BufferResource bufferResource = {};
+    RGBuffer bufferResource = {};
     bufferResource.Name = name;
     bufferResource.Description = Device::GetBufferDescription(buffer);
     bufferResource.Resource = buffer;
@@ -1474,12 +1474,12 @@ Resource Graph::Import(StringId name, Image image, ImageLayout layout)
 {
     Resource resource = Resource::Image((u16)m_Images.size(), 0);
     resource.AddFlags(ResourceFlags::Imported);
-    ImageResource imageResource = {};
+    RGImage imageResource = {};
     imageResource.Name = name;
     imageResource.Description = Device::GetImageDescription(image);
     imageResource.Resource = image;
     imageResource.Layout = layout;
-    imageResource.Extras.resize(imageResource.Description.AdditionalViews.size(), ImageResourceExtraInfo{
+    imageResource.Extras.resize(imageResource.Description.AdditionalViews.size(), RGImageExtraInfo{
         .Version = 0,
         .Layout = layout
     });
@@ -1572,7 +1572,7 @@ Resource Graph::SplitImage(Resource main, ImageSubresourceDescription subresourc
     split.m_Flags &= ~ResourceFlags::Merge;
     split.AddFlags(ResourceFlags::Split);
     split.m_Extra = (u8)subresourceIndex;
-    image.State = ImageResourceState::Split;
+    image.State = RGImageState::Split;
     image.ActiveSplitCount += 1;
 
     /* this uses separate pass instead of directly calling `ReadImage` to allow for split outside Pass */
@@ -1618,7 +1618,7 @@ Resource Graph::MergeImage(Span<const Resource> splits)
     merged.AddFlags(ResourceFlags::Merge);
     merged.m_Version = image.LatestVersion;
     merged.m_Extra = Resource::NO_EXTRA;
-    image.State = ImageResourceState::Merged;
+    image.State = RGImageState::Merged;
     image.ActiveSplitCount -= (u16)splits.size();
 
     AddRenderPass<std::nullptr_t>("Merge"_hsv,
@@ -1977,15 +1977,15 @@ Resource Graph::AddBufferAccess(Resource resource, AccessType type, ResourceBase
     return resource;
 }
 
-Resource Graph::AddImageAccess(Resource resource, AccessType type, ImageResource& image, PipelineStage stage,
+Resource Graph::AddImageAccess(Resource resource, AccessType type, RGImage& image, PipelineStage stage,
     PipelineAccess access)
 {
     RG_CHECK_RETURN(!resource.HasFlags(ResourceFlags::Merge) || type == AccessType::Split ||
-        image.State == ImageResourceState::Merged,
+        image.State == RGImageState::Merged,
         "Cannot use primary image while it is not merged")
 
     if (resource.HasFlags(ResourceFlags::Split) && type != AccessType::Merge)
-        image.State = ImageResourceState::Split;
+        image.State = RGImageState::Split;
 
     if (resource.HasFlags(ResourceFlags::AutoUpdate))
         resource.m_Version = resource.m_Extra == Resource::NO_EXTRA ?

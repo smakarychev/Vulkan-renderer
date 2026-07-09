@@ -18,11 +18,11 @@ public:
     {
         Passes = &passes;
     }
-    void OnBufferResourcesFinalized(const std::vector<RG::BufferResource>& buffers) override
+    void OnBufferResourcesFinalized(const std::vector<RG::RGBuffer>& buffers) override
     {
         Buffers = &buffers;
     }
-    void OnImageResourcesFinalized(const std::vector<RG::ImageResource>& images) override
+    void OnImageResourcesFinalized(const std::vector<RG::RGImage>& images) override
     {
         Images = &images;
     }
@@ -47,8 +47,8 @@ public:
     void OnReset() override { Barriers.clear(); }
     
     const std::vector<std::unique_ptr<RG::Pass>>* Passes;
-    const std::vector<RG::BufferResource>* Buffers;
-    const std::vector<RG::ImageResource>* Images;
+    const std::vector<RG::RGBuffer>* Buffers;
+    const std::vector<RG::RGImage>* Images;
     const std::vector<RG::ResourceAccess>* BufferAccesses;
     const std::vector<RG::ResourceAccess>* ImageAccesses;
     struct BarrierPass

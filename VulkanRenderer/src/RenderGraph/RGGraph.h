@@ -140,11 +140,11 @@ private:
     std::vector<BufferResourceAccessConflict> FindBufferResourceConflicts();
     std::vector<ImageResourceAccessConflict> FindImageResourceConflicts();
     bool HasChangedAllSplitLayouts(std::vector<ImageResourceAccessConflict>& conflicts,
-        ResourceAccessConflict& baseConflict, ImageResource& image, ImageLayout newLayout);
+        ResourceAccessConflict& baseConflict, RGImage& image, ImageLayout newLayout);
     void ChangeMainImageLayout(std::vector<ImageResourceAccessConflict>& conflicts,
-        ResourceAccessConflict& baseConflict, ImageResource& image, ImageLayout newLayout);
+        ResourceAccessConflict& baseConflict, RGImage& image, ImageLayout newLayout);
     void ChangeSubresourceImageLayout(std::vector<ImageResourceAccessConflict>& conflicts,
-        ResourceAccessConflict& baseConflict, ImageResource& image, u32 subresourceIndex, ImageLayout newLayout);
+        ResourceAccessConflict& baseConflict, RGImage& image, u32 subresourceIndex, ImageLayout newLayout);
     void ManageBarriers(const std::vector<BufferResourceAccessConflict>& bufferConflicts,
         const std::vector<ImageResourceAccessConflict>& imageConflicts);
 
@@ -156,15 +156,15 @@ private:
 
     Resource AddBufferAccess(Resource resource, AccessType type, ResourceBase& resourceBase, PipelineStage stage,
         PipelineAccess access);
-    Resource AddImageAccess(Resource resource, AccessType type, ImageResource& image, PipelineStage stage,
+    Resource AddImageAccess(Resource resource, AccessType type, RGImage& image, PipelineStage stage,
         PipelineAccess access);
     u32 CurrentPassIndex() const;
     Pass& CurrentPass() const;
 
 private:
     Resource m_Backbuffer{};
-    std::vector<BufferResource> m_Buffers;
-    std::vector<ImageResource> m_Images;
+    std::vector<RGBuffer> m_Buffers;
+    std::vector<RGImage> m_Images;
     std::vector<ResourceAccess> m_BufferAccesses;
     std::vector<ResourceAccess> m_ImageAccesses;
 

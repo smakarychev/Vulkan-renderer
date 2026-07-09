@@ -13,7 +13,7 @@ void RGMermaidExporter::OnPassOrderFinalized(const std::vector<std::unique_ptr<P
         m_Stream << std::format("\tpass.\"{}\"[/Pass {}/]\n", pass->Name().Hash(), pass->Name());
 }
 
-void RGMermaidExporter::OnBufferResourcesFinalized(const std::vector<BufferResource>& buffers)
+void RGMermaidExporter::OnBufferResourcesFinalized(const std::vector<RGBuffer>& buffers)
 {
     for (u32 bufferIndex = 0; bufferIndex < buffers.size(); bufferIndex++)
     {
@@ -25,7 +25,7 @@ void RGMermaidExporter::OnBufferResourcesFinalized(const std::vector<BufferResou
     }
 }
 
-void RGMermaidExporter::OnImageResourcesFinalized(const std::vector<ImageResource>& images)
+void RGMermaidExporter::OnImageResourcesFinalized(const std::vector<RGImage>& images)
 {
     for (u32 imageIndex = 0; imageIndex < images.size(); imageIndex++)
     {

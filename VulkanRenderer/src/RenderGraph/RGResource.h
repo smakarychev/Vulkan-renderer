@@ -151,34 +151,34 @@ struct ResourceBase
     StringId Name{};
 };
 
-struct BufferResource : ResourceBase
+struct RGBuffer : ResourceBase
 {
     ::BufferDescription Description{};
     Buffer Resource{};
 };
 
-struct ImageResourceExtraInfo
+struct RGImageExtraInfo
 {
     u16 Version{0};
     ImageLayout Layout{ImageLayout::Undefined};
 };
 
-enum class ImageResourceState : u8
+enum class RGImageState : u8
 {
     Merged = 0,
     Split = 1,
     Divergent = 2,
 };
 
-struct ImageResource : ResourceBase
+struct RGImage : ResourceBase
 {
     ::ImageDescription Description{};
     Image Resource{};
     ImageLayout Layout{ImageLayout::Undefined};
     u16 LatestVersion{0};
     u16 ActiveSplitCount{0};
-    ImageResourceState State{ImageResourceState::Merged};
-    std::vector<ImageResourceExtraInfo> Extras{};
+    RGImageState State{RGImageState::Merged};
+    std::vector<RGImageExtraInfo> Extras{};
 };
 
 inline std::string Resource::AsString() const

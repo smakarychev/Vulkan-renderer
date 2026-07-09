@@ -11,8 +11,8 @@ struct DependencyInfoCreateInfo;
 
 namespace RG
 {
-struct BufferResource;
-struct ImageResource;
+struct RGBuffer;
+struct RGImage;
 struct ResourceAccess;
 class Pass;
 
@@ -30,11 +30,11 @@ public:
     {
     }
 
-    virtual void OnBufferResourcesFinalized(const std::vector<BufferResource>& buffers)
+    virtual void OnBufferResourcesFinalized(const std::vector<RGBuffer>& buffers)
     {
     }
 
-    virtual void OnImageResourcesFinalized(const std::vector<ImageResource>& images)
+    virtual void OnImageResourcesFinalized(const std::vector<RGImage>& images)
     {
     }
 

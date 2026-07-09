@@ -12,8 +12,8 @@ class RGMermaidExporter final : public GraphWatcher
 {
 public:
     void OnPassOrderFinalized(const std::vector<std::unique_ptr<Pass>>& passes) override;
-    void OnBufferResourcesFinalized(const std::vector<BufferResource>& buffers) override;
-    void OnImageResourcesFinalized(const std::vector<ImageResource>& images) override;
+    void OnBufferResourcesFinalized(const std::vector<RGBuffer>& buffers) override;
+    void OnImageResourcesFinalized(const std::vector<RGImage>& images) override;
     void OnBarrierAdded(const BarrierInfo& barrierInfo, const Pass& firstPass, const Pass& secondPass) override;
     void OnReset() override;
 
