@@ -14,7 +14,7 @@ struct ExposureSettings
     f32 Aperture{14.0};
     f32 ShutterTime{1.0f / 100.0f};
     f32 ISO{100.0f};
-    f32 CenterMeteringStrength{0.0f};
+    f32 CenterMeteringStrength{4.0f};
     bool UseAutomaticExposure{false};
     bool Visualize{false};
     LuminanceHistogramVisualizationInfo VisualizationInfo;
