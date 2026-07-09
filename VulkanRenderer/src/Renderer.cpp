@@ -333,59 +333,68 @@ void Renderer::ExecuteSingleTimePasses()
 
     const TextureDescription& equirectangularDescription =
         Device::GetImageDescription(m_ImageAssetManager->Get(equirectangular));
-    m_SkyboxTexture = Device::CreateImage(ImageCreateInfo{
+    m_SkyboxTexture = m_Graph->AddPersistent(Device::CreateImage({
         .Description = ImageDescription{
             .Width = equirectangularDescription.Width / 2,
             .Height = equirectangularDescription.Width / 2,
             .Mipmaps = Images::mipmapCount(glm::uvec2{equirectangularDescription.Width / 2}),
             .Format = Format::RGBA16_FLOAT,
             .Kind = ImageKind::ImageCubemap,
-            .Usage = ImageUsage::Sampled | ImageUsage::Storage},
-        .CalculateMipmaps = false});
+            .Usage = ImageUsage::Sampled | ImageUsage::Storage
+        },
+        .CalculateMipmaps = false
+    }));
 
-    m_MipsTest = m_ImageAssetManager->LoadResource({.Path = "../assets/textures/texture.png"});
-    
-    m_SkyboxPrefilterMap = Device::CreateImage({
+    m_MipsTest.Load(*m_Graph, *m_ImageAssetManager, "../assets/textures/texture.png");
+
+    m_SkyboxPrefilterMap = m_Graph->AddPersistent(Device::CreateImage({
         .Description = Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(
             *CVars::Get().GetI32CVar("Renderer.IBL.PrefilterResolution"_hsv)),
-        .CalculateMipmaps = false});
-    
-    m_SkyPrefilterMap = Device::CreateImage({
+        .CalculateMipmaps = false
+    }));
+
+    m_SkyPrefilterMap = m_Graph->AddPersistent(Device::CreateImage({
         .Description = Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(
             *CVars::Get().GetI32CVar("Renderer.IBL.PrefilterResolutionRealtime"_hsv)),
-        .CalculateMipmaps = false});
-    
-    m_IrradianceSH = Device::CreateBuffer({
+        .CalculateMipmaps = false
+    }));
+
+    m_IrradianceSH = m_Graph->AddPersistent(Device::CreateBuffer({
         .Description = {
             .SizeBytes = sizeof(SH2Irradiance),
             .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Uniform,
-        }});
-    m_SkyIrradianceSH = Device::CreateBuffer({
+        }
+    }));
+    m_SkyIrradianceSH = m_Graph->AddPersistent(Device::CreateBuffer({
         .Description = {
             .SizeBytes = sizeof(SH2Irradiance),
             .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Uniform
-        }});
+        }
+    }));
 
-    m_BRDFLut = Device::CreateImage({
+    m_BRDFLut = m_Graph->AddPersistent(Device::CreateImage({
         .Description = Passes::BRDFLut::getLutDescription(),
-        .CalculateMipmaps = false});
+        .CalculateMipmaps = false
+    }));
     
     m_Graph->Reset();
 
     const RG::Resource cubemap = Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox"_hsv, *m_Graph, {
         .Equirectangular = m_Graph->Import(
             "Equirectangular"_hsv, m_ImageAssetManager->Get(equirectangular), ImageLayout::Readonly),
-        .Cubemap = m_Graph->Import("Cubemap"_hsv, m_SkyboxTexture),
+        .Cubemap = m_Graph->ImportPersistent("Cubemap"_hsv, m_SkyboxTexture),
         .Exposure = Passes::PbrCameraExposure::convertEV100ToExposure(
             *CVars::Get().GetF32CVar("Renderer.FixedExposure"_hsv))
     }).Cubemap;
     
     Passes::DiffuseIrradianceSH::addToGraph(
-        "Scene.DiffuseIrradianceSH"_hsv, *m_Graph, cubemap, m_IrradianceSH, false);
+        "Scene.DiffuseIrradianceSH"_hsv, *m_Graph, cubemap, 
+        m_Graph->ImportPersistent("IrradianceSH"_hsv, m_IrradianceSH), false);
     Passes::EnvironmentPrefilter::addToGraph(
-        "Scene.EnvironmentPrefilter"_hsv, *m_Graph, cubemap, m_SkyboxPrefilterMap, false);
+        "Scene.EnvironmentPrefilter"_hsv, *m_Graph, cubemap,
+        m_Graph->ImportPersistent("SkyboxPrefilterMap"_hsv, m_SkyboxPrefilterMap), false);
     Passes::BRDFLut::addToGraph(
-        "Scene.BRDFLut"_hsv, *m_Graph, {.Lut = m_BRDFLut});
+        "Scene.BRDFLut"_hsv, *m_Graph, {.Lut = m_Graph->ImportPersistent("BRDFLut"_hsv, m_BRDFLut)});
 
     m_Graph->Compile(GetFrameContext());
     m_Graph->Execute(GetFrameContext());
@@ -499,10 +508,13 @@ void Renderer::SetupRenderGraph()
     const u32 primaryVisibilityIndex = m_PrimaryVisibility.VisibilityHandleToIndex(m_OpaqueSetPrimaryVisibility);
     m_PrimaryVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
         *m_Graph, m_SceneGeometryRGResources, m_PrimaryVisibility);
-    m_PrimaryVisibilityResources.HizPrevious[primaryVisibilityIndex] = m_PrimaryHizPrevious.HasValue() ?
-        m_Graph->Import("PrimaryHiz.Previous"_hsv, m_PrimaryHizPrevious, ImageLayout::Readonly) :
+    m_PrimaryVisibilityResources.HizPrevious[primaryVisibilityIndex] =
+        m_PrimaryHizPrevious[GetPreviousFrameNumber()].HasValue() ?
+        m_Graph->ImportPersistent("PrimaryHiz.Previous"_hsv, m_PrimaryHizPrevious[GetPreviousFrameNumber()]) :
         m_Graph->Import("PrimaryHiz.Dummy"_hsv,
-            Images::Default::GetCopy(Images::DefaultKind::White, GetFrameContext().DeletionQueue));
+            Images::Default::GetCopy(Images::DefaultKind::White, GetFrameContext().DeletionQueue),
+            ImageLayout::Readonly
+        );
     
     bool useForwardPass = CVars::Get().GetI32CVar("Renderer.UseForwardShading"_hsv).value_or(false);
     ImGui::Begin("ForwardShading");
@@ -519,8 +531,6 @@ void Renderer::SetupRenderGraph()
     std::swap(
         m_MinMaxDepthReductionsNextFrame[GetFrameContext().FrameNumber],
         m_MinMaxDepthReductions[GetFrameContext().FrameNumber]);
-    m_Graph->MarkBufferForExport(metaUgb->DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
-        BufferUsage::Readback);
 
     Resource minMaxDepth =
         m_PrimaryVisibilityResources.Hiz[primaryVisibilityIndex];
@@ -611,84 +621,61 @@ void Renderer::SetupRenderGraph()
     if (ImGui::Button("Dump memory stats"))
         Device::DumpMemoryStats("./MemoryStats.json");
     ImGui::End();
-
-    m_Graph->ClaimBuffer(
+    
+    m_Graph->Export(
         metaUgb->DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
         m_MinMaxDepthReductionsNextFrame[GetFrameContext().FrameNumber],
         Device::DeletionQueue());
 
-    Passes::ImGuiTexture::addToGraph("TTTTT"_hsv, *m_Graph, m_ImageAssetManager->Get(m_MipsTest));
+    Passes::ImGuiTexture::addToGraph("TTTTT"_hsv, *m_Graph, 
+        m_Graph->ImportPersistent("T"_hsv, m_MipsTest.Update(*m_Graph, *m_ImageAssetManager).Image));
 
     if (renderAtmosphere)
     {
-        m_Graph->MarkImageForExport(atmosphereLuts->TransmittanceLut);
-        m_Graph->ClaimImage(atmosphereLuts->TransmittanceLut, m_TransmittanceLut, Device::DeletionQueue());
-
-        m_Graph->MarkImageForExport(atmosphereLuts->SkyViewLut);
-        m_Graph->ClaimImage(atmosphereLuts->SkyViewLut, m_SkyViewLut, Device::DeletionQueue());
-
-        m_Graph->MarkImageForExport(cloudShadow.Shadow, ImageUsage::Sampled);
-        m_Graph->ClaimImage(cloudShadow.Shadow, m_VolumetricCloudShadow, Device::DeletionQueue());
-
-        // todo: this should not be necessary to set it every frame
-        m_BindlessTextureDescriptorsRingBuffer->SetTexture(m_TransmittanceLutBindlessIndex, m_TransmittanceLut);
-        m_BindlessTextureDescriptorsRingBuffer->SetTexture(m_SkyViewLutBindlessIndex, m_SkyViewLut);
-        m_BindlessTextureDescriptorsRingBuffer->SetTexture(m_VolumetricShadowBindlessIndex,
-            m_VolumetricCloudShadow);
+        m_Graph->Export(atmosphereLuts->TransmittanceLut, m_TransmittanceLut, Device::DeletionQueue(), 
+            ImageUsage::Sampled);
+        m_Graph->Export(atmosphereLuts->SkyViewLut, m_SkyViewLut, Device::DeletionQueue(), ImageUsage::Sampled);
+        m_Graph->Export(cloudShadow.Shadow, m_VolumetricCloudShadow, Device::DeletionQueue(), ImageUsage::Sampled);
     }
 
     if (renderAtmosphere)
     {
-        if (!m_CloudCoverage.HasValue())
-            m_Graph->ClaimImage(cloudMaps.Coverage, m_CloudCoverage, Device::DeletionQueue());
-        if (!m_CloudProfileMap.HasValue())
-            m_Graph->ClaimImage(cloudMaps.Profile, m_CloudProfileMap, Device::DeletionQueue());
-        if (!m_CloudShapeLowFrequency.HasValue())
-            m_Graph->ClaimImage(cloudMaps.ShapeLowFrequency, m_CloudShapeLowFrequency, Device::DeletionQueue());
-        if (!m_CloudShapeHighFrequency.HasValue())
-            m_Graph->ClaimImage(cloudMaps.ShapeHighFrequency, m_CloudShapeHighFrequency, Device::DeletionQueue());
-        if (!m_CloudCurlNoise.HasValue())
-            m_Graph->ClaimImage(cloudMaps.CurlNoise, m_CloudCurlNoise, Device::DeletionQueue());
-
         if (m_CloudsReprojectionEnabled && !m_CloudColorAccumulation.front().HasValue())
         {
-            m_Graph->MarkImageForExport(clouds.ColorPrevious, ImageUsage::Storage | ImageUsage::Sampled | ImageUsage::Source);
-            m_Graph->MarkImageForExport(clouds.DepthPrevious, ImageUsage::Storage | ImageUsage::Sampled | ImageUsage::Source);
-            m_Graph->MarkImageForExport(clouds.ReprojectionPrevious, ImageUsage::Storage | ImageUsage::Sampled | ImageUsage::Source);
-            m_Graph->MarkImageForExport(clouds.Color, ImageUsage::Storage | ImageUsage::Sampled | ImageUsage::Source);
-            m_Graph->MarkImageForExport(clouds.Depth, ImageUsage::Storage | ImageUsage::Sampled | ImageUsage::Source);
-            m_Graph->MarkImageForExport(clouds.Reprojection, ImageUsage::Storage | ImageUsage::Sampled | ImageUsage::Source);
-            m_Graph->ClaimImage(clouds.ColorPrevious, m_CloudColorAccumulation[0], Device::DeletionQueue());
-            m_Graph->ClaimImage(clouds.Color, m_CloudColorAccumulation[1], Device::DeletionQueue());
-            m_Graph->ClaimImage(clouds.DepthPrevious, m_CloudDepthAccumulation[0], Device::DeletionQueue());
-            m_Graph->ClaimImage(clouds.Depth, m_CloudDepthAccumulation[1], Device::DeletionQueue());
-            m_Graph->ClaimImage(clouds.ReprojectionPrevious, m_CloudReprojectionFactor[0], Device::DeletionQueue());
-            m_Graph->ClaimImage(clouds.Reprojection, m_CloudReprojectionFactor[1], Device::DeletionQueue());
+            constexpr ImageUsage extraUsage = ImageUsage::Storage | ImageUsage::Sampled | ImageUsage::Source;
+            m_Graph->Export(clouds.ColorPrevious, m_CloudColorAccumulation[0], Device::DeletionQueue(), extraUsage);
+            m_Graph->Export(clouds.DepthPrevious, m_CloudDepthAccumulation[0], Device::DeletionQueue(), extraUsage);
+            m_Graph->Export(clouds.ReprojectionPrevious, m_CloudReprojectionFactor[0], Device::DeletionQueue(),
+                extraUsage);
+            m_Graph->Export(clouds.Color, m_CloudColorAccumulation[1], Device::DeletionQueue(), extraUsage);
+            m_Graph->Export(clouds.Depth, m_CloudDepthAccumulation[1], Device::DeletionQueue(), extraUsage);
+            m_Graph->Export(clouds.Reprojection, m_CloudReprojectionFactor[1], Device::DeletionQueue(), extraUsage);
         }
 
         if (!m_SkyAtmosphereWithCloudsEnvironment.HasValue())
-        {
-            m_Graph->MarkImageForExport(skyAtmosphereWithCloudsEnvironment.AtmosphereWithClouds);
-            m_Graph->ClaimImage(skyAtmosphereWithCloudsEnvironment.AtmosphereWithClouds,
+            m_Graph->Export(skyAtmosphereWithCloudsEnvironment.AtmosphereWithClouds, 
                 m_SkyAtmosphereWithCloudsEnvironment, Device::DeletionQueue());
-        }
         if (!m_CloudsEnvironment.HasValue())
-        {
-            m_Graph->MarkImageForExport(skyAtmosphereWithCloudsEnvironment.CloudsEnvironment);
-            m_Graph->ClaimImage(skyAtmosphereWithCloudsEnvironment.CloudsEnvironment,
+            m_Graph->Export(skyAtmosphereWithCloudsEnvironment.CloudsEnvironment, 
                 m_CloudsEnvironment, Device::DeletionQueue());
-        }
     }
 
-    m_Graph->MarkImageForExport(
-        m_PrimaryVisibilityResources.Hiz[primaryVisibilityIndex]);
-    m_Graph->ClaimImage(
-        m_PrimaryVisibilityResources.Hiz[primaryVisibilityIndex],
-        m_PrimaryHizPrevious, Device::DeletionQueue());
+    m_Graph->Export(m_PrimaryVisibilityResources.Hiz[primaryVisibilityIndex],
+        m_PrimaryHizPrevious[GetFrameContext().FrameNumber], Device::DeletionQueue());
 
     std::swap(m_CloudsAccumulationIndex, m_CloudsAccumulationIndexPrev);
     
     m_Graph->Compile(GetFrameContext());
+    
+    if (renderAtmosphere)
+    {
+        m_BindlessTextureDescriptorsRingBuffer->SetTexture(m_TransmittanceLutBindlessIndex, 
+            m_Graph->GetImage(m_TransmittanceLut));
+        m_BindlessTextureDescriptorsRingBuffer->SetTexture(m_SkyViewLutBindlessIndex, 
+            m_Graph->GetImage(m_SkyViewLut));
+        m_BindlessTextureDescriptorsRingBuffer->SetTexture(m_VolumetricShadowBindlessIndex,
+            m_Graph->GetImage(m_VolumetricCloudShadow));
+    }
 }
 
 void Renderer::UpdateGlobalRenderGraphResources()
@@ -849,7 +836,7 @@ RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass, const lux::
         {
             auto& readBackDepthMinMax = Passes::DepthReductionReadback::addToGraph("DepthReductionReadback"_hsv,
                 *m_Graph, {
-                    .MinMaxDepthReduction = m_Graph->Import("DepthReduction"_hsv,
+                    .MinMaxDepthReduction = m_Graph->ImportPersistent("DepthReduction"_hsv,
                         m_MinMaxDepthReductions[GetFrameContext().FrameNumber]),
                     .PrimaryCamera = m_Camera.get()
                 });
@@ -954,15 +941,18 @@ SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource
         Passes::SceneForwardPbr::ExecutionInfo executionInfo = {
             .DrawInfo = info,
             .Geometry = &m_SceneGeometryRGResources,
-            .Light = &m_Scene->Lights(),
+            .DirectionalLights = m_Graph->Import(
+                "DirectionalLights"_hsv, m_Scene->Lights().GetBuffers().DirectionalLights),
+            .PointLights = m_Graph->Import("PointLights"_hsv, m_Scene->Lights().GetBuffers().PointLights),
             .SSAO = {.SSAO = m_Ssao},
             .IBL = {
-                .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
-                    m_Graph->Import("IrradianceSH"_hsv, m_IrradianceSH),
-                .PrefilterEnvironment = renderAtmosphere ? m_SkyPrefilterMapResource :
-                    m_Graph->Import("PrefilterMap"_hsv, m_SkyboxPrefilterMap, ImageLayout::Readonly),
-                .BRDF = m_Graph->Import("BRDF"_hsv, m_BRDFLut,
-                    ImageLayout::Readonly)
+                .IrradianceSH = renderAtmosphere ? 
+                    m_SkyIrradianceSHResource :
+                    m_Graph->ImportPersistent("IrradianceSH"_hsv, m_IrradianceSH),
+                .PrefilterEnvironment = renderAtmosphere ?
+                    m_SkyPrefilterMapResource :
+                    m_Graph->ImportPersistent("PrefilterMap"_hsv, m_SkyboxPrefilterMap),
+                .BRDF = m_Graph->ImportPersistent("BRDF"_hsv, m_BRDFLut)
             },
             .Clusters = m_ClusterLightsInfo.Clusters,
             .Tiles = m_TileLightsInfo.Tiles,
@@ -1067,14 +1057,15 @@ RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource 
         .VisibleMeshlets = visibleMeshlets,
         .VisibilityTexture = vbuffer,
         .ViewInfo = viewInfo,
-        .Light = &m_Scene->Lights(),
+        .DirectionalLights = m_Graph->Import("DirectionalLights"_hsv, m_Scene->Lights().GetBuffers().DirectionalLights),
+        .PointLights = m_Graph->Import("PointLights"_hsv, m_Scene->Lights().GetBuffers().PointLights),
         .SSAO = {.SSAO = m_Ssao},
         .IBL = {
             .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
-                m_Graph->Import("IrradianceSH"_hsv, m_IrradianceSH),
+                m_Graph->ImportPersistent("IrradianceSH"_hsv, m_IrradianceSH),
             .PrefilterEnvironment = renderAtmosphere ? m_SkyPrefilterMapResource :
-                m_Graph->Import("PrefilterMap"_hsv, m_SkyboxPrefilterMap, ImageLayout::Readonly),
-            .BRDF = m_Graph->Import("BRDF"_hsv, m_BRDFLut, ImageLayout::Readonly)
+                m_Graph->ImportPersistent("PrefilterMap"_hsv, m_SkyboxPrefilterMap),
+            .BRDF = m_Graph->ImportPersistent("BRDF"_hsv, m_BRDFLut)
         },
         .Clusters = m_ClusterLightsInfo.Clusters,
         .Tiles = m_TileLightsInfo.Tiles,
@@ -1200,7 +1191,8 @@ Renderer::TileLightsInfo Renderer::RenderGraphCullLightsTiled(StringId baseName,
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .Tiles = tilesSetup.Tiles, 
         .Depth = depth,
-        .Light = &m_Scene->Lights()});
+        .PointLights = m_Graph->Import("PointLights"_hsv, m_Scene->Lights().GetBuffers().PointLights),
+    });
     auto& visualizeTiles = Passes::LightTilesVisualize::addToGraph(baseName.Concatenate("Tiles.Visualize"), *m_Graph, {
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .Tiles = binLightsTiles.Tiles,
@@ -1233,7 +1225,7 @@ Renderer::ClusterLightsInfo Renderer::RenderGraphCullLightsClustered(StringId ba
         .Clusters = clustersSetup.Clusters,
         .ClusterVisibility = clustersSetup.ClusterVisibility,
         .Depth = depth,
-        .Light = &m_Scene->Lights()
+        .PointLights = m_Graph->Import("PointLights"_hsv, m_Scene->Lights().GetBuffers().PointLights),
     });
 
     auto& visualizeClusters = Passes::LightClustersVisualize::addToGraph(baseName.Concatenate("Clusters.Visualize"),
@@ -1253,10 +1245,11 @@ RG::Resource Renderer::RenderGraphSkyBox(RG::Resource color, RG::Resource depth)
 {
     auto& skybox = Passes::Skybox::addToGraph("Skybox"_hsv, *m_Graph, {
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
-        .SkyboxTexture = m_SkyboxTexture,
+        .SkyboxResource = m_Graph->ImportPersistent("SkyboxTexture"_hsv, m_SkyboxTexture),
         .Color = color,
         .Depth = depth,
-        .Resolution = GetFrameContext().Resolution});
+        .Resolution = GetFrameContext().Resolution
+    });
 
     return skybox.Color;
 }
@@ -1286,13 +1279,12 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
         .PrimaryViewResource = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .SkyViewLut = lut.SkyViewLut,
         .ColorIn = m_SkyAtmosphereWithCloudsEnvironment.HasValue() ?
-            m_Graph->Import("AtmosphereEnvironment.Imported"_hsv, m_SkyAtmosphereWithCloudsEnvironment,
-                ImageLayout::Readonly) :
+            m_Graph->ImportPersistent("AtmosphereEnvironment.Imported"_hsv, m_SkyAtmosphereWithCloudsEnvironment) :
             RG::Resource{},
         .FaceIndices = m_FrameNumber == 0 ? Span<const u32>({0, 1, 2, 3, 4, 5}) : Span<const u32>({faceIndex})
     });
 
-    m_SkyIrradianceSHResource = m_Graph->Import("SkyIrradiance.Import"_hsv, m_SkyIrradianceSH);
+    m_SkyIrradianceSHResource = m_Graph->ImportPersistent("SkyIrradiance.ImportPersistent"_hsv, m_SkyIrradianceSH);
     
     if (m_FrameNumber == 0)
         m_SkyIrradianceSHResource = Passes::DiffuseIrradianceSH::addToGraph("Sky.DiffuseIrradianceSH"_hsv, *m_Graph,
@@ -1307,7 +1299,7 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
         .CloudShapeHighFrequencyMap = cloudMaps.ShapeHighFrequency, 
         .CloudCurlNoise = cloudMaps.CurlNoise,
         .ColorIn = m_CloudsEnvironment.HasValue() ?
-            m_Graph->Import("CloudsEnvironment.Imported"_hsv, m_CloudsEnvironment, ImageLayout::Readonly) :
+            m_Graph->ImportPersistent("CloudsEnvironment.Imported"_hsv, m_CloudsEnvironment) :
             RG::Resource{},
         .AtmosphereEnvironment = environment.Color,
         .IrradianceSH = m_SkyIrradianceSHResource,
@@ -1324,8 +1316,8 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
         cloudsEnvironment.AtmosphereWithCloudsEnvironment, m_SkyIrradianceSHResource, true).DiffuseIrradiance;
 
     m_SkyPrefilterMapResource = Passes::EnvironmentPrefilter::addToGraph(
-        "Sky.EnvironmentPrefilter"_hsv, *m_Graph, cloudsEnvironment.AtmosphereWithCloudsEnvironment, m_SkyPrefilterMap,
-        true).PrefilteredTexture;
+        "Sky.EnvironmentPrefilter"_hsv, *m_Graph, cloudsEnvironment.AtmosphereWithCloudsEnvironment,
+        m_Graph->ImportPersistent("SkyPrefilterMap"_hsv, m_SkyPrefilterMap), true).PrefilteredTexture;
     
     //Passes::ImGuiCubeTexture::addToGraph("Clouds.Env"_hsv, *m_Graph, cloudsEnv.ColorOut);
 
@@ -1420,16 +1412,16 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     if (loadCoverage)
     {
         if (!m_CloudCoverage.HasValue())
-            m_CloudCoverage = m_ImageAssetManager->Get(m_ImageAssetManager->LoadResource(
-                {.Path = "../assets/textures/clouds/coverage.png"})
-            );
-       cloudCoverageResource = m_Graph->Import("CloudCoverage.Loaded"_hsv, m_CloudCoverage, ImageLayout::Readonly);
+            m_CloudCoverage.Load(*m_Graph, *m_ImageAssetManager, "../assets/textures/clouds/coverage.png");
+       cloudCoverageResource = m_Graph->ImportPersistent("CloudCoverage.Loaded"_hsv,
+           m_CloudCoverage.Update(*m_Graph, *m_ImageAssetManager).Image);
     }
     else
     {
         if (!isCloudCoverageDirty && m_CloudCoverage.HasValue())
         {
-            cloudCoverageResource = m_Graph->Import("CloudCoverage.Import"_hsv, m_CloudCoverage, ImageLayout::Readonly);
+            cloudCoverageResource = m_Graph->ImportPersistent("CloudCoverage.ImportPersistent"_hsv,
+                m_CloudCoverage.Image);
         }
         else
         {
@@ -1437,38 +1429,34 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
                 "CoverageNoiseParameters"_hsv, *m_Graph, m_CloudCoverageNoiseParameters);
             
             auto& cloudCoverage = Passes::Clouds::VP::Coverage::addToGraph("CoverageMapGen"_hsv, *m_Graph, {
-                .CoverageMap = m_CloudCoverage,
+                .CoverageMap = cloudCoverageResource,
                 .NoiseParameters = coverageParametersBuffer,
             });
             cloudCoverageResource = cloudCoverage.CoverageMap;
-            if (!m_CloudCoverage.HasValue())
-                m_Graph->MarkImageForExport(cloudCoverageResource);
+            m_Graph->Export(cloudCoverage.CoverageMap, m_CloudCoverage.Image, Device::DeletionQueue());
         }
     }
     if (loadProfile)
     {
         if (!m_CloudProfileMap.HasValue())
-            m_CloudProfileMap = m_ImageAssetManager->Get(m_ImageAssetManager->LoadResource(
-                {.Path = "../assets/textures/clouds/profile.png"})
-            );
-        cloudProfileMapResource = m_Graph->Import("CloudProfileMap.Loaded"_hsv,
-            m_CloudProfileMap, ImageLayout::Readonly);
+            m_CloudProfileMap.Load(*m_Graph, *m_ImageAssetManager, "../assets/textures/clouds/profile.png");
+        cloudProfileMapResource = m_Graph->ImportPersistent("CloudProfileMap.Loaded"_hsv,
+            m_CloudProfileMap.Update(*m_Graph, *m_ImageAssetManager).Image);
     }
     else
     {
         if (!isCloudCoverageDirty && m_CloudProfileMap.HasValue())
         {
-            cloudProfileMapResource = m_Graph->Import("CloudProfileMap.Import"_hsv, 
-                m_CloudProfileMap, ImageLayout::Readonly);
+            cloudProfileMapResource = m_Graph->ImportPersistent("CloudProfileMap.ImportPersistent"_hsv, 
+                m_CloudProfileMap.Image);
         }
         else
         {
             auto& cloudProfileMap = Passes::Clouds::VP::ProfileMap::addToGraph("ProfileMapGen"_hsv, *m_Graph, {
-                .ProfileMap = m_CloudProfileMap,
+                .ProfileMap = cloudProfileMapResource,
             });
             cloudProfileMapResource = cloudProfileMap.ProfileMap;
-            if (!m_CloudProfileMap.HasValue())
-                m_Graph->MarkImageForExport(cloudProfileMapResource);
+            m_Graph->Export(cloudProfileMap.ProfileMap, m_CloudProfileMap.Image, Device::DeletionQueue());
         }    
     }
     
@@ -1487,10 +1475,10 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     Resource highFrequencyNoiseResource = {};
     if (!isShapeDirty && m_CloudShapeLowFrequency.HasValue() && m_CloudShapeHighFrequency.HasValue())
     {
-        lowFrequencyNoiseResource = m_Graph->Import("LowFrequency.Import"_hsv, m_CloudShapeLowFrequency,
-            ImageLayout::Readonly);
-        highFrequencyNoiseResource = m_Graph->Import("HighFrequency.Import"_hsv, m_CloudShapeHighFrequency,
-            ImageLayout::Readonly);
+        lowFrequencyNoiseResource = m_Graph->ImportPersistent("LowFrequency.ImportPersistent"_hsv, 
+            m_CloudShapeLowFrequency);
+        highFrequencyNoiseResource = m_Graph->ImportPersistent("HighFrequency.ImportPersistent"_hsv, 
+            m_CloudShapeHighFrequency);
     }
     else
     {
@@ -1502,33 +1490,29 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
         auto& cloudShape = Passes::Clouds::ShapeNoise::addToGraph("CloudShapeNoise"_hsv, *m_Graph, {
             .LowFrequencyTextureSize = 128.0f,
             .HighFrequencyTextureSize = 32.0f,
-            .LowFrequencyTexture = m_CloudShapeLowFrequency,
-            .HighFrequencyTexture = m_CloudShapeHighFrequency,
+            .LowFrequencyTexture = lowFrequencyNoiseResource,
+            .HighFrequencyTexture = highFrequencyNoiseResource,
             .LowFrequencyNoiseParameters = lowFrequencyParametersBuffer,
             .HighFrequencyNoiseParameters = highFrequencyParametersBuffer
         });
         lowFrequencyNoiseResource = cloudShape.LowFrequencyTexture;
         highFrequencyNoiseResource = cloudShape.HighFrequencyTexture;
-
-        if (!m_CloudShapeLowFrequency.HasValue())
-            m_Graph->MarkImageForExport(cloudShape.LowFrequencyTexture);
-        if (!m_CloudShapeHighFrequency.HasValue())
-            m_Graph->MarkImageForExport(cloudShape.HighFrequencyTexture);
+        m_Graph->Export(cloudShape.LowFrequencyTexture, m_CloudShapeLowFrequency, Device::DeletionQueue());
+        m_Graph->Export(cloudShape.HighFrequencyTexture, m_CloudShapeHighFrequency, Device::DeletionQueue());
     }
 
     Resource curlNoiseResource = {};
     if (m_CloudCurlNoise.HasValue())
     {
-        curlNoiseResource = m_Graph->Import("CloudsCurlNoise.Import"_hsv, m_CloudCurlNoise,
-            ImageLayout::Readonly);
+        curlNoiseResource = m_Graph->ImportPersistent("CloudsCurlNoise.ImportPersistent"_hsv, m_CloudCurlNoise);
     }
     else
     {
         auto& curlNoise = Passes::Clouds::CurlNoise::addToGraph("CloudsCurlNoise"_hsv, *m_Graph, {
-            .CloudCurlNoise = m_CloudCurlNoise
+            .CloudCurlNoise = curlNoiseResource
         });
         curlNoiseResource = curlNoise.CloudCurlNoise;
-        m_Graph->MarkImageForExport(curlNoiseResource);
+        m_Graph->Export(curlNoise.CloudCurlNoise, m_CloudCurlNoise, Device::DeletionQueue());
     }
     
     Passes::ImGuiTexture3d::addToGraph("LowFreq.Tex"_hsv, *m_Graph, lowFrequencyNoiseResource,
@@ -1589,7 +1573,7 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
         .MinMaxDepthIn = minMaxDepth,
         .AerialPerspectiveLut = aerialPerspective,
         .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
-            m_Graph->Import("IrradianceSH"_hsv, m_IrradianceSH),
+            m_Graph->ImportPersistent("IrradianceSH"_hsv, m_IrradianceSH),
         .CloudParameters = m_CloudParametersResource,
         .CloudsRenderingMode = m_CloudsReprojectionEnabled ?
             Passes::Clouds::VP::CloudsRenderingMode::Reprojection :
@@ -1606,28 +1590,28 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
             .Color = clouds.ColorOut,
             .Depth = clouds.DepthOut,
             .SceneDepth = sceneDepth,
-            .ColorAccumulationIn = m_FrameNumber > 1 ?
-                m_Graph->Import("Clouds.Color.Accumulation.In"_hsv,
-                    m_CloudColorAccumulation[m_CloudsAccumulationIndexPrev], ImageLayout::Readonly) :
+            .ColorAccumulationIn = m_CloudColorAccumulation[m_CloudsAccumulationIndexPrev].HasValue() ?
+                m_Graph->ImportPersistent("Clouds.Color.Accumulation.In"_hsv,
+                    m_CloudColorAccumulation[m_CloudsAccumulationIndexPrev]) :
                 RG::Resource{},
-            .DepthAccumulationIn = m_FrameNumber > 1 ?
-                m_Graph->Import("Clouds.Depth.Accumulation.In"_hsv,
-                    m_CloudDepthAccumulation[m_CloudsAccumulationIndexPrev], ImageLayout::Readonly) :
+            .DepthAccumulationIn = m_CloudDepthAccumulation[m_CloudsAccumulationIndexPrev].HasValue() ?
+                m_Graph->ImportPersistent("Clouds.Depth.Accumulation.In"_hsv,
+                    m_CloudDepthAccumulation[m_CloudsAccumulationIndexPrev]) :
                 RG::Resource{},
-            .ReprojectionFactorIn = m_FrameNumber > 1 ?
-                m_Graph->Import("Clouds.ReprojectionFactor.In"_hsv,
-                    m_CloudReprojectionFactor[m_CloudsAccumulationIndexPrev], ImageLayout::Source) :
+            .ReprojectionFactorIn = m_CloudReprojectionFactor[m_CloudsAccumulationIndexPrev].HasValue() ?
+                m_Graph->ImportPersistent("Clouds.ReprojectionFactor.In"_hsv,
+                    m_CloudReprojectionFactor[m_CloudsAccumulationIndexPrev]) :
                 RG::Resource{},
-            .ColorAccumulationOut = m_FrameNumber > 1 ?
-                m_Graph->Import("Clouds.Color.Accumulation"_hsv,
+            .ColorAccumulationOut = m_CloudColorAccumulation[m_CloudsAccumulationIndexPrev].HasValue() ?
+                m_Graph->ImportPersistent("Clouds.Color.Accumulation"_hsv,
                     m_CloudColorAccumulation[m_CloudsAccumulationIndex]) :
                 RG::Resource{},
-            .DepthAccumulationOut = m_FrameNumber > 1 ?
-                m_Graph->Import("Clouds.Depth.Accumulation"_hsv,
+            .DepthAccumulationOut = m_CloudDepthAccumulation[m_CloudsAccumulationIndexPrev].HasValue() ?
+                m_Graph->ImportPersistent("Clouds.Depth.Accumulation"_hsv,
                     m_CloudDepthAccumulation[m_CloudsAccumulationIndex]) :
                 RG::Resource{},
-            .ReprojectionFactorOut = m_FrameNumber > 1 ?
-                m_Graph->Import("Clouds.ReprojectionFactor"_hsv,
+            .ReprojectionFactorOut = m_CloudReprojectionFactor[m_CloudsAccumulationIndexPrev].HasValue() ?
+                m_Graph->ImportPersistent("Clouds.ReprojectionFactor"_hsv,
                     m_CloudReprojectionFactor[m_CloudsAccumulationIndex]) :
                 RG::Resource{},
             .CloudParameters = m_CloudParametersResource,

@@ -73,21 +73,9 @@ RG::Resource imgui2dTexturePass(StringId name, RG::Graph& renderGraph, RG::Resou
 }
 }
 
-RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
-{
-    return addToGraph(name, renderGraph, renderGraph.Import("In"_hsv, texture, ImageLayout::Readonly));
-}
-
 RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
 {
     return imgui2dTexturePass(name, renderGraph, textureIn, [](){});
-}
-
-RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture,
-    ChannelComposition channelComposition)
-{
-    return addToGraph(name, renderGraph, renderGraph.Import("In"_hsv, texture, ImageLayout::Readonly),
-        channelComposition);
 }
 
 RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
@@ -95,11 +83,6 @@ RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGr
 {
     return addToGraph(name, renderGraph, Texture2dToTexture2d::addToGraph(
         name.Concatenate(".TextureToTexture"), renderGraph, textureIn, channelComposition));
-}
-
-RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
-{
-    return addToGraph(name, renderGraph, renderGraph.Import("In"_hsv, texture, ImageLayout::Readonly));
 }
 
 RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
@@ -153,13 +136,6 @@ RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& rend
         }).Texture;
 }
 
-RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture,
-    ChannelComposition channelComposition)
-{
-    return addToGraph(name, renderGraph, renderGraph.Import("In"_hsv, texture, ImageLayout::Readonly),
-        channelComposition);
-}
-
 RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
     ChannelComposition channelComposition)
 {
@@ -188,13 +164,6 @@ RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& render
         [=](const Resource&, FrameContext&, const Graph&)
         {
         });
-}
-
-RG::Resource Passes::ImGuiArrayTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture,
-    DrawAs drawAs, ChannelComposition channelComposition)
-{
-    return addToGraph(name, renderGraph, renderGraph.Import("In"_hsv, texture, ImageLayout::Readonly), drawAs,
-        channelComposition);
 }
 
 RG::Resource Passes::ImGuiArrayTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,

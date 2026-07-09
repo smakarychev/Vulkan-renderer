@@ -18,10 +18,9 @@ Passes::Clouds::CurlNoise::PassData& Passes::Clouds::CurlNoise::addToGraph(Strin
 
             passData.BindGroup = CloudsMapCurlBindGroupRG(graph);
 
-            if (info.CloudCurlNoise.HasValue())
+            if (info.CloudCurlNoise.IsValid())
             {
-                passData.CloudCurlNoise = graph.Import("CloudCurlNoise.Imported"_hsv,
-                    info.CloudCurlNoise, ImageLayout::Undefined);
+                passData.CloudCurlNoise = info.CloudCurlNoise;
             }
             else
             {

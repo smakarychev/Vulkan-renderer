@@ -4701,8 +4701,8 @@ void Device::CompileCommand(CommandBuffer cmd, const CopyBufferToImageCommand& c
     bufferImageCopy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
     bufferImageCopy.bufferOffset = command.BufferOffset;
     bufferImageCopy.imageExtent = {
-        .width = imageResource.Description.Width >> command.ImageSubresource.MipmapBase,
-        .height = imageResource.Description.Height >> command.ImageSubresource.MipmapBase,
+        .width = std::max(1u, imageResource.Description.Width >> command.ImageSubresource.MipmapBase),
+        .height = std::max(1u, imageResource.Description.Height >> command.ImageSubresource.MipmapBase),
         .depth = imageResource.Description.GetDepth(command.ImageSubresource.MipmapBase)
     };
     bufferImageCopy.imageSubresource.aspectMask = vulkanImageAspectFromImageUsage(imageResource.Description.Usage);

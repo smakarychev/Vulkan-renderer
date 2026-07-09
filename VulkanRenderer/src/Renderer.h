@@ -11,6 +11,7 @@
 #include "FrameContext.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Images/ImageAssetManager.h"
+#include "Renderer/RGAssets.h"
 #include "RenderGraph/Passes/Clouds/CloudCommon.h"
 #include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudPass.h"
 #include "RenderGraph/Passes/Scene/SceneGeometryRGResources.h"
@@ -208,28 +209,28 @@ private:
     RG::Resource m_DepthMinMaxCurrentFrame{};
     RG::CsmData m_CsmData{};
     
-    Texture m_SkyboxTexture{};
-    Texture m_SkyboxPrefilterMap{};
-    Texture m_BRDFLut{};
-    Buffer m_IrradianceSH{};
-    Buffer m_SkyIrradianceSH{};
+    RG::PersistentImageResource m_SkyboxTexture{};
+    RG::PersistentImageResource m_SkyboxPrefilterMap{};
+    RG::PersistentImageResource m_BRDFLut{};
+    RG::PersistentBufferResource m_IrradianceSH{};
+    RG::PersistentBufferResource m_SkyIrradianceSH{};
     RG::Resource m_SkyIrradianceSHResource{};
-    Texture m_SkyPrefilterMap{};
+    RG::PersistentImageResource m_SkyPrefilterMap{};
     RG::Resource m_SkyPrefilterMapResource{};
 
-    lux::ImageHandle m_MipsTest{};
+    lux::ExternalImageAsset m_MipsTest{};
     
-    Texture m_SkyAtmosphereWithCloudsEnvironment{};
-    Texture m_CloudsEnvironment{};
+    RG::PersistentImageResource m_SkyAtmosphereWithCloudsEnvironment{};
+    RG::PersistentImageResource m_CloudsEnvironment{};
 
-    Texture m_CloudCoverage{};
-    Texture m_CloudProfileMap{};
-    Texture m_CloudShapeLowFrequency{};
-    Texture m_CloudShapeHighFrequency{};
-    Texture m_CloudCurlNoise{};
-    std::array<Texture, 2> m_CloudColorAccumulation{};
-    std::array<Texture, 2> m_CloudDepthAccumulation{};
-    std::array<Texture, 2> m_CloudReprojectionFactor{};
+    lux::ExternalImageAsset m_CloudCoverage{};
+    lux::ExternalImageAsset m_CloudProfileMap{};
+    RG::PersistentImageResource m_CloudShapeLowFrequency{};
+    RG::PersistentImageResource m_CloudShapeHighFrequency{};
+    RG::PersistentImageResource m_CloudCurlNoise{};
+    std::array<RG::PersistentImageResource, 2> m_CloudColorAccumulation{};
+    std::array<RG::PersistentImageResource, 2> m_CloudDepthAccumulation{};
+    std::array<RG::PersistentImageResource, 2> m_CloudReprojectionFactor{};
     u32 m_CloudsAccumulationIndex{0};
     u32 m_CloudsAccumulationIndexPrev{1};
     Passes::PbrCameraExposure::ExposureSettings m_ExposureSettings{};
@@ -252,19 +253,19 @@ private:
     SceneRenderObjectSet m_OpaqueSet;
     SceneVisibilityHandle m_OpaqueSetPrimaryVisibility{};
     SceneView m_OpaqueSetPrimaryView{};
-
-    std::array<Buffer, BUFFERED_FRAMES> m_MinMaxDepthReductions{};
-    std::array<Buffer, BUFFERED_FRAMES> m_MinMaxDepthReductionsNextFrame{};
+    
+    std::array<RG::PersistentBufferResource, BUFFERED_FRAMES> m_MinMaxDepthReductions{};
+    std::array<RG::PersistentBufferResource, BUFFERED_FRAMES> m_MinMaxDepthReductionsNextFrame{};
     SceneMultiviewVisibility m_ShadowMultiviewVisibility{};
     SceneMultiviewVisibility m_PrimaryVisibility{};
     SceneVisibilityPassesResources m_ShadowMultiviewVisibilityResources{};
     SceneVisibilityPassesResources m_PrimaryVisibilityResources{};
 
-    Texture m_PrimaryHizPrevious{};
+    std::array<RG::PersistentImageResource, BUFFERED_FRAMES> m_PrimaryHizPrevious{};
 
-    Texture m_TransmittanceLut{};
-    Texture m_SkyViewLut{};
-    Texture m_VolumetricCloudShadow{};
+    RG::PersistentImageResource m_TransmittanceLut{};
+    RG::PersistentImageResource m_SkyViewLut{};
+    RG::PersistentImageResource m_VolumetricCloudShadow{};
     TextureHandle m_TransmittanceLutBindlessIndex{};
     TextureHandle m_SkyViewLutBindlessIndex{};
     TextureHandle m_BlueNoiseBindlessIndex{};

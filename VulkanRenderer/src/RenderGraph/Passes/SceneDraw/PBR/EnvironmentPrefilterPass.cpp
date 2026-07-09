@@ -7,15 +7,7 @@
 #include "Rendering/Image/ImageUtility.h"
 
 Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& renderGraph,
-    Texture cubemap, Texture prefiltered, bool realTime)
-{
-    return addToGraph(name, renderGraph,
-        renderGraph.Import("Cubemap"_hsv, cubemap, ImageLayout::Readonly),
-        prefiltered, realTime);
-}
-
-Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource cubemap, Texture prefiltered, bool realTime)
+    RG::Resource cubemap, RG::Resource prefiltered, bool realTime)
 {
     static constexpr i8 MAX_MIPMAP_COUNT = 16;
     
@@ -24,12 +16,12 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
     using PassDataBind = PassDataWithBind<PassData, EnvironmentPrefilterBindGroupRG>;
 
 
-    i8 mipmapCount = Device::GetImageDescription(prefiltered).Mipmaps;
-    Resource prefilteredResource = renderGraph.Import("EnvironmentPrefilter"_hsv, prefiltered);
+    i8 mipmapCount = Device::GetImageDescription(renderGraph.GetImage(prefiltered)).Mipmaps;
     ASSERT(MAX_MIPMAP_COUNT > mipmapCount)
     std::array<Resource, MAX_MIPMAP_COUNT> mips = {};
     for (i8 i = 0; i < mipmapCount; i++)
-        mips[i] = renderGraph.SplitImage(prefilteredResource, Device::GetAdditionalImageViews(prefiltered)[i]);
+        mips[i] = renderGraph.SplitImage(prefiltered, 
+            Device::GetAdditionalImageViews(renderGraph.GetImage(prefiltered))[i]);
     
     for (i8 mipmap = 0; mipmap < mipmapCount; mipmap++)
     {
@@ -65,7 +57,8 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
                     .PrefilterResolutionInverse = 1.0f / glm::vec2{(f32)resolution},
                     .EnvironmentResolutionInverse = 1.0f / glm::vec2{
                         (f32)cubemapDescription.Width, (f32)cubemapDescription.Height},
-                    .Roughness = (f32)mipmap / (f32)prefilteredDescription.Mipmaps};
+                    .Roughness = (f32)mipmap / (f32)prefilteredDescription.Mipmaps
+                };
 
                 auto& cmd = frameContext.CommandList;
                 passData.BindGroup.BindCompute(cmd);

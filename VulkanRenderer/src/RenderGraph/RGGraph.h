@@ -45,12 +45,19 @@ public:
     Resource Create(StringId name, const RGBufferDescription& description);
     Resource Create(StringId name, const RGImageDescription& description);
     Resource Create(StringId name, ResourceCreationFlags creationFlags, const RGImageDescription& description);
+    PersistentBufferResource AddPersistent(Buffer buffer);
+    PersistentImageResource AddPersistent(Image image, ImageLayout layout = ImageLayout::Undefined);
+    void UpdatePersistent(PersistentBufferResource resource, Buffer buffer);
+    void UpdatePersistent(PersistentImageResource resource, Image image);
+    void UpdatePersistent(PersistentImageResource resource, Image image, ImageLayout layout);
+    Resource ImportPersistent(StringId name, PersistentBufferResource buffer);
+    Resource ImportPersistent(StringId name, PersistentImageResource image);
     Resource Import(StringId name, Buffer buffer);
     Resource Import(StringId name, Image image, ImageLayout layout = ImageLayout::Undefined);
-    void MarkBufferForExport(Resource resource, BufferUsage additionalUsage = BufferUsage::None);
-    void MarkImageForExport(Resource resource, ImageUsage additionalUsage = ImageUsage::None);
-    void ClaimBuffer(Resource exported, Buffer& target, DeletionQueue& deletionQueue);
-    void ClaimImage(Resource exported, Image& target, DeletionQueue& deletionQueue);
+    void Export(Resource resource, PersistentBufferResource& buffer, DeletionQueue& deletionQueue, 
+        BufferUsage additionalUsage = BufferUsage::None);
+    void Export(Resource resource, PersistentImageResource& image, DeletionQueue& deletionQueue,
+        ImageUsage additionalUsage = ImageUsage::None);
     Resource SplitImage(Resource main, ImageSubresourceDescription subresource);
     Resource MergeImage(Span<const Resource> splits);
     Resource ReadBuffer(Resource resource, ResourceAccessFlags accessFlags);
@@ -74,8 +81,12 @@ public:
     const ImageDescription& GetImageDescription(Resource image) const;
     Buffer GetBuffer(Resource buffer) const;
     Image GetImage(Resource image) const;
+    Buffer GetBuffer(PersistentBufferResource buffer) const;
+    Image GetImage(PersistentImageResource image) const;
     std::pair<Buffer, const BufferDescription&> GetBufferWithDescription(Resource buffer) const;
     std::pair<Image, const ImageDescription&> GetImageWithDescription(Resource image) const;
+    std::pair<Buffer, const BufferDescription&> GetBufferWithDescription(PersistentBufferResource buffer) const;
+    std::pair<Image, const ImageDescription&> GetImageWithDescription(PersistentImageResource image) const;
     bool IsBufferAllocated(Resource buffer) const;
     bool IsImageAllocated(Resource image) const;
 
@@ -136,7 +147,9 @@ private:
     void ManageBarriers(const std::vector<BufferResourceAccessConflict>& bufferConflicts,
         const std::vector<ImageResourceAccessConflict>& imageConflicts);
 
-    void CheckForUnclaimedExportedResources();
+    void PreProcessPersistentResources();
+    void PostProcessPersistentResources();
+    void ResetPersistentResources();
 
     void SubmitPassUploads(FrameContext& frameContext);
 
@@ -154,8 +167,21 @@ private:
     std::vector<ResourceAccess> m_BufferAccesses;
     std::vector<ResourceAccess> m_ImageAccesses;
 
-    std::vector<Resource> m_ExportedBuffers;
-    std::vector<Resource> m_ExportedImages;
+    struct PersistentBufferInfo
+    {
+        Buffer Buffer{};
+        Resource Resource{};
+        DeletionQueue* DeletionQueue{nullptr};
+    };
+    struct PersistentImageInfo
+    {
+        Image Image{};
+        ImageLayout Layout{ImageLayout::Undefined};
+        Resource Resource{};
+        DeletionQueue* DeletionQueue{nullptr};
+    };
+    std::vector<PersistentBufferInfo> m_PersistentBuffers;
+    std::vector<PersistentImageInfo> m_PersistentImages;
 
     std::vector<std::unique_ptr<Pass>> m_Passes;
     std::vector<u32> m_PassIndicesStack{};

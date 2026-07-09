@@ -8,9 +8,9 @@ struct ExecutionInfo
     f32 LowFrequencyTextureSize{128.0f};
     f32 HighFrequencyTextureSize{32.0f};
     /* optional external low frequency image */
-    Image LowFrequencyTexture{};
+    RG::Resource LowFrequencyTexture{};
     /* optional external high frequency image */
-    Image HighFrequencyTexture{};
+    RG::Resource HighFrequencyTexture{};
     RG::Resource LowFrequencyNoiseParameters{};
     RG::Resource HighFrequencyNoiseParameters{};
 };

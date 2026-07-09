@@ -19,10 +19,9 @@ Passes::Clouds::VP::ProfileMap::PassData& Passes::Clouds::VP::ProfileMap::addToG
 
             passData.BindGroup = CloudsMapProfileBindGroupRG(graph);
 
-            if (info.ProfileMap.HasValue())
+            if (info.ProfileMap.IsValid())
             {
-                passData.ProfileMap =
-                    graph.Import("ProfileMap.Imported"_hsv, info.ProfileMap, ImageLayout::Undefined);
+                passData.ProfileMap = info.ProfileMap;
             }
             else
             {

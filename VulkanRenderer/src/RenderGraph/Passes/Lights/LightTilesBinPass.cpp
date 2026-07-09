@@ -22,8 +22,7 @@ Passes::LightTilesBin::PassData& Passes::LightTilesBin::addToGraph(StringId name
 
             passData.Tiles = passData.BindGroup.SetResourcesTiles(info.Tiles);
             passData.BindGroup.SetResourcesDepth(info.Depth);
-            passData.BindGroup.SetResourcesPointLights(
-                graph.Import("Light.PointLights"_hsv, info.Light->GetBuffers().PointLights));
+            passData.BindGroup.SetResourcesPointLights(info.PointLights);
             passData.BindGroup.SetResourcesView(info.ViewInfo);
         },
         [=, description = renderGraph.GetImageDescription(info.Depth)]

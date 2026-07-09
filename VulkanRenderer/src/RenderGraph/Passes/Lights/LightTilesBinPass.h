@@ -10,7 +10,7 @@ struct ExecutionInfo
     RG::Resource ViewInfo{};
     RG::Resource Tiles{};
     RG::Resource Depth{};
-    const SceneLight* Light{nullptr};
+    RG::Resource PointLights{};
 };
 
 struct PassData

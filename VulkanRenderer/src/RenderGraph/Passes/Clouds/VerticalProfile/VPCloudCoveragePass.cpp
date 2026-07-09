@@ -18,10 +18,9 @@ Passes::Clouds::VP::Coverage::PassData& Passes::Clouds::VP::Coverage::addToGraph
 
             passData.BindGroup = CloudsMapCoverageBindGroupRG(graph);
 
-            if (info.CoverageMap.HasValue())
+            if (info.CoverageMap.IsValid())
             {
-                passData.CoverageMap =
-                    graph.Import("CoverageMap.Imported"_hsv, info.CoverageMap, ImageLayout::Undefined);
+                passData.CoverageMap = info.CoverageMap;
             }
             else
             {

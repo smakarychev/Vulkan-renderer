@@ -17,7 +17,7 @@ Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph&
 
             passData.BindGroup = IntegrateBrdfLutBindGroupRG(graph);
 
-            passData.Lut = passData.BindGroup.SetResourcesBrdf(graph.Import("Lut"_hsv, info.Lut));
+            passData.Lut = passData.BindGroup.SetResourcesBrdf(info.Lut);
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {

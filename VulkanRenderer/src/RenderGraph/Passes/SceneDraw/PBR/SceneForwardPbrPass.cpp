@@ -50,10 +50,8 @@ Passes::SceneForwardPbr::PassData& Passes::SceneForwardPbr::addToGraph(StringId 
             passData.BindGroup.SetResourcesCsmData(info.CsmData.CsmInfo);
             passData.BindGroup.SetResourcesCsmTexture(info.CsmData.ShadowMap);
             passData.BindGroup.SetResourcesSsao(info.SSAO.SSAO);
-            passData.BindGroup.SetResourcesDirectionalLights(graph.Import("Light.Directional"_hsv,
-                info.Light->GetBuffers().DirectionalLights));
-            passData.BindGroup.SetResourcesPointLights(graph.Import("Light.Point"_hsv,
-                info.Light->GetBuffers().PointLights));
+            passData.BindGroup.SetResourcesDirectionalLights(info.DirectionalLights);
+            passData.BindGroup.SetResourcesPointLights(info.PointLights);
             if (useTiled || useHybrid)
             {
                 passData.BindGroup.SetResourcesLightZBins(info.ZBins);

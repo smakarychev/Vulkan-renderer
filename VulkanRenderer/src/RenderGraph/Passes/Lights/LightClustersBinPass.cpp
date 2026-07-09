@@ -175,8 +175,7 @@ Passes::LightClustersBin::PassData& Passes::LightClustersBin::addToGraph(StringI
             passData.BindGroup.SetResourcesActiveClusters(compact.ActiveClusters);
             passData.BindGroup.SetResourcesActiveClustersCount(compact.ActiveClustersCount);
             passData.BindGroup.SetResourcesView(info.ViewInfo);
-            passData.BindGroup.SetResourcesPointLights(
-                graph.Import("Light.PointLights"_hsv, info.Light->GetBuffers().PointLights));
+            passData.BindGroup.SetResourcesPointLights(info.PointLights);
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {

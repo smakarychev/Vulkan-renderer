@@ -44,6 +44,7 @@ public:
             .SecondPass = &secondPass,
         });
     }
+    void OnReset() override { Barriers.clear(); }
     
     const std::vector<std::unique_ptr<RG::Pass>>* Passes;
     const std::vector<RG::BufferResource>* Buffers;
@@ -214,7 +215,7 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
     SECTION("Resources are virtual and not created immediately")
     {
         RG::Graph graph;
-        RG::Resource buffer = graph.Create("MyBuffer"_hsv, RG::RGBufferDescription{});
+        RG::Resource buffer = graph.Create("MyBuffer"_hsv, RG::RGBufferDescription{.SizeBytes = 1});
         REQUIRE(buffer.IsValid());
         REQUIRE(!graph.GetBuffer(buffer).HasValue());
         RG::Resource image = graph.Create("MyImage"_hsv, RG::RGImageDescription{});
@@ -226,7 +227,7 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
         Device::Init(DeviceCreateInfo::Default(nullptr, true));
         RG::Graph graph;
         Buffer buffer = Device::CreateBuffer({{.SizeBytes = 4, .Usage = BufferUsage::Ordinary | BufferUsage::Uniform}});
-        RG::Resource bufferResource = graph.Import("MyBuffer"_hsv, buffer);
+        RG::Resource bufferResource = graph.Import("MyBuffer"_hsv, {buffer});
         REQUIRE(bufferResource.IsValid());
         REQUIRE(graph.GetBuffer(bufferResource).HasValue());
         REQUIRE(graph.GetBuffer(bufferResource) == buffer);
@@ -239,7 +240,7 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
                 .Usage = ImageUsage::Color
             },
             .CalculateMipmaps = false});
-        RG::Resource imageResource = graph.Import("MyImage"_hsv, image);
+        RG::Resource imageResource = graph.Import("MyImage"_hsv, {image});
         REQUIRE(imageResource.IsValid());
         REQUIRE(graph.GetImage(imageResource).HasValue());
         REQUIRE(graph.GetImage(imageResource) == image);
@@ -256,7 +257,7 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
                 .Usage = ImageUsage::Color
             },
             .CalculateMipmaps = false});
-        RG::Resource imageResource = graph.Import("MyImage"_hsv, image);
+        RG::Resource imageResource = graph.Import("MyImage"_hsv, {image});
         RG::Resource failedSplit = graph.SplitImage(imageResource, {});
         REQUIRE(!failedSplit.IsValid());
     }
@@ -304,6 +305,225 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
         REQUIRE(merged0.IsValid());
         RG::Resource merged1 = graph.MergeImage({split2});
         REQUIRE(merged1.IsValid());
+    }
+    SECTION("Can create persistent handles")
+    {
+        RG::Graph graph;
+        Device::Init(DeviceCreateInfo::Default(nullptr, true));
+
+        const Buffer buffer = Device::CreateBuffer({
+            .Description = {.SizeBytes = 1, .Usage = BufferUsage::Ordinary | BufferUsage::Uniform}
+        });
+        const Image image = Device::CreateImage({
+            .Description = {.Width = 1, .Height = 1, .Format = Format::RGBA16_FLOAT, .Usage = ImageUsage::Sampled}
+        });
+        
+        const RG::PersistentBufferResource persistentBuffer = graph.AddPersistent(buffer);
+        const RG::PersistentImageResource persistentImage = graph.AddPersistent(image);
+        
+        REQUIRE(graph.GetBuffer(persistentBuffer) == buffer);
+        REQUIRE(graph.GetImage(persistentImage) == image);
+        
+        graph.Reset();
+        
+        REQUIRE(graph.GetBuffer(persistentBuffer) == buffer);
+        REQUIRE(graph.GetImage(persistentImage) == image);
+    }
+    SECTION("Export implicitly creates persistent handle and resource")
+    {
+        RG::Graph graph;
+        Device::Init(DeviceCreateInfo::Default(nullptr, true));
+        FrameContext ctx = {};
+
+        RG::PersistentBufferResource persistentBuffer = {};
+        RG::PersistentImageResource persistentImage = {};
+        
+        REQUIRE_FALSE(graph.GetBuffer(persistentBuffer).HasValue());
+        REQUIRE_FALSE(graph.GetImage(persistentImage).HasValue());
+        
+        graph.AddRenderPass<u32>("MyPass"_hsv,
+           [&](RG::Graph& graph, u32& passData)
+           {
+               RG::Resource bufferResource = graph.Create("MyBuffer"_hsv, RG::RGBufferDescription{.SizeBytes = 2});
+               RG::Resource imageResource = graph.Create("MyImage"_hsv, RG::RGImageDescription{
+                   .Width = 640,
+                   .Height = 480,
+                   .Format = Format::RGBA16_FLOAT
+               });
+               graph.ReadBuffer(bufferResource, RG::ResourceAccessFlags::Vertex | RG::ResourceAccessFlags::Uniform);
+               graph.ReadImage(imageResource, RG::ResourceAccessFlags::Pixel | RG::ResourceAccessFlags::Sampled);
+               
+               graph.Export(bufferResource, persistentBuffer, Device::DummyDeletionQueue());
+               graph.Export(imageResource, persistentImage, Device::DummyDeletionQueue());
+           },
+           [&](const u32& passData, FrameContext& ctx, const RG::Graph& graph){});
+        
+        graph.Compile(ctx);
+        
+        graph.Reset();
+        
+        REQUIRE(graph.GetBuffer(persistentBuffer).HasValue());
+        REQUIRE(graph.GetImage(persistentImage).HasValue());
+    }
+    SECTION("Export does not create physicall resource twice")
+    {
+        RG::Graph graph;
+        Device::Init(DeviceCreateInfo::Default(nullptr, true));
+        FrameContext ctx = {};
+
+        RG::PersistentImageResource persistentImage = {};
+        RG::PersistentBufferResource persistentBuffer = {};
+        
+        REQUIRE_FALSE(graph.GetBuffer(persistentBuffer).HasValue());
+        REQUIRE_FALSE(graph.GetImage(persistentImage).HasValue());
+        
+        graph.AddRenderPass<u32>("MyPass"_hsv,
+            [&](RG::Graph& graph, u32& passData)
+            {
+                RG::Resource bufferResource = graph.Create("MyBuffer"_hsv, RG::RGBufferDescription{.SizeBytes = 2});
+                RG::Resource imageResource = graph.Create("MyImage"_hsv, RG::RGImageDescription{
+                    .Width = 640,
+                    .Height = 480,
+                    .Format = Format::RGBA16_FLOAT
+                });
+                graph.ReadBuffer(bufferResource, RG::ResourceAccessFlags::Vertex | RG::ResourceAccessFlags::Uniform);
+                graph.ReadImage(imageResource, RG::ResourceAccessFlags::Pixel | RG::ResourceAccessFlags::Sampled);
+
+                graph.Export(bufferResource, persistentBuffer, Device::DummyDeletionQueue());
+                graph.Export(imageResource, persistentImage, Device::DummyDeletionQueue());
+            },
+            [&](const u32& passData, FrameContext& ctx, const RG::Graph& graph){});
+        
+        graph.Compile(ctx);
+        
+        graph.Reset();
+        
+        REQUIRE(graph.GetBuffer(persistentBuffer).HasValue());
+        REQUIRE(graph.GetImage(persistentImage).HasValue());
+
+        const Buffer createdBuffer = graph.GetBuffer(persistentBuffer);
+        const Image createdImage = graph.GetImage(persistentImage);
+
+        graph.AddRenderPass<u32>("MyPass"_hsv,
+            [&](RG::Graph& graph, u32& passData)
+            {
+                RG::Resource bufferResource = graph.Create("MyBuffer"_hsv, RG::RGBufferDescription{.SizeBytes = 2});
+                RG::Resource imageResource = graph.Create("MyImage"_hsv, RG::RGImageDescription{
+                    .Width = 640,
+                    .Height = 480,
+                    .Format = Format::RGBA16_FLOAT
+                });
+                graph.ReadBuffer(bufferResource, RG::ResourceAccessFlags::Vertex | RG::ResourceAccessFlags::Uniform);
+                graph.ReadImage(imageResource, RG::ResourceAccessFlags::Pixel | RG::ResourceAccessFlags::Sampled);
+
+                graph.Export(bufferResource, persistentBuffer, Device::DummyDeletionQueue());
+                graph.Export(imageResource, persistentImage, Device::DummyDeletionQueue());
+            },
+            [&](const u32& passData, FrameContext& ctx, const RG::Graph& graph){});
+        
+        graph.Compile(ctx);
+        
+        REQUIRE(graph.GetBuffer(persistentBuffer) == createdBuffer);
+        REQUIRE(graph.GetImage(persistentImage) == createdImage);
+    }
+    SECTION("Can export with additional usage flags")
+    {
+        RG::Graph graph;
+        Device::Init(DeviceCreateInfo::Default(nullptr, true));
+        FrameContext ctx = {};
+
+        RG::PersistentBufferResource persistentBuffer = {};
+        RG::PersistentImageResource persistentImage = {};
+        
+        REQUIRE_FALSE(graph.GetBuffer(persistentBuffer).HasValue());
+        REQUIRE_FALSE(graph.GetImage(persistentImage).HasValue());
+        
+        graph.AddRenderPass<u32>("MyPass"_hsv,
+           [&](RG::Graph& graph, u32& passData)
+           {
+               RG::Resource bufferResource = graph.Create("MyBuffer"_hsv, RG::RGBufferDescription{.SizeBytes = 2});
+               RG::Resource imageResource = graph.Create("MyImage"_hsv, RG::RGImageDescription{
+                   .Width = 640,
+                   .Height = 480,
+                   .Format = Format::RGBA16_FLOAT
+               });
+               graph.ReadBuffer(bufferResource, RG::ResourceAccessFlags::Vertex | RG::ResourceAccessFlags::Uniform);
+               graph.ReadImage(imageResource, RG::ResourceAccessFlags::Pixel | RG::ResourceAccessFlags::Sampled);
+               
+               graph.Export(bufferResource, persistentBuffer, Device::DummyDeletionQueue(), BufferUsage::Storage);
+               graph.Export(imageResource, persistentImage, Device::DummyDeletionQueue(), ImageUsage::Storage);
+           },
+           [&](const u32& passData, FrameContext& ctx, const RG::Graph& graph){});
+        
+        graph.Compile(ctx);
+        
+        graph.Reset();
+        
+        REQUIRE(graph.GetBuffer(persistentBuffer).HasValue());
+        REQUIRE(graph.GetImage(persistentImage).HasValue());
+        
+        REQUIRE(enumHasAny(Device::GetBufferDescription(graph.GetBuffer(persistentBuffer)).Usage, 
+            BufferUsage::Storage));
+        REQUIRE(enumHasAny(Device::GetImageDescription(graph.GetImage(persistentImage)).Usage,
+            ImageUsage::Storage));
+    }
+    SECTION("Persistent images retain layout")
+    {
+        RG::Graph graph;
+        TestGraphWatcher watcher;
+        graph.SetWatcher(watcher);
+        Device::Init(DeviceCreateInfo::Default(nullptr, true));
+        FrameContext ctx = {};
+
+        RG::PersistentImageResource persistentImage = {};
+        
+        graph.AddRenderPass<u32>("MyPass"_hsv,
+           [&](RG::Graph& graph, u32& passData)
+           {
+               RG::Resource imageResource = graph.Create("MyImage"_hsv, RG::RGImageDescription{
+                   .Width = 640,
+                   .Height = 480,
+                   .Format = Format::RGBA16_FLOAT
+               });
+               graph.ReadImage(imageResource, RG::ResourceAccessFlags::Pixel | RG::ResourceAccessFlags::Sampled);
+               graph.Export(imageResource, persistentImage, Device::DummyDeletionQueue(), ImageUsage::Storage);
+           },
+           [&](const u32& passData, FrameContext& ctx, const RG::Graph& graph){});
+        
+        graph.Compile(ctx);
+        REQUIRE(watcher.Barriers.size() == 1);
+        REQUIRE(watcher.Barriers.front().DependencyInfo.LayoutTransitionInfo.has_value());
+        REQUIRE(watcher.Barriers.front().DependencyInfo.LayoutTransitionInfo->NewLayout == ImageLayout::Readonly);
+        
+        graph.Reset();
+        
+        graph.AddRenderPass<u32>("MyPass"_hsv,
+           [&](RG::Graph& graph, u32& passData)
+           {
+               RG::Resource imageResource = graph.Create("MyImage"_hsv, RG::RGImageDescription{
+                   .Width = 640,
+                   .Height = 480,
+                   .Format = Format::RGBA16_FLOAT
+               });
+               graph.ReadImage(imageResource, RG::ResourceAccessFlags::Pixel | RG::ResourceAccessFlags::Sampled);
+               graph.Export(imageResource, persistentImage, Device::DummyDeletionQueue(), ImageUsage::Storage);
+           },
+           [&](const u32& passData, FrameContext& ctx, const RG::Graph& graph){});
+        graph.Compile(ctx);
+        REQUIRE(watcher.Barriers.empty());
+        
+        graph.Reset();
+
+        graph.AddRenderPass<u32>("MyPass"_hsv,
+            [&](RG::Graph& graph, u32& passData)
+            {
+                RG::Resource imageResource = graph.ImportPersistent("MyImage"_hsv, persistentImage);
+                graph.ReadImage(imageResource, RG::ResourceAccessFlags::Pixel | RG::ResourceAccessFlags::Sampled);
+            },
+            [&](const u32& passData, FrameContext& ctx, const RG::Graph& graph){});
+        
+        graph.Compile(ctx);
+        REQUIRE(watcher.Barriers.empty());
     }
 }
 TEST_CASE("RenderGraphResource Access", "[RenderGraph][Resource]")
@@ -387,6 +607,7 @@ TEST_CASE("RenderGraphResource Access", "[RenderGraph][Resource]")
 }
 TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
 {
+    lux::Logger::Init({});
     RG::Graph renderGraph;
     Device::Init(DeviceCreateInfo::Default(nullptr, true));
     FrameContext ctx = {};
@@ -993,8 +1214,8 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         REQUIRE(watcher.Passes->at(1)->Name().AsString() == "Split");
         REQUIRE(watcher.Passes->at(2)->Name().AsString() == "Split");
         REQUIRE(watcher.Passes->at(3)->Name().AsString() == "WriteToSplit0");
-        REQUIRE(watcher.Passes->at(4)->Name().AsString() == "WriteToSplit1");
-        REQUIRE(watcher.Passes->at(5)->Name().AsString() == "ReadSplit0");
+        REQUIRE(watcher.Passes->at(4)->Name().AsString() == "ReadSplit0");
+        REQUIRE(watcher.Passes->at(5)->Name().AsString() == "WriteToSplit1");
         REQUIRE(watcher.Passes->at(6)->Name().AsString() == "Merge");
         REQUIRE(watcher.Passes->at(7)->Name().AsString() == "ReadMerged");
         REQUIRE(watcher.Passes->at(8)->Name().AsString() == "WriteMerged");
@@ -1482,7 +1703,7 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
                 .Usage = BufferUsage::Storage
             }
         });
-        RG::Resource buffer0 = renderGraph.Import("Buffer"_hsv, physicalBuffer);
+        RG::Resource buffer0 = renderGraph.Import("Buffer"_hsv, {physicalBuffer});
         RG::Resource buffer1 = renderGraph.Create("BufferAliased"_hsv, RG::RGBufferDescription{
             .SizeBytes = 4});
 
@@ -1492,7 +1713,7 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
                 .Height = 480,
                 .Format = Format::D32_FLOAT,
                 .Usage = ImageUsage::Storage}});
-        RG::Resource depth0 = renderGraph.Import("Depth"_hsv, physicalDepth);
+        RG::Resource depth0 = renderGraph.Import("Depth"_hsv, {physicalDepth});
         RG::Resource depth1 = renderGraph.Create("DepthAliased"_hsv, RG::RGImageDescription{
             .Width = 640,
             .Height = 480,
@@ -1524,77 +1745,6 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         renderGraph.Compile(ctx);
         REQUIRE(renderGraph.GetBuffer(buffer0) != renderGraph.GetBuffer(buffer1));
         REQUIRE(renderGraph.GetImage(depth0) != renderGraph.GetImage(depth1));
-    }
-    SECTION("Can export resources")
-    {
-        RG::Resource buffer = renderGraph.Create("Buffer"_hsv, RG::RGBufferDescription{
-           .SizeBytes = 4});
-        
-        RG::Resource depth = renderGraph.Create("Depth"_hsv, RG::RGImageDescription{
-            .Width = 640,
-            .Height = 480,
-            .Format = Format::D32_FLOAT
-        });
-        renderGraph.AddRenderPass<u32>("ExportPass"_hsv, [&](RG::Graph& graph, u32& passData)
-            {
-                buffer = graph.ReadBuffer(buffer, Compute | Storage);
-                depth = graph.ReadImage(depth, Compute | Storage);
-                graph.MarkBufferForExport(buffer);
-                graph.MarkImageForExport(depth);
-            },
-            [&](const u32& passData, FrameContext& ctx, const RG::Graph& graph){});
-
-        
-
-        REQUIRE(!renderGraph.GetBuffer(buffer).HasValue());
-        REQUIRE(!renderGraph.GetImage(depth).HasValue());
-
-        Buffer physicalBuffer;
-        Image physicalDepth;
-        renderGraph.ClaimBuffer(buffer, physicalBuffer, ctx.DeletionQueue);
-        renderGraph.ClaimImage(depth, physicalDepth, ctx.DeletionQueue);
-        REQUIRE(renderGraph.GetBuffer(buffer).HasValue());
-        REQUIRE(renderGraph.GetBuffer(buffer) == physicalBuffer);
-        REQUIRE(renderGraph.GetImage(depth).HasValue());
-        REQUIRE(renderGraph.GetImage(depth) == physicalDepth);
-
-        Buffer bufferCopy = physicalBuffer;
-        Image depthCopy = physicalDepth;
-        renderGraph.ClaimBuffer(buffer, physicalBuffer, ctx.DeletionQueue);
-        renderGraph.ClaimImage(depth, physicalDepth, ctx.DeletionQueue);
-        REQUIRE(renderGraph.GetBuffer(buffer) == physicalBuffer);
-        REQUIRE(bufferCopy == physicalBuffer);
-        REQUIRE(renderGraph.GetImage(depth) == physicalDepth);
-        REQUIRE(depthCopy == physicalDepth);
-    }
-    
-    SECTION("Unclaimed exported resources are allocated on execution")
-    {
-        RG::Resource buffer = renderGraph.Create("Buffer"_hsv, RG::RGBufferDescription{
-           .SizeBytes = 4});
-        
-        RG::Resource depth = renderGraph.Create("Depth"_hsv, RG::RGImageDescription{
-            .Width = 640,
-            .Height = 480,
-            .Format = Format::D32_FLOAT
-        });
-        renderGraph.AddRenderPass<u32>("ExportPass"_hsv, [&](RG::Graph& graph, u32& passData)
-            {
-                buffer = graph.ReadBuffer(buffer, Compute | Storage);
-                depth = graph.ReadImage(depth, Compute | Storage);
-                graph.MarkBufferForExport(buffer);
-                graph.MarkImageForExport(depth);
-            },
-            [&](const u32& passData, FrameContext& ctx, const RG::Graph& graph){});
-
-        
-        REQUIRE(!renderGraph.GetBuffer(buffer).HasValue());
-        REQUIRE(!renderGraph.GetImage(depth).HasValue());
-
-        renderGraph.Compile(ctx);
-
-        REQUIRE(renderGraph.GetBuffer(buffer).HasValue());
-        REQUIRE(renderGraph.GetImage(depth).HasValue());
     }
 }
 

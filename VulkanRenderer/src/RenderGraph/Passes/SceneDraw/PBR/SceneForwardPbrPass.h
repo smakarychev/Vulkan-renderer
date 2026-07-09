@@ -12,7 +12,8 @@ struct ExecutionInfo
     SceneDrawPassExecutionInfo DrawInfo{};
     std::optional<ShaderOverrides> CommonOverrides{std::nullopt};
     const SceneGeometryRGResources* Geometry{nullptr};
-    const SceneLight* Light{nullptr};
+    RG::Resource DirectionalLights{};
+    RG::Resource PointLights{};
     RG::SSAOData SSAO{};
     RG::IBLData IBL{};
     RG::Resource Clusters{};

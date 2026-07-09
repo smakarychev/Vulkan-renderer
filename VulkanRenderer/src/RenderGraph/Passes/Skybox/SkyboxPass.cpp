@@ -25,11 +25,8 @@ Passes::Skybox::PassData& Passes::Skybox::addToGraph(StringId name, RG::Graph& r
             });
             ASSERT(info.Depth.IsValid(), "Depth has to be provided")
 
-            const Resource skybox = info.SkyboxResource.IsValid() ?
-                info.SkyboxResource : graph.Import("Skybox"_hsv, info.SkyboxTexture, ImageLayout::Readonly);
-
             passData.BindGroup.SetResourcesView(info.ViewInfo);
-            passData.BindGroup.SetResourcesSkybox(skybox);
+            passData.BindGroup.SetResourcesSkybox(info.SkyboxResource);
             
             passData.Color = graph.RenderTarget(passData.Color, {});
             passData.Depth = graph.DepthStencilTarget(info.Depth, {});

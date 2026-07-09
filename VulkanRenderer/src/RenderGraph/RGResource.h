@@ -74,6 +74,23 @@ namespace RG
         u8 m_Extra{NO_EXTRA};
     };
 
+    template <typename Type>
+    class PersistentResource
+    {
+        constexpr static u32 INVALID = ~0u;
+        friend class Graph;
+    public:
+        constexpr bool HasValue() const { return m_Index != INVALID; }
+    private:
+        u32 m_Index{INVALID};
+    };
+
+    struct PersistentBufferTag{};
+    struct PersistentImageTag{};
+
+    using PersistentBufferResource = PersistentResource<PersistentBufferTag>;
+    using PersistentImageResource = PersistentResource<PersistentImageTag>;
+
     struct RGBufferDescription
     {
         u64 SizeBytes{0};
@@ -134,7 +151,7 @@ namespace RG
     {
         Merged = 0,
         Split = 1,
-        MaybeDivergent = 2,
+        Divergent = 2,
     };
     struct ImageResource : ResourceBase
     {

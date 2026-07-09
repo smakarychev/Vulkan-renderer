@@ -6,7 +6,7 @@ namespace Passes::Clouds::VP::ProfileMap
 struct ExecutionInfo
 {
     /* optional external profile map image */
-    Image ProfileMap{};
+    RG::Resource ProfileMap{};
 };
 
 struct PassData

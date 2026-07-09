@@ -6,21 +6,6 @@
 #include "RenderGraph/Passes/Generated/DiffuseIrradianceShOfflineBindGroupRG.generated.h"
 #include "RenderGraph/Passes/Generated/DiffuseIrradianceShRealtimeBindGroupRG.generated.h"
 
-Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& renderGraph,
-    Texture cubemap, Buffer irradianceSH, bool realTime)
-{
-    return addToGraph(name, renderGraph,
-        renderGraph.Import("CubemapTexture.Import"_hsv, cubemap, ImageLayout::Readonly),
-        renderGraph.Import("DiffuseIrradianceSH.Import"_hsv, irradianceSH), realTime);
-}
-
-Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource cubemap, Buffer irradianceSH, bool realTime)
-{
-    return addToGraph(name, renderGraph, cubemap,
-        renderGraph.Import("DiffuseIrradianceSH.Import"_hsv, irradianceSH), realTime);
-}
-
 namespace 
 {
 Passes::DiffuseIrradianceSH::PassData& addOffline(StringId name, RG::Graph& renderGraph,

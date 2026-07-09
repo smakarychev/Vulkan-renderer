@@ -9,7 +9,7 @@
 namespace
 {
 RG::Resource& createShapeTexture(StringId name, RG::Graph& renderGraph, f32 textureSize, bool isHighFrequency,
-    const RG::Resource noiseParameters, Image external)
+    const RG::Resource noiseParameters, RG::Resource external)
 {
     using namespace RG;
     struct CreateShapePassData
@@ -27,8 +27,8 @@ RG::Resource& createShapeTexture(StringId name, RG::Graph& renderGraph, f32 text
                 ShaderSpecialization{"IS_HIGH_FREQUENCY"_hsv, isHighFrequency}
             });
 
-            if (external.HasValue())
-                passData.Shape = graph.Import("ShapeTexture.Imported"_hsv, external);
+            if (external.IsValid())
+                passData.Shape = external;
             else
                 passData.Shape = graph.Create("ShapeTexture"_hsv, RGImageDescription{
                     .Width = textureSize,

@@ -5,7 +5,7 @@ namespace Passes::BRDFLut
 {
 struct ExecutionInfo
 {
-    Texture Lut{};
+    RG::Resource Lut{};
 };
 
 struct PassData

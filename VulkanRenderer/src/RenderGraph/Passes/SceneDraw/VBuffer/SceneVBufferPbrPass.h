@@ -13,7 +13,8 @@ struct ExecutionInfo
     RG::Resource VisibleMeshlets{};
     RG::Resource VisibilityTexture{};
     RG::Resource ViewInfo{};
-    const SceneLight* Light{nullptr};
+    RG::Resource DirectionalLights{};
+    RG::Resource PointLights{};
     RG::SSAOData SSAO{};
     RG::IBLData IBL{};
     RG::Resource Clusters{};

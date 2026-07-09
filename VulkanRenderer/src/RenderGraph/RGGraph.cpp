@@ -363,7 +363,7 @@ namespace RG
         TopologicalSort(dependencyList);
 
         ProcessVirtualResources();
-        CheckForUnclaimedExportedResources();
+        PreProcessPersistentResources();
         ValidateImportedResources();
         
         if (m_GraphWatcher)
@@ -378,6 +378,8 @@ namespace RG
         const auto bufferConflicts = FindBufferResourceConflicts();
         const auto imageConflicts = FindImageResourceConflicts();
         ManageBarriers(bufferConflicts, imageConflicts);
+        
+        PostProcessPersistentResources();
     }
 
     void Graph::Execute(FrameContext& frameContext)
@@ -511,8 +513,7 @@ namespace RG
         m_Passes.clear();
         m_PassIndicesStack.clear();
         m_ResourcesPool.OnFrameEnd();
-        m_ExportedBuffers.clear();
-        m_ExportedImages.clear();
+        ResetPersistentResources();
         
         if (m_GraphWatcher)
             m_GraphWatcher->OnReset();
@@ -579,7 +580,7 @@ namespace RG
             for (auto& access : accesses)
             {
                 const u64 index = resourceIndex(access.Resource);
-                if (access.HasWrite())
+                if (access.HasWrite() || access.IsSplitOrMerge())
                 {
                     Resource readResource = access.Resource;
                     readResource.m_Version -= 1;
@@ -910,6 +911,16 @@ namespace RG
             return enumHasAny(description.Usage, ImageUsage::Sampled) ?
                 ImageLayout::Readonly : ImageLayout::General;
         };
+        auto updateImageStateOnPureMerge = [](ImageResource& resource) -> ImageResourceState {
+            bool isDivergent = false;
+            for (u32 i = 1; i < resource.Extras.size(); i++)
+                isDivergent |= resource.Extras[i].Layout != resource.Extras[i - 1].Layout;
+            
+            if (!isDivergent)
+                resource.Layout = resource.Extras.front().Layout;
+            
+            return isDivergent ? ImageResourceState::Divergent : ImageResourceState::Merged;
+        };
         
         std::vector<ImageResourceAccessConflict> imageConflicts;
         imageConflicts.reserve(m_ImageAccesses.size());
@@ -928,7 +939,7 @@ namespace RG
             if (access.OfType(AccessType::Split))
                 image.State = ImageResourceState::Split;
             else if (access.OfType(AccessType::Merge))
-                image.State = ImageResourceState::MaybeDivergent;
+                image.State = access.HasReadOrWrite() ? ImageResourceState::Divergent : updateImageStateOnPureMerge(image);
             if (!access.HasReadOrWrite())
                 continue;
             
@@ -954,7 +965,7 @@ namespace RG
                 image.Layout : image.Extras[access.Resource.m_Extra].Layout;
             const ImageLayout newLayout = inferDesiredLayout(access, image.Description);
 
-            if (image.State == ImageResourceState::MaybeDivergent)
+            if (image.State == ImageResourceState::Divergent)
             {
                 image.State = ImageResourceState::Merged;
                 if (HasChangedAllSplitLayouts(imageConflicts, conflict, image, newLayout))
@@ -1184,28 +1195,56 @@ namespace RG
         }
     }
 
-    void Graph::CheckForUnclaimedExportedResources()
+    void Graph::PreProcessPersistentResources()
     {
-        for (auto& resource : m_ExportedBuffers)
+        for (auto& persistent : m_PersistentBuffers)
         {
-            auto& buffer = m_Buffers[resource.m_Index];
-            if (!buffer.Resource.HasValue())
-            {
-                LUX_LOG_WARN("Buffer marked for export was not claimed: {} ({})", resource, buffer.Name);
-                buffer.Resource =
-                    m_ResourcesPool.Allocate(resource, buffer.Description, 0, (u32)m_Passes.size()).Resource;
-            }
+            if (!persistent.Resource.IsValid())
+                continue;
+            auto& buffer = m_Buffers[persistent.Resource.m_Index];
+            if (!persistent.Buffer.HasValue() && persistent.DeletionQueue != nullptr)
+                persistent.Buffer = Device::CreateBuffer({
+                    .Description = {
+                        .SizeBytes = buffer.Description.SizeBytes,
+                        .Usage = buffer.Description.Usage,
+                    },
+                }, *persistent.DeletionQueue);
+
+            buffer.Resource = persistent.Buffer;
+            Device::NameBuffer(buffer.Resource, buffer.Name.AsStringView());
         }
-        for (auto& resource : m_ExportedImages)
+        for (auto& persistent : m_PersistentImages)
         {
-            auto& image = m_Images[resource.m_Index];
-            if (!image.Resource.HasValue())
-            {
-                LUX_LOG_WARN("Image marked for export was not claimed: {} ({})", resource, image.Name);
-                image.Resource =
-                    m_ResourcesPool.Allocate(resource, image.Description, 0, (u32)m_Passes.size()).Resource;
-            }
+            if (!persistent.Resource.IsValid())
+                continue;
+            auto& image = m_Images[persistent.Resource.m_Index];
+            if (!persistent.Image.HasValue() && persistent.DeletionQueue != nullptr)
+                persistent.Image = Device::CreateImage({
+                    .Description = image.Description
+                }, *persistent.DeletionQueue);
+
+            image.Resource = persistent.Image;
+            Device::NameImage(image.Resource, image.Name.AsStringView());
         }
+    }
+
+    void Graph::PostProcessPersistentResources()
+    {
+        for (auto& persistent : m_PersistentImages)
+        {
+            if (!persistent.Resource.IsValid())
+                continue;
+            ASSERT(m_Images[persistent.Resource.m_Index].State != ImageResourceState::Divergent)
+            persistent.Layout = m_Images[persistent.Resource.m_Index].Layout;
+        }
+    }
+
+    void Graph::ResetPersistentResources()
+    {
+        for (auto& persistent : m_PersistentBuffers)
+            persistent.Resource = Resource{};
+        for (auto& persistent : m_PersistentImages)
+            persistent.Resource = Resource{};
     }
 
     void Graph::SubmitPassUploads(FrameContext& frameContext)
@@ -1267,6 +1306,91 @@ namespace RG
         return resource;
     }
 
+    PersistentBufferResource Graph::AddPersistent(Buffer buffer)
+    { 
+        PersistentBufferResource resource = {};
+        
+        auto it = std::ranges::find_if(m_PersistentBuffers, [buffer](const auto& persistent) {
+            return persistent.Buffer == buffer;
+        });
+        
+        if (it != m_PersistentBuffers.end())
+        {
+            const u32 index = (u32)(it - m_PersistentBuffers.begin());
+            resource.m_Index = index;
+        }
+        else
+        {
+            resource.m_Index = (u32)m_PersistentBuffers.size();
+            m_PersistentBuffers.push_back({.Buffer = buffer});
+        }
+        
+        
+        return resource;
+    }
+
+    PersistentImageResource Graph::AddPersistent(Image image, ImageLayout layout)
+    {
+        PersistentImageResource resource = {};
+        
+        auto it = std::ranges::find_if(m_PersistentImages, [image](const auto& persistent) {
+            return persistent.Image == image;
+        });
+        
+        if (it != m_PersistentImages.end())
+        {
+            const u32 index = (u32)(it - m_PersistentImages.begin());
+            resource.m_Index = index;
+        }
+        else
+        {
+            resource.m_Index = (u32)m_PersistentImages.size();
+            m_PersistentImages.push_back({.Image = image, .Layout = layout});
+        }
+        
+        return resource;
+    }
+
+    void Graph::UpdatePersistent(PersistentBufferResource resource, Buffer buffer)
+    {
+        m_PersistentBuffers[resource.m_Index].Buffer = buffer;
+    }
+
+    void Graph::UpdatePersistent(PersistentImageResource resource, Image image)
+    {
+        m_PersistentImages[resource.m_Index].Image = image;
+    }
+
+    void Graph::UpdatePersistent(PersistentImageResource resource, Image image, ImageLayout layout)
+    {
+        m_PersistentImages[resource.m_Index].Image = image;
+        m_PersistentImages[resource.m_Index].Layout = layout;
+    }
+
+    Resource Graph::ImportPersistent(StringId name, PersistentBufferResource buffer)
+    {
+        PersistentBufferInfo& persistentBufferInfo = m_PersistentBuffers[buffer.m_Index];
+        if (persistentBufferInfo.Resource.IsValid())
+            return persistentBufferInfo.Resource;
+        
+        const Resource resource = Import(name, persistentBufferInfo.Buffer);
+        persistentBufferInfo.Resource = resource;
+        
+        return resource;
+    }
+
+    Resource Graph::ImportPersistent(StringId name, PersistentImageResource image)
+    {
+        PersistentImageInfo& persistentImageInfo = m_PersistentImages[image.m_Index];
+        if (persistentImageInfo.Resource.IsValid())
+            return persistentImageInfo.Resource;
+        
+        const Resource resource = Import(name, persistentImageInfo.Image, persistentImageInfo.Layout);
+        persistentImageInfo.Resource = resource;
+
+        return resource;
+    }
+
     Resource Graph::Import(StringId name, Buffer buffer)
     {
         Resource resource = Resource::Buffer((u16)m_Buffers.size(), 0);
@@ -1298,72 +1422,56 @@ namespace RG
         return resource;
     }
 
-    void Graph::MarkBufferForExport(Resource resource, BufferUsage additionalUsage)
+    void Graph::Export(Resource resource, PersistentBufferResource& buffer, DeletionQueue& deletionQueue, 
+        BufferUsage additionalUsage)
     {
+        if (!buffer.HasValue())
+        {
+            buffer.m_Index = (u32)m_PersistentBuffers.size();
+            m_PersistentBuffers.push_back({});
+        }
+        
         RG_CHECK_RETURN_VOID(resource.IsBuffer() &&
             !resource.HasFlags(ResourceFlags::Volatile | ResourceFlags::Imported),
             "Provided resource is not an internal buffer")
+        PersistentBufferInfo& persistentBufferInfo = m_PersistentBuffers[buffer.m_Index];
+        RG_CHECK_RETURN_VOID(
+            !persistentBufferInfo.Resource.IsValid() ||
+            persistentBufferInfo.Resource == resource ||
+            !m_Buffers[persistentBufferInfo.Resource.m_Index].IsExported,
+            "Provided buffer already has a resource associated with it")
+
         m_Buffers[resource.m_Index].IsExported = true;
         m_Buffers[resource.m_Index].Description.Usage |= additionalUsage;
-        m_ExportedBuffers.push_back(resource);
+        persistentBufferInfo.Resource = resource;
+        persistentBufferInfo.DeletionQueue = &deletionQueue;
     }
 
-    void Graph::MarkImageForExport(Resource resource, ImageUsage additionalUsage)
+    void Graph::Export(Resource resource, PersistentImageResource& image, DeletionQueue& deletionQueue,
+        ImageUsage additionalUsage)
     {
+        if (!image.HasValue())
+        {
+            image.m_Index = (u32)m_PersistentImages.size();
+            m_PersistentImages.push_back({});
+        }
+        
         RG_CHECK_RETURN_VOID(resource.IsImage() &&
             !resource.HasFlags(ResourceFlags::Volatile | ResourceFlags::Imported),
-            "Provided resource is not an internal image")
+            "Provided resource is not an internal image") 
+        PersistentImageInfo& persistentImageInfo = m_PersistentImages[image.m_Index];
+        RG_CHECK_RETURN_VOID(
+            !persistentImageInfo.Resource.IsValid() || 
+            persistentImageInfo.Resource == resource,
+            "Provided image already has a resource associated with it")
+
         m_Images[resource.m_Index].IsExported = true;
+        m_Images[resource.m_Index].Layout = persistentImageInfo.Layout;
+        for (auto& extra : m_Images[resource.m_Index].Extras)
+            extra.Layout = persistentImageInfo.Layout;
         m_Images[resource.m_Index].Description.Usage |= additionalUsage;
-        m_ExportedImages.push_back(resource);
-    }
-
-    void Graph::ClaimBuffer(Resource exported, Buffer& target, DeletionQueue& deletionQueue)
-    {
-        RG_CHECK_RETURN_VOID(exported.IsBuffer() && m_Buffers[exported.m_Index].IsExported,
-            "Provided resource is not an exported buffer")
-
-        auto& buffer = m_Buffers[exported.m_Index];
-        if (buffer.Resource.HasValue() && buffer.Resource != target)
-        {
-            LUX_LOG_WARN("Buffer to be claimed was already allocated: {} ({})", exported, buffer.Name);
-            target = buffer.Resource;
-            return;
-        }
-
-        if (!target.HasValue())
-            target = Device::CreateBuffer({
-                .Description = {
-                    .SizeBytes = buffer.Description.SizeBytes,
-                    .Usage = buffer.Description.Usage,
-                },
-             },
-             deletionQueue);
-
-        buffer.Resource = target;
-        Device::NameBuffer(buffer.Resource, buffer.Name.AsStringView());
-    }
-
-    void Graph::ClaimImage(Resource exported, Image& target, DeletionQueue& deletionQueue)
-    {
-        RG_CHECK_RETURN_VOID(exported.IsImage() && m_Images[exported.m_Index].IsExported,
-            "Provided resource is not an exported image")
-
-        auto& image = m_Images[exported.m_Index];
-        if (image.Resource.HasValue() && image.Resource != target)
-        {
-            LUX_LOG_WARN("Image to be claimed was already allocated: {} ({})", exported, image.Name);
-            target = image.Resource;
-            return;
-        }
-
-        if (!target.HasValue())
-            target = Device::CreateImage({
-                  .Description = image.Description
-               }, deletionQueue);
-
-        image.Resource = target;
-        Device::NameImage(image.Resource, image.Name.AsStringView());
+        persistentImageInfo.Resource = resource;
+        persistentImageInfo.DeletionQueue = &deletionQueue;
     }
 
     Resource Graph::SplitImage(Resource main, ImageSubresourceDescription subresource)
@@ -1408,14 +1516,14 @@ namespace RG
                [&](Graph& graph, std::nullptr_t&)
                {
                    graph.AddImageAccess(main, AccessType::Split, image, PipelineStage::None, PipelineAccess::None);
-                   graph.AddImageAccess(split, AccessType::Split, image, PipelineStage::None, PipelineAccess::None);
+                   split = graph.AddImageAccess(split, AccessType::Split, image, PipelineStage::None, PipelineAccess::None);
                },
                [=](const std::nullptr_t&, FrameContext&, const Graph&){});
         }
         else
         {
             AddImageAccess(main, AccessType::Split, image, PipelineStage::None, PipelineAccess::None);
-            AddImageAccess(split, AccessType::Split, image, PipelineStage::None, PipelineAccess::None);
+            split = AddImageAccess(split, AccessType::Split, image, PipelineStage::None, PipelineAccess::None);
         }
 
         return split;
@@ -1447,7 +1555,7 @@ namespace RG
         AddRenderPass<std::nullptr_t>("Merge"_hsv,
            [&](Graph& graph, std::nullptr_t&)
            {
-               graph.AddImageAccess(merged, AccessType::Merge, image, PipelineStage::None, PipelineAccess::None);
+               merged = graph.AddImageAccess(merged, AccessType::Merge, image, PipelineStage::None, PipelineAccess::None);
                for (const Resource split : splits)
                    graph.AddImageAccess(split, AccessType::Merge, image, PipelineStage::None, PipelineAccess::None);
            },
@@ -1588,6 +1696,20 @@ namespace RG
         return m_Images[image.m_Index].Resource;
     }
 
+    Buffer Graph::GetBuffer(PersistentBufferResource buffer) const
+    {
+        if (!buffer.HasValue())
+            return {};
+        return m_PersistentBuffers[buffer.m_Index].Buffer;
+    }
+
+    Image Graph::GetImage(PersistentImageResource image) const
+    {
+        if (!image.HasValue())
+            return {};
+        return m_PersistentImages[image.m_Index].Image;
+    }
+
     std::pair<Buffer, const BufferDescription&> Graph::GetBufferWithDescription(Resource buffer) const
     {
         ASSERT(buffer.IsBuffer(), "Provided resource is not a buffer {}", buffer)
@@ -1598,6 +1720,18 @@ namespace RG
     {
         ASSERT(image.IsImage(), "Provided resource is not an image {}", image)
         return {m_Images[image.m_Index].Resource, m_Images[image.m_Index].Description};
+    }
+
+    std::pair<Buffer, const BufferDescription&> Graph::GetBufferWithDescription(PersistentBufferResource buffer) const
+    {
+        const auto& persistent = m_PersistentBuffers[buffer.m_Index];
+        return {persistent.Buffer, m_Buffers[persistent.Resource.m_Index].Description};
+    }
+
+    std::pair<Image, const ImageDescription&> Graph::GetImageWithDescription(PersistentImageResource image) const
+    {
+        const auto& persistent = m_PersistentImages[image.m_Index];
+        return {persistent.Image, m_Images[persistent.Resource.m_Index].Description};
     }
 
     bool Graph::IsBufferAllocated(Resource buffer) const
@@ -1783,7 +1917,7 @@ namespace RG
         if (resource.HasFlags(ResourceFlags::AutoUpdate))
             resource.m_Version = resource.m_Extra == Resource::NO_EXTRA ?
                 image.LatestVersion : image.Extras[resource.m_Extra].Version;
-        if (enumHasAny(type, AccessType::Write))
+        if (enumHasAny(type, AccessType::Write | AccessType::Merge | AccessType::Split))
         {
             resource.m_Version++;
             image.LatestVersion = std::max(image.LatestVersion, resource.m_Version);

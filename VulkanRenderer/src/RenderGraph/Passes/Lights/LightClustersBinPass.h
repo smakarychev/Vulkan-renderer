@@ -12,7 +12,7 @@ struct ExecutionInfo
     RG::Resource Clusters{};
     RG::Resource ClusterVisibility{};
     RG::Resource Depth{};
-    const SceneLight* Light{nullptr};
+    RG::Resource PointLights{};
 };
 
 struct PassData

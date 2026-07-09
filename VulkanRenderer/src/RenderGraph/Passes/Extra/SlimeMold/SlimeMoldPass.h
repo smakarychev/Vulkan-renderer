@@ -44,7 +44,7 @@ public:
     Buffer GetTraitsBuffer() const { return m_TraitsBuffer; }
     Buffer GetSlimeBuffer() const { return m_SlimeBuffer; }
 
-    Texture GetSlimeMap() const { return m_SlimeMap; }
+    Image GetSlimeMap() const { return m_SlimeMap; }
 
     void SetCleared(bool value) { m_IsCleared = value; }
     bool IsCleared() const { return m_IsCleared; }
@@ -57,7 +57,7 @@ private:
 
     Buffer m_TraitsBuffer;
     Buffer m_SlimeBuffer;
-    Texture m_SlimeMap;
+    Image m_SlimeMap;
 
     bool m_IsCleared{false};
 };
