@@ -6,13 +6,13 @@ namespace Passes::CopyToBuffer
 struct ExecutionInfo
 {
     Span<const std::byte> Source{};
-    RG::Resource Destination{};
+    RG::BufferResource Destination{};
     u64 DestinationOffset{0};
 };
 
 struct PassData
 {
-    RG::Resource Destination{};
+    RG::BufferResource Destination{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

@@ -7,8 +7,8 @@
 
 SceneGeometryRGResources SceneGeometryRGResources::ForGeometry(const SceneGeometry& geometry, RG::Graph& renderGraph)
 {
-    const RG::Resource renderObjectSkinnedInfoIndices = geometry.RenderObjectSkinnedInfosIndices.empty() ?
-        RG::Resource{} :
+    const RG::BufferResource renderObjectSkinnedInfoIndices = geometry.RenderObjectSkinnedInfosIndices.empty() ?
+        RG::BufferResource{} :
         Passes::Upload::addToGraph("UploadRenderObjectSkinnedInfoIndices"_hsv, 
             renderGraph, geometry.RenderObjectSkinnedInfosIndices);
     

@@ -66,7 +66,7 @@ namespace Passes::SlimeMold
 {
 struct PassData
 {
-    RG::Resource ColorOut{};
+    RG::ImageResource ColorOut{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx);

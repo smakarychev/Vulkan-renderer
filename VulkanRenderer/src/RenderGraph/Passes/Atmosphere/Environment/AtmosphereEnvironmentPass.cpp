@@ -36,7 +36,7 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                     .Kind = ImageKind::ImageCubemap
                 });
 
-            std::array<Resource, 6> faces{};
+            std::array<ImageResource, 6> faces{};
 
             for (u32 i = 0; i < info.FaceIndices.size(); i++)
             {
@@ -45,7 +45,7 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                     (u32)environmentSize, faceIndex);
                 ViewInfoGPU viewInfo = *info.PrimaryView;
                 viewInfo.Camera = CameraGPU::FromCamera(camera, {environmentSize, environmentSize});
-                Resource viewInfoResource = graph.Create("ViewInfo"_hsv, RGBufferDescription{
+                BufferResource viewInfoResource = graph.Create("ViewInfo"_hsv, RGBufferDescription{
                     .SizeBytes = sizeof(ViewInfoGPU)
                 });
                 viewInfoResource = graph.Upload(viewInfoResource, viewInfo);
@@ -70,7 +70,7 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                 faces[i] = atmosphere.Color;
             }
 
-            passData.Color = graph.MergeImage(Span<const Resource>(faces.data(), info.FaceIndices.size()));
+            passData.Color = graph.MergeImage(Span<const ImageResource>(faces.data(), info.FaceIndices.size()));
         },
         [=](const PassData&, FrameContext&, const Graph&)
         {

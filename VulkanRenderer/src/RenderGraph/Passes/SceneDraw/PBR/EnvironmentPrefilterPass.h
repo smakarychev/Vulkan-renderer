@@ -5,12 +5,12 @@ namespace Passes::EnvironmentPrefilter
 {
 struct PassData
 {
-    RG::Resource Cubemap{};
-    RG::Resource PrefilteredTexture{};
+    RG::ImageResource Cubemap{};
+    RG::ImageResource PrefilteredTexture{};
 };
 
-PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
-    RG::Resource prefiltered, bool realTime);
+PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource cubemap,
+    RG::ImageResource prefiltered, bool realTime);
 
 TextureDescription getPrefilteredTextureDescription(u32 resolution);
 }

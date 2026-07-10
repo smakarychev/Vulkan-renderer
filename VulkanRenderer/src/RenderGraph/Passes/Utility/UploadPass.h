@@ -6,11 +6,11 @@ namespace Passes::Upload
 {
 struct PassData
 {
-    RG::Resource Resource{};
+    RG::BufferResource Resource{};
 };
 
 template <typename T>
-RG::Resource addToGraph(StringId name, RG::Graph& renderGraph, T&& data)
+RG::BufferResource addToGraph(StringId name, RG::Graph& renderGraph, T&& data)
 {
     using namespace RG;
 

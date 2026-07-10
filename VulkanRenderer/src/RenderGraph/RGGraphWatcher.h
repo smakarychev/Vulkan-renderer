@@ -11,9 +11,10 @@ struct DependencyInfoCreateInfo;
 
 namespace RG
 {
+struct ImageResourceAccess;
+struct BufferResourceAccess;
 struct RGBuffer;
 struct RGImage;
-struct ResourceAccess;
 class Pass;
 
 class GraphWatcher
@@ -38,11 +39,11 @@ public:
     {
     }
 
-    virtual void OnBufferAccessesFinalized(const std::vector<ResourceAccess>& accesses)
+    virtual void OnBufferAccessesFinalized(const std::vector<BufferResourceAccess>& accesses)
     {
     }
 
-    virtual void OnImagesAccessesFinalized(const std::vector<ResourceAccess>& accesses)
+    virtual void OnImagesAccessesFinalized(const std::vector<ImageResourceAccess>& accesses)
     {
     }
 
@@ -55,11 +56,24 @@ public:
         };
 
         Type BarrierType{Type::Barrier};
-        Resource Resource{};
         const DependencyInfoCreateInfo* DependencyInfo{nullptr};
     };
+    struct BufferBarrier
+    {
+        BarrierInfo Info{};
+        BufferResource Resource{};
+    };
+    struct ImageBarrier
+    {
+        BarrierInfo Info{};
+        ImageResource Resource{};
+    };
 
-    virtual void OnBarrierAdded(const BarrierInfo& barrierInfo, const Pass& firstPass, const Pass& secondPass)
+    virtual void OnBarrierAdded(const BufferBarrier& barrierInfo, const Pass& firstPass, const Pass& secondPass)
+    {
+    }
+
+    virtual void OnBarrierAdded(const ImageBarrier& barrierInfo, const Pass& firstPass, const Pass& secondPass)
     {
     }
 
@@ -68,10 +82,10 @@ public:
     }
 
 protected:
-    static u32 GetResourceIndex(Resource resource);
+    static u32 GetResourceIndex(const ResourceHandleBase& resource);
 };
 
-inline u32 GraphWatcher::GetResourceIndex(Resource resource)
+inline u32 GraphWatcher::GetResourceIndex(const ResourceHandleBase& resource)
 {
     return resource.m_Index;
 }

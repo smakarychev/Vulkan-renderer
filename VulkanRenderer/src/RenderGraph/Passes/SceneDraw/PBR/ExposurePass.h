@@ -22,15 +22,15 @@ struct ExposureSettings
 
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
-    RG::Resource Color{};
+    RG::BufferResource ViewInfo{};
+    RG::ImageResource Color{};
     const ExposureSettings* ExposureSettings{nullptr};
 };
 
 struct PassData
 {
-    RG::Resource ViewInfo{};
-    RG::Resource HistogramVisualization{};
+    RG::BufferResource ViewInfo{};
+    RG::ImageResource HistogramVisualization{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

@@ -18,7 +18,7 @@ glm::uvec2 calculateHizResolution(const glm::uvec2& depthResolution)
     return Images::floorResolutionToPowerOfTwo(depthResolution);
 }
 
-RG::Resource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution, ReductionMode mode)
+RG::ImageResource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution, ReductionMode mode)
 {
     const f32 width = (f32)Math::floorToPowerOf2(depthResolution.x);
     const f32 height = (f32)Math::floorToPowerOf2(depthResolution.y);
@@ -32,7 +32,7 @@ RG::Resource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution
     });
 }
 
-RG::Resource createMinMaxBufferResource(RG::Graph& renderGraph)
+RG::BufferResource createMinMaxBufferResource(RG::Graph& renderGraph)
 {
     return renderGraph.Create("MinMax"_hsv, RG::RGBufferDescription{
         .SizeBytes = sizeof(MinMaxDepth)

@@ -7,15 +7,15 @@ namespace Passes::HiZ
 {
 struct ExecutionInfo
 {
-    RG::Resource Depth{};
+    RG::ImageResource Depth{};
     ::HiZ::ReductionMode ReductionMode{::HiZ::ReductionMode::Min};
     bool CalculateMinMaxDepthBuffer{false};
 };
 
 struct PassData
 {
-    RG::Resource DepthMinMax{};
-    RG::Resource HiZ{};
+    RG::BufferResource DepthMinMax{};
+    RG::ImageResource HiZ{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

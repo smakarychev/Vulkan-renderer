@@ -9,7 +9,7 @@
 namespace 
 {
 Passes::DiffuseIrradianceSH::PassData& addOffline(StringId name, RG::Graph& renderGraph,
-    RG::Resource cubemap, RG::Resource irradianceSH)
+    RG::ImageResource cubemap, RG::BufferResource irradianceSH)
 {
     using namespace RG;
     using PassDataBind = PassDataWithBind<Passes::DiffuseIrradianceSH::PassData, DiffuseIrradianceShOfflineBindGroupRG>;
@@ -40,7 +40,7 @@ Passes::DiffuseIrradianceSH::PassData& addOffline(StringId name, RG::Graph& rend
 }
 
 Passes::DiffuseIrradianceSH::PassData& addRealtime(StringId name, RG::Graph& renderGraph,
-    RG::Resource cubemap, RG::Resource irradianceSH)
+    RG::ImageResource cubemap, RG::BufferResource irradianceSH)
 {
     using namespace RG;
     using PassDataBind =
@@ -78,7 +78,7 @@ Passes::DiffuseIrradianceSH::PassData& addRealtime(StringId name, RG::Graph& ren
 }
 
 Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource cubemap, RG::Resource irradianceSH, bool realTime)
+    RG::ImageResource cubemap, RG::BufferResource irradianceSH, bool realTime)
 {
     return realTime ?
         addRealtime(name, renderGraph, cubemap, irradianceSH) :

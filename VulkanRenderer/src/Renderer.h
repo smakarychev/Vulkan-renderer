@@ -86,74 +86,74 @@ private:
     void UpdateGlobalRenderGraphResources();
 
     RG::CsmData RenderGraphShadows(const ScenePass& scenePass, const lux::CommonLight& directionalLight);
-    Passes::SceneMetaDraw::PassData& RenderGraphDepthPrepass(RG::Resource depth, const ScenePass& scenePass);
-    SceneDrawPassDescription RenderGraphDepthPrepassDescription(RG::Resource depth, const ScenePass& scenePass);
-    SceneDrawPassDescription RenderGraphForwardPbrDescription(RG::Resource color, RG::Resource depth,
+    Passes::SceneMetaDraw::PassData& RenderGraphDepthPrepass(RG::ImageResource depth, const ScenePass& scenePass);
+    SceneDrawPassDescription RenderGraphDepthPrepassDescription(RG::ImageResource depth, const ScenePass& scenePass);
+    SceneDrawPassDescription RenderGraphForwardPbrDescription(RG::ImageResource color, RG::ImageResource depth,
         RG::CsmData csmData, const ScenePass& scenePass);
 
-    SceneDrawPassDescription RenderGraphVBufferDescription(RG::Resource vbuffer, RG::Resource depth,
+    SceneDrawPassDescription RenderGraphVBufferDescription(RG::ImageResource vbuffer, RG::ImageResource depth,
         const ScenePass& scenePass);
-    RG::Resource RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource visibleMeshlets, RG::Resource viewInfo,
-        RG::CsmData csmData);
+    RG::ImageResource RenderGraphVBufferPbr(RG::ImageResource vbuffer, RG::BufferResource visibleMeshlets,
+        RG::BufferResource viewInfo, RG::CsmData csmData);
 
-    Passes::SceneMetaDraw::PassData& RenderGraphForwardPass(RG::Resource& color, RG::Resource& depth);
-    Passes::SceneMetaDraw::PassData& RenderGraphVBuffer(RG::Resource& vbuffer, RG::Resource& color, 
-        RG::Resource& depth);
+    Passes::SceneMetaDraw::PassData& RenderGraphForwardPass(RG::ImageResource& color, RG::ImageResource& depth);
+    Passes::SceneMetaDraw::PassData& RenderGraphVBuffer(RG::ImageResource& vbuffer, RG::ImageResource& color, 
+        RG::ImageResource& depth);
     
-    void RenderGraphOnFrameDepthGenerated(StringId passName, RG::Resource depth);
+    void RenderGraphOnFrameDepthGenerated(StringId passName, RG::ImageResource depth);
 
-    RG::Resource RenderGraphSSAO(StringId baseName, RG::Resource depth);
+    RG::ImageResource RenderGraphSSAO(StringId baseName, RG::ImageResource depth);
     
     struct TileLightsInfo
     {
-        RG::Resource Tiles{};
-        RG::Resource ZBins{};
+        RG::BufferResource Tiles{};
+        RG::BufferResource ZBins{};
     };
-    TileLightsInfo RenderGraphCullLightsTiled(StringId baseName, RG::Resource depth);
+    TileLightsInfo RenderGraphCullLightsTiled(StringId baseName, RG::ImageResource depth);
 
     struct ClusterLightsInfo
     {
-        RG::Resource Clusters{};
+        RG::BufferResource Clusters{};
     };
-    ClusterLightsInfo RenderGraphCullLightsClustered(StringId baseName, RG::Resource depth);
+    ClusterLightsInfo RenderGraphCullLightsClustered(StringId baseName, RG::ImageResource depth);
 
     struct CloudMapsInfo
     {
-        RG::Resource Coverage{};
-        RG::Resource Profile{};
-        RG::Resource ShapeLowFrequency{};
-        RG::Resource ShapeHighFrequency{};
-        RG::Resource CurlNoise{};
+        RG::ImageResource Coverage{};
+        RG::ImageResource Profile{};
+        RG::ImageResource ShapeLowFrequency{};
+        RG::ImageResource ShapeHighFrequency{};
+        RG::ImageResource CurlNoise{};
     };
     CloudMapsInfo RenderGraphGetCloudMaps();
-    RG::Resource RenderGraphSkyBox(RG::Resource color, RG::Resource depth);
+    RG::ImageResource RenderGraphSkyBox(RG::ImageResource color, RG::ImageResource depth);
     Passes::Atmosphere::LutPasses::PassData& RenderGraphAtmosphereLutPasses();
     struct AtmosphereEnvironmentInfo
     {
-        RG::Resource AtmosphereWithClouds{};
-        RG::Resource CloudsEnvironment{};
+        RG::ImageResource AtmosphereWithClouds{};
+        RG::ImageResource CloudsEnvironment{};
     };
     AtmosphereEnvironmentInfo RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut,
         const CloudMapsInfo& cloudMaps);
 
-    RG::Resource RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut, RG::Resource aerialPerspective,
-        RG::Resource color, RG::Resource depth, RG::CsmData csmData,
-        RG::Resource clouds, RG::Resource cloudsDepth, RG::Resource cloudsEnvironment);
+    RG::ImageResource RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,
+        RG::ImageResource aerialPerspective, RG::ImageResource color, RG::ImageResource depth, RG::CsmData csmData,
+        RG::ImageResource clouds, RG::ImageResource cloudsDepth, RG::ImageResource cloudsEnvironment);
 
     struct CloudsInfo
     {
-        RG::Resource ColorPrevious{};
-        RG::Resource DepthPrevious{};
-        RG::Resource ReprojectionPrevious{};
-        RG::Resource Color{};
-        RG::Resource Depth{};
-        RG::Resource Reprojection{};
+        RG::ImageResource ColorPrevious{};
+        RG::ImageResource DepthPrevious{};
+        RG::ImageResource ReprojectionPrevious{};
+        RG::ImageResource Color{};
+        RG::ImageResource Depth{};
+        RG::ImageResource Reprojection{};
     };
-    CloudsInfo RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::Resource color, RG::Resource aerialPerspective,
-        RG::Resource minMaxDepth, RG::Resource sceneDepth);
+    CloudsInfo RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::ImageResource color, 
+        RG::ImageResource aerialPerspective, RG::ImageResource minMaxDepth, RG::ImageResource sceneDepth);
     struct CloudShadowInfo
     {
-        RG::Resource Shadow{};
+        RG::ImageResource Shadow{};
         ViewInfoGPU View{};
     };
     CloudShadowInfo RenderGraphCloudShadows(const CloudMapsInfo& cloudMaps);
@@ -202,11 +202,11 @@ private:
     std::unique_ptr<RG::Graph> m_Graph;
     std::unique_ptr<RG::RGMermaidExporter> m_MermaidExporter;
     
-    RG::Resource m_Ssao{};
+    RG::ImageResource m_Ssao{};
     TileLightsInfo m_TileLightsInfo{};
     ClusterLightsInfo m_ClusterLightsInfo{};
 
-    RG::Resource m_DepthMinMaxCurrentFrame{};
+    RG::BufferResource m_DepthMinMaxCurrentFrame{};
     RG::CsmData m_CsmData{};
     
     RG::PersistentImageResource m_SkyboxTexture{};
@@ -214,9 +214,9 @@ private:
     RG::PersistentImageResource m_BRDFLut{};
     RG::PersistentBufferResource m_IrradianceSH{};
     RG::PersistentBufferResource m_SkyIrradianceSH{};
-    RG::Resource m_SkyIrradianceSHResource{};
+    RG::BufferResource m_SkyIrradianceSHResource{};
     RG::PersistentImageResource m_SkyPrefilterMap{};
-    RG::Resource m_SkyPrefilterMapResource{};
+    RG::ImageResource m_SkyPrefilterMapResource{};
 
     lux::ExternalImageAsset m_MipsTest{};
     
@@ -239,7 +239,7 @@ private:
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeLowFrequencyNoiseParameters{};
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeHighFrequencyNoiseParameters{};
     Passes::Clouds::VP::CloudParameters m_CloudParameters{};
-    RG::Resource m_CloudParametersResource{};
+    RG::BufferResource m_CloudParametersResource{};
     bool m_CloudsReprojectionEnabled{true};
     lux::CommonLight* m_SunLight{nullptr};
     

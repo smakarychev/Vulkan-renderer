@@ -14,6 +14,6 @@ struct GlobalResources
     const Camera* PrimaryCamera{nullptr};
     ViewInfoGPU PrimaryViewInfo{};
     Buffer PrimaryViewInfoBuffer{};
-    Resource PrimaryViewInfoResource{};
+    BufferResource PrimaryViewInfoResource{};
 };
 }

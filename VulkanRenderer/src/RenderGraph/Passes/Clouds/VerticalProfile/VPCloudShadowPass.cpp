@@ -10,12 +10,12 @@
 
 namespace 
 {
-RG::Resource blurPass(StringId name, RG::Graph& renderGraph, RG::Resource shadow, bool isVerticalBlur)
+RG::ImageResource blurPass(StringId name, RG::Graph& renderGraph, RG::ImageResource shadow, bool isVerticalBlur)
 {
     using namespace RG;
     struct PassData
     {
-        Resource Blurred{};
+        ImageResource Blurred{};
     };
     using PassDataBind = PassDataWithBind<PassData, CloudsVPShadowBlurBindGroupRG>;
     
@@ -114,7 +114,7 @@ Passes::Clouds::VP::Shadow::PassData& Passes::Clouds::VP::Shadow::addToGraph(Str
         [&](Graph& graph, PassData& passData)
         {
             passData = renderShadowsPass(name, graph, info);
-            const Resource blurred = blurPass("CloudShadowVerticalBlur"_hsv, graph, passData.Shadow, true);
+            const ImageResource blurred = blurPass("CloudShadowVerticalBlur"_hsv, graph, passData.Shadow, true);
             passData.Shadow = blurPass("CloudShadowHorizontalBlur"_hsv, graph, blurred, false);
         },
         [=](const PassData&, FrameContext&, const Graph&){});

@@ -5,13 +5,13 @@ namespace Passes::EquirectangularToCubemap
 {
 struct ExecutionInfo
 {
-    RG::Resource Equirectangular{};
-    RG::Resource Cubemap{};
+    RG::ImageResource Equirectangular{};
+    RG::ImageResource Cubemap{};
     f32 Exposure{1.0f};
 };
 struct PassData
 {
-    RG::Resource Cubemap{};
+    RG::ImageResource Cubemap{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

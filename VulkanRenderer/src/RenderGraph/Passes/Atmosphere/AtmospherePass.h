@@ -6,15 +6,15 @@ namespace Passes::Atmosphere::LutPasses
 {
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
+    RG::BufferResource ViewInfo{};
 };
 
 struct PassData
 {
-    RG::Resource TransmittanceLut{};
-    RG::Resource MultiscatteringLut{};
-    RG::Resource SkyViewLut{};
-    RG::Resource ViewInfo{};
+    RG::ImageResource TransmittanceLut{};
+    RG::ImageResource MultiscatteringLut{};
+    RG::ImageResource SkyViewLut{};
+    RG::BufferResource ViewInfo{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

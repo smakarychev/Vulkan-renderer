@@ -7,15 +7,15 @@ namespace Passes::LightTilesVisualize
 {
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
-    RG::Resource Tiles{};
-    RG::Resource Bins{};
-    RG::Resource Depth{};
+    RG::BufferResource ViewInfo{};
+    RG::BufferResource Tiles{};
+    RG::BufferResource Bins{};
+    RG::ImageResource Depth{};
 };
 
 struct PassData
 {
-    RG::Resource Color{};
+    RG::ImageResource Color{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

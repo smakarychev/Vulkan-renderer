@@ -9,12 +9,12 @@ namespace Passes::SceneMultiviewCreateDrawCommands
 {
 namespace
 {
-RG::Resource createDrawCommandsDispatchPass(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+RG::BufferResource createDrawCommandsDispatchPass(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     struct PassData
     {
-        Resource Dispatch{};
+        BufferResource Dispatch{};
     };
     using PassDataBind = PassDataWithBind<PassData, SceneCreateDrawCommandsDispatchesBindGroupRG>;
 
@@ -52,12 +52,12 @@ PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo&
     using namespace RG;
     struct PassDataPrivate : PassData
     {
-        Resource Dispatch{};
+        BufferResource Dispatch{};
     };
     using PassDataBind = PassDataWithBind<PassDataPrivate, SceneCreateDrawCommandsBindGroupRG>;
 
     const u32 bucketCount = info.MultiviewVisibility->ObjectSet().BucketCount();
-    const Resource dispatch = createDrawCommandsDispatchPass(name.Concatenate(".Dispatch"_hsv), renderGraph, info);
+    const BufferResource dispatch = createDrawCommandsDispatchPass(name.Concatenate(".Dispatch"_hsv), renderGraph, info);
     
     return renderGraph.AddRenderPass<PassDataBind>(name,
         [&](Graph& graph, PassDataBind& passData)

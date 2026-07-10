@@ -9,16 +9,16 @@ namespace Passes::Atmosphere::Environment
 struct ExecutionInfo
 {
     const ViewInfoGPU* PrimaryView{nullptr};
-    RG::Resource PrimaryViewResource{};
-    RG::Resource SkyViewLut{};
+    RG::BufferResource PrimaryViewResource{};
+    RG::ImageResource SkyViewLut{};
     /* optional external color image resource */
-    RG::Resource ColorIn{};
+    RG::ImageResource ColorIn{};
     Span<const u32> FaceIndices;
 };
 
 struct PassData
 {
-    RG::Resource Color{};
+    RG::ImageResource Color{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

@@ -16,29 +16,29 @@ struct CloudParameters : gen::CloudsVPParameters
 
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
-    RG::Resource CloudCoverage{};
-    RG::Resource CloudProfile{};
-    RG::Resource CloudShapeLowFrequencyMap{};
-    RG::Resource CloudShapeHighFrequencyMap{};
-    RG::Resource CloudCurlNoise{};
-    RG::Resource DepthIn{};
-    RG::Resource MinMaxDepthIn{};
+    RG::BufferResource ViewInfo{};
+    RG::ImageResource CloudCoverage{};
+    RG::ImageResource CloudProfile{};
+    RG::ImageResource CloudShapeLowFrequencyMap{};
+    RG::ImageResource CloudShapeHighFrequencyMap{};
+    RG::ImageResource CloudCurlNoise{};
+    RG::ImageResource DepthIn{};
+    RG::ImageResource MinMaxDepthIn{};
     /* optional external color target resource */
-    RG::Resource ColorOut{};
+    RG::ImageResource ColorOut{};
     /* optional external depth target resource */
-    RG::Resource DepthOut{};
-    RG::Resource AerialPerspectiveLut{};
-    RG::Resource IrradianceSH{};
-    RG::Resource CloudParameters{};
+    RG::ImageResource DepthOut{};
+    RG::ImageResource AerialPerspectiveLut{};
+    RG::BufferResource IrradianceSH{};
+    RG::BufferResource CloudParameters{};
     CloudsRenderingMode CloudsRenderingMode{CloudsRenderingMode::FullResolution};
     bool IsEnvironmentCapture{false};
 };
 
 struct PassData
 {
-    RG::Resource ColorOut{};
-    RG::Resource DepthOut{};
+    RG::ImageResource ColorOut{};
+    RG::ImageResource DepthOut{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

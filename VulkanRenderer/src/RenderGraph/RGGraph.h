@@ -42,56 +42,56 @@ public:
     void Execute(FrameContext& frameContext);
     void Reset();
 
-    Resource Create(StringId name, const RGBufferDescription& description);
-    Resource Create(StringId name, const RGImageDescription& description);
-    Resource Create(StringId name, ResourceCreationFlags creationFlags, const RGImageDescription& description);
+    BufferResource Create(StringId name, const RGBufferDescription& description);
+    ImageResource Create(StringId name, const RGImageDescription& description);
+    ImageResource Create(StringId name, ResourceCreationFlags creationFlags, const RGImageDescription& description);
     PersistentBufferResource AddPersistent(Buffer buffer);
     PersistentImageResource AddPersistent(Image image, ImageLayout layout = ImageLayout::Undefined);
     void UpdatePersistent(PersistentBufferResource resource, Buffer buffer);
     void UpdatePersistent(PersistentImageResource resource, Image image);
     void UpdatePersistent(PersistentImageResource resource, Image image, ImageLayout layout);
-    Resource ImportPersistent(StringId name, PersistentBufferResource buffer);
-    Resource ImportPersistent(StringId name, PersistentImageResource image);
-    Resource Import(StringId name, Buffer buffer);
-    Resource Import(StringId name, Image image, ImageLayout layout = ImageLayout::Undefined);
-    void Export(Resource resource, PersistentBufferResource& buffer, DeletionQueue& deletionQueue,
+    BufferResource ImportPersistent(StringId name, PersistentBufferResource buffer);
+    ImageResource ImportPersistent(StringId name, PersistentImageResource image);
+    BufferResource Import(StringId name, Buffer buffer);
+    ImageResource Import(StringId name, Image image, ImageLayout layout = ImageLayout::Undefined);
+    void Export(BufferResource resource, PersistentBufferResource& buffer, DeletionQueue& deletionQueue,
         BufferUsage additionalUsage = BufferUsage::None);
-    void Export(Resource resource, PersistentImageResource& image, DeletionQueue& deletionQueue,
+    void Export(ImageResource resource, PersistentImageResource& image, DeletionQueue& deletionQueue,
         ImageUsage additionalUsage = ImageUsage::None);
-    Resource SplitImage(Resource main, ImageSubresourceDescription subresource);
-    Resource MergeImage(Span<const Resource> splits);
-    Resource ReadBuffer(Resource resource, ResourceAccessFlags accessFlags);
-    Resource WriteBuffer(Resource resource, ResourceAccessFlags accessFlags);
-    Resource ReadWriteBuffer(Resource resource, ResourceAccessFlags accessFlags);
-    Resource ReadImage(Resource resource, ResourceAccessFlags accessFlags);
-    Resource WriteImage(Resource resource, ResourceAccessFlags accessFlags);
-    Resource ReadWriteImage(Resource resource, ResourceAccessFlags accessFlags);
-    Resource RenderTarget(Resource resource, const RenderTargetAccessDescription& description);
-    Resource DepthStencilTarget(Resource resource, const DepthStencilTargetAccessDescription& description,
+    ImageResource SplitImage(ImageResource main, ImageSubresourceDescription subresource);
+    ImageResource MergeImage(Span<const ImageResource> splits);
+    BufferResource ReadBuffer(BufferResource resource, ResourceAccessFlags accessFlags);
+    BufferResource WriteBuffer(BufferResource resource, ResourceAccessFlags accessFlags);
+    BufferResource ReadWriteBuffer(BufferResource resource, ResourceAccessFlags accessFlags);
+    ImageResource ReadImage(ImageResource resource, ResourceAccessFlags accessFlags);
+    ImageResource WriteImage(ImageResource resource, ResourceAccessFlags accessFlags);
+    ImageResource ReadWriteImage(ImageResource resource, ResourceAccessFlags accessFlags);
+    ImageResource RenderTarget(ImageResource resource, const RenderTargetAccessDescription& description);
+    ImageResource DepthStencilTarget(ImageResource resource, const DepthStencilTargetAccessDescription& description,
         std::optional<DepthBias> depthBias = std::nullopt);
     void HasSideEffect() const;
 
     template <typename T>
-    Resource Upload(Resource buffer, T&& data, u64 bufferOffset = 0);
+    BufferResource Upload(BufferResource buffer, T&& data, u64 bufferOffset = 0);
 
-    Resource SetBackbufferImage(Image backbuffer, ImageLayout layout = ImageLayout::Undefined);
-    Resource GetBackbufferImage() const;
+    ImageResource SetBackbufferImage(Image backbuffer, ImageLayout layout = ImageLayout::Undefined);
+    ImageResource GetBackbufferImage() const;
 
-    const BufferDescription& GetBufferDescription(Resource buffer) const;
-    const ImageDescription& GetImageDescription(Resource image) const;
-    Buffer GetBuffer(Resource buffer) const;
-    Image GetImage(Resource image) const;
+    const BufferDescription& GetBufferDescription(BufferResource buffer) const;
+    const ImageDescription& GetImageDescription(ImageResource image) const;
+    Buffer GetBuffer(BufferResource buffer) const;
+    Image GetImage(ImageResource image) const;
     Buffer GetBuffer(PersistentBufferResource buffer) const;
     Image GetImage(PersistentImageResource image) const;
-    std::pair<Buffer, const BufferDescription&> GetBufferWithDescription(Resource buffer) const;
-    std::pair<Image, const ImageDescription&> GetImageWithDescription(Resource image) const;
+    std::pair<Buffer, const BufferDescription&> GetBufferWithDescription(BufferResource buffer) const;
+    std::pair<Image, const ImageDescription&> GetImageWithDescription(ImageResource image) const;
     std::pair<Buffer, const BufferDescription&> GetBufferWithDescription(PersistentBufferResource buffer) const;
     std::pair<Image, const ImageDescription&> GetImageWithDescription(PersistentImageResource image) const;
-    bool IsBufferAllocated(Resource buffer) const;
-    bool IsImageAllocated(Resource image) const;
+    bool IsBufferAllocated(BufferResource buffer) const;
+    bool IsImageAllocated(ImageResource image) const;
 
-    BufferBinding GetBufferBinding(Resource buffer) const;
-    ImageBinding GetImageBinding(Resource image) const;
+    BufferBinding GetBufferBinding(BufferResource buffer) const;
+    ImageBinding GetImageBinding(ImageResource image) const;
 
     DescriptorArenaAllocators& GetFrameAllocators() const;
     Blackboard& GetBlackboard();
@@ -126,8 +126,8 @@ public:
 private:
     ::BufferDescription CreateBufferDescription(const RGBufferDescription& description) const;
     ::ImageDescription CreateImageDescription(const RGImageDescription& description) const;
-    ImageSubresourceDescription GetImageSubresourceDescription(Resource image) const;
-    ImageLayout& GetImageLayout(Resource image);
+    ImageSubresourceDescription GetImageSubresourceDescription(ImageResource image) const;
+    ImageLayout& GetImageLayout(ImageResource image);
 
     /* Build a list of dependent passes. Each pass from `list[pass]` is dependent on the execution of `pass` */
     std::vector<std::vector<u32>> BuildDependencyList() const;
@@ -135,16 +135,19 @@ private:
     void DepthRetopology(const std::vector<u32>& depths, std::vector<u32>& topologicalOrder) const;
     void ProcessVirtualResources();
     using ValidateAccessResult = std::expected<void, std::string>;
-    ValidateAccessResult ValidateAccess(const ResourceAccess& access, const ResourceBase& base);
+    ValidateAccessResult ValidateAccessCommon(const ResourceAccessInfo& info);
+    ValidateAccessResult ValidateAccess(const BufferResourceAccess& access, const RGBuffer& buffer);
+    ValidateAccessResult ValidateAccess(const ImageResourceAccess& access, const RGImage& image);
     void ValidateImportedResources();
     std::vector<BufferResourceAccessConflict> FindBufferResourceConflicts();
     std::vector<ImageResourceAccessConflict> FindImageResourceConflicts();
     bool HasChangedAllSplitLayouts(std::vector<ImageResourceAccessConflict>& conflicts,
-        ResourceAccessConflict& baseConflict, RGImage& image, ImageLayout newLayout);
+        ImageResourceAccessConflict& conflict, RGImage& image, ImageLayout newLayout);
     void ChangeMainImageLayout(std::vector<ImageResourceAccessConflict>& conflicts,
-        ResourceAccessConflict& baseConflict, RGImage& image, ImageLayout newLayout);
+        ImageResourceAccessConflict& conflict, RGImage& image, ImageLayout newLayout);
     void ChangeSubresourceImageLayout(std::vector<ImageResourceAccessConflict>& conflicts,
-        ResourceAccessConflict& baseConflict, RGImage& image, u32 subresourceIndex, ImageLayout newLayout);
+        ImageResourceAccessConflict& conflict, RGImage& image, u32 subresourceIndex,
+        ImageLayout newLayout);
     void ManageBarriers(const std::vector<BufferResourceAccessConflict>& bufferConflicts,
         const std::vector<ImageResourceAccessConflict>& imageConflicts);
 
@@ -154,24 +157,24 @@ private:
 
     void SubmitPassUploads(FrameContext& frameContext);
 
-    Resource AddBufferAccess(Resource resource, AccessType type, ResourceBase& resourceBase, PipelineStage stage,
+    BufferResource AddBufferAccess(BufferResource resource, AccessType type, RGBuffer& buffer, PipelineStage stage,
         PipelineAccess access);
-    Resource AddImageAccess(Resource resource, AccessType type, RGImage& image, PipelineStage stage,
+    ImageResource AddImageAccess(ImageResource resource, AccessType type, RGImage& image, PipelineStage stage,
         PipelineAccess access);
     u32 CurrentPassIndex() const;
     Pass& CurrentPass() const;
 
 private:
-    Resource m_Backbuffer{};
+    ImageResource m_Backbuffer{};
     std::vector<RGBuffer> m_Buffers;
     std::vector<RGImage> m_Images;
-    std::vector<ResourceAccess> m_BufferAccesses;
-    std::vector<ResourceAccess> m_ImageAccesses;
+    std::vector<BufferResourceAccess> m_BufferAccesses;
+    std::vector<ImageResourceAccess> m_ImageAccesses;
 
     struct PersistentBufferInfo
     {
         Buffer Buffer{};
-        Resource Resource{};
+        BufferResource Resource{};
         DeletionQueue* DeletionQueue{nullptr};
     };
 
@@ -179,7 +182,7 @@ private:
     {
         Image Image{};
         ImageLayout Layout{ImageLayout::Undefined};
-        Resource Resource{};
+        ImageResource Resource{};
         DeletionQueue* DeletionQueue{nullptr};
     };
 
@@ -222,7 +225,7 @@ PassData& Graph::AddRenderPass(StringId name, SetupFn&& setup, ExecuteFn&& callb
 }
 
 template <typename T>
-Resource Graph::Upload(Resource buffer, T&& data, u64 bufferOffset)
+BufferResource Graph::Upload(BufferResource buffer, T&& data, u64 bufferOffset)
 {
     m_ResourceUploader.UpdateBuffer(CurrentPass(), buffer, std::forward<T>(data), bufferOffset);
     m_Buffers[buffer.m_Index].Description.Usage |= BufferUsage::Destination;

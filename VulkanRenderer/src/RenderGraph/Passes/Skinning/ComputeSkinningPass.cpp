@@ -12,9 +12,9 @@ namespace
 {
 struct PrepareSkinningPassData
 {
-    RG::Resource SkinDispatchCount{};
-    RG::Resource SkinDispatchesInfo{};
-    RG::Resource RenderObjects{};
+    RG::BufferResource SkinDispatchCount{};
+    RG::BufferResource SkinDispatchesInfo{};
+    RG::BufferResource RenderObjects{};
     u32 DispatchCount{};
 };
 PrepareSkinningPassData& prepare(StringId name, RG::Graph& renderGraph,
@@ -32,10 +32,10 @@ PrepareSkinningPassData& prepare(StringId name, RG::Graph& renderGraph,
             
             passData.DispatchCount = info.SkinnedMeshletCount;
            
-            Resource skinDispatchCount = graph.Create("VertexInfoCount"_hsv, 
+            BufferResource skinDispatchCount = graph.Create("VertexInfoCount"_hsv, 
                 RGBufferDescription{.SizeBytes = sizeof(u32)});
             skinDispatchCount = graph.Upload(skinDispatchCount, 0);
-            Resource skinDispatchesInfo = graph.Create("DispatchesInfo"_hsv, RGBufferDescription{
+            BufferResource skinDispatchesInfo = graph.Create("DispatchesInfo"_hsv, RGBufferDescription{
                 .SizeBytes = 
                     sizeof(::gen::SkinDispatchInfo) * passData.DispatchCount
                 });
@@ -70,9 +70,9 @@ PrepareSkinningPassData& prepare(StringId name, RG::Graph& renderGraph,
 
 struct VertexSkinningPassData
 {
-    RG::Resource RenderObjects{};
-    RG::Resource Ugb{};
-    RG::Resource Meshlets{};
+    RG::BufferResource RenderObjects{};
+    RG::BufferResource Ugb{};
+    RG::BufferResource Meshlets{};
 };
 
 VertexSkinningPassData& skinVertices(StringId name, RG::Graph& renderGraph,

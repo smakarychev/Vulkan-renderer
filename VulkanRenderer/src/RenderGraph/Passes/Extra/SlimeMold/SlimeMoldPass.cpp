@@ -112,41 +112,41 @@ struct GradientUBO
 
 struct UpdateSlimeMapPassData
 {
-    RG::Resource Traits{};
-    RG::Resource Slime{};
-    RG::Resource SlimeMap{};
+    RG::BufferResource Traits{};
+    RG::BufferResource Slime{};
+    RG::ImageResource SlimeMap{};
 };
 
 struct DiffuseSlimeMapPassData
 {
-    RG::Resource SlimeMap{};
-    RG::Resource DiffuseMap{};
+    RG::ImageResource SlimeMap{};
+    RG::ImageResource DiffuseMap{};
 };
 
 struct GradientPassData
 {
-    RG::Resource GradientMap{};
+    RG::ImageResource GradientMap{};
 };
 
-RG::Resource clearRenderTarget(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx)
+RG::ImageResource clearRenderTarget(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx)
 {
     using namespace RG;
 
-    return renderGraph.AddRenderPass<Resource>(name.Concatenate(".Clear"),
-        [&](Graph& graph, Resource& passData)
+    return renderGraph.AddRenderPass<ImageResource>(name.Concatenate(".Clear"),
+        [&](Graph& graph, ImageResource& passData)
         {
             passData = graph.RenderTarget(graph.Import("Slime"_hsv, ctx.GetSlimeMap()), {
                 .OnLoad = AttachmentLoad::Clear,
                 .ClearColor = ColorClearValue{.F = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)}
             });
         },
-        [=](const Resource&, FrameContext&, const Graph&)
+        [=](const ImageResource&, FrameContext&, const Graph&)
         {
         });
 }
 
 UpdateSlimeMapPassData& addUpdateSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx,
-    RG::Resource slimeMap)
+    RG::ImageResource slimeMap)
 {
     using namespace RG;
     using PassDataBind = PassDataWithBind<UpdateSlimeMapPassData, SlimeMoldBindGroupRG>;
@@ -284,7 +284,7 @@ GradientPassData& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeM
                     .Format = Format::RGBA16_FLOAT
             }));
             passData.BindGroup.SetResourcesDiffuseMap(diffuseOutput.DiffuseMap);
-            Resource gradient = passData.BindGroup.SetResourcesColors(graph.Create("Gradient.Colors"_hsv,
+            BufferResource gradient = passData.BindGroup.SetResourcesColors(graph.Create("Gradient.Colors"_hsv,
                 RGBufferDescription{.SizeBytes = sizeof(GradientUBO)}));
             auto& gradientUbo = graph.GetOrCreateBlackboardValue<GradientUBO>();
             ImGui::Begin("slime gradient");
@@ -332,7 +332,7 @@ Passes::SlimeMold::PassData& Passes::SlimeMold::addToGraph(StringId name, RG::Gr
         {
             CPU_PROFILE_FRAME("Slime.Setup")
 
-            Resource slimeMap;
+            ImageResource slimeMap;
             if (!ctx.IsCleared())
             {
                 slimeMap = clearRenderTarget(name, graph, ctx);

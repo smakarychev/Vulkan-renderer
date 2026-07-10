@@ -6,12 +6,12 @@ namespace Passes::Clouds::VP::ProfileMap
 struct ExecutionInfo
 {
     /* optional external profile map image */
-    RG::Resource ProfileMap{};
+    RG::ImageResource ProfileMap{};
 };
 
 struct PassData
 {
-    RG::Resource ProfileMap{};
+    RG::ImageResource ProfileMap{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

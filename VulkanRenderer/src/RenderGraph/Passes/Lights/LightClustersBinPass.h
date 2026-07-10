@@ -8,16 +8,16 @@ namespace Passes::LightClustersBin
 {
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
-    RG::Resource Clusters{};
-    RG::Resource ClusterVisibility{};
-    RG::Resource Depth{};
-    RG::Resource PointLights{};
+    RG::BufferResource ViewInfo{};
+    RG::BufferResource Clusters{};
+    RG::BufferResource ClusterVisibility{};
+    RG::ImageResource Depth{};
+    RG::BufferResource PointLights{};
 };
 
 struct PassData
 {
-    RG::Resource Clusters{};
+    RG::BufferResource Clusters{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

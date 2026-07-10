@@ -24,7 +24,7 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
             CPU_PROFILE_FRAME("SceneMetaDraw")
 
             const u32 bucketCount = info.MultiviewVisibility->ObjectSet().BucketCount();
-            std::array<Resource, SceneMultiviewVisibility::MAX_VIEWS> passDepths{};
+            std::array<ImageResource, SceneMultiviewVisibility::MAX_VIEWS> passDepths{};
 
             auto drawWithVisibility = [&](u32 visibilityIndex, bool reocclusion)
             {
@@ -77,7 +77,7 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
 
                         if (depth.has_value())
                             if (pass.SceneView == mainVisibilityView)
-                                passDepths[visibilityIndex] = depth.value_or(Resource{});
+                                passDepths[visibilityIndex] = depth.value_or(ImageResource{});
 
                         if (!reocclusion && handleIndex == 0)
                         {

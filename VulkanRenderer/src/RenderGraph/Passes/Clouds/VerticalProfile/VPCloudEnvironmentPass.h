@@ -9,26 +9,26 @@ namespace Passes::Clouds::VP::Environment
 struct ExecutionInfo
 {
     const ViewInfoGPU* PrimaryView{nullptr};
-    RG::Resource PrimaryViewResource{};
-    RG::Resource CloudCoverage{};
-    RG::Resource CloudProfile{};
-    RG::Resource CloudShapeLowFrequencyMap{};
-    RG::Resource CloudShapeHighFrequencyMap{};
-    RG::Resource CloudCurlNoise{};
-    RG::Resource CloudEnvironment{};
+    RG::BufferResource PrimaryViewResource{};
+    RG::ImageResource CloudCoverage{};
+    RG::ImageResource CloudProfile{};
+    RG::ImageResource CloudShapeLowFrequencyMap{};
+    RG::ImageResource CloudShapeHighFrequencyMap{};
+    RG::ImageResource CloudCurlNoise{};
+    RG::ImageResource CloudEnvironment{};
     /* optional external color image resource */
-    RG::Resource ColorIn{};
-    RG::Resource AtmosphereEnvironment{};
-    RG::Resource IrradianceSH{};
-    RG::Resource CloudParameters{};
+    RG::ImageResource ColorIn{};
+    RG::ImageResource AtmosphereEnvironment{};
+    RG::BufferResource IrradianceSH{};
+    RG::BufferResource CloudParameters{};
     CloudsRenderingMode CloudsRenderingMode{CloudsRenderingMode::FullResolution};
     Span<const u32> FaceIndices;
 };
 
 struct PassData
 {
-    RG::Resource CloudEnvironment{};
-    RG::Resource AtmosphereWithCloudsEnvironment{};
+    RG::ImageResource CloudEnvironment{};
+    RG::ImageResource AtmosphereWithCloudsEnvironment{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

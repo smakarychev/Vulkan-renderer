@@ -18,7 +18,7 @@ Passes::Clouds::Reproject::PassData& Passes::Clouds::Reproject::addToGraph(Strin
 
             passData.BindGroup = CloudsReprojectBindGroupRG(graph);
 
-            Resource colorIn, colorOut, depthIn, depthOut, reprojectionIn, reprojectionOut;
+            ImageResource colorIn, colorOut, depthIn, depthOut, reprojectionIn, reprojectionOut;
 
             if (!info.ColorAccumulationIn.IsValid())
             {

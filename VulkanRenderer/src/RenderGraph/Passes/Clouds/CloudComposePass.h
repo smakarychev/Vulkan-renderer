@@ -5,16 +5,16 @@ namespace Passes::Clouds::Compose
 {
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
-    RG::Resource SceneColor{};
-    RG::Resource SceneDepth{};
-    RG::Resource CloudColor{};
-    RG::Resource CloudDepth{};
+    RG::BufferResource ViewInfo{};
+    RG::ImageResource SceneColor{};
+    RG::ImageResource SceneDepth{};
+    RG::ImageResource CloudColor{};
+    RG::ImageResource CloudDepth{};
 };
 
 struct PassData
 {
-    RG::Resource Color{};
+    RG::ImageResource Color{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

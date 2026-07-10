@@ -620,10 +620,15 @@ struct Writer
         Error->Message.append(message).append("\n");
     }
 
-    void BeginSetResourceFunction(const BindingsInfo::Signature& signature)
+    void BeginSetResourceFunction(const BindingsInfo::Signature& signature, lux::assetlib::ShaderBindingType type)
     {
-        std::string line = std::format("RG::Resource Set{}(RG::Resource resource",
-            utils::canonicalizeName(signature.Name));
+        std::string line{};
+        if (isBuffer(type))
+            line = std::format("RG::BufferResource Set{}(RG::BufferResource resource",
+                utils::canonicalizeName(signature.Name));
+        else
+            line = std::format("RG::ImageResource Set{}(RG::ImageResource resource", 
+                utils::canonicalizeName(signature.Name));
         if (signature.Count > 1)
             line.append(", u32 index");
         line.append(", RG::ResourceAccessFlags additionalAccess = RG::ResourceAccessFlags::None)");
@@ -635,7 +640,7 @@ struct Writer
 
     void BeginSetUniformFunction(const UniformBindingsInfo::Signature& signature)
     {
-        std::string line = std::format("RG::Resource Set{}(const {}& {}",
+        std::string line = std::format("RG::BufferResource Set{}(const {}& {}",
             utils::canonicalizeName(signature.BindingSignature.Name), signature.Type, signature.Parameter);
         if (signature.BindingSignature.Count > 1)
             line.append(", u32 index");
@@ -923,7 +928,7 @@ struct Writer
         const std::vector<BindingsInfo::AccessVariant>& accesses, const std::vector<std::string>& variants,
         bool isDivergent)
     {
-        BeginSetResourceFunction(signature);
+        BeginSetResourceFunction(signature, accesses.front().Type);
         WriteResourceBindingsFunctionBody(set, signature, accesses, variants, isDivergent);
         EndSetResourceFunction();
     }
@@ -976,7 +981,7 @@ struct Writer
         {
             BeginSetUniformFunction(uniformSignature);
 
-            WriteLine(std::format("RG::Resource resource = Graph->Create(\"{}\"_hsv, RG::RGBufferDescription{{"
+            WriteLine(std::format("RG::BufferResource resource = Graph->Create(\"{}\"_hsv, RG::RGBufferDescription{{"
                 ".SizeBytes = sizeof({})}});", uniformSignature.Type, uniformSignature.Type));
             WriteLine(std::format("resource = Graph->Upload(resource, {});", uniformSignature.Parameter));
 
@@ -1151,16 +1156,22 @@ struct BindGroupBaseRG
         u32 Slot{0};
         Sampler Sampler{};
     };
-    struct BindingInfoRG
+    struct BufferBindingInfoRG
     {
         u32 Set{0};
         u32 Slot{0};
         DescriptorType DescriptorType{};
-        RG::Resource Resource{};
+        RG::BufferResource Resource{};
         u32 ArrayOffset{0};
     };
-    using BufferBindingInfoRG = BindingInfoRG;
-    using ImageBindingInfoRG = BindingInfoRG;
+    struct ImageBindingInfoRG
+    {
+        u32 Set{0};
+        u32 Slot{0};
+        DescriptorType DescriptorType{};
+        RG::ImageResource Resource{};
+        u32 ArrayOffset{0};
+    };
 
     BindGroupBaseRG() = default;
     BindGroupBaseRG(RG::Graph& graph, const ::lux::ShaderAsset& shader)

@@ -8,14 +8,14 @@ namespace Passes::Atmosphere::SkyView
 {
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
-    RG::Resource TransmittanceLut{};
-    RG::Resource MultiscatteringLut{};
+    RG::BufferResource ViewInfo{};
+    RG::ImageResource TransmittanceLut{};
+    RG::ImageResource MultiscatteringLut{};
 };
 
 struct PassData
 {
-    RG::Resource Lut{};
+    RG::ImageResource Lut{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

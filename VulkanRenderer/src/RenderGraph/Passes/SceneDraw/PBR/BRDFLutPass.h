@@ -5,12 +5,12 @@ namespace Passes::BRDFLut
 {
 struct ExecutionInfo
 {
-    RG::Resource Lut{};
+    RG::ImageResource Lut{};
 };
 
 struct PassData
 {
-    RG::Resource Lut{};
+    RG::ImageResource Lut{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

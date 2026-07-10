@@ -10,14 +10,14 @@ namespace Passes::SsaoBlur
 {
 struct ExecutionInfo
 {
-    RG::Resource SsaoIn{};
-    RG::Resource SsaoOut{};
+    RG::ImageResource SsaoIn{};
+    RG::ImageResource SsaoOut{};
     SsaoBlurPassKind BlurKind{SsaoBlurPassKind::Horizontal};
 };
 
 struct PassData
 {
-    RG::Resource Ssao{};
+    RG::ImageResource Ssao{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

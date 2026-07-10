@@ -65,8 +65,8 @@ Passes::PbrCameraExposure::PassData& exposureFromParameters(StringId name, RG::G
 
 struct LuminanceHistogramPassData
 {
-    RG::Resource Color{};
-    RG::Resource Bins{};
+    RG::ImageResource Color{};
+    RG::BufferResource Bins{};
 };
 LuminanceHistogramPassData& calculateLuminanceHistogram(StringId name, RG::Graph& renderGraph, 
     const Passes::PbrCameraExposure::ExecutionInfo& info)
@@ -123,8 +123,8 @@ LuminanceHistogramPassData& calculateLuminanceHistogram(StringId name, RG::Graph
 }
 struct ExposureFromLuminanceHistogramPassData : Passes::PbrCameraExposure::PassData
 {
-    RG::Resource Bins{};
-    RG::Resource Output{};
+    RG::BufferResource Bins{};
+    RG::BufferResource Output{};
 };
 ExposureFromLuminanceHistogramPassData& exposureFromLuminanceHistogram(StringId name, RG::Graph& renderGraph,
     const LuminanceHistogramPassData& histogramPassData, const Passes::PbrCameraExposure::ExecutionInfo& info)
@@ -183,7 +183,7 @@ ExposureFromLuminanceHistogramPassData& exposureFromLuminanceHistogram(StringId 
 
 struct VisualizeLuminanceHistogramPassData
 {
-    RG::Resource Color{};
+    RG::ImageResource Color{};
 };
 VisualizeLuminanceHistogramPassData& visualizeLuminanceHistogram(StringId name, RG::Graph& renderGraph,
     const ExposureFromLuminanceHistogramPassData& exposureFromHistogramPassData, 
@@ -240,7 +240,7 @@ VisualizeLuminanceHistogramPassData& visualizeLuminanceHistogram(StringId name, 
 }
 VisualizeLuminanceHistogramPassData& visualizeLuminanceHistogramOverlay(StringId name, RG::Graph& renderGraph,
     const ExposureFromLuminanceHistogramPassData& exposureFromHistogramPassData, 
-    RG::Resource sceneColor)
+    RG::ImageResource sceneColor)
 {
     using namespace RG;
     using PassDataBind = PassDataWithBind<VisualizeLuminanceHistogramPassData,
@@ -295,7 +295,7 @@ Passes::PbrCameraExposure::PassData& Passes::PbrCameraExposure::addToGraph(Strin
         auto& histogram = calculateLuminanceHistogram(name.Concatenate(".LuminanceHistogram"_hsv), renderGraph, info);
         auto& exposure = exposureFromLuminanceHistogram(name, renderGraph, histogram, info);
         
-        RG::Resource visualization = {};
+        RG::ImageResource visualization = {};
         if (info.ExposureSettings->Visualize)
             visualization = info.ExposureSettings->VisualizationInfo.AsOverlay ?
                 visualizeLuminanceHistogramOverlay(name.Concatenate(".VisualizeLuminanceHistogramOverlay"_hsv),

@@ -16,19 +16,19 @@ public:
     GraphPool& operator=(GraphPool&&) = delete;
     ~GraphPool();
 
-    template <typename Res>
+    template <typename Res, typename RGRes>
     struct AllocationInfo
     {
         Res Resource;
-        RG::Resource AliasedFrom{};
+        RGRes AliasedFrom{};
     };
 
-    using BufferAllocationInfo = AllocationInfo<Buffer>;
-    using ImageAllocationInfo = AllocationInfo<Image>;
+    using BufferAllocationInfo = AllocationInfo<Buffer, BufferResource>;
+    using ImageAllocationInfo = AllocationInfo<Image, ImageResource>;
 
-    BufferAllocationInfo Allocate(Resource resource, const BufferDescription& buffer,
+    BufferAllocationInfo Allocate(BufferResource resource, const BufferDescription& buffer,
         u32 firstPassIndex, u32 lastPassIndex);
-    ImageAllocationInfo Allocate(Resource resource, const ImageDescription& image,
+    ImageAllocationInfo Allocate(ImageResource resource, const ImageDescription& image,
         u32 firstPassIndex, u32 lastPassIndex);
 
     void OnFrameEnd();
@@ -36,30 +36,30 @@ public:
 private:
     void ClearUnreferenced();
 
-    BufferAllocationInfo TryAlias(Resource resource, const BufferDescription& buffer,
+    BufferAllocationInfo TryAlias(BufferResource resource, const BufferDescription& buffer,
         u32 firstPassIndex, u32 lastPassIndex);
-    ImageAllocationInfo TryAlias(Resource resource, const ImageDescription& image,
+    ImageAllocationInfo TryAlias(ImageResource resource, const ImageDescription& image,
         u32 firstPassIndex, u32 lastPassIndex);
-    Buffer AllocateNew(Resource resource, const BufferDescription& buffer,
+    Buffer AllocateNew(BufferResource resource, const BufferDescription& buffer,
         u32 firstPassIndex, u32 lastPassIndex);
-    Image AllocateNew(Resource resource, const ImageDescription& image,
+    Image AllocateNew(ImageResource resource, const ImageDescription& image,
         u32 firstPassIndex, u32 lastPassIndex);
 
 private:
-    template <typename Res, typename Desc>
+    template <typename Res, typename RGRes, typename Desc>
     struct PoolResource
     {
         static constexpr u32 NO_PASS{~0u};
         Res Resource{};
         Desc Description{};
-        RG::Resource Handle{};
+        RGRes Handle{};
         u32 FirstPassIndex{NO_PASS};
         u32 LastPassIndex{NO_PASS};
         /* allocated resources are freed, if not used for some number of frames */
         u32 LastFrameIndex{0};
     };
 
-    std::vector<PoolResource<Buffer, BufferDescription>> m_Buffers;
-    std::vector<PoolResource<Image, ImageDescription>> m_Images;
+    std::vector<PoolResource<Buffer, BufferResource, BufferDescription>> m_Buffers;
+    std::vector<PoolResource<Image, ImageResource, ImageDescription>> m_Images;
 };
 }

@@ -5,7 +5,7 @@
 #include "FrameContext.h"
 #include "RenderGraph/RGGraph.h"
 
-Passes::Mipmap::PassData& Passes::Mipmap::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource texture)
+Passes::Mipmap::PassData& Passes::Mipmap::addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource texture)
 {
     using namespace RG;
     using enum ResourceAccessFlags;

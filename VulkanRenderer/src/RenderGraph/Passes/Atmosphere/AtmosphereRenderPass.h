@@ -5,17 +5,17 @@ namespace Passes::Atmosphere::Render
 {
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
-    RG::Resource SkyViewLut{};
-    RG::Resource AerialPerspective{};
-    RG::Resource ColorIn{};
-    RG::Resource DepthIn{};
+    RG::BufferResource ViewInfo{};
+    RG::ImageResource SkyViewLut{};
+    RG::ImageResource AerialPerspective{};
+    RG::ImageResource ColorIn{};
+    RG::ImageResource DepthIn{};
     bool IsPrimaryView{false};
 };
 
 struct PassData
 {
-    RG::Resource Color{};
+    RG::ImageResource Color{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

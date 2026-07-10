@@ -15,45 +15,45 @@ struct DrawExecutionInfo;
 
 struct IBLData
 {
-    Resource IrradianceSH{};
-    Resource PrefilterEnvironment{};
-    Resource BRDF{};
+    BufferResource IrradianceSH{};
+    ImageResource PrefilterEnvironment{};
+    ImageResource BRDF{};
 };
 
 struct SSAOData
 {
-    Resource SSAO{};
+    ImageResource SSAO{};
 };
 
 struct DirectionalShadowData
 {
-    Resource ShadowMap{};
-    Resource Shadow{};
+    ImageResource ShadowMap{};
+    BufferResource Shadow{};
 };
 
 struct CsmData
 {
-    Resource ShadowMap{};
-    Resource CsmInfo{};
+    ImageResource ShadowMap{};
+    BufferResource CsmInfo{};
 };
 
 struct DrawAttributeBuffers
 {
-    Resource Positions{};
-    Resource Normals{};
-    Resource Tangents{};
-    Resource UVs{};
+    BufferResource Positions{};
+    BufferResource Normals{};
+    BufferResource Tangents{};
+    BufferResource UVs{};
 };
 
 struct DrawAttachment
 {
-    Resource Resource{};
+    ImageResource Resource{};
     RenderTargetAccessDescription Description{};
 };
 
 struct DepthStencilAttachment
 {
-    Resource Resource{};
+    ImageResource Resource{};
     DepthStencilTargetAccessDescription Description{};
     std::optional<DepthBias> DepthBias{};
 };
@@ -66,15 +66,15 @@ struct DrawAttachments
 
 struct DrawAttachmentResources
 {
-    std::vector<Resource> Colors{};
+    std::vector<ImageResource> Colors{};
     // todo: remove this optional
-    std::optional<Resource> Depth{};
+    std::optional<ImageResource> Depth{};
 };
 
 struct SceneLightResources
 {
-    Resource DirectionalLights{};
-    Resource PointLights{};
-    Resource LightsInfo{};
+    BufferResource DirectionalLights{};
+    BufferResource PointLights{};
+    BufferResource LightsInfo{};
 };
 }

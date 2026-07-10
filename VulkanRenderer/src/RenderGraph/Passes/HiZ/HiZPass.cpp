@@ -10,10 +10,10 @@ namespace
 {
 struct BlitPassData
 {
-    RG::Resource Depth{};
-    RG::Resource HiZ{};
-    RG::Resource DepthMinMax{};
-    std::array<RG::Resource, HiZ::MAX_MIP_LEVELS> HiZMips{};
+    RG::ImageResource Depth{};
+    RG::ImageResource HiZ{};
+    RG::BufferResource DepthMinMax{};
+    std::array<RG::ImageResource, HiZ::MAX_MIP_LEVELS> HiZMips{};
     HizBlitBindGroupRG BindGroup{};
 };
 
@@ -117,7 +117,7 @@ Passes::HiZ::PassData& Passes::HiZ::addToGraph(StringId name, RG::Graph& renderG
                 }
 
                 if (mipmapsRemaining - toBeProcessed == 0)
-                    blit.HiZ = graph.MergeImage(Span<const Resource>(blit.HiZMips.data(), mipmapCount));
+                    blit.HiZ = graph.MergeImage(Span<const ImageResource>(blit.HiZMips.data(), mipmapCount));
                 passData.HiZ = blit.HiZ;
                 passData.DepthMinMax = blit.DepthMinMax;
             },

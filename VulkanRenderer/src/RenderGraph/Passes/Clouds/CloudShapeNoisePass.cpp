@@ -8,13 +8,13 @@
 
 namespace
 {
-RG::Resource& createShapeTexture(StringId name, RG::Graph& renderGraph, f32 textureSize, bool isHighFrequency,
-    const RG::Resource noiseParameters, RG::Resource external)
+RG::ImageResource& createShapeTexture(StringId name, RG::Graph& renderGraph, f32 textureSize, bool isHighFrequency,
+    const RG::BufferResource noiseParameters, RG::ImageResource external)
 {
     using namespace RG;
     struct CreateShapePassData
     {
-        Resource Shape{};
+        ImageResource Shape{};
     };
     using PassDataBind = PassDataWithBind<CreateShapePassData, CloudsMapShapeBindGroupRG>;
 

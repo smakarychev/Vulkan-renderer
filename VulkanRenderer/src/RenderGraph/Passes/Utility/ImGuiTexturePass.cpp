@@ -26,14 +26,15 @@ glm::vec2 getTextureWindowSize(const TextureDescription& texture)
 }
 
 template <typename WidgetFn>
-RG::Resource imgui2dTexturePass(StringId name, RG::Graph& renderGraph, RG::Resource textureIn, WidgetFn&& widgetFn)
+RG::ImageResource imgui2dTexturePass(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn,
+    WidgetFn&& widgetFn)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
     struct PassDataPrivate
     {
-        Resource Texture;
+        ImageResource Texture;
         StringId Name{};
     };
     return renderGraph.AddRenderPass<PassDataPrivate>(name,
@@ -73,26 +74,26 @@ RG::Resource imgui2dTexturePass(StringId name, RG::Graph& renderGraph, RG::Resou
 }
 }
 
-RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
+RG::ImageResource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn)
 {
     return imgui2dTexturePass(name, renderGraph, textureIn, [](){});
 }
 
-RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
+RG::ImageResource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn,
     ChannelComposition channelComposition)
 {
     return addToGraph(name, renderGraph, Texture2dToTexture2d::addToGraph(
         name.Concatenate(".TextureToTexture"), renderGraph, textureIn, channelComposition));
 }
 
-RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
+RG::ImageResource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
     struct PassData
     {
-        Resource Texture{};
+        ImageResource Texture{};
         StringId Name{};
     };
     struct Context
@@ -136,7 +137,7 @@ RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& rend
         }).Texture;
 }
 
-RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
+RG::ImageResource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn,
     ChannelComposition channelComposition)
 {
     using namespace RG;
@@ -146,14 +147,14 @@ RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& render
     {
         i32 Slice{0};
     };
-    return renderGraph.AddRenderPass<Resource>(name,
-        [&](Graph& graph, Resource& passData)
+    return renderGraph.AddRenderPass<ImageResource>(name,
+        [&](Graph& graph, ImageResource& passData)
         {
             Context& context = graph.GetOrCreateBlackboardValue<Context>(name.Hash());
             auto& texture3dDescription = graph.GetImageDescription(textureIn);
             const u32 depth = texture3dDescription.GetDepth();
             const f32 sliceNormalized = ((f32)context.Slice + 0.5f) / (f32)depth;
-            const Resource slice = Texture3dToSlice::addToGraph(name.Concatenate(".ToSlice"),
+            const ImageResource slice = Texture3dToSlice::addToGraph(name.Concatenate(".ToSlice"),
                 renderGraph, textureIn, sliceNormalized, channelComposition);
             passData = imgui2dTexturePass(name, graph, slice, [&, depth=depth]()
             {
@@ -161,13 +162,13 @@ RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& render
             });
             graph.HasSideEffect();
         },
-        [=](const Resource&, FrameContext&, const Graph&)
+        [=](const ImageResource&, FrameContext&, const Graph&)
         {
         });
 }
 
-RG::Resource Passes::ImGuiArrayTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
-    DrawAs drawAs, ChannelComposition channelComposition)
+RG::ImageResource Passes::ImGuiArrayTexture::addToGraph(StringId name, RG::Graph& renderGraph, 
+    RG::ImageResource textureIn, DrawAs drawAs, ChannelComposition channelComposition)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -176,15 +177,15 @@ RG::Resource Passes::ImGuiArrayTexture::addToGraph(StringId name, RG::Graph& ren
     {
         i32 Slice{0};
     };
-    return renderGraph.AddRenderPass<Resource>(name,
-        [&](Graph& graph, Resource& passData)
+    return renderGraph.AddRenderPass<ImageResource>(name,
+        [&](Graph& graph, ImageResource& passData)
         {
             auto& textureDescription = graph.GetImageDescription(textureIn);
             const i8 layers = textureDescription.GetLayers();
             if (drawAs == DrawAs::Slice)
             {
                 Context& context = graph.GetOrCreateBlackboardValue<Context>(name.Hash());
-                const Resource slice = TextureArrayToSlice::addToGraph(name.Concatenate(".ToSlice"),
+                const ImageResource slice = TextureArrayToSlice::addToGraph(name.Concatenate(".ToSlice"),
                     renderGraph, textureIn, context.Slice, channelComposition);
                 passData = imgui2dTexturePass(name, graph, slice, [&, layers=layers]()
                 {
@@ -193,7 +194,7 @@ RG::Resource Passes::ImGuiArrayTexture::addToGraph(StringId name, RG::Graph& ren
             }
             else
             {
-                const Resource atlas = TextureArrayToAtlas::addToGraph(name.Concatenate(".ToAtlas"),
+                const ImageResource atlas = TextureArrayToAtlas::addToGraph(name.Concatenate(".ToAtlas"),
                     renderGraph, textureIn, channelComposition);
                 passData = imgui2dTexturePass(name, graph, atlas, []()
                 {
@@ -201,7 +202,7 @@ RG::Resource Passes::ImGuiArrayTexture::addToGraph(StringId name, RG::Graph& ren
             }
             graph.HasSideEffect();
         },
-        [=](const Resource&, FrameContext&, const Graph&)
+        [=](const ImageResource&, FrameContext&, const Graph&)
         {
         });
 }

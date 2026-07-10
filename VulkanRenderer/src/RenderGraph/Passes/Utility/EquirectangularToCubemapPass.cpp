@@ -11,7 +11,7 @@ namespace
 using PassData = Passes::EquirectangularToCubemap::PassData;
 
 PassData& convertEquirectangularToCubemapPass(StringId name, RG::Graph& renderGraph,
-    RG::Resource equirectangular, RG::Resource cubemap, f32 exposure)
+    RG::ImageResource equirectangular, RG::ImageResource cubemap, f32 exposure)
 {
     using namespace RG;
 

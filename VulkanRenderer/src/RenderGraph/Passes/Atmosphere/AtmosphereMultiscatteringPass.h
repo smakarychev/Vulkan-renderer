@@ -5,13 +5,13 @@ namespace Passes::Atmosphere::Multiscattering
 {
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
-    RG::Resource TransmittanceLut{};
+    RG::BufferResource ViewInfo{};
+    RG::ImageResource TransmittanceLut{};
 };
 
 struct PassData
 {
-    RG::Resource Lut{};
+    RG::ImageResource Lut{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

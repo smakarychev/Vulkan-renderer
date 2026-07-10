@@ -89,11 +89,11 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
 
     struct PassDataPrivate : PassDataWithBind<PassData, SsaoBindGroupRG>
     {
-        Resource Depth{};
-        Resource NoiseTexture{};
-        Resource Settings{};
-        Resource ViewInfo{};
-        Resource Samples{};
+        ImageResource Depth{};
+        ImageResource NoiseTexture{};
+        BufferResource Settings{};
+        BufferResource ViewInfo{};
+        BufferResource Samples{};
     };
 
     return renderGraph.AddRenderPass<PassDataPrivate>(name,

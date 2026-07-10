@@ -20,6 +20,6 @@ struct MinMaxDepth
 };
 
 glm::uvec2 calculateHizResolution(const glm::uvec2& depthResolution);
-RG::Resource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution, ReductionMode mode);
-RG::Resource createMinMaxBufferResource(RG::Graph& renderGraph);
+RG::ImageResource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution, ReductionMode mode);
+RG::BufferResource createMinMaxBufferResource(RG::Graph& renderGraph);
 }

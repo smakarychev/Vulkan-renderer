@@ -15,7 +15,7 @@ class ResourceUploader
 {
 public:
     template <typename T>
-    void UpdateBuffer(const Pass& pass, Resource buffer, T&& data, u64 bufferOffset = 0);
+    void UpdateBuffer(const Pass& pass, BufferResource buffer, T&& data, u64 bufferOffset = 0);
     void Upload(const Pass& pass, const Graph& graph, ::ResourceUploader& uploader);
     bool HasUploads(const Pass& pass) const;
 
@@ -24,7 +24,7 @@ private:
     {
         struct UploadInfo
         {
-            Resource Resource{};
+            BufferResource Resource{};
             u64 SizeBytes{};
             u64 SourceOffset{};
             u64 DestinationOffset{};
@@ -38,7 +38,7 @@ private:
 };
 
 template <typename T>
-void ResourceUploader::UpdateBuffer(const Pass& pass, Resource buffer, T&& data, u64 bufferOffset)
+void ResourceUploader::UpdateBuffer(const Pass& pass, BufferResource buffer, T&& data, u64 bufferOffset)
 {
     if constexpr (std::is_pointer_v<T>)
         LUX_LOG_WARN("Passing a pointer to `UpdateBuffer`");

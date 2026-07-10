@@ -5,8 +5,8 @@
 #include "FrameContext.h"
 #include "Rendering/Image/ImageUtility.h"
 
-Passes::Blit::PassData& Passes::Blit::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
-    RG::Resource textureOut, const glm::vec3& offset, f32 relativeSize, ImageFilter filter)
+Passes::Blit::PassData& Passes::Blit::addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn,
+    RG::ImageResource textureOut, const glm::vec3& offset, f32 relativeSize, ImageFilter filter)
 {
     using namespace RG;
 

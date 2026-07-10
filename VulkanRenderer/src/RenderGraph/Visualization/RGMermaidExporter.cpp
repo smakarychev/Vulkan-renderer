@@ -37,30 +37,34 @@ void RGMermaidExporter::OnImageResourcesFinalized(const std::vector<RGImage>& im
     }
 }
 
-void RGMermaidExporter::OnBarrierAdded(const BarrierInfo& barrierInfo,
-    const Pass& firstPass, const Pass& secondPass)
+void RGMermaidExporter::OnBarrierAdded(const BufferBarrier& barrierInfo, const Pass& firstPass, const Pass& secondPass)
 {
+    static constexpr std::string_view TAG = "buffer";
     const u32 resourceIndex = GetResourceIndex(barrierInfo.Resource);
-    std::string tag;
-    if (barrierInfo.Resource.IsBuffer())
+    if (!m_DumpedBufferDescriptions.contains(resourceIndex))
     {
-        tag = "buffer";
-        if (!m_DumpedBufferDescriptions.contains(resourceIndex))
-        {
-            m_Stream << m_BufferIndexToDescription[resourceIndex];
-            m_DumpedBufferDescriptions.insert(resourceIndex);
-        }
+        m_Stream << m_BufferIndexToDescription[resourceIndex];
+        m_DumpedBufferDescriptions.insert(resourceIndex);
     }
-    else
-    {
-        tag = "image";
-        if (!m_DumpedImageDescriptions.contains(resourceIndex))
-        {
-            m_Stream << m_ImageIndexToDescription[resourceIndex];
-            m_DumpedImageDescriptions.insert(resourceIndex);
-        }
-    }
+    AddResourceToStream(firstPass, secondPass, resourceIndex, TAG);
+}
 
+void RGMermaidExporter::OnBarrierAdded(const ImageBarrier& barrierInfo, const Pass& firstPass, const Pass& secondPass)
+{
+    static constexpr std::string_view TAG = "image";
+    const u32 resourceIndex = GetResourceIndex(barrierInfo.Resource);
+    GraphWatcher::OnBarrierAdded(barrierInfo, firstPass, secondPass);
+    if (!m_DumpedImageDescriptions.contains(resourceIndex))
+    {
+        m_Stream << m_ImageIndexToDescription[resourceIndex];
+        m_DumpedImageDescriptions.insert(resourceIndex);
+    }
+    AddResourceToStream(firstPass, secondPass, resourceIndex, TAG);
+}
+
+void RGMermaidExporter::AddResourceToStream(const Pass& firstPass, const Pass& secondPass, u32 resourceIndex,
+    std::string_view tag)
+{
     if (&firstPass != &secondPass)
         m_Stream << std::format("\tpass.\"{}\" --> {}.{}\n", firstPass.Name().Hash(), tag, resourceIndex);
 

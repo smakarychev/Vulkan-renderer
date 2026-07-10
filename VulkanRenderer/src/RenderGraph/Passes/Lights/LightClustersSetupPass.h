@@ -7,13 +7,13 @@ namespace Passes::LightClustersSetup
 {
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
+    RG::BufferResource ViewInfo{};
 };
 
 struct PassData
 {
-    RG::Resource Clusters;
-    RG::Resource ClusterVisibility;
+    RG::BufferResource Clusters;
+    RG::BufferResource ClusterVisibility;
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

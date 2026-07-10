@@ -5,12 +5,12 @@ namespace Passes::Fxaa
 {
 struct ExecutionInfo
 {
-    RG::Resource Color{};
+    RG::ImageResource Color{};
 };
 
 struct PassData
 {
-    RG::Resource AntiAliased{};
+    RG::ImageResource AntiAliased{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

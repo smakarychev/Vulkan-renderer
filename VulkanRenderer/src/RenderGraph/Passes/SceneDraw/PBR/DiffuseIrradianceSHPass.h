@@ -5,10 +5,10 @@ namespace Passes::DiffuseIrradianceSH
 {
 struct PassData
 {
-    RG::Resource DiffuseIrradiance{};
-    RG::Resource CubemapTexture{};
+    RG::BufferResource DiffuseIrradiance{};
+    RG::ImageResource CubemapTexture{};
 };
 
-PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
-    RG::Resource irradianceSH, bool realTime);
+PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource cubemap,
+    RG::BufferResource irradianceSH, bool realTime);
 }

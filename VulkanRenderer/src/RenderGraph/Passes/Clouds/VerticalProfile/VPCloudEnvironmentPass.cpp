@@ -8,7 +8,6 @@
 #include "RenderGraph/Passes/Clouds/CloudCommon.h"
 #include "RenderGraph/Passes/Generated/CloudsVPEnvironmentBlurBindGroupRG.generated.h"
 #include "RenderGraph/Passes/Utility/CopyBufferPass.h"
-#include "RenderGraph/Passes/Utility/CopyToBufferPass.h"
 #include "Rendering/Image/ImageUtility.h"
 
 namespace
@@ -40,7 +39,7 @@ Passes::Clouds::VP::Environment::PassData& renderPass(StringId name, RG::Graph& 
                     .Kind = ImageKind::ImageCubemap
                 });
 
-            std::array<Resource, 6> faces{};
+            std::array<ImageResource, 6> faces{};
 
             for (u32 i = 0; i < info.FaceIndices.size(); i++)
             {
@@ -52,7 +51,7 @@ Passes::Clouds::VP::Environment::PassData& renderPass(StringId name, RG::Graph& 
                     (u32)environmentSize, faceIndex);
                 ViewInfoGPU viewInfo = *info.PrimaryView;
                 viewInfo.Camera = CameraGPU::FromCamera(camera, {environmentSize, environmentSize});
-                Resource viewInfoResource = graph.Create("ViewInfo"_hsv, RGBufferDescription{
+                BufferResource viewInfoResource = graph.Create("ViewInfo"_hsv, RGBufferDescription{
                     .SizeBytes = sizeof(ViewInfoGPU)
                 });
                 viewInfoResource = graph.Upload(viewInfoResource, viewInfo);
@@ -82,20 +81,20 @@ Passes::Clouds::VP::Environment::PassData& renderPass(StringId name, RG::Graph& 
             }
 
             passData.CloudEnvironment = graph.MergeImage(
-                Span<const Resource>(faces.data(), info.FaceIndices.size()));
+                Span<const ImageResource>(faces.data(), info.FaceIndices.size()));
         },
         [=](const PassData&, FrameContext&, const Graph&)
         {
         });
 }
 
-RG::Resource blurComposePass(StringId name, RG::Graph& renderGraph, RG::Resource clouds, RG::Resource atmosphere,
-    bool isVerticalBlur)
+RG::ImageResource blurComposePass(StringId name, RG::Graph& renderGraph, RG::ImageResource clouds, 
+    RG::ImageResource atmosphere, bool isVerticalBlur)
 {
     using namespace RG;
     struct PassData
     {
-        Resource Color{};
+        ImageResource Color{};
     };
     using PassDataBind = PassDataWithBind<PassData, CloudsVPEnvironmentBlurBindGroupRG>;
     
@@ -147,8 +146,8 @@ Passes::Clouds::VP::Environment::PassData& Passes::Clouds::VP::Environment::addT
         [&](Graph& graph, PassData& passData)
         {
             passData = renderPass(name, renderGraph, info);
-            std::array<Resource, 6> cloudFaces{};
-            std::array<Resource, 6> atmosphereFaces{};
+            std::array<ImageResource, 6> cloudFaces{};
+            std::array<ImageResource, 6> atmosphereFaces{};
 
             for (u32 i = 0; i < info.FaceIndices.size(); i++)
             {
@@ -157,15 +156,15 @@ Passes::Clouds::VP::Environment::PassData& Passes::Clouds::VP::Environment::addT
                     {.ImageViewKind = ImageViewKind::Image2d, .LayerBase = (i8)faceIndex, .Layers = 1});
                 atmosphereFaces[i] = graph.SplitImage(info.AtmosphereEnvironment,
                     {.ImageViewKind = ImageViewKind::Image2d, .LayerBase = (i8)faceIndex, .Layers = 1});
-                const Resource blurred = blurComposePass("CloudEnvironmentVerticalBlur"_hsv, graph, cloudFaces[i],
+                const ImageResource blurred = blurComposePass("CloudEnvironmentVerticalBlur"_hsv, graph, cloudFaces[i],
                     {}, true);
                 atmosphereFaces[i] = blurComposePass("CloudEnvironmentHorizontalBlur"_hsv, graph, blurred,
                     atmosphereFaces[i], false);
             }
             passData.CloudEnvironment = graph.MergeImage(
-                Span<const Resource>(cloudFaces.data(), info.FaceIndices.size()));
+                Span<const ImageResource>(cloudFaces.data(), info.FaceIndices.size()));
             passData.AtmosphereWithCloudsEnvironment = graph.MergeImage(
-                Span<const Resource>(atmosphereFaces.data(), info.FaceIndices.size()));
+                Span<const ImageResource>(atmosphereFaces.data(), info.FaceIndices.size()));
         },
         [=](const PassData&, FrameContext&, const Graph&)
         {

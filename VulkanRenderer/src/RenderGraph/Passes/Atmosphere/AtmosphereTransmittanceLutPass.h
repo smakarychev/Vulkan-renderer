@@ -6,12 +6,12 @@ namespace Passes::Atmosphere::Transmittance
 {
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
+    RG::BufferResource ViewInfo{};
 };
 
 struct PassData
 {
-    RG::Resource Lut{};
+    RG::ImageResource Lut{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

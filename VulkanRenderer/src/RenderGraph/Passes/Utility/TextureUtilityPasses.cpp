@@ -9,14 +9,14 @@
 #include "RenderGraph/Passes/Generated/TextureArrayToAtlasBindGroupRG.generated.h"
 #include "RenderGraph/Passes/Generated/TextureArrayToSliceBindGroupRG.generated.h"
 
-RG::Resource Passes::Texture2dToTexture2d::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
-    ChannelComposition channelComposition)
+RG::ImageResource Passes::Texture2dToTexture2d::addToGraph(StringId name, RG::Graph& renderGraph, 
+    RG::ImageResource textureIn, ChannelComposition channelComposition)
 {
     using namespace RG;
     struct PassData
     {
-        Resource Texture{};
-        Resource TextureOut{};
+        ImageResource Texture{};
+        ImageResource TextureOut{};
         Texture2dToTexture2dBindGroupRG BindGroup;
     };
     
@@ -54,14 +54,14 @@ RG::Resource Passes::Texture2dToTexture2d::addToGraph(StringId name, RG::Graph& 
 }
 
 
-RG::Resource Passes::Texture3dToSlice::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
+RG::ImageResource Passes::Texture3dToSlice::addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn,
     f32 sliceNormalized, ChannelComposition channelComposition)
 {
     using namespace RG;
     struct PassData
     {
-        Resource Slice{};
-        Resource Texture3d{};
+        ImageResource Slice{};
+        ImageResource Texture3d{};
         Texture3dToSliceBindGroupRG BindGroup;
     };
     
@@ -101,14 +101,14 @@ RG::Resource Passes::Texture3dToSlice::addToGraph(StringId name, RG::Graph& rend
         }).Slice;
 }
 
-RG::Resource Passes::TextureArrayToSlice::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
+RG::ImageResource Passes::TextureArrayToSlice::addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn,
     u32 slice, ChannelComposition channelComposition)
 {
     using namespace RG;
     struct PassData
     {
-        Resource Slice{};
-        Resource TextureArray{};
+        ImageResource Slice{};
+        ImageResource TextureArray{};
         TextureArrayToSliceBindGroupRG BindGroup;
     };
 
@@ -151,14 +151,14 @@ RG::Resource Passes::TextureArrayToSlice::addToGraph(StringId name, RG::Graph& r
         }).Slice;
 }
 
-RG::Resource Passes::TextureArrayToAtlas::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
+RG::ImageResource Passes::TextureArrayToAtlas::addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn,
     ChannelComposition channelComposition)
 {
     using namespace RG;
     struct PassData
     {
-        Resource Atlas{};
-        Resource TextureArray{};
+        ImageResource Atlas{};
+        ImageResource TextureArray{};
         TextureArrayToAtlasBindGroupRG BindGroup;
     };
 

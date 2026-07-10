@@ -10,7 +10,7 @@ struct ExecutionInfo
     ::SceneMultiviewVisibility* MultiviewVisibility{nullptr};
     SceneVisibilityPassesResources* Resources{nullptr};
     SceneVisibilityStage Stage{SceneVisibilityStage::Cull};
-    std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Depths{};
+    std::array<RG::ImageResource, SceneMultiviewVisibility::MAX_VIEWS> Depths{};
 };
 
 struct PassData

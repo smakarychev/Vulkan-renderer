@@ -87,7 +87,7 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
             CPU_PROFILE_FRAME("SceneCsm.Setup")
 
             Cameras& cameras = graph.GetOrCreateBlackboardValue<Cameras>();
-            std::array<Resource, SHADOW_CASCADES> gpuViews = {};
+            std::array<BufferResource, SHADOW_CASCADES> gpuViews = {};
             if (!info.CreateCamerasInGpu)
             {
                 const std::vector cascades = calculateDepthCascades(*info.MainCamera, info.ShadowMin, info.ShadowMax);
@@ -125,12 +125,14 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
                     gpuViews.begin());
             }
 
-            Resource shadow = renderGraph.Create("ShadowMap"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
-                .Width = (f32)SHADOW_MAP_RESOLUTION,
-                .Height = (f32)SHADOW_MAP_RESOLUTION,
-                .LayersDepth = (f32)SHADOW_CASCADES,
-                .Format = Format::D32_FLOAT,
-                .Kind = ImageKind::Image2dArray});
+            const ImageResource shadow = renderGraph.Create("ShadowMap"_hsv, ResourceCreationFlags::AutoUpdate,
+                RGImageDescription{
+                    .Width = (f32)SHADOW_MAP_RESOLUTION,
+                    .Height = (f32)SHADOW_MAP_RESOLUTION,
+                    .LayersDepth = (f32)SHADOW_CASCADES,
+                    .Format = Format::D32_FLOAT,
+                    .Kind = ImageKind::Image2dArray
+                });
 
             auto initShadowPassForView = [&](u32 viewIndex)
             {
@@ -147,12 +149,12 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
                     };
             };
 
-            std::vector<Resource> cascadeShadows;
+            std::vector<ImageResource> cascadeShadows;
             cascadeShadows.reserve(SHADOW_CASCADES);
             passData.MetaPassDescriptions.reserve(SHADOW_CASCADES);
             for (u32 i = 0; i < SHADOW_CASCADES; i++)
             {
-                Resource cascade = graph.SplitImage(shadow,
+                ImageResource cascade = graph.SplitImage(shadow,
                     {.MipmapBase = 0, .Mipmaps = 1, .LayerBase = (i8)i, .Layers = 1});
                 DrawAttachments attachments = {
                     .Depth = DepthStencilAttachment{
@@ -206,7 +208,7 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
 void Passes::SceneCsm::mergeCsm(RG::Graph& renderGraph, PassData& passData, const ScenePass& scenePass,
     const SceneDrawPassViewAttachments& attachments)
 {
-    std::array<RG::Resource, SHADOW_CASCADES> cascades;
+    std::array<RG::ImageResource, SHADOW_CASCADES> cascades;
     for (u32 i = 0; i < passData.MetaPassDescriptions.size(); i++)
         cascades[i] = attachments.Get(passData.MetaPassDescriptions[i].SceneView.Name, scenePass.Name()).Depth->Resource;
 

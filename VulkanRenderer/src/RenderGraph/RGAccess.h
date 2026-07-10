@@ -45,11 +45,10 @@ enum class AccessType : u8
 
 CREATE_ENUM_FLAGS_OPERATORS(AccessType)
 
-struct ResourceAccess
+struct ResourceAccessInfo
 {
     static constexpr u32 NO_PASS = ~0u;
     u32 PassIndex{NO_PASS};
-    Resource Resource{};
     AccessType Type{AccessType::None};
     PipelineStage Stage{PipelineStage::None};
     PipelineAccess Access{PipelineAccess::None};
@@ -60,6 +59,18 @@ struct ResourceAccess
     bool HasRead() const { return enumHasAny(Type, AccessType::Read); }
     bool HasWrite() const { return enumHasAny(Type, AccessType::Write); }
     bool IsReadOnly() const { return Type == AccessType::Read; }
+};
+
+struct BufferResourceAccess
+{
+    ResourceAccessInfo Info{};
+    BufferResource Resource{};
+};
+
+struct ImageResourceAccess
+{
+    ResourceAccessInfo Info{};
+    ImageResource Resource{};
 };
 
 struct RenderTargetAccessDescription
@@ -78,13 +89,13 @@ struct DepthStencilTargetAccessDescription
 
 struct RenderTargetAccess
 {
-    Resource Resource{};
+    ImageResource Resource{};
     RenderTargetAccessDescription Description{};
 };
 
 struct DepthStencilTargetAccess
 {
-    Resource Resource{};
+    ImageResource Resource{};
     DepthStencilTargetAccessDescription Description{};
     std::optional<DepthBias> DepthBias{std::nullopt};
 };
@@ -94,23 +105,27 @@ enum class AccessConflictType : u8
     Execution, Memory, Layout
 };
 
-struct ResourceAccessConflict
+struct ResourceAccessConflictInfo
 {
     AccessConflictType Type{AccessConflictType::Execution};
     u32 FirstPassIndex{0};
     u32 SecondPassIndex{0};
-    Resource Resource{};
     PipelineStage FirstStage{PipelineStage::None};
     PipelineStage SecondStage{PipelineStage::None};
     PipelineAccess FirstAccess{PipelineAccess::None};
     PipelineAccess SecondAccess{PipelineAccess::None};
 };
 
-using BufferResourceAccessConflict = ResourceAccessConflict;
+struct BufferResourceAccessConflict
+{
+    ResourceAccessConflictInfo Info{};
+    BufferResource Resource{};
+};
 
 struct ImageResourceAccessConflict
 {
-    ResourceAccessConflict AccessConflict{};
+    ResourceAccessConflictInfo Info{};
+    ImageResource Resource{};
     ImageLayout FirstLayout{};
     ImageLayout SecondLayout{};
     ImageSubresourceDescription Subresource{};

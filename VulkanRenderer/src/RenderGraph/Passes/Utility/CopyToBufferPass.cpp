@@ -11,7 +11,7 @@ Passes::CopyToBuffer::PassData& Passes::CopyToBuffer::addToGraph(StringId name, 
 {
     using namespace RG;
     
-    const Resource source = Upload::addToGraph(name.Concatenate(".Upload"), renderGraph, info.Source);
+    const BufferResource source = Upload::addToGraph(name.Concatenate(".Upload"), renderGraph, info.Source);
 
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)

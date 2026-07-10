@@ -12,20 +12,20 @@ struct SceneView;
 
 struct SceneDrawPassExecutionInfo
 {
-    RG::Resource Draws{};
-    RG::Resource DrawInfo{};
+    RG::BufferResource Draws{};
+    RG::BufferResource DrawInfo{};
     glm::uvec2 Resolution{};
-    RG::Resource ViewInfo{};
-    RG::Resource VisibleMeshlets{};
+    RG::BufferResource ViewInfo{};
+    RG::BufferResource VisibleMeshlets{};
     RG::DrawAttachments Attachments{};
     ShaderOverrides* BucketOverrides{nullptr};
 };
 struct SceneDrawPassResources
 {
-    RG::Resource Draws{};
-    RG::Resource DrawInfo{};
-    RG::Resource ViewInfo{};
-    RG::Resource VisibleMeshlets{};
+    RG::BufferResource Draws{};
+    RG::BufferResource DrawInfo{};
+    RG::BufferResource ViewInfo{};
+    RG::BufferResource VisibleMeshlets{};
     RG::DrawAttachmentResources Attachments{};
     u32 MaxDrawCount{0};
 
@@ -49,12 +49,12 @@ class SceneDrawPassViewAttachments
 public:
     const RG::DrawAttachments& Get(StringId viewName, StringId passName) const;
     RG::DrawAttachments& Get(StringId viewName, StringId passName);
-    RG::Resource GetMinMaxDepthReduction(StringId viewName) const;
+    RG::BufferResource GetMinMaxDepthReduction(StringId viewName) const;
 
     void Add(StringId viewName, StringId passName, const RG::DrawAttachments& attachments);
-    void SetMinMaxDepthReduction(StringId viewName, RG::Resource minMaxDepthReduction);
+    void SetMinMaxDepthReduction(StringId viewName, RG::BufferResource minMaxDepthReduction);
 private:
     using PassNameToAttachments = std::unordered_map<StringId, RG::DrawAttachments>;
     std::unordered_map<StringId, PassNameToAttachments> m_Attachments;
-    std::unordered_map<StringId, RG::Resource> m_MinMaxDepthReductions;
+    std::unordered_map<StringId, RG::BufferResource> m_MinMaxDepthReductions;
 };

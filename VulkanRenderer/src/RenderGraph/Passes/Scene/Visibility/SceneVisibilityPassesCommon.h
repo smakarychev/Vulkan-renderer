@@ -9,25 +9,25 @@ enum class SceneVisibilityStage {Cull, Reocclusion, Single};
 
 struct SceneVisibilityPassesResources
 {
-    RG::Resource Meshlets{};
-    RG::Resource RenderObjects{};
-    RG::Resource RenderObjectBuckets{};
-    RG::Resource RenderObjectHandles{};
-    std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Views{};
-    std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Hiz{};
-    std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> HizPrevious{};
-    std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> MinMaxDepthReductions{};
+    RG::BufferResource Meshlets{};
+    RG::BufferResource RenderObjects{};
+    RG::BufferResource RenderObjectBuckets{};
+    RG::BufferResource RenderObjectHandles{};
+    std::array<RG::BufferResource, SceneMultiviewVisibility::MAX_VIEWS> Views{};
+    std::array<RG::ImageResource, SceneMultiviewVisibility::MAX_VIEWS> Hiz{};
+    std::array<RG::ImageResource, SceneMultiviewVisibility::MAX_VIEWS> HizPrevious{};
+    std::array<RG::BufferResource, SceneMultiviewVisibility::MAX_VIEWS> MinMaxDepthReductions{};
 
     static constexpr u32 MAX_DRAW_COMMAND_BUFFERS = MAX_BUCKETS_PER_SET * 2;
-    std::array<RG::Resource, MAX_DRAW_COMMAND_BUFFERS> Draws{};
-    std::array<RG::Resource, MAX_DRAW_COMMAND_BUFFERS> DrawInfos{};
+    std::array<RG::BufferResource, MAX_DRAW_COMMAND_BUFFERS> Draws{};
+    std::array<RG::BufferResource, MAX_DRAW_COMMAND_BUFFERS> DrawInfos{};
     
-    RG::Resource VisibleRenderObjectsData{};
-    RG::Resource OccludedRenderObjectsData{};
-    RG::Resource VisibleMeshletsData{};
-    RG::Resource OccludedMeshletsData{};
-    RG::Resource ExpandedMeshlets{};
-    RG::Resource VisibilityCountData{};
+    RG::BufferResource VisibleRenderObjectsData{};
+    RG::BufferResource OccludedRenderObjectsData{};
+    RG::BufferResource VisibleMeshletsData{};
+    RG::BufferResource OccludedMeshletsData{};
+    RG::BufferResource ExpandedMeshlets{};
+    RG::BufferResource VisibilityCountData{};
     
     u32 VisibilityCount{0};
     u32 RenderObjectCount{0};

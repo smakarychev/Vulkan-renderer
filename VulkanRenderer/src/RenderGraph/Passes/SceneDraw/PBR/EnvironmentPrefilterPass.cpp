@@ -7,7 +7,7 @@
 #include "Rendering/Image/ImageUtility.h"
 
 Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource cubemap, RG::Resource prefiltered, bool realTime)
+    RG::ImageResource cubemap, RG::ImageResource prefiltered, bool realTime)
 {
     static constexpr i8 MAX_MIPMAP_COUNT = 16;
     
@@ -18,7 +18,7 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
 
     i8 mipmapCount = Device::GetImageDescription(renderGraph.GetImage(prefiltered)).Mipmaps;
     ASSERT(MAX_MIPMAP_COUNT > mipmapCount)
-    std::array<Resource, MAX_MIPMAP_COUNT> mips = {};
+    std::array<ImageResource, MAX_MIPMAP_COUNT> mips = {};
     for (i8 i = 0; i < mipmapCount; i++)
         mips[i] = renderGraph.SplitImage(prefiltered, 
             Device::GetAdditionalImageViews(renderGraph.GetImage(prefiltered))[i]);
@@ -73,7 +73,7 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
 
         if (mipmap == mipmapCount - 1)
         {
-            data.PrefilteredTexture = renderGraph.MergeImage(Span<const Resource>(mips.data(), mipmapCount));
+            data.PrefilteredTexture = renderGraph.MergeImage(Span<const ImageResource>(mips.data(), mipmapCount));
             return data;
         }
     }

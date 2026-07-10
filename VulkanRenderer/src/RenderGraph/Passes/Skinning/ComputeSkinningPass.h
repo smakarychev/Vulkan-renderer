@@ -5,23 +5,23 @@ namespace Passes::ComputeSkinning
 {
 struct ExecutionInfo
 {
-    RG::Resource RenderObjects{};
-    RG::Resource Meshlets{};
-    RG::Resource Skins{};
-    RG::Resource RenderObjectSkinnedInfos{};
-    RG::Resource RenderObjectSkinnedInfoIndices{};
-    RG::Resource Ugb{};
-    RG::Resource JointMatrices{};
-    RG::Resource BlendShapes{};
+    RG::BufferResource RenderObjects{};
+    RG::BufferResource Meshlets{};
+    RG::BufferResource Skins{};
+    RG::BufferResource RenderObjectSkinnedInfos{};
+    RG::BufferResource RenderObjectSkinnedInfoIndices{};
+    RG::BufferResource Ugb{};
+    RG::BufferResource JointMatrices{};
+    RG::BufferResource BlendShapes{};
     u32 SkinnedRenderObjectCount{0};
     u32 SkinnedMeshletCount{0};
 };
 
 struct PassData
 {
-    RG::Resource RenderObjects{};
-    RG::Resource Ugb{};
-    RG::Resource Meshlets{};
+    RG::BufferResource RenderObjects{};
+    RG::BufferResource Ugb{};
+    RG::BufferResource Meshlets{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

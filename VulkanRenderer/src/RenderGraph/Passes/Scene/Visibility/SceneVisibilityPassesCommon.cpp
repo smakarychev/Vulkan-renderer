@@ -74,6 +74,6 @@ void SceneVisibilityPassesResources::Init(const SceneMultiviewVisibility& sceneM
         if (sceneMultiviewVisibility.View({i}).ViewInfo.IsViewInfoGPU())
             Views[i] = renderGraph.Upload(Views[i], sceneMultiviewVisibility.View({i}).ViewInfo.AsViewInfoGPU());
         else
-            Views[i] = sceneMultiviewVisibility.View({i}).ViewInfo.AsHandle<RG::Resource>();
+            Views[i] = sceneMultiviewVisibility.View({i}).ViewInfo.AsHandle<RG::BufferResource>();
     }
 }

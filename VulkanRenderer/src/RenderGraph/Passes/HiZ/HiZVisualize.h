@@ -6,12 +6,12 @@ namespace Passes::HiZVisualize
 
 struct ExecutionInfo
 {
-    RG::Resource Hiz{};
+    RG::ImageResource Hiz{};
 };
 
 struct PassData
 {
-    RG::Resource Color{};
+    RG::ImageResource Color{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

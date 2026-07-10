@@ -16,18 +16,18 @@ struct ExecutionInfo
 {
     const Camera* PrimaryCamera{nullptr};
     const ViewInfoGPU* PrimaryView{nullptr};
-    RG::Resource CloudCoverage{};
-    RG::Resource CloudProfile{};
-    RG::Resource CloudShapeLowFrequencyMap{};
-    RG::Resource CloudShapeHighFrequencyMap{};
-    RG::Resource CloudCurlNoise{};
-    RG::Resource CloudParameters{};
+    RG::ImageResource CloudCoverage{};
+    RG::ImageResource CloudProfile{};
+    RG::ImageResource CloudShapeLowFrequencyMap{};
+    RG::ImageResource CloudShapeHighFrequencyMap{};
+    RG::ImageResource CloudCurlNoise{};
+    RG::BufferResource CloudParameters{};
     const lux::CommonLight* Light{nullptr};
 };
 
 struct PassData
 {
-    RG::Resource Shadow{};
+    RG::ImageResource Shadow{};
     ViewInfoGPU ShadowView{};
 };
 

@@ -12,26 +12,26 @@ namespace
 {
 struct PassDataIdentify
 {
-    RG::Resource Visibility{};
+    RG::BufferResource Visibility{};
 };
 struct PassDataCompactPrepare
 {
-    RG::Resource ActiveClusters{};
-    RG::Resource ActiveClustersCount{};
+    RG::BufferResource ActiveClusters{};
+    RG::BufferResource ActiveClustersCount{};
 };
 struct PassDataCrateDispatch
 {
-    RG::Resource DispatchIndirect{};
+    RG::BufferResource DispatchIndirect{};
 };
 struct PassDataCompact
 {
-    RG::Resource ActiveClusters{};
-    RG::Resource ActiveClustersCount{};
-    RG::Resource DispatchIndirect{};
+    RG::BufferResource ActiveClusters{};
+    RG::BufferResource ActiveClustersCount{};
+    RG::BufferResource DispatchIndirect{};
 };
 
 PassDataIdentify& identifyActiveClusters(StringId name, RG::Graph& renderGraph,
-    RG::Resource clusterVisibility, RG::Resource depth, RG::Resource view)
+    RG::BufferResource clusterVisibility, RG::ImageResource depth, RG::BufferResource view)
 {
     using namespace RG;
     using PassData = PassDataWithBind<PassDataIdentify, LightClustersCompactIdentifyBindGroupRG>;
@@ -63,7 +63,8 @@ PassDataIdentify& identifyActiveClusters(StringId name, RG::Graph& renderGraph,
         });
 }
 
-PassDataCompactPrepare& compactActiveClustersPrepare(StringId name, RG::Graph& renderGraph, RG::Resource clusterVisibility)
+PassDataCompactPrepare& compactActiveClustersPrepare(StringId name, RG::Graph& renderGraph,
+    RG::BufferResource clusterVisibility)
 {
     using namespace RG;
     using PassData = PassDataWithBind<PassDataCompactPrepare, LightClustersCompactBindGroupRG>;
@@ -97,7 +98,7 @@ PassDataCompactPrepare& compactActiveClustersPrepare(StringId name, RG::Graph& r
         });
 }
 
-PassDataCrateDispatch& createIndirectDispatch(StringId name, RG::Graph& renderGraph, RG::Resource clusterCount)
+PassDataCrateDispatch& createIndirectDispatch(StringId name, RG::Graph& renderGraph, RG::BufferResource clusterCount)
 {
     using namespace RG;
     using PassData = PassDataWithBind<PassDataCrateDispatch, LightClustersCompactCreateDispatchBindGroupRG>;
@@ -157,7 +158,7 @@ Passes::LightClustersBin::PassData& Passes::LightClustersBin::addToGraph(StringI
     using namespace RG;
     struct PassDataBind : PassDataWithBind<PassData, LightClustersBinBindGroupRG>
     {
-        Resource DispatchIndirect{};
+        BufferResource DispatchIndirect{};
     };
     
     return renderGraph.AddRenderPass<PassDataBind>(name,

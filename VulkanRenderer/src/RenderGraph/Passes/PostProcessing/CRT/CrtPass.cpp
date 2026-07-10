@@ -35,11 +35,11 @@ Passes::Crt::PassData& Passes::Crt::addToGraph(StringId name, RG::Graph& renderG
             passData.BindGroup.SetResourcesImage(info.Color);
             
             auto& globalResources = graph.GetGlobalResources();
-            Resource time = passData.BindGroup.SetResourcesTime(
+            const BufferResource time = passData.BindGroup.SetResourcesTime(
                 graph.Create("Time"_hsv, RGBufferDescription{.SizeBytes = sizeof(f32)}));
             graph.Upload(time, (f32)globalResources.FrameNumberTick);
 
-            Resource settings = passData.BindGroup.SetResourcesSettings(
+            const BufferResource settings = passData.BindGroup.SetResourcesSettings(
                 graph.Create("Settings"_hsv, RGBufferDescription{.SizeBytes = sizeof(SettingsUBO)}));
             auto& settingsUbo = graph.GetOrCreateBlackboardValue<SettingsUBO>();
             ImGui::Begin("CRT settings");

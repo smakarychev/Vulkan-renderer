@@ -5,8 +5,8 @@ namespace Passes::Mipmap
 {
 struct PassData
 {
-    RG::Resource Texture{};
+    RG::ImageResource Texture{};
 };
 
-PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource texture);
+PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource image);
 }

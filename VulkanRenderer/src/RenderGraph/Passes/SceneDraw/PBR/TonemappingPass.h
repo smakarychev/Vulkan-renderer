@@ -17,12 +17,12 @@ enum class TonemappingType : u8
 
 struct ExecutionInfo
 {
-    RG::Resource Color{};
+    RG::ImageResource Color{};
     TonemappingType Type{TonemappingType::GT7};
 };
 struct PassData
 {
-    RG::Resource Color;
+    RG::ImageResource Color;
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

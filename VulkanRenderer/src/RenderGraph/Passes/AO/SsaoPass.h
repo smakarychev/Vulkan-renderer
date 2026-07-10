@@ -6,13 +6,13 @@ namespace Passes::Ssao
 {
 struct ExecutionInfo
 {
-    RG::Resource Depth{};
+    RG::ImageResource Depth{};
     u32 MaxSampleCount{32};
 };
 
 struct PassData
 {
-    RG::Resource Ssao{};
+    RG::ImageResource Ssao{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

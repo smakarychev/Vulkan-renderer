@@ -453,8 +453,8 @@ void Graph::Execute(FrameContext& frameContext)
         if (enumHasAny(pass.m_Flags, PassFlags::Rasterization))
         {
             glm::uvec2 resolution = pass.m_RenderTargets.empty() ?
-                                        GetImageDescription(pass.m_DepthStencilTargetAccess.Resource).Dimensions() :
-                                        GetImageDescription(pass.m_RenderTargets.front().Resource).Dimensions();
+                GetImageDescription(pass.m_DepthStencilTargetAccess.Resource).Dimensions() :
+                GetImageDescription(pass.m_RenderTargets.front().Resource).Dimensions();
 
             std::optional<DepthBias> depthBias{};
 
@@ -576,12 +576,14 @@ std::vector<std::vector<u32>> Graph::BuildDependencyList() const
     CPU_PROFILE_FRAME("Build dependency list")
 
     const u32 totalResourceCount = u32(m_Buffers.size() + m_Images.size());
-    auto resourceIndex = [](const Resource resource) -> u64
+    auto resourceIndex = []<typename Res>(const Res resource) -> u64
     {
-        return
-            (u64)resource.IsImage() << 63u |
-            (u64)(resource.m_Version << 15u | resource.m_Index) << 31u |
-            (u64)resource.m_Extra;
+        const u64 baseIndex = (u64)(resource.m_Version << 15u | resource.m_Index) << 31u;
+        
+        if constexpr(std::is_same_v<Res, BufferResource>) 
+            return baseIndex;
+        else 
+            return 1llu << 63u | baseIndex | (u64)resource.m_Extra;
     };
     std::unordered_multimap<u64, u32> consumers;
     std::unordered_map<u64, u32> producers;
@@ -589,24 +591,32 @@ std::vector<std::vector<u32>> Graph::BuildDependencyList() const
     consumers.reserve(m_BufferAccesses.size() + m_Images.size());
 
     /* A resource is produced by `Write` access, or by `Split` and `Merge` in case of images */
-    auto findProducersConsumers = [&consumers, &producers, &resourceIndex, this](auto& accesses)
+    auto findProducersConsumers = [&consumers, &producers, &resourceIndex, this]<typename Access>(
+        const std::vector<Access>& accesses)
     {
         for (auto& access : accesses)
         {
+            auto& info = access.Info;
             const u64 index = resourceIndex(access.Resource);
-            if (access.HasRead())
-                consumers.emplace(index, access.PassIndex);
+            if (info.HasRead())
+                consumers.emplace(index, info.PassIndex);
 
-            if (access.HasWrite() || access.IsSplitOrMerge())
+            if (info.HasWrite() || info.IsSplitOrMerge())
             {
-                ASSERT(!access.HasWrite() || !producers.contains(index),
-                    "Conflicting writes of resource '{}' between passes '{}' and '{}'",
-                    access.Resource.IsBuffer() ?
-                    m_Buffers[access.Resource.m_Index].Name.AsString() :
-                    m_Images[access.Resource.m_Index].Name.AsString(),
-                    m_Passes[producers.at(index)]->m_Name.AsString(),
-                    m_Passes[access.PassIndex]->m_Name.AsString())
-                producers.emplace(index, access.PassIndex);
+                if (info.HasWrite() && producers.contains(index))
+                {
+                    StringId name{};
+                    if constexpr(std::is_same_v<Access, BufferResourceAccess>)
+                        name = m_Buffers[access.Resource.m_Index].Name;
+                    else
+                        name = m_Images[access.Resource.m_Index].Name;
+                    ASSERT(false, "Conflicting writes of resource '{}' between passes '{}' and '{}'",
+                        name,
+                        m_Passes[producers.at(index)]->m_Name.AsString(),
+                        m_Passes[info.PassIndex]->m_Name.AsString()
+                    )
+                }
+                producers.emplace(index, info.PassIndex);
             }
         }
     };
@@ -631,26 +641,27 @@ std::vector<std::vector<u32>> Graph::BuildDependencyList() const
 
         for (auto& access : accesses)
         {
+            auto& info = access.Info;
             const u64 index = resourceIndex(access.Resource);
-            if (access.HasWrite() || access.IsSplitOrMerge())
+            if (info.HasWrite() || info.IsSplitOrMerge())
             {
-                Resource readResource = access.Resource;
+                auto readResource = access.Resource;
                 readResource.m_Version -= 1;
                 const u64 readIndex = resourceIndex(readResource);
                 if (consumers.contains(readIndex))
                 {
                     auto range = consumers.equal_range(readIndex);
                     for (auto it = range.first; it != range.second; ++it)
-                        if (it->second != access.PassIndex)
-                            addIfNew(dependencyList[it->second], access.PassIndex);
+                        if (it->second != info.PassIndex)
+                            addIfNew(dependencyList[it->second], info.PassIndex);
                 }
-                if (producers.contains(readIndex) && producers.at(readIndex) != access.PassIndex)
-                    addIfNew(dependencyList[producers.at(readIndex)], access.PassIndex);
+                if (producers.contains(readIndex) && producers.at(readIndex) != info.PassIndex)
+                    addIfNew(dependencyList[producers.at(readIndex)], info.PassIndex);
             }
-            if (!producers.contains(index) || producers.at(index) == access.PassIndex)
+            if (!producers.contains(index) || producers.at(index) == info.PassIndex)
                 continue;
 
-            addIfNew(dependencyList[producers.at(index)], access.PassIndex);
+            addIfNew(dependencyList[producers.at(index)], info.PassIndex);
         }
     };
 
@@ -712,30 +723,40 @@ void Graph::TopologicalSort(std::vector<std::vector<u32>>& dependencyList)
 
     /* permute according to the topology order */
 
-    auto sortAndMergeAccesses = [&passRemap](auto& accesses)
+    auto sortAndMergeAccesses = [&passRemap]<typename Access>(std::vector<Access>& accesses)
     {
         for (auto& access : accesses)
-            access.PassIndex = passRemap[access.PassIndex];
+            access.Info.PassIndex = passRemap[access.Info.PassIndex];
         if (accesses.size() <= 1)
             return;
 
-        std::ranges::stable_sort(accesses, std::less{}, [](const ResourceAccess& access) -> u64
+        std::ranges::stable_sort(accesses, std::less{}, [](const Access& access) -> u64
         {
-            return ((u64)access.PassIndex << 32) | access.Resource.m_Index;
+            return ((u64)access.Info.PassIndex << 32) | access.Resource.m_Index;
         });
-        std::vector<ResourceAccess> merged;
+        std::vector<Access> merged;
         merged.reserve(accesses.size());
         merged.push_back(accesses.front());
         for (u32 i = 1; i < accesses.size(); i++)
         {
-            if (accesses[i].Resource.m_Index == merged.back().Resource.m_Index &&
-                accesses[i].PassIndex == merged.back().PassIndex &&
-                accesses[i].Resource.m_Extra == merged.back().Resource.m_Extra &&
-                !enumHasAny(merged.back().Type, AccessType::Split | AccessType::Merge))
+            auto& info = accesses[i].Info;
+            auto& mergedInfo = merged.back().Info;
+            
+            bool canMerge = 
+                accesses[i].Resource.m_Index == merged.back().Resource.m_Index &&
+                info.PassIndex == mergedInfo.PassIndex;
+            
+            if constexpr(std::is_same_v<Access, ImageResourceAccess>)
+                canMerge = 
+                    canMerge && 
+                    accesses[i].Resource.m_Extra == merged.back().Resource.m_Extra &&
+                    !enumHasAny(mergedInfo.Type, AccessType::Split | AccessType::Merge);
+            
+            if (canMerge)
             {
-                merged.back().Type |= accesses[i].Type;
-                merged.back().Stage |= accesses[i].Stage;
-                merged.back().Access |= accesses[i].Access;
+                mergedInfo.Type |= info.Type;
+                mergedInfo.Stage |= info.Stage;
+                mergedInfo.Access |= info.Access;
             }
             else
             {
@@ -801,25 +822,27 @@ void Graph::ProcessVirtualResources()
 
     auto allocateResources = [this](auto& accesses, auto& resources)
     {
-        for (ResourceAccess& access : std::views::reverse(accesses))
+        for (auto& access : std::views::reverse(accesses))
         {
+            auto& info = access.Info;
             auto& resource = resources[access.Resource.m_Index];
             if (const auto res = ValidateAccess(access, resource); !res.has_value())
             {
                 LUX_LOG_ERROR("Invalid access detected for pass {}. The pass will be skipped, reason: {}",
-                    m_Passes[access.PassIndex]->Name(), res.error());
-                m_Passes[access.PassIndex]->m_Flags |= PassFlags::Disabled;
+                    m_Passes[info.PassIndex]->Name(), res.error());
+                m_Passes[info.PassIndex]->m_Flags |= PassFlags::Disabled;
                 continue;
             }
 
             if (resource.LastAccess == ResourceBase::NO_ACCESS)
-                resource.LastAccess = access.PassIndex;
-            resource.FirstAccess = access.PassIndex;
+                resource.LastAccess = info.PassIndex;
+            resource.FirstAccess = info.PassIndex;
         }
 
-        for (ResourceAccess& access : accesses)
+        for (auto& access : accesses)
         {
-            const Resource handle = access.Resource;
+            auto& info = access.Info;
+            const auto handle = access.Resource;
             auto& resource = resources[handle.m_Index];
             if (!resource.Resource.HasValue() && resource.FirstAccess != ResourceBase::NO_ACCESS &&
                 !resource.IsExported)
@@ -845,19 +868,40 @@ void Graph::ProcessVirtualResources()
     allocateResources(m_ImageAccesses, m_Images);
 }
 
-Graph::ValidateAccessResult Graph::ValidateAccess(const ResourceAccess& access, const ResourceBase& base)
+Graph::ValidateAccessResult Graph::ValidateAccessCommon(const ResourceAccessInfo& info)
 {
-    if (access.IsSplitOrMerge())
-        return {};
-    if (access.Stage == PipelineStage::None)
-        return std::unexpected(std::format("Stage is not inferrable for {}", base.Name));
-    if (access.Access == PipelineAccess::None)
-        return std::unexpected(std::format("Access is not inferrable for {}", base.Name));
-    if (access.Resource.IsBuffer() ?
-            m_Buffers[access.Resource.m_Index].Description.Usage == BufferUsage::None :
-            m_Images[access.Resource.m_Index].Description.Usage == ImageUsage::None)
-        return std::unexpected(std::format("Usage is not inferrable for {}", base.Name));
+    if (info.Stage == PipelineStage::None)
+        return std::unexpected("Stage is not inferrable");
+    if (info.Access == PipelineAccess::None)
+        return std::unexpected("Access is not inferrable");
+    
+    return {};
+}
 
+Graph::ValidateAccessResult Graph::ValidateAccess(const BufferResourceAccess& access, const RGBuffer& buffer)
+{
+    auto common = ValidateAccessCommon(access.Info);
+    if (!common.has_value())
+        return std::unexpected(std::format("Invalid access for buffer {}: {}", buffer.Name, common.error()));
+    
+    if (m_Buffers[access.Resource.m_Index].Description.Usage == BufferUsage::None)
+        return std::unexpected(std::format("Invalid access for buffer {}: Usage is not inferrable", buffer.Name));
+    
+    return {};
+}
+
+Graph::ValidateAccessResult Graph::ValidateAccess(const ImageResourceAccess& access, const RGImage& image)
+{
+    if (access.Info.IsSplitOrMerge())
+        return {};
+    
+    auto common = ValidateAccessCommon(access.Info);
+    if (!common.has_value())
+        return std::unexpected(std::format("Invalid access for image {}: {}", image.Name, common.error()));
+    
+    if (m_Images[access.Resource.m_Index].Description.Usage == ImageUsage::None)
+        return std::unexpected(std::format("Invalid access for image {}: Usage is not inferrable", image.Name));
+    
     return {};
 }
 
@@ -884,16 +928,18 @@ std::vector<BufferResourceAccessConflict> Graph::FindBufferResourceConflicts()
     std::vector<BufferResourceAccessConflict> bufferConflicts;
     bufferConflicts.reserve(m_BufferAccesses.size());
 
-    std::vector currentBufferAccess(m_Buffers.size(), ResourceAccess{});
+    std::vector currentBufferAccess(m_Buffers.size(), BufferResourceAccess{});
 
     for (auto& access : m_BufferAccesses)
     {
+        auto& info = access.Info;
         const u32 index = access.Resource.m_Index;
 
-        ResourceAccess currentAccess = currentBufferAccess[index];
+        BufferResourceAccess currentAccess = currentBufferAccess[index];
+        auto& currentInfo = currentAccess.Info;
         currentBufferAccess[index] = access;
 
-        if (currentAccess.PassIndex == ResourceAccess::NO_PASS)
+        if (currentInfo.PassIndex == ResourceAccessInfo::NO_PASS)
         {
             if (m_Buffers[index].AliasedFrom.IsValid())
                 currentAccess = currentBufferAccess[m_Buffers[index].AliasedFrom.m_Index];
@@ -901,23 +947,25 @@ std::vector<BufferResourceAccessConflict> Graph::FindBufferResourceConflicts()
                 continue;
         }
 
-        if (currentAccess.IsReadOnly() && access.IsReadOnly())
+        if (currentInfo.IsReadOnly() && info.IsReadOnly())
             continue;
 
         BufferResourceAccessConflict conflict = {
-            .FirstPassIndex = currentAccess.PassIndex,
-            .SecondPassIndex = access.PassIndex,
+            .Info = {
+                .FirstPassIndex = currentInfo.PassIndex,
+                .SecondPassIndex = info.PassIndex,
+                .FirstStage = currentInfo.Stage,
+                .SecondStage = info.Stage,
+                .FirstAccess = currentInfo.Access,
+                .SecondAccess = info.Access
+            },
             .Resource = access.Resource,
-            .FirstStage = currentAccess.Stage,
-            .SecondStage = access.Stage,
-            .FirstAccess = currentAccess.Access,
-            .SecondAccess = access.Access
         };
 
-        if (currentAccess.IsReadOnly() && access.HasWrite())
-            conflict.Type = AccessConflictType::Execution;
+        if (currentInfo.IsReadOnly() && info.HasWrite())
+            conflict.Info.Type = AccessConflictType::Execution;
         else
-            conflict.Type = AccessConflictType::Memory;
+            conflict.Info.Type = AccessConflictType::Memory;
 
         bufferConflicts.push_back(conflict);
     }
@@ -929,7 +977,7 @@ std::vector<ImageResourceAccessConflict> Graph::FindImageResourceConflicts()
 {
     CPU_PROFILE_FRAME("Find image resource conflicts")
 
-    auto inferDesiredLayout = [this](const ResourceAccess& access, const ImageDescription& description)
+    auto inferDesiredLayout = [this](const ResourceAccessInfo& access, const ImageDescription& description)
     {
         if (enumHasAny(access.Access, PipelineAccess::ReadTransfer | PipelineAccess::WriteTransfer))
         {
@@ -950,8 +998,8 @@ std::vector<ImageResourceAccessConflict> Graph::FindImageResourceConflicts()
                 return ImageLayout::ColorAttachment;
             if (enumHasAny(access.Access, PipelineAccess::WriteDepthStencilAttachment))
                 return description.Format == Format::D32_FLOAT ?
-                           ImageLayout::DepthAttachment :
-                           ImageLayout::DepthStencilAttachment;
+                    ImageLayout::DepthAttachment :
+                    ImageLayout::DepthStencilAttachment;
             return ImageLayout::Attachment;
         }
         if (enumHasAny(access.Access, PipelineAccess::ReadDepthStencilAttachment) ||
@@ -959,12 +1007,12 @@ std::vector<ImageResourceAccessConflict> Graph::FindImageResourceConflicts()
             description.Format == Format::D24_UNORM_S8_UINT ||
             description.Format == Format::D32_FLOAT_S8_UINT)
             return description.Format == Format::D32_FLOAT ?
-                       ImageLayout::DepthReadonly :
-                       ImageLayout::DepthStencilReadonly;
+                ImageLayout::DepthReadonly :
+                ImageLayout::DepthStencilReadonly;
 
         return enumHasAny(description.Usage, ImageUsage::Sampled) ?
-                   ImageLayout::Readonly :
-                   ImageLayout::General;
+            ImageLayout::Readonly :
+            ImageLayout::General;
     };
     auto updateImageStateOnPureMerge = [](RGImage& image) -> RGImageState
     {
@@ -981,7 +1029,7 @@ std::vector<ImageResourceAccessConflict> Graph::FindImageResourceConflicts()
     std::vector<ImageResourceAccessConflict> imageConflicts;
     imageConflicts.reserve(m_ImageAccesses.size());
 
-    std::vector currentImageAccess(m_Images.size(), ResourceAccess{});
+    std::vector currentImageAccess(m_Images.size(), ImageResourceAccess{});
 
     /* all images start in Merged (not diverged) state */
     for (auto& image : m_Images)
@@ -989,38 +1037,42 @@ std::vector<ImageResourceAccessConflict> Graph::FindImageResourceConflicts()
 
     for (auto& access : m_ImageAccesses)
     {
+        auto& info = access.Info;
         const u32 index = access.Resource.m_Index;
         auto& image = m_Images[index];
 
-        if (access.OfType(AccessType::Split))
+        if (info.OfType(AccessType::Split))
             image.State = RGImageState::Split;
-        else if (access.OfType(AccessType::Merge))
-            image.State = access.HasReadOrWrite() ? RGImageState::Divergent : updateImageStateOnPureMerge(image);
-        if (!access.HasReadOrWrite())
+        else if (info.OfType(AccessType::Merge))
+            image.State = info.HasReadOrWrite() ? RGImageState::Divergent : updateImageStateOnPureMerge(image);
+        if (!info.HasReadOrWrite())
             continue;
 
-        ResourceAccess currentAccess = currentImageAccess[index];
+        ImageResourceAccess currentAccess = currentImageAccess[index];
+        auto& currentInfo = currentAccess.Info;
         currentImageAccess[index] = access;
 
-        if (currentAccess.PassIndex == ResourceAccess::NO_PASS)
+        if (currentInfo.PassIndex == ResourceAccessInfo::NO_PASS)
             if (image.AliasedFrom.IsValid())
                 currentAccess = currentImageAccess[image.AliasedFrom.m_Index];
 
-        ResourceAccessConflict conflict = {
-            .FirstPassIndex = currentAccess.PassIndex,
-            .SecondPassIndex = access.PassIndex,
+        ImageResourceAccessConflict conflict = {
+            .Info = {
+                .FirstPassIndex = currentInfo.PassIndex,
+                .SecondPassIndex = info.PassIndex,
+                .FirstStage = currentInfo.Stage,
+                .SecondStage = info.Stage,
+                .FirstAccess = currentInfo.Access,
+                .SecondAccess = info.Access
+            },
             .Resource = access.Resource,
-            .FirstStage = currentAccess.Stage,
-            .SecondStage = access.Stage,
-            .FirstAccess = currentAccess.Access,
-            .SecondAccess = access.Access
         };
 
-        const bool isMainSubresource = access.Resource.m_Extra == Resource::NO_EXTRA;
+        const bool isMainSubresource = access.Resource.m_Extra == ImageResource::NO_EXTRA;
         const ImageLayout currentLayout = isMainSubresource ?
-                                              image.Layout :
-                                              image.Extras[access.Resource.m_Extra].Layout;
-        const ImageLayout newLayout = inferDesiredLayout(access, image.Description);
+            image.Layout :
+            image.Extras[access.Resource.m_Extra].Layout;
+        const ImageLayout newLayout = inferDesiredLayout(info, image.Description);
 
         if (image.State == RGImageState::Divergent)
         {
@@ -1039,25 +1091,25 @@ std::vector<ImageResourceAccessConflict> Graph::FindImageResourceConflicts()
             continue;
         }
 
-        if (currentAccess.PassIndex == ResourceAccess::NO_PASS)
+        if (currentInfo.PassIndex == ResourceAccessInfo::NO_PASS)
             continue;
 
-        if (currentAccess.IsReadOnly() && access.IsReadOnly())
+        if (currentInfo.IsReadOnly() && info.IsReadOnly())
             continue;
 
-        if (currentAccess.IsReadOnly() && access.HasWrite())
-            conflict.Type = AccessConflictType::Execution;
+        if (currentInfo.IsReadOnly() && info.HasWrite())
+            conflict.Info.Type = AccessConflictType::Execution;
         else
-            conflict.Type = AccessConflictType::Memory;
+            conflict.Info.Type = AccessConflictType::Memory;
 
-        imageConflicts.push_back({.AccessConflict = conflict});
+        imageConflicts.push_back(conflict);
     }
 
     return imageConflicts;
 }
 
 bool Graph::HasChangedAllSplitLayouts(std::vector<ImageResourceAccessConflict>& conflicts,
-    ResourceAccessConflict& baseConflict, RGImage& image, ImageLayout newLayout)
+    ImageResourceAccessConflict& conflict, RGImage& image, ImageLayout newLayout)
 {
     /* every subresource might have its own layout */
     bool needLayoutChange = image.Extras.front().Layout != newLayout;
@@ -1075,18 +1127,19 @@ bool Graph::HasChangedAllSplitLayouts(std::vector<ImageResourceAccessConflict>& 
     if (!isDivergent)
     {
         image.Layout = image.Extras.front().Layout;
-        ChangeMainImageLayout(conflicts, baseConflict, image, newLayout);
+        ChangeMainImageLayout(conflicts, conflict, image, newLayout);
         return true;
     }
 
     /* we have at least a pair of subresources that diverged in layout */
-    baseConflict.Type = AccessConflictType::Layout;
+    conflict.Info.Type = AccessConflictType::Layout;
     for (u32 i = 0; i < image.Extras.size(); i++)
     {
         if (image.Extras[i].Layout != newLayout)
         {
             ImageResourceAccessConflict layoutConflict = {
-                .AccessConflict = baseConflict,
+                .Info = conflict.Info,
+                .Resource = conflict.Resource,
                 .FirstLayout = image.Extras[i].Layout,
                 .SecondLayout = newLayout,
                 .Subresource = image.Description.AdditionalViews[i]
@@ -1102,11 +1155,12 @@ bool Graph::HasChangedAllSplitLayouts(std::vector<ImageResourceAccessConflict>& 
 }
 
 void Graph::ChangeMainImageLayout(std::vector<ImageResourceAccessConflict>& conflicts,
-    ResourceAccessConflict& baseConflict, RGImage& image, ImageLayout newLayout)
+    ImageResourceAccessConflict& conflict, RGImage& image, ImageLayout newLayout)
 {
-    baseConflict.Type = AccessConflictType::Layout;
+    conflict.Info.Type = AccessConflictType::Layout;
     ImageResourceAccessConflict layoutConflict = {
-        .AccessConflict = baseConflict,
+        .Info = conflict.Info,
+        .Resource = conflict.Resource,
         .FirstLayout = image.Layout,
         .SecondLayout = newLayout
     };
@@ -1118,13 +1172,15 @@ void Graph::ChangeMainImageLayout(std::vector<ImageResourceAccessConflict>& conf
 }
 
 void Graph::ChangeSubresourceImageLayout(std::vector<ImageResourceAccessConflict>& conflicts,
-    ResourceAccessConflict& baseConflict, RGImage& image, u32 subresourceIndex, ImageLayout newLayout)
+    ImageResourceAccessConflict& conflict, RGImage& image, u32 subresourceIndex, 
+    ImageLayout newLayout)
 {
     ASSERT(image.State == RGImageState::Split)
 
-    baseConflict.Type = AccessConflictType::Layout;
+    conflict.Info.Type = AccessConflictType::Layout;
     ImageResourceAccessConflict layoutConflict = {
-        .AccessConflict = baseConflict,
+        .Info = conflict.Info,
+        .Resource = conflict.Resource,
         .FirstLayout = image.Extras[subresourceIndex].Layout,
         .SecondLayout = newLayout,
         .Subresource = image.Description.AdditionalViews[subresourceIndex]
@@ -1141,17 +1197,19 @@ void Graph::ManageBarriers(const std::vector<BufferResourceAccessConflict>& buff
 
     // todo: barrier merging
 
-    auto addBarriers = [this](DependencyInfoCreateInfo& dependencyInfo, Resource resource,
+    auto addBarriers = [this]<typename Res>(DependencyInfoCreateInfo& dependencyInfo, Res resource,
         u32 firstPass, u32 secondPass)
     {
         const u32 span = secondPass - firstPass;
-        if (span > 1 && firstPass != ResourceAccess::NO_PASS)
+        if (span > 1 && firstPass != ResourceAccessInfo::NO_PASS)
         {
             if (m_GraphWatcher)
                 m_GraphWatcher->OnBarrierAdded({
-                    .BarrierType = GraphWatcher::BarrierInfo::Type::SplitBarrier,
+                    .Info = {
+                        .BarrierType = GraphWatcher::BarrierInfo::Type::SplitBarrier,
+                        .DependencyInfo = &dependencyInfo
+                    },
                     .Resource = resource,
-                    .DependencyInfo = &dependencyInfo
                 }, *m_Passes[firstPass], *m_Passes[secondPass]);
 
             const DependencyInfo dependency = Device::CreateDependencyInfo(
@@ -1172,14 +1230,13 @@ void Graph::ManageBarriers(const std::vector<BufferResourceAccessConflict>& buff
             {
                 const GraphWatcher::BarrierInfo watcherBarrierInfo = {
                     .BarrierType = GraphWatcher::BarrierInfo::Type::Barrier,
-                    .Resource = resource,
                     .DependencyInfo = &dependencyInfo
                 };
-                if (firstPass == ResourceAccess::NO_PASS)
-                    m_GraphWatcher->OnBarrierAdded(watcherBarrierInfo,
+                if (firstPass == ResourceAccessInfo::NO_PASS)
+                    m_GraphWatcher->OnBarrierAdded({.Info = watcherBarrierInfo, .Resource = resource},
                         *m_Passes[secondPass], *m_Passes[secondPass]);
                 else
-                    m_GraphWatcher->OnBarrierAdded(watcherBarrierInfo,
+                    m_GraphWatcher->OnBarrierAdded({.Info = watcherBarrierInfo, .Resource = resource},
                         *m_Passes[firstPass], *m_Passes[secondPass]);
             }
 
@@ -1191,65 +1248,66 @@ void Graph::ManageBarriers(const std::vector<BufferResourceAccessConflict>& buff
 
     for (auto& buffer : bufferConflicts)
     {
+        auto& info = buffer.Info;
         DependencyInfoCreateInfo dependencyCreateInfo = {};
-        if (buffer.Type == AccessConflictType::Execution)
+        if (info.Type == AccessConflictType::Execution)
             dependencyCreateInfo.ExecutionDependencyInfo = {
-                .SourceStage = buffer.FirstStage,
-                .DestinationStage = buffer.SecondStage
+                .SourceStage = info.FirstStage,
+                .DestinationStage = info.SecondStage
             };
         else
             dependencyCreateInfo.MemoryDependencyInfo = {
-                .SourceStage = buffer.FirstStage,
-                .DestinationStage = buffer.SecondStage,
-                .SourceAccess = buffer.FirstAccess,
-                .DestinationAccess = buffer.SecondAccess
+                .SourceStage = info.FirstStage,
+                .DestinationStage = info.SecondStage,
+                .SourceAccess = info.FirstAccess,
+                .DestinationAccess = info.SecondAccess
             };
 
-        addBarriers(dependencyCreateInfo, buffer.Resource, buffer.FirstPassIndex, buffer.SecondPassIndex);
+        addBarriers(dependencyCreateInfo, buffer.Resource, info.FirstPassIndex, info.SecondPassIndex);
     }
 
     for (auto& image : imageConflicts)
     {
+        auto& info = image.Info;
         DependencyInfoCreateInfo dependencyCreateInfo = {};
-        if (image.AccessConflict.Type == AccessConflictType::Layout)
+        if (info.Type == AccessConflictType::Layout)
         {
             dependencyCreateInfo.LayoutTransitionInfo = {
                 .ImageSubresource = ImageSubresource{
-                    .Image = m_Images[image.AccessConflict.Resource.m_Index].Resource,
+                    .Image = m_Images[image.Resource.m_Index].Resource,
                     .Description = image.Subresource
                 },
-                .SourceStage = image.AccessConflict.FirstStage,
-                .DestinationStage = image.AccessConflict.SecondStage,
-                .SourceAccess = image.AccessConflict.FirstAccess,
-                .DestinationAccess = image.AccessConflict.SecondAccess,
+                .SourceStage = info.FirstStage,
+                .DestinationStage = info.SecondStage,
+                .SourceAccess = info.FirstAccess,
+                .DestinationAccess = info.SecondAccess,
                 .OldLayout = image.FirstLayout,
                 .NewLayout = image.SecondLayout
             };
 
-            m_Passes[image.AccessConflict.SecondPassIndex]->m_ImageLayouts.push_back({
-                .Image = image.AccessConflict.Resource,
+            m_Passes[info.SecondPassIndex]->m_ImageLayouts.push_back({
+                .Image = image.Resource,
                 .Layout = image.SecondLayout
             });
         }
-        else if (image.AccessConflict.Type == AccessConflictType::Execution)
+        else if (info.Type == AccessConflictType::Execution)
         {
             dependencyCreateInfo.MemoryDependencyInfo = {
-                .SourceStage = image.AccessConflict.FirstStage,
-                .DestinationStage = image.AccessConflict.SecondStage,
+                .SourceStage = info.FirstStage,
+                .DestinationStage = info.SecondStage,
             };
         }
         else
         {
             dependencyCreateInfo.MemoryDependencyInfo = {
-                .SourceStage = image.AccessConflict.FirstStage,
-                .DestinationStage = image.AccessConflict.SecondStage,
-                .SourceAccess = image.AccessConflict.FirstAccess,
-                .DestinationAccess = image.AccessConflict.SecondAccess
+                .SourceStage = info.FirstStage,
+                .DestinationStage = info.SecondStage,
+                .SourceAccess = info.FirstAccess,
+                .DestinationAccess = info.SecondAccess
             };
         }
 
-        addBarriers(dependencyCreateInfo, image.AccessConflict.Resource,
-            image.AccessConflict.FirstPassIndex, image.AccessConflict.SecondPassIndex);
+        addBarriers(dependencyCreateInfo, image.Resource, info.FirstPassIndex, info.SecondPassIndex);
     }
 }
 
@@ -1300,9 +1358,9 @@ void Graph::PostProcessPersistentResources()
 void Graph::ResetPersistentResources()
 {
     for (auto& persistent : m_PersistentBuffers)
-        persistent.Resource = Resource{};
+        persistent.Resource = BufferResource{};
     for (auto& persistent : m_PersistentImages)
-        persistent.Resource = Resource{};
+        persistent.Resource = ImageResource{};
 }
 
 void Graph::SubmitPassUploads(FrameContext& frameContext)
@@ -1337,11 +1395,11 @@ void Graph::SubmitPassUploads(FrameContext& frameContext)
     });
 }
 
-Resource Graph::Create(StringId name, const RGBufferDescription& description)
+BufferResource Graph::Create(StringId name, const RGBufferDescription& description)
 {
     ASSERT(description.SizeBytes > 0)
 
-    const Resource resource = Resource::Buffer((u16)m_Buffers.size(), 0);
+    const BufferResource resource(ResourceFlags::None, (u16)m_Buffers.size(), 0);
     RGBuffer buffer = {};
     buffer.Name = name;
     buffer.Description = CreateBufferDescription(description);
@@ -1350,22 +1408,20 @@ Resource Graph::Create(StringId name, const RGBufferDescription& description)
     return resource;
 }
 
-Resource Graph::Create(StringId name, const RGImageDescription& description)
+ImageResource Graph::Create(StringId name, const RGImageDescription& description)
 {
     return Create(name, ResourceCreationFlags::None, description);
 }
 
-Resource Graph::Create(StringId name, ResourceCreationFlags creationFlags, const RGImageDescription& description)
+ImageResource Graph::Create(StringId name, ResourceCreationFlags creationFlags, const RGImageDescription& description)
 {
-    Resource resource = Resource::Image((u16)m_Images.size(), 0);
+    const ImageResource resource((ResourceFlags)(creationFlags), (u16)m_Images.size(), 0);
     RGImage image = {};
     image.Name = name;
     image.Description = CreateImageDescription(description);
     if (enumHasAny(description.Inference, RGImageInference::Views))
         image.Extras = m_Images[description.Reference.m_Index].Extras;
     m_Images.push_back(image);
-
-    resource.AddFlags((ResourceFlags)(creationFlags));
 
     return resource;
 }
@@ -1433,34 +1489,33 @@ void Graph::UpdatePersistent(PersistentImageResource resource, Image image, Imag
     m_PersistentImages[resource.m_Index].Layout = layout;
 }
 
-Resource Graph::ImportPersistent(StringId name, PersistentBufferResource buffer)
+BufferResource Graph::ImportPersistent(StringId name, PersistentBufferResource buffer)
 {
     PersistentBufferInfo& persistentBufferInfo = m_PersistentBuffers[buffer.m_Index];
     if (persistentBufferInfo.Resource.IsValid())
         return persistentBufferInfo.Resource;
 
-    const Resource resource = Import(name, persistentBufferInfo.Buffer);
+    const BufferResource resource = Import(name, persistentBufferInfo.Buffer);
     persistentBufferInfo.Resource = resource;
 
     return resource;
 }
 
-Resource Graph::ImportPersistent(StringId name, PersistentImageResource image)
+ImageResource Graph::ImportPersistent(StringId name, PersistentImageResource image)
 {
     PersistentImageInfo& persistentImageInfo = m_PersistentImages[image.m_Index];
     if (persistentImageInfo.Resource.IsValid())
         return persistentImageInfo.Resource;
 
-    const Resource resource = Import(name, persistentImageInfo.Image, persistentImageInfo.Layout);
+    const ImageResource resource = Import(name, persistentImageInfo.Image, persistentImageInfo.Layout);
     persistentImageInfo.Resource = resource;
 
     return resource;
 }
 
-Resource Graph::Import(StringId name, Buffer buffer)
+BufferResource Graph::Import(StringId name, Buffer buffer)
 {
-    Resource resource = Resource::Buffer((u16)m_Buffers.size(), 0);
-    resource.AddFlags(ResourceFlags::Imported);
+    const BufferResource resource(ResourceFlags::Imported, (u16)m_Buffers.size(), 0);
     RGBuffer bufferResource = {};
     bufferResource.Name = name;
     bufferResource.Description = Device::GetBufferDescription(buffer);
@@ -1470,10 +1525,9 @@ Resource Graph::Import(StringId name, Buffer buffer)
     return resource;
 }
 
-Resource Graph::Import(StringId name, Image image, ImageLayout layout)
+ImageResource Graph::Import(StringId name, Image image, ImageLayout layout)
 {
-    Resource resource = Resource::Image((u16)m_Images.size(), 0);
-    resource.AddFlags(ResourceFlags::Imported);
+    const ImageResource resource(ResourceFlags::Imported, (u16)m_Images.size(), 0);
     RGImage imageResource = {};
     imageResource.Name = name;
     imageResource.Description = Device::GetImageDescription(image);
@@ -1488,7 +1542,7 @@ Resource Graph::Import(StringId name, Image image, ImageLayout layout)
     return resource;
 }
 
-void Graph::Export(Resource resource, PersistentBufferResource& buffer, DeletionQueue& deletionQueue,
+void Graph::Export(BufferResource resource, PersistentBufferResource& buffer, DeletionQueue& deletionQueue,
     BufferUsage additionalUsage)
 {
     if (!buffer.HasValue())
@@ -1497,8 +1551,7 @@ void Graph::Export(Resource resource, PersistentBufferResource& buffer, Deletion
         m_PersistentBuffers.push_back({});
     }
 
-    RG_CHECK_RETURN_VOID(resource.IsBuffer() &&
-        !resource.HasFlags(ResourceFlags::Volatile | ResourceFlags::Imported),
+    RG_CHECK_RETURN_VOID(!resource.HasFlags(ResourceFlags::Volatile | ResourceFlags::Imported),
         "Provided resource is not an internal buffer")
     PersistentBufferInfo& persistentBufferInfo = m_PersistentBuffers[buffer.m_Index];
     RG_CHECK_RETURN_VOID(
@@ -1513,7 +1566,7 @@ void Graph::Export(Resource resource, PersistentBufferResource& buffer, Deletion
     persistentBufferInfo.DeletionQueue = &deletionQueue;
 }
 
-void Graph::Export(Resource resource, PersistentImageResource& image, DeletionQueue& deletionQueue,
+void Graph::Export(ImageResource resource, PersistentImageResource& image, DeletionQueue& deletionQueue,
     ImageUsage additionalUsage)
 {
     if (!image.HasValue())
@@ -1522,8 +1575,7 @@ void Graph::Export(Resource resource, PersistentImageResource& image, DeletionQu
         m_PersistentImages.push_back({});
     }
 
-    RG_CHECK_RETURN_VOID(resource.IsImage() &&
-        !resource.HasFlags(ResourceFlags::Volatile | ResourceFlags::Imported),
+    RG_CHECK_RETURN_VOID(!resource.HasFlags(ResourceFlags::Volatile | ResourceFlags::Imported),
         "Provided resource is not an internal image")
     PersistentImageInfo& persistentImageInfo = m_PersistentImages[image.m_Index];
     RG_CHECK_RETURN_VOID(
@@ -1540,13 +1592,11 @@ void Graph::Export(Resource resource, PersistentImageResource& image, DeletionQu
     persistentImageInfo.DeletionQueue = &deletionQueue;
 }
 
-Resource Graph::SplitImage(Resource main, ImageSubresourceDescription subresource)
+ImageResource Graph::SplitImage(ImageResource main, ImageSubresourceDescription subresource)
 {
-    RG_CHECK_RETURN(main.IsImage(), "Failed to split image resource: {}. Resource in not an image", main)
-
     auto& image = m_Images[main.m_Index];
 
-    Resource split = main;
+    ImageResource split = main;
     u16 subresourceIndex = {};
     auto it = std::ranges::find(image.Description.AdditionalViews, subresource);
     if (it == image.Description.AdditionalViews.end())
@@ -1598,14 +1648,14 @@ Resource Graph::SplitImage(Resource main, ImageSubresourceDescription subresourc
     return split;
 }
 
-Resource Graph::MergeImage(Span<const Resource> splits)
+ImageResource Graph::MergeImage(Span<const ImageResource> splits)
 {
     RG_CHECK_RETURN(!splits.empty(), "Failed to merge image: nothing to merge")
 
     const u16 index = splits.front().m_Index;
     auto& image = m_Images[index];
 
-    for (const Resource split : splits | std::views::drop(1))
+    for (const ImageResource split : splits | std::views::drop(1))
     {
         RG_CHECK_RETURN(split.m_Index == index, "Failed to merge image: split indices do not match")
         RG_CHECK_RETURN(split.HasFlags(ResourceFlags::Split),
@@ -1613,11 +1663,11 @@ Resource Graph::MergeImage(Span<const Resource> splits)
     }
     RG_CHECK_RETURN(splits.size() == image.ActiveSplitCount, "Failed to merge image: must merge on all splits")
 
-    Resource merged = splits.front();
+    ImageResource merged = splits.front();
     merged.m_Flags &= ~ResourceFlags::Split;
     merged.AddFlags(ResourceFlags::Merge);
     merged.m_Version = image.LatestVersion;
-    merged.m_Extra = Resource::NO_EXTRA;
+    merged.m_Extra = ImageResource::NO_EXTRA;
     image.State = RGImageState::Merged;
     image.ActiveSplitCount -= (u16)splits.size();
 
@@ -1625,7 +1675,7 @@ Resource Graph::MergeImage(Span<const Resource> splits)
         [&](Graph& graph, std::nullptr_t&)
         {
             merged = graph.AddImageAccess(merged, AccessType::Merge, image, PipelineStage::None, PipelineAccess::None);
-            for (const Resource split : splits)
+            for (const ImageResource split : splits)
                 graph.AddImageAccess(split, AccessType::Merge, image, PipelineStage::None, PipelineAccess::None);
         },
         [=](const std::nullptr_t&, FrameContext&, const Graph&)
@@ -1635,55 +1685,49 @@ Resource Graph::MergeImage(Span<const Resource> splits)
     return merged;
 }
 
-Resource Graph::ReadBuffer(Resource resource, ResourceAccessFlags accessFlags)
+BufferResource Graph::ReadBuffer(BufferResource resource, ResourceAccessFlags accessFlags)
 {
-    ASSERT(resource.IsBuffer(), "Provided resource is not a buffer {}", resource)
     auto&& [stage, access] = inferBufferReadAccess(m_Buffers[resource.m_Index].Description, accessFlags);
 
     return AddBufferAccess(resource, AccessType::Read, m_Buffers[resource.m_Index], stage, access);
 }
 
-Resource Graph::WriteBuffer(Resource resource, ResourceAccessFlags accessFlags)
+BufferResource Graph::WriteBuffer(BufferResource resource, ResourceAccessFlags accessFlags)
 {
-    ASSERT(resource.IsBuffer(), "Provided resource is not a buffer {}", resource)
     auto&& [stage, access] = inferBufferWriteAccess(m_Buffers[resource.m_Index].Description, accessFlags);
 
     return AddBufferAccess(resource, AccessType::Write, m_Buffers[resource.m_Index], stage, access);
 }
 
-Resource Graph::ReadWriteBuffer(Resource resource, ResourceAccessFlags accessFlags)
+BufferResource Graph::ReadWriteBuffer(BufferResource resource, ResourceAccessFlags accessFlags)
 {
-    ASSERT(resource.IsBuffer(), "Provided resource is not a buffer {}", resource)
     auto&& [stage, access] = inferBufferReadWriteAccess(m_Buffers[resource.m_Index].Description, accessFlags);
 
     return AddBufferAccess(resource, AccessType::ReadWrite, m_Buffers[resource.m_Index], stage, access);
 }
 
-Resource Graph::ReadImage(Resource resource, ResourceAccessFlags accessFlags)
+ImageResource Graph::ReadImage(ImageResource resource, ResourceAccessFlags accessFlags)
 {
-    ASSERT(resource.IsImage(), "Provided resource is not an image {}", resource)
     auto&& [stage, access] = inferImageReadAccess(m_Images[resource.m_Index].Description, accessFlags);
 
     return AddImageAccess(resource, AccessType::Read, m_Images[resource.m_Index], stage, access);
 }
 
-Resource Graph::WriteImage(Resource resource, ResourceAccessFlags accessFlags)
+ImageResource Graph::WriteImage(ImageResource resource, ResourceAccessFlags accessFlags)
 {
-    ASSERT(resource.IsImage(), "Provided resource is not an image {}", resource)
     auto&& [stage, access] = inferImageWriteAccess(m_Images[resource.m_Index].Description, accessFlags);
 
     return AddImageAccess(resource, AccessType::Write, m_Images[resource.m_Index], stage, access);
 }
 
-Resource Graph::ReadWriteImage(Resource resource, ResourceAccessFlags accessFlags)
+ImageResource Graph::ReadWriteImage(ImageResource resource, ResourceAccessFlags accessFlags)
 {
-    ASSERT(resource.IsImage(), "Provided resource is not an image {}", resource)
     auto&& [stage, access] = inferImageReadWriteAccess(m_Images[resource.m_Index].Description, accessFlags);
 
     return AddImageAccess(resource, AccessType::ReadWrite, m_Images[resource.m_Index], stage, access);
 }
 
-Resource Graph::RenderTarget(Resource resource, const RenderTargetAccessDescription& description)
+ImageResource Graph::RenderTarget(ImageResource resource, const RenderTargetAccessDescription& description)
 {
     m_Images[resource.m_Index].Description.Usage |= ImageUsage::Color;
 
@@ -1703,7 +1747,7 @@ Resource Graph::RenderTarget(Resource resource, const RenderTargetAccessDescript
     return resource;
 }
 
-Resource Graph::DepthStencilTarget(Resource resource, const DepthStencilTargetAccessDescription& description,
+ImageResource Graph::DepthStencilTarget(ImageResource resource, const DepthStencilTargetAccessDescription& description,
     std::optional<DepthBias> depthBias)
 {
     m_Images[resource.m_Index].Description.Usage |= ImageUsage::Depth | ImageUsage::Stencil;
@@ -1730,7 +1774,7 @@ void Graph::HasSideEffect() const
     CurrentPass().m_Flags &= ~PassFlags::Cullable;
 }
 
-Resource Graph::SetBackbufferImage(Image backbuffer, ImageLayout layout)
+ImageResource Graph::SetBackbufferImage(Image backbuffer, ImageLayout layout)
 {
     m_Backbuffer = Import("Backbuffer"_hsv, backbuffer, layout);
     m_Backbuffer.AddFlags(ResourceFlags::AutoUpdate);
@@ -1738,32 +1782,28 @@ Resource Graph::SetBackbufferImage(Image backbuffer, ImageLayout layout)
     return m_Backbuffer;
 }
 
-Resource Graph::GetBackbufferImage() const
+ImageResource Graph::GetBackbufferImage() const
 {
     return m_Backbuffer;
 }
 
-const BufferDescription& Graph::GetBufferDescription(Resource buffer) const
+const BufferDescription& Graph::GetBufferDescription(BufferResource buffer) const
 {
-    ASSERT(buffer.IsBuffer(), "Provided resource is not a buffer {}", buffer)
     return m_Buffers[buffer.m_Index].Description;
 }
 
-const ImageDescription& Graph::GetImageDescription(Resource image) const
+const ImageDescription& Graph::GetImageDescription(ImageResource image) const
 {
-    ASSERT(image.IsImage(), "Provided resource is not an image {}", image)
     return m_Images[image.m_Index].Description;
 }
 
-Buffer Graph::GetBuffer(Resource buffer) const
+Buffer Graph::GetBuffer(BufferResource buffer) const
 {
-    ASSERT(buffer.IsBuffer(), "Provided resource is not a buffer {}", buffer)
     return m_Buffers[buffer.m_Index].Resource;
 }
 
-Image Graph::GetImage(Resource image) const
+Image Graph::GetImage(ImageResource image) const
 {
-    ASSERT(image.IsImage(), "Provided resource is not an image {}", image)
     return m_Images[image.m_Index].Resource;
 }
 
@@ -1781,15 +1821,13 @@ Image Graph::GetImage(PersistentImageResource image) const
     return m_PersistentImages[image.m_Index].Image;
 }
 
-std::pair<Buffer, const BufferDescription&> Graph::GetBufferWithDescription(Resource buffer) const
+std::pair<Buffer, const BufferDescription&> Graph::GetBufferWithDescription(BufferResource buffer) const
 {
-    ASSERT(buffer.IsBuffer(), "Provided resource is not a buffer {}", buffer)
     return {m_Buffers[buffer.m_Index].Resource, m_Buffers[buffer.m_Index].Description};
 }
 
-std::pair<Image, const ImageDescription&> Graph::GetImageWithDescription(Resource image) const
+std::pair<Image, const ImageDescription&> Graph::GetImageWithDescription(ImageResource image) const
 {
-    ASSERT(image.IsImage(), "Provided resource is not an image {}", image)
     return {m_Images[image.m_Index].Resource, m_Images[image.m_Index].Description};
 }
 
@@ -1805,32 +1843,32 @@ std::pair<Image, const ImageDescription&> Graph::GetImageWithDescription(Persist
     return {persistent.Image, m_Images[persistent.Resource.m_Index].Description};
 }
 
-bool Graph::IsBufferAllocated(Resource buffer) const
+bool Graph::IsBufferAllocated(BufferResource buffer) const
 {
-    ASSERT(buffer.IsBuffer() && buffer.IsValid(), "Provided resource is not a buffer {}", buffer)
+    ASSERT(buffer.IsValid(), "Provided resource is not a valid buffer {}", buffer)
 
     return m_Buffers[buffer.m_Index].Resource.HasValue();
 }
 
-bool Graph::IsImageAllocated(Resource image) const
+bool Graph::IsImageAllocated(ImageResource image) const
 {
-    ASSERT(image.IsImage() && image.IsValid(), "Provided resource is not an image {}", image)
+    ASSERT(image.IsValid(), "Provided resource is not a valid image {}", image)
 
     return m_Images[image.m_Index].Resource.HasValue();
 }
 
-BufferBinding Graph::GetBufferBinding(Resource buffer) const
+BufferBinding Graph::GetBufferBinding(BufferResource buffer) const
 {
     ASSERT(!m_PassIndicesStack.empty(), "This method should be called at pass execution stage")
-    ASSERT(buffer.IsBuffer() && buffer.IsValid(), "Provided resource is not a buffer {}", buffer)
+    ASSERT(buffer.IsValid(), "Provided resource is not a valid buffer {}", buffer)
 
     return {.Buffer = m_Buffers[buffer.m_Index].Resource};
 }
 
-ImageBinding Graph::GetImageBinding(Resource image) const
+ImageBinding Graph::GetImageBinding(ImageResource image) const
 {
     ASSERT(!m_PassIndicesStack.empty(), "This method should be called at pass execution stage")
-    ASSERT(image.IsImage() && image.IsValid(), "Provided resource is not an image {}", image)
+    ASSERT(image.IsValid(), "Provided resource is not a valid image {}", image)
 
     return {
         .Subresource = {
@@ -1923,7 +1961,7 @@ ImageDescription Graph::CreateImageDescription(const RGImageDescription& descrip
     if (description.Inference == RGImageInference::None)
         return imageDescription;
 
-    ASSERT(description.Reference.IsValid() && description.Reference.IsImage(),
+    ASSERT(description.Reference.IsValid(), 
         "Provided reference resource is not a valid image {}", description.Reference)
 
     const ImageDescription& reference = m_Images[description.Reference.m_Index].Description;
@@ -1947,40 +1985,37 @@ ImageDescription Graph::CreateImageDescription(const RGImageDescription& descrip
     return imageDescription;
 }
 
-ImageSubresourceDescription Graph::GetImageSubresourceDescription(Resource image) const
+ImageSubresourceDescription Graph::GetImageSubresourceDescription(ImageResource image) const
 {
-    return image.m_Extra == Resource::NO_EXTRA ?
-               ImageSubresourceDescription{} :
-               m_Images[image.m_Index].Description.AdditionalViews[image.m_Extra];
+    return image.m_Extra == ImageResource::NO_EXTRA ?
+        ImageSubresourceDescription{} :
+        m_Images[image.m_Index].Description.AdditionalViews[image.m_Extra];
 }
 
-ImageLayout& Graph::GetImageLayout(Resource image)
+ImageLayout& Graph::GetImageLayout(ImageResource image)
 {
-    return image.m_Extra == Resource::NO_EXTRA ?
-               m_Images[image.m_Index].Layout :
-               m_Images[image.m_Index].Extras[image.m_Extra].Layout;
+    return image.m_Extra == ImageResource::NO_EXTRA ?
+        m_Images[image.m_Index].Layout :
+        m_Images[image.m_Index].Extras[image.m_Extra].Layout;
 }
 
-Resource Graph::AddBufferAccess(Resource resource, AccessType type, ResourceBase&, PipelineStage stage,
+BufferResource Graph::AddBufferAccess(BufferResource resource, AccessType type, RGBuffer&, PipelineStage stage,
     PipelineAccess access)
 {
     if (type != AccessType::Read)
         resource.m_Version++;
     m_BufferAccesses.push_back({
-        .PassIndex = CurrentPassIndex(),
-        .Resource = resource,
-        .Type = type,
-        .Stage = stage,
-        .Access = access
+        .Info = ResourceAccessInfo{.PassIndex = CurrentPassIndex(), .Type = type, .Stage = stage, .Access = access},
+        .Resource = resource
     });
 
     return resource;
 }
 
-Resource Graph::AddImageAccess(Resource resource, AccessType type, RGImage& image, PipelineStage stage,
+ImageResource Graph::AddImageAccess(ImageResource resource, AccessType type, RGImage& image, PipelineStage stage,
     PipelineAccess access)
 {
-    RG_CHECK_RETURN(!resource.HasFlags(ResourceFlags::Merge) || type == AccessType::Split ||
+    RG_CHECK_RETURN(resource.HasFlags(ResourceFlags::Split) || type == AccessType::Split ||
         image.State == RGImageState::Merged,
         "Cannot use primary image while it is not merged")
 
@@ -1988,23 +2023,20 @@ Resource Graph::AddImageAccess(Resource resource, AccessType type, RGImage& imag
         image.State = RGImageState::Split;
 
     if (resource.HasFlags(ResourceFlags::AutoUpdate))
-        resource.m_Version = resource.m_Extra == Resource::NO_EXTRA ?
-                                 image.LatestVersion :
-                                 image.Extras[resource.m_Extra].Version;
+        resource.m_Version = resource.m_Extra == ImageResource::NO_EXTRA ?
+            image.LatestVersion :
+            image.Extras[resource.m_Extra].Version;
     if (enumHasAny(type, AccessType::Write | AccessType::Merge | AccessType::Split))
     {
         resource.m_Version++;
         image.LatestVersion = std::max(image.LatestVersion, resource.m_Version);
-        if (resource.m_Extra != Resource::NO_EXTRA)
+        if (resource.m_Extra != ImageResource::NO_EXTRA)
             image.Extras[resource.m_Extra].Version =
                 std::max(image.Extras[resource.m_Extra].Version, resource.m_Version);
     }
     m_ImageAccesses.push_back({
-        .PassIndex = CurrentPassIndex(),
-        .Resource = resource,
-        .Type = type,
-        .Stage = stage,
-        .Access = access
+        .Info = ResourceAccessInfo{.PassIndex = CurrentPassIndex(), .Type = type, .Stage = stage, .Access = access},
+        .Resource = resource
     });
 
     return resource;

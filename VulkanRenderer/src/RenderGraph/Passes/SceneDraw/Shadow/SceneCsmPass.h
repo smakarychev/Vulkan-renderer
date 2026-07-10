@@ -32,7 +32,7 @@ struct ExecutionInfo
     DirectionalLight DirectionalLight{};
     f32 ShadowMin{0};
     f32 ShadowMax{100};
-    RG::Resource DepthMinMaxBuffer{};
+    RG::BufferResource DepthMinMaxBuffer{};
     bool CreateCamerasInGpu{false};
     bool StabilizeCascades{false};
     AABB GeometryBounds{};

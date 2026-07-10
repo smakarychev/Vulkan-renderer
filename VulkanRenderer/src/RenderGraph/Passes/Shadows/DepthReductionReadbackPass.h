@@ -8,13 +8,13 @@ namespace Passes::DepthReductionReadback
 {
 struct ExecutionInfo
 {
-    RG::Resource MinMaxDepthReduction{};
+    RG::BufferResource MinMaxDepthReduction{};
     const Camera* PrimaryCamera{nullptr};
 };
 
 struct PassData
 {
-    RG::Resource MinMaxDepth;
+    RG::BufferResource MinMaxDepth;
     f32 Min{1};
     f32 Max{0};
 };

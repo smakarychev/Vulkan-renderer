@@ -5,13 +5,13 @@ namespace Passes::AtmosphereUpdateSunParameters
 {
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
-    RG::Resource TransmittanceLut{};
+    RG::BufferResource ViewInfo{};
+    RG::ImageResource TransmittanceLut{};
 };
 
 struct PassData
 {
-    RG::Resource ViewInfo{};
+    RG::BufferResource ViewInfo{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

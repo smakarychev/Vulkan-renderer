@@ -27,7 +27,7 @@ RG::DrawAttachments& SceneDrawPassViewAttachments::Get(StringId viewName, String
         const_cast<const SceneDrawPassViewAttachments&>(*this).Get(viewName, passName));
 }
 
-RG::Resource SceneDrawPassViewAttachments::GetMinMaxDepthReduction(StringId viewName) const
+RG::BufferResource SceneDrawPassViewAttachments::GetMinMaxDepthReduction(StringId viewName) const
 {
     return m_MinMaxDepthReductions.at(viewName);
 }
@@ -37,7 +37,7 @@ void SceneDrawPassViewAttachments::Add(StringId viewName, StringId passName, con
     m_Attachments[viewName][passName] = attachments;
 }
 
-void SceneDrawPassViewAttachments::SetMinMaxDepthReduction(StringId viewName, RG::Resource minMaxDepthReduction)
+void SceneDrawPassViewAttachments::SetMinMaxDepthReduction(StringId viewName, RG::BufferResource minMaxDepthReduction)
 {
     m_MinMaxDepthReductions[viewName] = minMaxDepthReduction;
 }

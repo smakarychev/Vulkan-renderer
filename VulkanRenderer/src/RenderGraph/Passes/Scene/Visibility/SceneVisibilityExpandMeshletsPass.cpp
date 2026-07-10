@@ -8,12 +8,12 @@ namespace Passes::SceneVisibilityExpandMeshlets
 {
 namespace
 {
-RG::Resource createIndirectDispatchPass(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+RG::BufferResource createIndirectDispatchPass(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     struct PassData
     {
-        Resource Dispatch{};
+        BufferResource Dispatch{};
     };
     using PassDataBind = PassDataWithBind<PassData, SceneVisibilityExpandMeshletsDispatchesBindGroupRG>;
 
@@ -51,11 +51,11 @@ PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo&
     using namespace RG;
     struct PassDataPrivate : PassData
     {
-        Resource Dispatch{};
+        BufferResource Dispatch{};
     };
     using PassDataBind = PassDataWithBind<PassDataPrivate, SceneVisibilityExpandMeshletsBindGroupRG>;
 
-    const Resource dispatch = createIndirectDispatchPass(name.Concatenate(".Dispatch"_hsv), renderGraph, info);
+    const BufferResource dispatch = createIndirectDispatchPass(name.Concatenate(".Dispatch"_hsv), renderGraph, info);
 
     return renderGraph.AddRenderPass<PassDataBind>(name,
         [&](Graph& graph, PassDataBind& passData)

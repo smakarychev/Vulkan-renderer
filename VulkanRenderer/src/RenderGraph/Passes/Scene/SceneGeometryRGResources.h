@@ -5,16 +5,16 @@ class SceneGeometry;
 
 struct SceneGeometryRGResources
 {
-    RG::Resource Meshlets{};
-    RG::Resource RenderObjects{};
-    RG::Resource Attributes{};
-    RG::Resource Indices{};
-    RG::Resource JointMatrices{};
-    RG::Resource Skins{};
-    RG::Resource BlendShapes{};
-    RG::Resource Materials{};
-    RG::Resource RenderObjectSkinnedInfos{};
-    RG::Resource RenderObjectSkinnedInfoIndices{};
+    RG::BufferResource Meshlets{};
+    RG::BufferResource RenderObjects{};
+    RG::BufferResource Attributes{};
+    RG::BufferResource Indices{};
+    RG::BufferResource JointMatrices{};
+    RG::BufferResource Skins{};
+    RG::BufferResource BlendShapes{};
+    RG::BufferResource Materials{};
+    RG::BufferResource RenderObjectSkinnedInfos{};
+    RG::BufferResource RenderObjectSkinnedInfoIndices{};
     
     static SceneGeometryRGResources ForGeometry(const SceneGeometry& geometry, RG::Graph& renderGraph);
 };

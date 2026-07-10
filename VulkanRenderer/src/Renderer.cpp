@@ -379,7 +379,7 @@ void Renderer::ExecuteSingleTimePasses()
     
     m_Graph->Reset();
 
-    const RG::Resource cubemap = Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox"_hsv, *m_Graph, {
+    const RG::ImageResource cubemap = Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox"_hsv, *m_Graph, {
         .Equirectangular = m_Graph->Import(
             "Equirectangular"_hsv, m_ImageAssetManager->Get(equirectangular), ImageLayout::Readonly),
         .Cubemap = m_Graph->ImportPersistent("Cubemap"_hsv, m_SkyboxTexture),
@@ -417,20 +417,20 @@ void Renderer::SetupRenderGraph()
 
     UpdateGlobalRenderGraphResources();
 
-    Resource backbuffer = m_Graph->GetBackbufferImage();
+    ImageResource backbuffer = m_Graph->GetBackbufferImage();
     
     m_SceneGeometryRGResources = SceneGeometryRGResources::ForGeometry(m_Scene->Geometry(), 
         *m_Graph);
 
-    Resource color = m_Graph->Create("Color"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
+    ImageResource color = m_Graph->Create("Color"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
         .Inference = RGImageInference::Size2d,
         .Reference = backbuffer,
         .Format = Format::RGBA16_FLOAT});
-    Resource vbuffer = m_Graph->Create("VBuffer"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
+    ImageResource vbuffer = m_Graph->Create("VBuffer"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
         .Inference = RGImageInference::Size2d,
         .Reference = backbuffer,
         .Format = Format::R32_UINT});
-    Resource depth = m_Graph->Create("Depth"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
+    ImageResource depth = m_Graph->Create("Depth"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
         .Inference = RGImageInference::Size2d,
         .Reference = backbuffer,
         .Format = Format::D32_FLOAT});
@@ -532,11 +532,11 @@ void Renderer::SetupRenderGraph()
         m_MinMaxDepthReductionsNextFrame[GetFrameContext().FrameNumber],
         m_MinMaxDepthReductions[GetFrameContext().FrameNumber]);
 
-    Resource minMaxDepth =
+    ImageResource minMaxDepth =
         m_PrimaryVisibilityResources.Hiz[primaryVisibilityIndex];
 
     CloudShadowInfo cloudShadow = {};
-    Resource colorWithSky{};
+    ImageResource colorWithSky{};
     CloudsInfo clouds = {};
     if (renderAtmosphere)
     {
@@ -559,7 +559,7 @@ void Renderer::SetupRenderGraph()
         colorWithSky = RenderGraphSkyBox(color, depth);
     }
     
-    Resource colorPreTonemapping = colorWithSky;
+    ImageResource colorPreTonemapping = colorWithSky;
     auto& exposure = Passes::PbrCameraExposure::addToGraph("CameraExposure"_hsv,
         *m_Graph, {
             .ViewInfo = m_Graph->Import(
@@ -576,7 +576,7 @@ void Renderer::SetupRenderGraph()
             Passes::ImGuiTexture::addToGraph("LuminanceHistogram"_hsv, *m_Graph, exposure.HistogramVisualization);
     }
     
-    Resource colorTonemapped = colorPreTonemapping;
+    ImageResource colorTonemapped = colorPreTonemapping;
     {
         namespace Tonemapping = Passes::PbrTonemapping;
         ImGui::Begin("Tonemapper");
@@ -607,7 +607,7 @@ void Renderer::SetupRenderGraph()
     
     auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, {.Color = colorTonemapped});
     
-    Resource finalColor = fxaa.AntiAliased;
+    ImageResource finalColor = fxaa.AntiAliased;
 
     if (CVars::Get().GetI32CVar("Postprocessing.CRT"_hsv).value_or(false))
         finalColor = Passes::Crt::addToGraph("CRT"_hsv, *m_Graph, {.Color = finalColor}).Color;
@@ -695,7 +695,7 @@ void Renderer::UpdateGlobalRenderGraphResources()
                 .Usage = BufferUsage::Ordinary | BufferUsage::Source | BufferUsage::Uniform | BufferUsage::Storage
             },
         });
-        Resource primaryViewResource = Passes::CopyToBuffer::addToGraph("CopyInitialPrimaryView"_hsv, *m_Graph, {
+        BufferResource primaryViewResource = Passes::CopyToBuffer::addToGraph("CopyInitialPrimaryView"_hsv, *m_Graph, {
             .Source = {primaryView},
             .Destination = m_Graph->Import("InitialPrimaryView"_hsv, primaryViewBuffer)
         }).Destination;
@@ -882,7 +882,7 @@ RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass, const lux::
     return csmInit.CsmData;
 }
 
-Passes::SceneMetaDraw::PassData& Renderer::RenderGraphDepthPrepass(RG::Resource depth, const ScenePass& scenePass)
+Passes::SceneMetaDraw::PassData& Renderer::RenderGraphDepthPrepass(RG::ImageResource depth, const ScenePass& scenePass)
 {
     using namespace RG;
     
@@ -896,7 +896,8 @@ Passes::SceneMetaDraw::PassData& Renderer::RenderGraphDepthPrepass(RG::Resource 
     return meta;
 }
 
-SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::Resource depth, const ScenePass& scenePass)
+SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::ImageResource depth, 
+    const ScenePass& scenePass)
 {
     using namespace RG;
     
@@ -929,7 +930,7 @@ SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::Resour
     };
 }
 
-SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource color, RG::Resource depth,
+SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::ImageResource color, RG::ImageResource depth,
     RG::CsmData csmData, const ScenePass& scenePass)
 {
     using namespace RG;
@@ -1002,7 +1003,7 @@ SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource
     };
 }
 
-SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::Resource vbuffer, RG::Resource depth,
+SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::ImageResource vbuffer, RG::ImageResource depth,
     const ScenePass& scenePass)
 {
     using namespace RG;
@@ -1047,8 +1048,8 @@ SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::Resource vb
     };
 }
 
-RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource visibleMeshlets, RG::Resource viewInfo,
-    RG::CsmData csmData)
+RG::ImageResource Renderer::RenderGraphVBufferPbr(RG::ImageResource vbuffer, RG::BufferResource visibleMeshlets, 
+    RG::BufferResource viewInfo, RG::CsmData csmData)
 {
     const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
     
@@ -1076,7 +1077,7 @@ RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource 
     return pbr.Color;
 }
 
-Passes::SceneMetaDraw::PassData& Renderer::RenderGraphForwardPass(RG::Resource& color, RG::Resource& depth)
+Passes::SceneMetaDraw::PassData& Renderer::RenderGraphForwardPass(RG::ImageResource& color, RG::ImageResource& depth)
 {
     auto& shadowPass = m_OpaqueSet.FindPass("Shadow"_hsv);
     auto* depthPrepass = m_OpaqueSet.TryFindPass("DepthPrepass"_hsv);
@@ -1108,8 +1109,8 @@ Passes::SceneMetaDraw::PassData& Renderer::RenderGraphForwardPass(RG::Resource& 
     return meta;
 }
 
-Passes::SceneMetaDraw::PassData& Renderer::RenderGraphVBuffer(RG::Resource& vbuffer, RG::Resource& color, 
-    RG::Resource& depth)
+Passes::SceneMetaDraw::PassData& Renderer::RenderGraphVBuffer(RG::ImageResource& vbuffer, RG::ImageResource& color, 
+    RG::ImageResource& depth)
 {
     auto& shadowPass = m_OpaqueSet.FindPass("Shadow"_hsv);
     auto& vbufferPass = m_OpaqueSet.FindPass("Vbuffer"_hsv);
@@ -1134,7 +1135,7 @@ Passes::SceneMetaDraw::PassData& Renderer::RenderGraphVBuffer(RG::Resource& vbuf
     return meta;
 }
 
-void Renderer::RenderGraphOnFrameDepthGenerated(StringId passName, RG::Resource depth)
+void Renderer::RenderGraphOnFrameDepthGenerated(StringId passName, RG::ImageResource depth)
 {
     const bool tileLights = *CVars::Get().GetI32CVar("Lights.Bin.Tiles"_hsv) == 1;
     const bool clusterLights = *CVars::Get().GetI32CVar("Lights.Bin.Clusters"_hsv) == 1;
@@ -1148,7 +1149,7 @@ void Renderer::RenderGraphOnFrameDepthGenerated(StringId passName, RG::Resource 
         m_ClusterLightsInfo = RenderGraphCullLightsClustered(passName, depth);
 }
 
-RG::Resource Renderer::RenderGraphSSAO(StringId baseName, RG::Resource depth)
+RG::ImageResource Renderer::RenderGraphSSAO(StringId baseName, RG::ImageResource depth)
 {
     using namespace RG;
 
@@ -1171,18 +1172,18 @@ RG::Resource Renderer::RenderGraphSSAO(StringId baseName, RG::Resource depth)
     return ssaoBlurVertical.Ssao;
 }
 
-Renderer::TileLightsInfo Renderer::RenderGraphCullLightsTiled(StringId baseName, RG::Resource depth)
+Renderer::TileLightsInfo Renderer::RenderGraphCullLightsTiled(StringId baseName, RG::ImageResource depth)
 {
     using namespace RG;
     
     struct TileLightsInfo
     {
-        Resource Tiles{};
-        Resource ZBins{};
+        BufferResource Tiles{};
+        BufferResource ZBins{};
     };
 
     auto zbins = LightZBinner::ZBinLights(m_Scene->Lights(), *GetFrameContext().PrimaryCamera);
-    Resource zbinsResource = Passes::Upload::addToGraph(baseName.Concatenate("Upload.Light.ZBins"), *m_Graph,
+    BufferResource zbinsResource = Passes::Upload::addToGraph(baseName.Concatenate("Upload.Light.ZBins"), *m_Graph,
         zbins.Bins);
     auto& tilesSetup = Passes::LightTilesSetup::addToGraph(baseName.Concatenate("Tiles.Setup"), *m_Graph, {
         .ViewInfo =  m_Graph->GetGlobalResources().PrimaryViewInfoResource
@@ -1206,7 +1207,7 @@ Renderer::TileLightsInfo Renderer::RenderGraphCullLightsTiled(StringId baseName,
         .ZBins = zbinsResource};
 }
 
-Renderer::ClusterLightsInfo Renderer::RenderGraphCullLightsClustered(StringId baseName, RG::Resource depth)
+Renderer::ClusterLightsInfo Renderer::RenderGraphCullLightsClustered(StringId baseName, RG::ImageResource depth)
 {
     using namespace RG;
     
@@ -1214,7 +1215,7 @@ Renderer::ClusterLightsInfo Renderer::RenderGraphCullLightsClustered(StringId ba
     
     struct ClusterLightsInfo
     {
-        Resource Clusters{};
+        BufferResource Clusters{};
     };
     
     auto& clustersSetup = Passes::LightClustersSetup::addToGraph(baseName.Concatenate("Clusters.Setup"), *m_Graph, {
@@ -1241,7 +1242,7 @@ Renderer::ClusterLightsInfo Renderer::RenderGraphCullLightsClustered(StringId ba
         .Clusters = binLightsClusters.Clusters};
 }
 
-RG::Resource Renderer::RenderGraphSkyBox(RG::Resource color, RG::Resource depth)
+RG::ImageResource Renderer::RenderGraphSkyBox(RG::ImageResource color, RG::ImageResource depth)
 {
     auto& skybox = Passes::Skybox::addToGraph("Skybox"_hsv, *m_Graph, {
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
@@ -1280,7 +1281,7 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
         .SkyViewLut = lut.SkyViewLut,
         .ColorIn = m_SkyAtmosphereWithCloudsEnvironment.HasValue() ?
             m_Graph->ImportPersistent("AtmosphereEnvironment.Imported"_hsv, m_SkyAtmosphereWithCloudsEnvironment) :
-            RG::Resource{},
+            RG::ImageResource{},
         .FaceIndices = m_FrameNumber == 0 ? Span<const u32>({0, 1, 2, 3, 4, 5}) : Span<const u32>({faceIndex})
     });
 
@@ -1300,7 +1301,7 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
         .CloudCurlNoise = cloudMaps.CurlNoise,
         .ColorIn = m_CloudsEnvironment.HasValue() ?
             m_Graph->ImportPersistent("CloudsEnvironment.Imported"_hsv, m_CloudsEnvironment) :
-            RG::Resource{},
+            RG::ImageResource{},
         .AtmosphereEnvironment = environment.Color,
         .IrradianceSH = m_SkyIrradianceSHResource,
         .CloudParameters = m_CloudParametersResource,
@@ -1330,9 +1331,9 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
     };
 }
 
-RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,
-    RG::Resource aerialPerspective, RG::Resource color, RG::Resource depth, RG::CsmData csmData,
-    RG::Resource clouds, RG::Resource cloudsDepth, RG::Resource cloudsEnvironment)
+RG::ImageResource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,
+    RG::ImageResource aerialPerspective, RG::ImageResource color, RG::ImageResource depth, RG::CsmData csmData,
+    RG::ImageResource clouds, RG::ImageResource cloudsDepth, RG::ImageResource cloudsEnvironment)
 {
     auto& atmosphere = Passes::Atmosphere::Render::addToGraph("AtmosphereRender"_hsv, *m_Graph, {
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
@@ -1404,8 +1405,8 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
         isCloudCoverageDirty = true;
     ImGui::End();
 
-    Resource cloudCoverageResource = {};
-    Resource cloudProfileMapResource = {};
+    ImageResource cloudCoverageResource = {};
+    ImageResource cloudProfileMapResource = {};
 
     const bool loadCoverage = (bool)CVars::Get().GetI32CVar("Clouds.LoadCoverage"_hsv, bool(1));
     const bool loadProfile = (bool)CVars::Get().GetI32CVar("Clouds.LoadProfile"_hsv, bool(1));
@@ -1425,7 +1426,7 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
         }
         else
         {
-            const Resource coverageParametersBuffer = Passes::Upload::addToGraph(
+            const BufferResource coverageParametersBuffer = Passes::Upload::addToGraph(
                 "CoverageNoiseParameters"_hsv, *m_Graph, m_CloudCoverageNoiseParameters);
             
             auto& cloudCoverage = Passes::Clouds::VP::Coverage::addToGraph("CoverageMapGen"_hsv, *m_Graph, {
@@ -1471,8 +1472,8 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     if (ImGui::Button("Regenerate"))
         isShapeDirty = true;
     
-    Resource lowFrequencyNoiseResource = {};
-    Resource highFrequencyNoiseResource = {};
+    ImageResource lowFrequencyNoiseResource = {};
+    ImageResource highFrequencyNoiseResource = {};
     if (!isShapeDirty && m_CloudShapeLowFrequency.HasValue() && m_CloudShapeHighFrequency.HasValue())
     {
         lowFrequencyNoiseResource = m_Graph->ImportPersistent("LowFrequency.ImportPersistent"_hsv, 
@@ -1482,9 +1483,9 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     }
     else
     {
-        const Resource lowFrequencyParametersBuffer = Passes::Upload::addToGraph(
+        const BufferResource lowFrequencyParametersBuffer = Passes::Upload::addToGraph(
             "LowFrequencyNoiseParameters"_hsv, *m_Graph, m_CloudShapeLowFrequencyNoiseParameters);
-        const Resource highFrequencyParametersBuffer = Passes::Upload::addToGraph(
+        const BufferResource highFrequencyParametersBuffer = Passes::Upload::addToGraph(
             "HighFrequencyNoiseParameters"_hsv, *m_Graph, m_CloudShapeHighFrequencyNoiseParameters);
         
         auto& cloudShape = Passes::Clouds::ShapeNoise::addToGraph("CloudShapeNoise"_hsv, *m_Graph, {
@@ -1501,7 +1502,7 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
         m_Graph->Export(cloudShape.HighFrequencyTexture, m_CloudShapeHighFrequency, Device::DeletionQueue());
     }
 
-    Resource curlNoiseResource = {};
+    ImageResource curlNoiseResource = {};
     if (m_CloudCurlNoise.HasValue())
     {
         curlNoiseResource = m_Graph->ImportPersistent("CloudsCurlNoise.ImportPersistent"_hsv, m_CloudCurlNoise);
@@ -1532,8 +1533,8 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     };
 }
 
-Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::Resource color,
-    RG::Resource aerialPerspective, RG::Resource minMaxDepth, RG::Resource sceneDepth)
+Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::ImageResource color,
+    RG::ImageResource aerialPerspective, RG::ImageResource minMaxDepth, RG::ImageResource sceneDepth)
 {
     ImGui::Begin("Clouds Parameters");
     ImGui::DragFloat("Meters per texel", &m_CloudParameters.CloudMapMetersPerTexel, 1e-2f, 0.0f);
@@ -1593,27 +1594,27 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
             .ColorAccumulationIn = m_CloudColorAccumulation[m_CloudsAccumulationIndexPrev].HasValue() ?
                 m_Graph->ImportPersistent("Clouds.Color.Accumulation.In"_hsv,
                     m_CloudColorAccumulation[m_CloudsAccumulationIndexPrev]) :
-                RG::Resource{},
+                RG::ImageResource{},
             .DepthAccumulationIn = m_CloudDepthAccumulation[m_CloudsAccumulationIndexPrev].HasValue() ?
                 m_Graph->ImportPersistent("Clouds.Depth.Accumulation.In"_hsv,
                     m_CloudDepthAccumulation[m_CloudsAccumulationIndexPrev]) :
-                RG::Resource{},
+                RG::ImageResource{},
             .ReprojectionFactorIn = m_CloudReprojectionFactor[m_CloudsAccumulationIndexPrev].HasValue() ?
                 m_Graph->ImportPersistent("Clouds.ReprojectionFactor.In"_hsv,
                     m_CloudReprojectionFactor[m_CloudsAccumulationIndexPrev]) :
-                RG::Resource{},
+                RG::ImageResource{},
             .ColorAccumulationOut = m_CloudColorAccumulation[m_CloudsAccumulationIndexPrev].HasValue() ?
                 m_Graph->ImportPersistent("Clouds.Color.Accumulation"_hsv,
                     m_CloudColorAccumulation[m_CloudsAccumulationIndex]) :
-                RG::Resource{},
+                RG::ImageResource{},
             .DepthAccumulationOut = m_CloudDepthAccumulation[m_CloudsAccumulationIndexPrev].HasValue() ?
                 m_Graph->ImportPersistent("Clouds.Depth.Accumulation"_hsv,
                     m_CloudDepthAccumulation[m_CloudsAccumulationIndex]) :
-                RG::Resource{},
+                RG::ImageResource{},
             .ReprojectionFactorOut = m_CloudReprojectionFactor[m_CloudsAccumulationIndexPrev].HasValue() ?
                 m_Graph->ImportPersistent("Clouds.ReprojectionFactor"_hsv,
                     m_CloudReprojectionFactor[m_CloudsAccumulationIndex]) :
-                RG::Resource{},
+                RG::ImageResource{},
             .CloudParameters = m_CloudParametersResource,
         });
 

@@ -6,11 +6,11 @@ namespace Passes::Crt
 {
 struct ExecutionInfo
 {
-    RG::Resource Color{};
+    RG::ImageResource Color{};
 };
 struct PassData
 {
-    RG::Resource Color{};
+    RG::ImageResource Color{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

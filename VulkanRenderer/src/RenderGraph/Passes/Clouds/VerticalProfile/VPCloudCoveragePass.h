@@ -6,13 +6,13 @@ namespace Passes::Clouds::VP::Coverage
 struct ExecutionInfo
 {
     /* optional external coverage map image */
-    RG::Resource CoverageMap{};
-    RG::Resource NoiseParameters{};
+    RG::ImageResource CoverageMap{};
+    RG::BufferResource NoiseParameters{};
 };
 
 struct PassData
 {
-    RG::Resource CoverageMap{};
+    RG::ImageResource CoverageMap{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

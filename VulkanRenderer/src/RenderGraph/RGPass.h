@@ -108,7 +108,7 @@ private:
 
     struct ImageLayoutInfo
     {
-        Resource Image{};
+        ImageResource Image{};
         ImageLayout Layout{ImageLayout::Undefined};
     };
 

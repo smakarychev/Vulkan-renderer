@@ -61,7 +61,7 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
             passData.BindGroup.SetResourcesBrdf(info.IBL.BRDF);
             passData.BindGroup.SetResourcesIrradianceSH(info.IBL.IrradianceSH);
 
-            const Resource color = graph.Create("Color"_hsv,
+            const ImageResource color = graph.Create("Color"_hsv,
                 RGImageDescription{
                     .Inference = RGImageInference::Size,
                     .Reference = info.VisibilityTexture,

@@ -5,25 +5,25 @@
 
 namespace Passes::ImGuiTexture
 {
-RG::Resource addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn);
-RG::Resource addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
+RG::ImageResource addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn);
+RG::ImageResource addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn,
     ChannelComposition channelComposition);
 }
 
 namespace Passes::ImGuiCubeTexture
 {
-RG::Resource addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn);
+RG::ImageResource addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn);
 }
 
 namespace Passes::ImGuiArrayTexture
 {
 enum class DrawAs : u8 {Slice, Atlas};
-RG::Resource addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn, DrawAs drawAs, 
+RG::ImageResource addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn, DrawAs drawAs, 
     ChannelComposition channelComposition = ChannelComposition{});
 }
 
 namespace Passes::ImGuiTexture3d
 {
-RG::Resource addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
+RG::ImageResource addToGraph(StringId name, RG::Graph& renderGraph, RG::ImageResource textureIn,
     ChannelComposition channelComposition = ChannelComposition{});
 }

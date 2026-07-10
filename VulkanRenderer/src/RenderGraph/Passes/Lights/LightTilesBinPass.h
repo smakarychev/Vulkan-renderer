@@ -7,15 +7,15 @@ namespace Passes::LightTilesBin
 {
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
-    RG::Resource Tiles{};
-    RG::Resource Depth{};
-    RG::Resource PointLights{};
+    RG::BufferResource ViewInfo{};
+    RG::BufferResource Tiles{};
+    RG::ImageResource Depth{};
+    RG::BufferResource PointLights{};
 };
 
 struct PassData
 {
-    RG::Resource Tiles{};
+    RG::BufferResource Tiles{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

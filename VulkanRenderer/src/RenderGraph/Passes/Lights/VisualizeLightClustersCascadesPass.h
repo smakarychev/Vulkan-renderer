@@ -5,12 +5,12 @@ namespace Passes::LightClustersCascadesVisualize
 {
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
-    RG::Resource Depth{};
+    RG::BufferResource ViewInfo{};
+    RG::ImageResource Depth{};
 };
 struct PassData
 {
-    RG::Resource Color{};
+    RG::ImageResource Color{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

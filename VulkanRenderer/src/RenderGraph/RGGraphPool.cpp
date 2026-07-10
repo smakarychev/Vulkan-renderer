@@ -56,24 +56,24 @@ GraphPool::~GraphPool()
         Device::Destroy(image.Resource);
 }
 
-GraphPool::BufferAllocationInfo GraphPool::Allocate(Resource resource, const BufferDescription& buffer,
+GraphPool::BufferAllocationInfo GraphPool::Allocate(BufferResource resource, const BufferDescription& buffer,
     u32 firstPassIndex, u32 lastPassIndex)
 {
     const BufferAllocationInfo allocated = TryAlias(resource, buffer, firstPassIndex, lastPassIndex);
 
     return allocated.Resource.HasValue() ?
-               allocated :
-               BufferAllocationInfo{.Resource = AllocateNew(resource, buffer, firstPassIndex, lastPassIndex)};
+        allocated :
+        BufferAllocationInfo{.Resource = AllocateNew(resource, buffer, firstPassIndex, lastPassIndex)};
 }
 
-GraphPool::ImageAllocationInfo GraphPool::Allocate(Resource resource, const ImageDescription& image,
+GraphPool::ImageAllocationInfo GraphPool::Allocate(ImageResource resource, const ImageDescription& image,
     u32 firstPassIndex, u32 lastPassIndex)
 {
     const ImageAllocationInfo allocated = TryAlias(resource, image, firstPassIndex, lastPassIndex);
 
     return allocated.Resource.HasValue() ?
-               allocated :
-               ImageAllocationInfo{.Resource = AllocateNew(resource, image, firstPassIndex, lastPassIndex)};
+        allocated :
+        ImageAllocationInfo{.Resource = AllocateNew(resource, image, firstPassIndex, lastPassIndex)};
 }
 
 void GraphPool::OnFrameEnd()
@@ -115,7 +115,7 @@ void GraphPool::ClearUnreferenced()
     unorderedRemove(m_Images, [](Image image) { Device::Destroy(image); });
 }
 
-GraphPool::BufferAllocationInfo GraphPool::TryAlias(Resource resource, const BufferDescription& buffer,
+GraphPool::BufferAllocationInfo GraphPool::TryAlias(BufferResource resource, const BufferDescription& buffer,
     u32 firstPassIndex, u32 lastPassIndex)
 {
     for (auto& allocated : m_Buffers)
@@ -131,7 +131,7 @@ GraphPool::BufferAllocationInfo GraphPool::TryAlias(Resource resource, const Buf
             allocated.FirstPassIndex = firstPassIndex;
             allocated.LastPassIndex = lastPassIndex;
             allocated.LastFrameIndex = 0;
-            const Resource aliasedFrom = allocated.Handle;
+            const BufferResource aliasedFrom = allocated.Handle;
             allocated.Handle = resource;
 
             return {
@@ -144,7 +144,7 @@ GraphPool::BufferAllocationInfo GraphPool::TryAlias(Resource resource, const Buf
     return {};
 }
 
-GraphPool::ImageAllocationInfo GraphPool::TryAlias(Resource resource, const ImageDescription& image,
+GraphPool::ImageAllocationInfo GraphPool::TryAlias(ImageResource resource, const ImageDescription& image,
     u32 firstPassIndex, u32 lastPassIndex)
 {
     for (auto& allocated : m_Images)
@@ -160,7 +160,7 @@ GraphPool::ImageAllocationInfo GraphPool::TryAlias(Resource resource, const Imag
             allocated.FirstPassIndex = firstPassIndex;
             allocated.LastPassIndex = lastPassIndex;
             allocated.LastFrameIndex = 0;
-            const Resource aliasedFrom = allocated.Handle;
+            const ImageResource aliasedFrom = allocated.Handle;
             allocated.Handle = resource;
 
             return {
@@ -173,7 +173,7 @@ GraphPool::ImageAllocationInfo GraphPool::TryAlias(Resource resource, const Imag
     return {};
 }
 
-Buffer GraphPool::AllocateNew(Resource resource, const BufferDescription& buffer,
+Buffer GraphPool::AllocateNew(BufferResource resource, const BufferDescription& buffer,
     u32 firstPassIndex, u32 lastPassIndex)
 {
     m_Buffers.push_back({
@@ -193,7 +193,7 @@ Buffer GraphPool::AllocateNew(Resource resource, const BufferDescription& buffer
     return m_Buffers.back().Resource;
 }
 
-Image GraphPool::AllocateNew(Resource resource, const ImageDescription& image,
+Image GraphPool::AllocateNew(ImageResource resource, const ImageDescription& image,
     u32 firstPassIndex, u32 lastPassIndex)
 {
     m_Images.push_back({

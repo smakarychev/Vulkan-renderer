@@ -5,14 +5,14 @@ namespace Passes::LightClustersVisualize
 {
 struct ExecutionInfo
 {
-    RG::Resource ViewInfo{};
-    RG::Resource Clusters{};
-    RG::Resource Depth{};
+    RG::BufferResource ViewInfo{};
+    RG::BufferResource Clusters{};
+    RG::ImageResource Depth{};
 };
 
 struct PassData
 {
-    RG::Resource Color{};
+    RG::ImageResource Color{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
