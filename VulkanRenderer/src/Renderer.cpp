@@ -96,6 +96,7 @@ Renderer::Renderer() = default;
 void Renderer::OnInputEvent(const lux::InputEvent& event)
 {
     Input::OnInputEvent(event);
+    m_CameraController->OnInputEvent(event);
     lux::InputEventDispatcher dispatcher(event);
     dispatcher.Dispatch<lux::WindowResizedEvent>([&](const lux::WindowResizedEvent&)
     {

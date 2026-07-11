@@ -8,6 +8,11 @@
 
 #include <memory>
 
+namespace lux
+{
+class InputEvent;
+}
+
 struct FrustumPlanes
 {
     f32 TopY;
@@ -140,6 +145,7 @@ class CameraController
 public:
     CameraController(const std::shared_ptr<Camera>& camera);
 
+    void OnInputEvent(const lux::InputEvent& event);
     void OnUpdate(f32 dt);
 
 private:

@@ -3,6 +3,8 @@
 #include "Camera.h"
 
 #include "Input.h"
+#include "InputEvents/InputEventDispatcher.h"
+#include "InputEvents/MouseInputEvent.h"
 
 static constexpr glm::vec3 DEFAULT_POSITION = glm::vec3(0.0f);
 static const glm::quat DEFAULT_ORIENTATION = glm::angleAxis(0.0f, glm::vec3(1.0f, 0.0f, 0.0f));
@@ -336,6 +338,7 @@ void Camera::FlipProjectionVertically()
 
 static constexpr f32 DEFAULT_TRANSLATION_SPEED = 0.1f;
 static constexpr f32 DEFAULT_TRANSLATION_SPEED_FPS = 1.0f;
+static constexpr f32 DEFAULT_TRANSLATION_SPEED_FPS_SCROLL_RELATIVE_INCREMENT = 0.1f;
 static constexpr f32 DEFAULT_TRANSLATION_SPEED_BOOST_FPS = 5.0f;
 static constexpr f32 DEFAULT_ROTATION_SPEED = 0.5f;
 static constexpr f32 DEFAULT_E_YAW = 0.0f;
@@ -355,6 +358,17 @@ CameraController::CameraController(const std::shared_ptr<Camera>& camera)
     m_Camera->SetOrientation(glm::quat(glm::vec3(m_Pitch, m_Yaw, 0.0f)));
     m_Camera->SetPosition(m_FocalPoint - m_Distance * m_Camera->GetForward());
     m_Camera->UpdateViewMatrix();
+}
+
+void CameraController::OnInputEvent(const lux::InputEvent& event)
+{
+    lux::InputEventDispatcher dispatcher(event);
+    dispatcher.Dispatch<lux::MouseScrolledEvent>([this](const lux::MouseScrolledEvent& event)
+    {
+        m_TranslationSpeedFPS = std::max(0.0f,
+            m_TranslationSpeedFPS + m_TranslationSpeedFPS * DEFAULT_TRANSLATION_SPEED_FPS_SCROLL_RELATIVE_INCREMENT *
+            event.Dy);
+    });
 }
 
 void CameraController::OnUpdate(f32 dt)
