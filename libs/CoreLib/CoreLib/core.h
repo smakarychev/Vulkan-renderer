@@ -7,7 +7,7 @@
 #include <stacktrace>
 
 #ifdef NDEBUG
-#define ASSERT(x, ...) ((void)0)
+#define ASSERT(x, ...) ((void)0);
 #else
 #define ASSERT(x, ...) if(x) {} else { LUX_LOG_ERROR("Assertion failed"); LUX_LOG_ERROR(__VA_ARGS__); LUX_LOG_ERROR("{}", std::stacktrace::current()); __debugbreak(); }
 #endif
