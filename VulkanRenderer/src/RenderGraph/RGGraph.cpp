@@ -710,8 +710,7 @@ void Graph::TopologicalSort(std::vector<std::vector<u32>>& dependencyList)
     };
 
     for (u32 i = 0; i < m_Passes.size(); i++)
-        if (!marks[i].Permanent)
-            dfsSort(i);
+        dfsSort(i);
 
     std::vector depths(m_Passes.size(), 0u);
     for (u32 parent : std::views::reverse(topologicalOrder))
