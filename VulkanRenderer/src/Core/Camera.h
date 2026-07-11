@@ -29,7 +29,7 @@ struct ProjectionData
     f32 BiasY;
 };
 
-enum class CameraType {Perspective, Orthographic};
+enum class CameraType { Perspective, Orthographic };
 
 struct CameraCreateInfo
 {
@@ -49,6 +49,7 @@ struct PerspectiveCameraCreateInfo
     CameraCreateInfo BaseInfo{};
     f32 Fov{glm::radians(45.0f)};
 };
+
 struct OrthographicCameraCreateInfo
 {
     CameraCreateInfo BaseInfo{};
@@ -61,6 +62,7 @@ struct OrthographicCameraCreateInfo
 class Camera
 {
     friend class CameraController;
+
 public:
     Camera(CameraType type);
     Camera(CameraType type, const glm::vec3& position, f32 fov, f32 aspect);
@@ -71,13 +73,13 @@ public:
 
     void SetType(CameraType type);
     CameraType GetType() const { return m_CameraType; }
-    
+
     void SetPosition(const glm::vec3& position);
     void SetOrientation(const glm::quat& orientation);
 
     const glm::vec3& GetPosition() const { return m_Position; }
     const glm::quat& GetOrientation() const { return m_Orientation; }
-    
+
     const glm::mat4& GetViewProjection() const { return m_ViewProjection; }
     const glm::mat4& GetViewProjectionInverse() const { return m_ViewProjectionInverse; }
     const glm::mat4& GetView() const { return m_ViewMatrix; }
@@ -108,11 +110,13 @@ public:
 
     /* return near camera plane with normal equal to the `Forward` vector */
     Plane GetNearViewPlane() const;
+
 private:
     void UpdateViewMatrix();
     void UpdateProjectionMatrix();
     void UpdateViewProjection();
     void FlipProjectionVertically();
+
 private:
     CameraType m_CameraType{};
     glm::vec3 m_Position;
@@ -137,10 +141,12 @@ public:
     CameraController(const std::shared_ptr<Camera>& camera);
 
     void OnUpdate(f32 dt);
+
 private:
     void FPSOnUpdate(f32 dt);
     void OrbitOnUpdate(f32 dt);
     f32 ZoomSpeed();
+
 private:
     std::shared_ptr<Camera> m_Camera;
 
