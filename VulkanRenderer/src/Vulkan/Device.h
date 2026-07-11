@@ -17,12 +17,16 @@
 
 #include <imgui/imgui.h>
 
+namespace lux
+{
+class Window;
+}
+
 struct FrameContext;
 class DeviceResources;
 struct CopyBufferCommand;
 struct CopyBufferToImageCommand;
 class ProfilerContext;
-struct GLFWwindow;
 
 struct DeviceCreateInfo
 {
@@ -31,10 +35,10 @@ struct DeviceCreateInfo
     std::vector<const char*> InstanceExtensions;
     std::vector<const char*> InstanceValidationLayers;
     std::vector<const char*> DeviceExtensions;
-    GLFWwindow* Window;
+    lux::Window* Window{nullptr};
     bool AsyncCompute{false};
 
-    static DeviceCreateInfo Default(GLFWwindow* window, bool asyncCompute);
+    static DeviceCreateInfo Default(lux::Window* window, bool asyncCompute);
 };
 
 struct ImmediateSubmitContext

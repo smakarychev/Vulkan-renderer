@@ -31,6 +31,8 @@
 
 namespace lux
 {
+class InputEvent;
+class Window;
 class SceneAssetManager;
 class MaterialAssetManager;
 class ImageAssetManager;
@@ -75,9 +77,12 @@ public:
     void BeginFrame();
     void EndFrame();
 
-    GLFWwindow* GetWindow() { return m_Window; }
+    const lux::Window& GetWindow() const { return *m_Window; }
 private:
     Renderer();
+    
+    void OnInputEvent(const lux::InputEvent& event);
+    
     void InitRenderingStructures();
     void InitRenderGraph();
     void ExecuteSingleTimePasses();
@@ -168,7 +173,7 @@ private:
 
     u32 GetPreviousFrameNumber() const;
 private:
-    GLFWwindow* m_Window;
+    std::unique_ptr<lux::Window> m_Window;
     std::unique_ptr<CameraController> m_CameraController;
     std::shared_ptr<Camera> m_Camera;
 

@@ -2,7 +2,6 @@
 
 #include "Device.h"
 
-
 #define VOLK_IMPLEMENTATION
 #include <volk.h>
 
@@ -12,11 +11,12 @@
 #include <tracy/TracyVulkan.hpp>
 #include <imgui/imgui_impl_vulkan.h>
 #include <imgui/imgui_impl_glfw.h>
-#include <GLFW/glfw3.h>
 
 #include "FrameContext.h"
+#include "VulkanWindowSurface.h"
 #include "Rendering/Buffer/Buffer.h"
 #include "Core/ProfilerContext.h"
+#include "Core/Window/Window.h"
 #include "CoreLib/Utils/MemoryUtils.h"
 #include "Rendering/FormatTraits.h"
 #include "Imgui/ImguiUI.h"
@@ -1490,15 +1490,14 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     std::unreachable();
 }
 
-DeviceCreateInfo DeviceCreateInfo::Default(GLFWwindow* window, bool asyncCompute)
+DeviceCreateInfo DeviceCreateInfo::Default(lux::Window* window, bool asyncCompute)
 {
     DeviceCreateInfo createInfo = {};
     createInfo.AppName = "Vulkan-app";
     createInfo.ApiVersion = VK_API_VERSION_1_3;
-    u32 instanceExtensionsCount = 0;
 
-    const char** instanceExtensions = glfwGetRequiredInstanceExtensions(&instanceExtensionsCount);
-    createInfo.InstanceExtensions = std::vector(instanceExtensions + 0, instanceExtensions + instanceExtensionsCount);
+    const Span<const char*> instanceExtensions = lux::VulkanWindowSurface::GetRequiredExtensions();
+    createInfo.InstanceExtensions.append_range(instanceExtensions);
     createInfo.InstanceExtensions.emplace_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 
 #ifdef VULKAN_VAL_LAYERS
@@ -1602,6 +1601,8 @@ struct Device::State
 
     ImmediateSubmitContext GetSubmitContext();
     void FreeSubmitContext(const ImmediateSubmitContext& ctx);
+    
+    lux::VulkanWindowSurface& GetWindowSurface() { return (lux::VulkanWindowSurface&)*WindowSurface;}
 
     VkDevice Device{VK_NULL_HANDLE};
     DeviceResources Resources;
@@ -1612,7 +1613,8 @@ struct Device::State
 
     ::DeletionQueue* FrameDeletionQueue{nullptr};
 
-    GLFWwindow* Window{nullptr};
+    lux::Window* Window{nullptr};
+    std::unique_ptr<lux::WindowSurface> WindowSurface{}; 
 
     std::mutex SubmitContextMutex{};
     std::vector<ImmediateSubmitContext> SubmitContexts;
@@ -1711,7 +1713,7 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQu
         return std::min(capabilities.minImageCount + 1, capabilities.maxImageCount);
     };
 
-    auto chooseExtent = [](GLFWwindow* window, const VkSurfaceCapabilitiesKHR& capabilities)
+    auto chooseExtent = [](const lux::Window& window, const VkSurfaceCapabilitiesKHR& capabilities)
     {
         VkExtent2D extent = capabilities.currentExtent;
 
@@ -1719,13 +1721,12 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQu
             return extent;
 
         // indication that extent might not be same as window size
-        i32 windowWidth, windowHeight;
-        glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+        lux::WindowSize size = window.GetWindowSize();
 
         extent.width = std::clamp(
-            windowWidth, (i32)capabilities.minImageExtent.width, (i32)capabilities.maxImageExtent.width);
+            (i32)size.Width, (i32)capabilities.minImageExtent.width, (i32)capabilities.maxImageExtent.width);
         extent.height = std::clamp(
-            windowHeight, (i32)capabilities.minImageExtent.height, (i32)capabilities.maxImageExtent.height);
+            (i32)size.Height, (i32)capabilities.minImageExtent.height, (i32)capabilities.maxImageExtent.height);
 
         return extent;
     };
@@ -1737,7 +1738,7 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQu
     swapchainCreateInfo.surface = s_State.Surface;
     swapchainCreateInfo.imageColorSpace = colorFormat.colorSpace;
     swapchainCreateInfo.imageFormat = colorFormat.format;
-    VkExtent2D extent = chooseExtent(s_State.Window, capabilities);
+    VkExtent2D extent = chooseExtent(*s_State.Window, capabilities);
     swapchainCreateInfo.imageExtent = extent;
     swapchainCreateInfo.imageArrayLayers = 1;
     swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -1767,8 +1768,8 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQu
 
     const glm::uvec2 swapchainResolution = glm::uvec2{extent.width, extent.height};
     const glm::uvec2 drawResolution = createInfo.DrawResolution.x != 0 ?
-                                          createInfo.DrawResolution :
-                                          swapchainResolution;
+        createInfo.DrawResolution :
+        swapchainResolution;
 
     swapchainResource.Description = {
         .SwapchainResolution = swapchainResolution,
@@ -3848,8 +3849,10 @@ void Device::CreateSurface(const DeviceCreateInfo& createInfo)
     }
 
     s_State.Window = createInfo.Window;
-    deviceCheck(glfwCreateWindowSurface(s_State.Instance, createInfo.Window, nullptr, &s_State.Surface),
-        "Failed to create surface\n");
+    s_State.WindowSurface = createInfo.Window->CreateSurfaceFor(lux::WindowSurfaceBackend::Vulkan);
+    void* opaqueSurface = s_State.Surface;
+    ASSERT(s_State.GetWindowSurface().Init(s_State.Instance, &opaqueSurface), "Failed to create surface\n")
+    s_State.Surface = (VkSurfaceKHR)opaqueSurface;
 }
 
 void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
@@ -4373,7 +4376,7 @@ void Device::InitImGuiUI()
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-    ImGui_ImplGlfw_InitForVulkan(s_State.Window, true);
+    s_State.Window->InitForImGui();
 
     ImGui_ImplVulkan_InitInfo imguiInitInfo = {};
     imguiInitInfo.Instance = s_State.Instance;
@@ -4404,7 +4407,7 @@ void Device::ShutdownImGuiUI()
         ImGuiUI::ClearFrameResources(i);
 
     ImGui_ImplVulkan_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
+    s_State.Window->ShutdownImGui();
     ImGui::DestroyContext();
     vkDestroyDescriptorPool(s_State.Device, s_State.ImGuiPool, nullptr);
 }

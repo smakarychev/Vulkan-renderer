@@ -360,7 +360,7 @@ void CameraController::OnUpdate(f32 dt)
 {
     // combined controls: while holding right mouse button, the controller behaves as fps controller,
     // if not holding rmb, it behaves as orbit controller
-    if (!Input::GetKey(Key::LeftAlt) && Input::GetMouseButton(Mouse::ButtonRight))
+    if (!Input::IsKeyPressed(Key::LeftAlt) && Input::IsMouseButtonPressed(Mouse::ButtonRight))
         FPSOnUpdate(dt);
     else
         OrbitOnUpdate(dt);
@@ -393,17 +393,17 @@ void CameraController::FPSOnUpdate(f32 dt)
     m_Camera->SetOrientation(newOrientation);
 
     glm::vec3 velocityVector = {};
-    if (Input::GetKey(Key::W))
+    if (Input::IsKeyPressed(Key::W))
         velocityVector += m_Camera->GetForward();
-    if (Input::GetKey(Key::S))
+    if (Input::IsKeyPressed(Key::S))
         velocityVector -= m_Camera->GetForward();
-    if (Input::GetKey(Key::A))
+    if (Input::IsKeyPressed(Key::A))
         velocityVector -= m_Camera->GetRight();
-    if (Input::GetKey(Key::D))
+    if (Input::IsKeyPressed(Key::D))
         velocityVector += m_Camera->GetRight();
 
     f32 speed = m_TranslationSpeedFPS * dt;
-    if (Input::GetKey(Key::LeftShift))
+    if (Input::IsKeyPressed(Key::LeftShift))
         speed *= m_TranslationSpeedBoostFPS;
 
     if (glm::dot(velocityVector, velocityVector) > 0.0f)
@@ -418,7 +418,7 @@ void CameraController::FPSOnUpdate(f32 dt)
 
 void CameraController::OrbitOnUpdate(f32 dt)
 {
-    if (Input::GetKey(Key::LeftAlt))
+    if (Input::IsKeyPressed(Key::LeftAlt))
     {
         const f32 prevMouseX = m_MouseCoordinates.x;
         const f32 prevMouseY = m_MouseCoordinates.y;
@@ -426,7 +426,7 @@ void CameraController::OrbitOnUpdate(f32 dt)
         f32 xOffset =   m_MouseCoordinates.x - prevMouseX;
         f32 yOffset = -(m_MouseCoordinates.y - prevMouseY);
 
-        if (Input::GetMouseButton(Mouse::ButtonRight))
+        if (Input::IsMouseButtonPressed(Mouse::ButtonRight))
         {
             const f32 deltaDistance = yOffset * ZoomSpeed() * dt;
             m_Distance += deltaDistance;
@@ -439,9 +439,9 @@ void CameraController::OrbitOnUpdate(f32 dt)
             m_Camera->UpdateViewProjection();
         }
         
-        if (Input::GetKey(Key::LeftShift))
+        if (Input::IsKeyPressed(Key::LeftShift))
         {
-            if (Input::GetMouseButton(Mouse::ButtonLeft))
+            if (Input::IsMouseButtonPressed(Mouse::ButtonLeft))
             {
                 xOffset *= -m_TranslationSpeed * dt * m_Distance;
                 yOffset *= m_TranslationSpeed * dt * m_Distance;
@@ -454,7 +454,7 @@ void CameraController::OrbitOnUpdate(f32 dt)
         }
         else
         {
-            if (Input::GetMouseButton(Mouse::ButtonLeft))
+            if (Input::IsMouseButtonPressed(Mouse::ButtonLeft))
             {
                 xOffset *=  m_RotationSpeed * dt;
                 yOffset *= -m_RotationSpeed * dt;

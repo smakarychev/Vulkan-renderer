@@ -12,9 +12,13 @@
 #include "Assets/Scenes/SceneAssetManager.h"
 #include "Assets/Shaders/ShaderAssetManager.h"
 #include "Core/Input.h"
+#include "Core/InputEvents/InputEventDispatcher.h"
+#include "Core/InputEvents/KeyboardInputEvent.h"
+#include "Core/InputEvents/MouseInputEvent.h"
+#include "Core/InputEvents/WindowInputEvent.h"
+#include "Core/Window/Window.h"
 #include "cvars/CVarSystem.h"
 
-#include "GLFW/glfw3.h"
 #include "Imgui/ImguiUI.h"
 #include "Light/LightFrustumCuller.h"
 #include "Light/LightZBinner.h"
@@ -89,6 +93,16 @@
 
 Renderer::Renderer() = default;
 
+void Renderer::OnInputEvent(const lux::InputEvent& event)
+{
+    Input::OnInputEvent(event);
+    lux::InputEventDispatcher dispatcher(event);
+    dispatcher.Dispatch<lux::WindowResizedEvent>([&](const lux::WindowResizedEvent&)
+    {
+        OnWindowResize();
+    });
+}
+
 void Renderer::Init()
 {
     StringIdRegistry::Init();
@@ -135,7 +149,10 @@ void Renderer::Init()
     InitRenderingStructures();
     Device::BeginFrame(GetFrameContext());
 
-    Input::s_MainViewportSize = Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution;
+    Input::OnWindowResized(
+        Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution.x,
+        Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution.y
+    );
     m_Camera = std::make_shared<Camera>(CameraType::Perspective);
     m_CameraController = std::make_unique<CameraController>(m_Camera);
     for (auto& ctx : m_FrameContexts)
@@ -1668,11 +1685,12 @@ Renderer* Renderer::Get()
 
 void Renderer::Run()
 {
-    while(!glfwWindowShouldClose(m_Window))
+    while(!m_Window->ShouldClose())
     {
-        glfwPollEvents();
+        Input::OnUpdate();
+        m_Window->OnUpdate();
+        
         BeginFrame();
-
 
         OnUpdate();
         
@@ -1734,34 +1752,22 @@ void Renderer::OnUpdate()
     struct InstanceWithLife
     {
         lux::SceneInstanceHandle Instance;
-        i32 LifeTimeMs{2000};
+        i32 LifeTimeMs{2000000};
     };
     static std::vector<InstanceWithLife> instances;
-    static bool swapped = false;
 
-    static auto lastTime = std::chrono::steady_clock::now();
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastTime).count();
-    if (!swapped && Input::GetKey(Key::R))
+    if (Input::IsKeyJustPressed(Key::R))
     {
-        if (elapsed > 10)
-        {
-            instances.push_back({spawnRandomScene(*m_Scene, m_Scenes, *m_Camera)});
-            LUX_LOG_TRACE("Meshes: {}\tMeshlets: {}\tTriangles: {}",
-                m_OpaqueSet.RenderObjectCount(), m_OpaqueSet.MeshletCount(), m_OpaqueSet.TriangleCount());
-            lastTime = now;
-        }
-        for (i32 i = (i32)instances.size() - 1; i >= 0; i--)
-        {
-            auto& instanceInfo = instances[i];
-            instanceInfo.LifeTimeMs -= (i32)elapsed;
-            if (instanceInfo.LifeTimeMs <= 0)
-            {
-                m_Scene->Delete(instanceInfo.Instance);
-                std::swap(instances[i], instances.back());
-                instances.pop_back();
-            }
-        }
+        instances.push_back({spawnRandomScene(*m_Scene, m_Scenes, *m_Camera)});
+        LUX_LOG_TRACE("Meshes: {}\tMeshlets: {}\tTriangles: {}",
+            m_OpaqueSet.RenderObjectCount(), m_OpaqueSet.MeshletCount(), m_OpaqueSet.TriangleCount());
+    }
+    if (Input::IsKeyJustPressed(Key::T) && !instances.empty())
+    {
+        const u32 index = Random::UInt32(0, (u32)instances.size() - 1);
+        m_Scene->Delete(instances[index].Instance);
+        std::swap(instances[index], instances.back());
+        instances.pop_back();
     }
 }
 
@@ -1925,19 +1931,18 @@ void Renderer::EndFrame()
 
 void Renderer::InitRenderingStructures()
 {
-    glfwInit();
-
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // do not create opengl context
-    m_Window = glfwCreateWindow(1600, 900, "My window", nullptr, nullptr);
-    glfwSetWindowUserPointer(m_Window, this);
-    glfwSetFramebufferSizeCallback(m_Window, [](GLFWwindow* window, i32 width, i32 height)
-    {
-        Renderer* renderer = (Renderer*)glfwGetWindowUserPointer(window);
-        renderer->OnWindowResize();
+    m_Window = std::make_unique<lux::Window>(lux::WindowParameters{
+        .Name = "Renderer",
+        .Size = {.Width = 1600, .Height = 900},
+        .UserPointer = this,
+        .InputEventFn = [](void* renderer, const lux::InputEvent& event) {
+            const auto thisRenderer = (Renderer*)renderer;
+            thisRenderer->OnInputEvent(event);
+        }
     });
 
     static constexpr bool ASYNC_COMPUTE = true;
-    Device::Init(DeviceCreateInfo::Default(m_Window, ASYNC_COMPUTE));
+    Device::Init(DeviceCreateInfo::Default(m_Window.get(), ASYNC_COMPUTE));
     Images::Default::Init();
 
     m_ResourceUploader.Init();
@@ -1994,8 +1999,7 @@ void Renderer::Shutdown()
     ProfilerContext::Get()->Shutdown();
 
     Device::Shutdown();
-    glfwDestroyWindow(m_Window); // optional (glfwTerminate does same thing)
-    glfwTerminate();
+    m_Window.reset();
 }
 
 void Renderer::OnWindowResize()
@@ -2005,13 +2009,12 @@ void Renderer::OnWindowResize()
 
 void Renderer::RecreateSwapchain()
 {
-    m_IsWindowResized = false;    
-    i32 width = 0, height = 0;
-    glfwGetFramebufferSize(m_Window, &width, &height);
-    while (width == 0 || height == 0)
+    m_IsWindowResized = false;
+    lux::WindowSize windowSize = m_Window->GetWindowSize();
+    while (windowSize.Width == 0 || windowSize.Height == 0)
     {
-        glfwGetFramebufferSize(m_Window, &width, &height);
-        glfwWaitEvents();
+        m_Window->WaitAnyEvent();
+        windowSize = m_Window->GetWindowSize();
     }
     
     Device::WaitIdle();
@@ -2022,7 +2025,7 @@ void Renderer::RecreateSwapchain()
     const SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
     m_Graph->SetBackbufferImage(swapchain.DrawImage);
 
-    Input::s_MainViewportSize = swapchain.SwapchainResolution;
+    Input::OnWindowResized(swapchain.SwapchainResolution.x, swapchain.SwapchainResolution.y);
     m_Camera->SetViewport(swapchain.SwapchainResolution.x, swapchain.SwapchainResolution.y);
     for (auto& frameContext : m_FrameContexts)
         frameContext.Resolution = swapchain.SwapchainResolution;
