@@ -132,7 +132,6 @@ private:
     /* Build a list of dependent passes. Each pass from `list[pass]` is dependent on the execution of `pass` */
     std::vector<std::vector<u32>> BuildDependencyList() const;
     void TopologicalSort(std::vector<std::vector<u32>>& dependencyList);
-    void DepthRetopology(const std::vector<u32>& depths, std::vector<u32>& topologicalOrder) const;
     void ProcessVirtualResources();
     using ValidateAccessResult = std::expected<void, std::string>;
     ValidateAccessResult ValidateAccessCommon(const ResourceAccessInfo& info);

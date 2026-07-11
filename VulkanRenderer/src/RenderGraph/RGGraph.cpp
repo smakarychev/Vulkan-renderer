@@ -681,43 +681,34 @@ void Graph::TopologicalSort(std::vector<std::vector<u32>>& dependencyList)
 {
     CPU_PROFILE_FRAME("Topological sort")
 
-    struct Mark
-    {
-        bool Permanent{false};
-        bool Temporary{false};
-    };
-    std::vector<Mark> marks(m_Passes.size());
     std::vector<u32> topologicalOrder;
     topologicalOrder.reserve(m_Passes.size());
 
-    auto dfsSort = [&](u32 index)
+    std::vector indegree(m_Passes.size(), 0u);
+    for (auto& dependency : dependencyList)
+        for (u32 pass : dependency)
+            indegree[pass] += 1;
+    
+    std::queue<u32> bfsQueue;
+    for (u32 i = 0; i < indegree.size(); i++) 
+        if (indegree[i] == 0)
+            bfsQueue.push(i);
+    
+    while (!bfsQueue.empty())
     {
-        auto dfsSortRecursive = [&marks, &topologicalOrder, &dependencyList, this](u32 index, auto& dfs)
+        u32 index = bfsQueue.front();
+        bfsQueue.pop();
+        topologicalOrder.push_back(index);
+        for (u32 next : dependencyList[index])
         {
-            if (marks[index].Permanent)
-                return;
-            ASSERT(!marks[index].Temporary, "Circular dependency in graph (pass {})", m_Passes[index]->Name())
-
-            marks[index].Temporary = true;
-            for (u32 adjacent : dependencyList[index])
-                dfs(adjacent, dfs);
-            marks[index].Temporary = false;
-            marks[index].Permanent = true;
-            topologicalOrder.push_back(index);
-        };
-
-        dfsSortRecursive(index, dfsSortRecursive);
-    };
-
-    for (u32 i = 0; i < m_Passes.size(); i++)
-        dfsSort(i);
-
-    std::vector depths(m_Passes.size(), 0u);
-    for (u32 parent : std::views::reverse(topologicalOrder))
-        for (u32 child : dependencyList[parent])
-            depths[child] = std::max(depths[child], depths[parent] + 1);
-
-    DepthRetopology(depths, topologicalOrder);
+            indegree[next] -= 1;
+            if (indegree[next] == 0)
+                bfsQueue.push(next);
+        }
+    }
+    
+    for (u32 i = 0; i < indegree.size(); i++)
+        ASSERT(indegree[i] == 0, "Circular dependency in graph (pass {})", m_Passes[i]->Name())
 
     std::vector passRemap(topologicalOrder.size(), 0u);
     for (u32 i = 0; i < topologicalOrder.size(); i++)
@@ -789,32 +780,6 @@ void Graph::TopologicalSort(std::vector<std::vector<u32>>& dependencyList)
             next = topologicalOrder[next];
         }
         topologicalOrder[current] = current;
-    }
-}
-
-void Graph::DepthRetopology(const std::vector<u32>& depths, std::vector<u32>& topologicalOrder) const
-{
-    if (depths.size() < 2)
-        return;
-
-    std::vector<u32> depthBuckets;
-    depthBuckets.resize(depths.size(), 0u);
-    for (u32 depth : depths)
-        depthBuckets[depth]++;
-
-    u32 previous = depthBuckets[0];
-    depthBuckets[0] = 0;
-    for (u32 i = 1; i < depthBuckets.size(); i++)
-    {
-        const u32 current = depthBuckets[i];
-        depthBuckets[i] = previous + depthBuckets[i - 1];
-        previous = current;
-    }
-
-    for (u32 passIndex = 0; passIndex < depths.size(); passIndex++)
-    {
-        topologicalOrder[depthBuckets[depths[passIndex]]] = passIndex;
-        depthBuckets[depths[passIndex]] += 1;
     }
 }
 
