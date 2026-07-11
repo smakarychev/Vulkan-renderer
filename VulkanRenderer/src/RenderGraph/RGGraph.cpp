@@ -434,6 +434,9 @@ void Graph::Execute(FrameContext& frameContext)
         m_PassIndicesStack.push_back(i);
 
         auto& pass = *m_Passes[i];
+        if (IsPassSplitOrMerge(pass))
+            continue;
+        
         CMD_EXECUTION_LABEL(frameContext.Cmd, pass.Name().AsStringView());
 
         /* submit everything gathered at `setup` stage */
@@ -1628,7 +1631,7 @@ ImageResource Graph::SplitImage(ImageResource main, ImageSubresourceDescription 
     /* this uses separate pass instead of directly calling `ReadImage` to allow for split outside Pass */
     if (m_PassIndicesStack.empty())
     {
-        AddRenderPass<std::nullptr_t>("Split"_hsv,
+        AddRenderPass<std::nullptr_t>(m_SplitPassName,
             [&](Graph& graph, std::nullptr_t&)
             {
                 graph.AddImageAccess(main, AccessType::Split, image, PipelineStage::None, PipelineAccess::None);
@@ -1671,7 +1674,7 @@ ImageResource Graph::MergeImage(Span<const ImageResource> splits)
     image.State = RGImageState::Merged;
     image.ActiveSplitCount -= (u16)splits.size();
 
-    AddRenderPass<std::nullptr_t>("Merge"_hsv,
+    AddRenderPass<std::nullptr_t>(m_MergePassName,
         [&](Graph& graph, std::nullptr_t&)
         {
             merged = graph.AddImageAccess(merged, AccessType::Merge, image, PipelineStage::None, PipelineAccess::None);
@@ -2050,6 +2053,21 @@ u32 Graph::CurrentPassIndex() const
 Pass& Graph::CurrentPass() const
 {
     return *m_Passes[CurrentPassIndex()];
+}
+
+bool Graph::IsPassSplitOrMerge(const Pass& pass) const
+{
+    if (pass.Name() != m_MergePassName && pass.Name() != m_SplitPassName)
+        return false;
+    
+    ASSERT(
+        pass.m_BarriersToWait.empty() && 
+        pass.m_SplitBarriersToWait.empty() && 
+        pass.m_SplitBarriersToSignal.empty() &&
+        !m_ResourceUploader.HasUploads(pass)
+    )
+    
+    return true;
 }
 }
 

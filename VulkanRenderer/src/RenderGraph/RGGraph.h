@@ -163,7 +163,8 @@ private:
         PipelineAccess access);
     u32 CurrentPassIndex() const;
     Pass& CurrentPass() const;
-
+    bool IsPassSplitOrMerge(const Pass& pass) const;
+    
 private:
     ImageResource m_Backbuffer{};
     std::vector<RGBuffer> m_Buffers;
@@ -202,6 +203,9 @@ private:
     DescriptorArenaAllocators* m_FrameAllocators{&m_ArenaAllocators[0]};
     lux::ShaderAssetManager* m_ShaderAssetManager{nullptr};
     mutable Blackboard m_Blackboard;
+    
+    const StringId m_SplitPassName{"Split"_hsv};
+    const StringId m_MergePassName{"Merge"_hsv};
 };
 
 template <typename PassData, typename SetupFn, typename ExecuteFn>
