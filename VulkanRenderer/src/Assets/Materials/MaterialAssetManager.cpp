@@ -40,17 +40,20 @@ void MaterialAssetManager::OnFileModified(const std::filesystem::path& path)
         return;
     
     const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
-    Lock lock(m_ResourceAccessMutex);
-    const MaterialHandle cached = m_Materials.Find(id);
-    
-    /* new material was created */
-    if (!cached.IsValid())
+    MaterialHandle cached;
     {
-        m_AssetSystem->RegisterAsset(importer.GetMetaPath(path), importer.GetImportedAssetMetadata());
-        return;
+        Lock lock(m_ResourceAccessMutex);
+        cached = m_Materials.Find(id);
+
+        /* new material was created */
+        if (!cached.IsValid())
+        {
+            m_AssetSystem->RegisterAsset(importer.GetMetaPath(path), importer.GetImportedAssetMetadata());
+            return;
+        }
+        m_Materials[cached.Index()] = std::move(*newMaterial);
     }
     
-    m_Materials[cached.Index()] = std::move(*newMaterial);
     m_AssetSystem->NotifyAssetUpdate(assetlib::material::ASSET_TYPE, {.AssetHandle = cached});
 }
 

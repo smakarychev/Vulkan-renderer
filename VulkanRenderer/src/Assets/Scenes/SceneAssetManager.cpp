@@ -146,20 +146,24 @@ void SceneAssetManager::OnRawFileModified(const std::filesystem::path& path)
                 return;
 
             const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
-            Lock lock(m_ResourceAccessMutex);
-            const SceneHandle cached = m_Scenes.Find(id);
-
-            /* new scene was created */
-            if (!cached.IsValid())
+            SceneHandle cached;
             {
-                m_AssetSystem->RegisterAsset(importer.GetMetaPath(path), importer.GetImportedAssetMetadata());
-                return;
+                Lock lock(m_ResourceAccessMutex);
+                cached = m_Scenes.Find(id);
+
+                /* new scene was created */
+                if (!cached.IsValid())
+                {
+                    m_AssetSystem->RegisterAsset(importer.GetMetaPath(path), importer.GetImportedAssetMetadata());
+                    return;
+                }
+
+                UnregisterMaterials(cached);
+                m_Scenes[cached] = std::move(*sceneAsset);
+                RegisterMaterials(cached);
+                m_SceneReplacedSignal.Emit({.Scene = cached});
             }
             
-            UnregisterMaterials(cached);
-            m_Scenes[cached] = std::move(*sceneAsset);
-            RegisterMaterials(cached);
-            m_SceneReplacedSignal.Emit({.Scene = cached});
             m_AssetSystem->NotifyAssetUpdate(assetlib::scene::ASSET_TYPE, {.AssetHandle = cached});
         }
     });

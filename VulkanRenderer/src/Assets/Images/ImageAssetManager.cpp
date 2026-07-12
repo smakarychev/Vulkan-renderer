@@ -91,20 +91,23 @@ void ImageAssetManager::OnRawFileModified(const std::filesystem::path& path)
             const ImageAsset newImage = DoLoad(importer, path);
             if (!newImage.HasValue())
                 return;
-            
-            const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
-            Lock lock(m_ResourceAccessMutex);
-            const ImageHandle cached = m_Images.Find(id);
 
-            /* new image was created */
-            if (!cached.IsValid())
+            const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
+            ImageHandle cached;
             {
-                m_AssetSystem->RegisterAsset(importer.GetMetaPath(path), importer.GetImportedAssetMetadata());
-                return;
+                Lock lock(m_ResourceAccessMutex);
+                cached = m_Images.Find(id);
+
+                /* new image was created */
+                if (!cached.IsValid())
+                {
+                    m_AssetSystem->RegisterAsset(importer.GetMetaPath(path), importer.GetImportedAssetMetadata());
+                    return;
+                }
+
+                m_FrameDeletionQueue->Enqueue(GetAsset(cached));
+                m_Images[cached.Index()] = newImage;
             }
-            
-            m_FrameDeletionQueue->Enqueue(GetAsset(cached));
-            m_Images[cached.Index()] = newImage;
 
             m_AssetSystem->NotifyAssetUpdate(assetlib::image::ASSET_TYPE, {.AssetHandle = cached});
         }
