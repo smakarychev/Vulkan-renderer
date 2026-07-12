@@ -1551,6 +1551,8 @@ void Graph::Export(ImageResource resource, PersistentImageResource& image, Delet
 
     RG_CHECK_RETURN_VOID(!resource.HasFlags(ResourceFlags::Volatile | ResourceFlags::Imported),
         "Provided resource is not an internal image")
+    RG_CHECK_RETURN_VOID(!m_Images[resource.m_Index].IsExported, 
+        "Provided resource is already exported: {}", m_Images[resource.m_Index].Name)
     PersistentImageInfo& persistentImageInfo = m_PersistentImages[image.m_Index];
     RG_CHECK_RETURN_VOID(
         !persistentImageInfo.Resource.IsValid() ||
