@@ -73,6 +73,7 @@
 #include "RenderGraph/Passes/SceneDraw/PBR/TonemappingPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowCamerasGpuPass.h"
 #include "RenderGraph/Passes/Skinning/ComputeSkinningPass.h"
+#include "RenderGraph/Passes/Utility/CopyBufferPass.h"
 #include "RenderGraph/Passes/Utility/CopyToBufferPass.h"
 #include "RenderGraph/Passes/Utility/EquirectangularToCubemapPass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
@@ -713,14 +714,31 @@ void Renderer::UpdateGlobalRenderGraphResources()
                 .Usage = BufferUsage::Ordinary | BufferUsage::Source | BufferUsage::Uniform | BufferUsage::Storage
             },
         });
+        Buffer primaryViewEnvironmentCaptureBuffer = Device::CreateBuffer({
+            .Description = {
+                .SizeBytes = sizeof(ViewInfoGPU),
+                .Usage = BufferUsage::Ordinary | BufferUsage::Source | BufferUsage::Uniform | BufferUsage::Storage
+            },
+        });
+        
         BufferResource primaryViewResource = Passes::CopyToBuffer::addToGraph("CopyInitialPrimaryView"_hsv, *m_Graph, {
             .Source = {primaryView},
             .Destination = m_Graph->Import("InitialPrimaryView"_hsv, primaryViewBuffer)
         }).Destination;
+
+        BufferResource primaryViewEnvironmentCaptureResource = Passes::CopyBuffer::addToGraph("CopyPrimaryViewEnv"_hsv,
+            *m_Graph, {
+                .Source = primaryViewResource,
+                .Destination = m_Graph->Import("InitialPrimaryEnvironmentView"_hsv, primaryViewEnvironmentCaptureBuffer),
+                .SizeBytes = sizeof(ViewInfoGPU),
+            }).Destination;
+        
         blackboard.Update<GlobalResources>({
             .PrimaryViewInfo = primaryView, 
             .PrimaryViewInfoBuffer = primaryViewBuffer,
+            .PrimaryViewInfoEnvironmentCaptureBuffer = primaryViewEnvironmentCaptureBuffer,
             .PrimaryViewInfoResource = primaryViewResource,
+            .PrimaryViewInfoEnvironmentCaptureResource = primaryViewEnvironmentCaptureResource,
         });
     }
 
@@ -812,10 +830,15 @@ void Renderer::UpdateGlobalRenderGraphResources()
     globalResources.FrameNumberTick = GetFrameContext().FrameNumberTick;
     globalResources.Resolution = GetFrameContext().Resolution;
     globalResources.PrimaryCamera = m_Camera.get();
-    
+
     if (globalResources.FrameNumberTick > 0)
+    {
         globalResources.PrimaryViewInfoResource = m_Graph->Import(
             "PrimaryView"_hsv, globalResources.PrimaryViewInfoBuffer);
+
+        globalResources.PrimaryViewInfoEnvironmentCaptureResource = m_Graph->Import("InitialPrimaryView"_hsv,
+            globalResources.PrimaryViewInfoEnvironmentCaptureBuffer);
+    }
 
     const u64 shadingInfoExposeOffsetBegin = offsetof(ViewInfoGPU, Shading) + offsetof(ShadingSettings, Exposure);
     const u64 shadingInfoExposeOffsetEnd = offsetof(ViewInfoGPU, Shading) + 
@@ -1278,6 +1301,15 @@ Passes::Atmosphere::LutPasses::PassData& Renderer::RenderGraphAtmosphereLutPasse
     auto& luts = Passes::Atmosphere::LutPasses::addToGraph("AtmosphereLutPasses"_hsv, *m_Graph, {
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
     });
+    
+    if (m_FrameNumber == 0)
+    {
+        const RG::ImageResource copy = Passes::CopyTexture::addToGraph("CopySkyViewEnvironment"_hsv, *m_Graph,
+            {.TextureIn = luts.SkyViewLut}).TextureOut;
+        m_Graph->Export(copy, m_SkyViewEnvironmentCaptureLut, Device::DeletionQueue(), 
+            ImageUsage::Sampled | ImageUsage::Destination);
+    }
+        
 
     m_Graph->GetBlackboard().Get<RG::GlobalResources>().PrimaryViewInfoResource = luts.ViewInfo;
     
@@ -1293,25 +1325,30 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
 {
     const u32 faceIndex = (u32)(m_FrameNumber % 6);
     
+    
+    m_SkyIrradianceSHResource = m_Graph->ImportPersistent("SkyIrradiance.ImportPersistent"_hsv, m_SkyIrradianceSH);
+    m_SkyPrefilterMapResource = m_Graph->ImportPersistent("SkyPrefilterMap"_hsv, m_SkyPrefilterMap);
+    const RG::ImageResource skyViewLut = m_Graph->ImportPersistent("SkyViewLutEnv"_hsv, m_SkyViewEnvironmentCaptureLut);
+    
     auto& environment = Passes::Atmosphere::Environment::addToGraph("Atmosphere.Environment"_hsv, *m_Graph, {
         .PrimaryView = &m_Graph->GetGlobalResources().PrimaryViewInfo,
-        .PrimaryViewResource = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
-        .SkyViewLut = lut.SkyViewLut,
+        .PrimaryViewResource = m_Graph->GetGlobalResources().PrimaryViewInfoEnvironmentCaptureResource,
+        .SkyViewLut = skyViewLut,
         .ColorIn = m_SkyAtmosphereWithCloudsEnvironment.HasValue() ?
             m_Graph->ImportPersistent("AtmosphereEnvironment.Imported"_hsv, m_SkyAtmosphereWithCloudsEnvironment) :
             RG::ImageResource{},
         .FaceIndices = m_FrameNumber == 0 ? Span<const u32>({0, 1, 2, 3, 4, 5}) : Span<const u32>({faceIndex})
     });
-
-    m_SkyIrradianceSHResource = m_Graph->ImportPersistent("SkyIrradiance.ImportPersistent"_hsv, m_SkyIrradianceSH);
     
     if (m_FrameNumber == 0)
+    {
         m_SkyIrradianceSHResource = Passes::DiffuseIrradianceSH::addToGraph("Sky.DiffuseIrradianceSH"_hsv, *m_Graph,
             environment.Color, m_SkyIrradianceSHResource, true).DiffuseIrradiance;
+    }
         
     auto& cloudsEnvironment = Passes::Clouds::VP::Environment::addToGraph("Clouds.Environment"_hsv, *m_Graph, {
         .PrimaryView = &m_Graph->GetGlobalResources().PrimaryViewInfo,
-        .PrimaryViewResource = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
+        .PrimaryViewResource = m_Graph->GetGlobalResources().PrimaryViewInfoEnvironmentCaptureResource,
         .CloudCoverage = cloudMaps.Coverage,
         .CloudProfile = cloudMaps.Profile,
         .CloudShapeLowFrequencyMap = cloudMaps.ShapeLowFrequency,
@@ -1327,19 +1364,32 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
         .FaceIndices = m_FrameNumber == 0 ? Span<const u32>({0, 1, 2, 3, 4, 5}) : Span<const u32>({faceIndex})
     });
 
-    auto& mipmapped = Passes::Mipmap::addToGraph("AtmosphereEnvironment.Mipmaps"_hsv, *m_Graph,
-        cloudsEnvironment.AtmosphereWithCloudsEnvironment);
-    cloudsEnvironment.AtmosphereWithCloudsEnvironment = mipmapped.Texture;
+    const bool environmentCaptureIsComplete = faceIndex == 5;
+    if (environmentCaptureIsComplete)
+    {
+        auto& mipmapped = Passes::Mipmap::addToGraph("AtmosphereEnvironment.Mipmaps"_hsv, *m_Graph,
+            cloudsEnvironment.AtmosphereWithCloudsEnvironment);
+        cloudsEnvironment.AtmosphereWithCloudsEnvironment = mipmapped.Texture;
+        
+        m_SkyIrradianceSHResource = Passes::DiffuseIrradianceSH::addToGraph("Sky.DiffuseIrradianceSH"_hsv, *m_Graph,
+            cloudsEnvironment.AtmosphereWithCloudsEnvironment, m_SkyIrradianceSHResource, true).DiffuseIrradiance;
 
-    m_SkyIrradianceSHResource = Passes::DiffuseIrradianceSH::addToGraph("Sky.DiffuseIrradianceSH"_hsv, *m_Graph,
-        cloudsEnvironment.AtmosphereWithCloudsEnvironment, m_SkyIrradianceSHResource, true).DiffuseIrradiance;
+        m_SkyPrefilterMapResource = Passes::EnvironmentPrefilter::addToGraph(
+            "Sky.EnvironmentPrefilter"_hsv, *m_Graph, cloudsEnvironment.AtmosphereWithCloudsEnvironment,
+            m_SkyPrefilterMapResource, true).PrefilteredTexture;
 
-    m_SkyPrefilterMapResource = Passes::EnvironmentPrefilter::addToGraph(
-        "Sky.EnvironmentPrefilter"_hsv, *m_Graph, cloudsEnvironment.AtmosphereWithCloudsEnvironment,
-        m_Graph->ImportPersistent("SkyPrefilterMap"_hsv, m_SkyPrefilterMap), true).PrefilteredTexture;
+        Passes::CopyBuffer::addToGraph("CopyPrimaryViewEnv"_hsv,
+            *m_Graph, {
+                .Source = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
+                .Destination = m_Graph->Import("InitialPrimaryView"_hsv,
+                    m_Graph->GetGlobalResources().PrimaryViewInfoEnvironmentCaptureBuffer),
+                .SizeBytes = sizeof(ViewInfoGPU),
+            });
+        
+        Passes::CopyTexture::addToGraph("CopySkyViewEnvironment"_hsv, *m_Graph,
+            {.TextureIn = lut.SkyViewLut, .TextureOut = skyViewLut});
+    }
     
-    //Passes::ImGuiCubeTexture::addToGraph("Clouds.Env"_hsv, *m_Graph, cloudsEnv.ColorOut);
-
     Passes::ImGuiCubeTexture::addToGraph("Atmosphere.Environment.Lut"_hsv, *m_Graph,
         cloudsEnvironment.AtmosphereWithCloudsEnvironment);
 

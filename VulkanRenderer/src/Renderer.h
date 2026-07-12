@@ -270,6 +270,10 @@ private:
 
     RG::PersistentImageResource m_TransmittanceLut{};
     RG::PersistentImageResource m_SkyViewLut{};
+    /* environment capture is updated across 6 frames, it needs sky view lut to not change to avoid flickering 
+     * for that purpose, copy of the sky view is used, which is updated once every 6 frames
+     */
+    RG::PersistentImageResource m_SkyViewEnvironmentCaptureLut{};
     RG::PersistentImageResource m_VolumetricCloudShadow{};
     TextureHandle m_TransmittanceLutBindlessIndex{};
     TextureHandle m_SkyViewLutBindlessIndex{};
