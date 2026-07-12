@@ -26,30 +26,31 @@ bool MaterialAssetManager::AddManaged(const assetlib::AssetMetadata& metadata, c
 
 bool MaterialAssetManager::Imports(std::string_view extension)
 {
-    return false;
+    return extension == import::MATERIAL_ASSET_EXTENSION;
 }
 
 void MaterialAssetManager::OnFileModified(const std::filesystem::path& path)
 {
-    if (path.extension() != import::MATERIAL_ASSET_EXTENSION)
+    if (!Imports(path.extension().string()))
         return;
 
-    MaterialHandle cached;
     import::MaterialImporter importer(m_Ctx);
-    const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
-    {
-        Lock lock(m_ResourceAccessMutex);
-        cached = m_Materials.Find(id);
-        if (!cached.IsValid())
-            return;
-    }
     auto newMaterial = DoLoad(importer, path);
+    if (!newMaterial.has_value())
+        return;
+    
+    const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
+    Lock lock(m_ResourceAccessMutex);
+    const MaterialHandle cached = m_Materials.Find(id);
+    
+    /* new material was created */
+    if (!cached.IsValid())
     {
-        Lock lock(m_ResourceAccessMutex);
-        if (newMaterial.has_value())
-            m_Materials[cached.Index()] = std::move(*newMaterial);
+        m_AssetSystem->RegisterAsset(importer.GetMetaPath(path), importer.GetImportedAssetMetadata());
+        return;
     }
-
+    
+    m_Materials[cached.Index()] = std::move(*newMaterial);
     m_AssetSystem->NotifyAssetUpdate(assetlib::material::ASSET_TYPE, {.AssetHandle = cached});
 }
 

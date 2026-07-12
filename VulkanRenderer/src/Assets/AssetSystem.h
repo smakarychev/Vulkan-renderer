@@ -37,6 +37,7 @@ public:
     void SetAssetsDirectory(const std::filesystem::path& path);
     void ScanAssetsDirectory();
     void ScanAssetsDirectory(const std::filesystem::path& path);
+    void RegisterAsset(const std::filesystem::path& metadataPath, const assetlib::AssetMetadata& metadata);
     
     void SubscribeOnAssetUpdate(assetlib::AssetType type, AssetUpdatedHandler& handler);
     void NotifyAssetUpdate(assetlib::AssetType type, const AssetUpdatedInfo& assetInfo);
@@ -53,6 +54,7 @@ public:
     const std::shared_ptr<import::Context>& GetContext() const { return m_Ctx; }
 private:
     void InitFileWatcher(const std::filesystem::path& path);
+    void OnFileModified(const std::filesystem::path& path);
 private:
     std::unordered_map<assetlib::AssetType, AssetManager*> m_Managers;
 

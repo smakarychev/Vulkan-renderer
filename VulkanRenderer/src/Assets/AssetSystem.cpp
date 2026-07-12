@@ -58,12 +58,17 @@ void AssetSystem::ScanAssetsDirectory(const std::filesystem::path& path)
 
         for (auto& manager : m_Managers | std::views::values)
             if (manager->AddManaged(*metadataRead, filePath))
-                m_IdResolver.RegisterId(metadataRead->AssetId, {
-                    .Path = metadataRead->Io.OriginalFile,
-                    .MetaPath = filePath,
-                    .AssetType = metadataRead->Type.Type
-                });
+                RegisterAsset(filePath, *metadataRead);
     }
+}
+
+void AssetSystem::RegisterAsset(const std::filesystem::path& metadataPath, const assetlib::AssetMetadata& metadata)
+{
+    m_IdResolver.RegisterId(metadata.AssetId, {
+        .Path = metadata.Io.OriginalFile,
+        .MetaPath = metadataPath,
+        .AssetType = metadata.Type.Type
+    });
 }
 
 void AssetSystem::SubscribeOnAssetUpdate(assetlib::AssetType type, AssetUpdatedHandler& handler)
@@ -104,21 +109,25 @@ void AssetSystem::InitFileWatcher(const std::filesystem::path& path)
     m_FileWatcherHandler = ::FileWatcherHandler([this](const FileWatcherEvent& event)
     {
         const std::filesystem::path filePath = event.Name;
-
-        if (event.Action != FileWatcherEvent::ActionType::Modify && 
-            event.Action != FileWatcherEvent::ActionType::Rename)
-            return;
         
         /* is it possible that file is deleted or renamed before we begin to process it */
         if (!std::filesystem::exists(filePath) || std::filesystem::is_directory(filePath))
             return;
 
-        for (auto& manager : m_Managers | std::views::values)
-            manager->OnFileModified(filePath);
+        if (event.Action == FileWatcherEvent::ActionType::Modify || 
+            event.Action == FileWatcherEvent::ActionType::Create || 
+            event.Action == FileWatcherEvent::ActionType::Rename)
+            OnFileModified(filePath);
     });
 
     if (const auto res = m_FileWatcher->Subscribe(m_FileWatcherHandler); !res.has_value())
         LUX_LOG_ERROR("Failed to subscribe to file watcher events for directory {}. Error: {}",
         path.string(), FileWatcher::ErrorDescription(res.error()));
+}
+
+void AssetSystem::OnFileModified(const std::filesystem::path& path)
+{
+    for (auto& manager : m_Managers | std::views::values)
+        manager->OnFileModified(path);
 }
 }
