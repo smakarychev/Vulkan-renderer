@@ -3,6 +3,7 @@
 
 #include "FrameContext.h"
 #include "RenderGraph/RGGraph.h"
+#include "RenderGraph/RGUtils.h"
 
 Passes::CopyBuffer::PassData& Passes::CopyBuffer::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
@@ -12,8 +13,13 @@ Passes::CopyBuffer::PassData& Passes::CopyBuffer::addToGraph(StringId name, RG::
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            const BufferResource copy = RgUtils::ensureResource(info.Destination, graph, name.Concatenate(".Copy"),
+                RGBufferDescription{
+                    .SizeBytes = graph.GetBufferDescription(info.Source).SizeBytes
+                });
+            
             passData.Source = graph.ReadBuffer(info.Source, ResourceAccessFlags::Copy);
-            passData.Destination = graph.WriteBuffer(info.Destination, ResourceAccessFlags::Copy);
+            passData.Destination = graph.WriteBuffer(copy, ResourceAccessFlags::Copy);
         },
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {

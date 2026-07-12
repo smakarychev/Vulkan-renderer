@@ -5,6 +5,7 @@
 #include "FrameContext.h"
 #include "Rendering/Image/ImageUtility.h"
 #include "RenderGraph/RGGraph.h"
+#include "RenderGraph/RGUtils.h"
 
 Passes::CopyTexture::PassData& Passes::CopyTexture::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
@@ -14,8 +15,14 @@ Passes::CopyTexture::PassData& Passes::CopyTexture::addToGraph(StringId name, RG
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            const ImageResource copy = RgUtils::ensureResource(info.TextureOut, graph, name.Concatenate("Copy"),
+                RGImageDescription{
+                    .Inference = RGImageInference::Full,
+                    .Reference = info.TextureIn,
+                });
+            
             passData.TextureIn = graph.ReadImage(info.TextureIn, ResourceAccessFlags::Copy);
-            passData.TextureOut = graph.WriteImage(info.TextureOut, ResourceAccessFlags::Copy);
+            passData.TextureOut = graph.WriteImage(copy, ResourceAccessFlags::Copy);
         },
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
