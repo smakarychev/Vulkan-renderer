@@ -1059,7 +1059,14 @@ std::vector<ImageResourceAccessConflict> Graph::FindImageResourceConflicts()
         }
 
         if (currentInfo.PassIndex == ResourceAccessInfo::NO_PASS)
+        {
+            /* if it is the first pass that accesses this image, and image does not require layout change, 
+             * then it is possible that later pass will overwrite image layout, so the initial image layout will be lost
+             * to avoid it, store initial layout in the pass
+             */
+            m_Passes[info.PassIndex]->m_ImageLayouts.push_back({.Image = access.Resource, .Layout = currentLayout});
             continue;
+        }
 
         if (currentInfo.IsReadOnly() && info.IsReadOnly())
             continue;
