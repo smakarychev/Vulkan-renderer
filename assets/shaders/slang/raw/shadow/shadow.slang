@@ -78,5 +78,5 @@ public interface IShadowSampler {
 }
 
 public interface IShadowWorldSampler {
-    public float sample(const IShadowSampler sampler, float3 positionWS, float3 normalWS, float viewZ);
+    public float sample(const IShadowSampler sampler, float3 positionWS, float3 normalWS);
 }

@@ -22,22 +22,32 @@ public struct CsmShadow : IShadowWorldSampler {
         return sampler.sample(ctx, uv, z);
     }
 
-    public float sample(const IShadowSampler sampler, float3 positionWS, float3 normalWS, float viewZ) {
-        const float SEEMS_THRESHOLD = 0.9f;
-
-        viewZ = -viewZ;
+    public float sample(const IShadowSampler sampler, float3 positionWS, float3 normalWS) {
+        const float SEEMS_THRESHOLD = 0.05f;
+        const float EPS = 1e-2f;
 
         float3 shadowSize;
         shadowMap.GetDimensions(shadowSize.x, shadowSize.y, shadowSize.z);
-        uint cascadeIndex = 0; 
-        
+        uint cascadeIndex = 0;
+
+        float4 shadowNdc;
+        [unroll]
         for (; cascadeIndex < csm.cascadeCount; cascadeIndex++) {
-            if (viewZ < csm.cascades[cascadeIndex]) {
-                break;
-            }
+            shadowNdc = mul(float4(positionWS, 1.0f), csm.viewProjections[cascadeIndex]);
+
+            if (abs(shadowNdc.x) + EPS <= 1.0f &&
+                abs(shadowNdc.y) + EPS <= 1.0f &&
+                abs(shadowNdc.z - 0.5f) + EPS < 0.5f) 
+                break; 
         }
+
         if (cascadeIndex == csm.cascadeCount)
             return 0.0f;
+
+        const float distanceX = 1.0f - abs(shadowNdc.x);
+        const float distanceY = 1.0f - abs(shadowNdc.y);
+        const float distanceZ = 1.0f - abs(shadowNdc.z * 2.0f - 1.0f);
+        const float distToCascadeEdge = min(min(distanceX, distanceY), distanceZ);
 
         const float3 positionOffset = 
             shadowOffsetNormal(shadowSize.xy, normalWS, lightDirection) / csm.cascades[cascadeIndex];
@@ -51,22 +61,21 @@ public struct CsmShadow : IShadowWorldSampler {
             return shadow;
         }
 
-        const float cascadeSplit = csm.cascades[cascadeIndex];
-        const float cascadeSize = cascadeSplit - (cascadeIndex == 0 ? 0.0f : csm.cascades[cascadeIndex - 1]);
-        const float cascadeRelativeDistance = 1.0 - (cascadeSplit - viewZ) / cascadeSize;
+        [branch]
+        if (distToCascadeEdge <= SEEMS_THRESHOLD) {
+            const float4 nextShadowNdc = mul(float4(positionWS, 1.0f), csm.viewProjections[nextCascade]);
 
-        if (cascadeRelativeDistance > SEEMS_THRESHOLD) {
-            const float3 positionOffsetNext =
-                shadowOffsetNormal(shadowSize.xy, normalWS, lightDirection) / csm.cascades[nextCascade];
-            positionLocal = mul(float4(positionWS + positionOffsetNext, 1.0f), csm.viewProjections[nextCascade]);
-            if (!all(bool3(
-                abs(positionLocal.x) < 0.99f,
-                abs(positionLocal.y) < 0.99f, 
-                abs(positionLocal.z - 0.499f) < 0.499f)))
-                return shadow;
-            const float shadowNext = sampleCascade(sampler, positionLocal.xyz / positionLocal.w, nextCascade);
-            
-            return lerp(shadow, shadowNext, (cascadeRelativeDistance - SEEMS_THRESHOLD) / (1.0f - SEEMS_THRESHOLD));
+            if (abs(nextShadowNdc.x) + EPS < 1.0f &&
+                abs(nextShadowNdc.y) + EPS < 1.0f &&
+                abs(nextShadowNdc.z - 0.5f) + EPS < 0.5f) {
+                const float3 positionOffsetNext = 
+                    shadowOffsetNormal(shadowSize.xy, normalWS, lightDirection) / csm.cascades[nextCascade];
+
+                positionLocal = mul(float4(positionWS + positionOffsetNext, 1.0f), csm.viewProjections[nextCascade]);
+                const float shadowNext = sampleCascade(sampler, positionLocal.xyz / positionLocal.w, nextCascade);
+
+                return lerp(shadowNext, shadow, smoothstep(0.0f, SEEMS_THRESHOLD, distToCascadeEdge));
+            }
         }
 
         return shadow;

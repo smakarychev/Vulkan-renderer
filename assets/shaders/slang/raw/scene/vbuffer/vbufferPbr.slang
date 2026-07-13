@@ -68,7 +68,7 @@ float4 main(FullScreenVSOutput input) {
     PcfShadowSampler pcfShadowSampler;
     CsmShadow csmShadow = CsmShadow(resources.csm.csmData, resources.csm.csmTexture, samplers.shadowSampler,
         resources.view.shading.primaryDirectionalLightDirection);
-    float shadow = 1.0f - csmShadow.sample(pcfShadowSampler, gData.position, gData.normal, gData.viewZ);
+    float shadow = 1.0f - csmShadow.sample(pcfShadowSampler, gData.position, gData.normal);
     CloudsShadow cloudsShadow = CloudsShadow(
         resources.view, resources.view.shading.volumetricCloudShadow.desc, samplers.blackSampler);
     shadow *= 1.0f - cloudsShadow.sample(gData.position);
@@ -81,7 +81,7 @@ float4 main(FullScreenVSOutput input) {
     shadingInfo.view = normalize(resources.view.camera.position - gData.position);
     shadingInfo.R = reflect(-shadingInfo.view, shadingInfo.normal);
     shadingInfo.NoV = clamp(dot(shadingInfo.normal, shadingInfo.view), 1e-5f, 1.0f);
-    shadingInfo.roughness = materialData.roughness * materialData.roughness;
+    shadingInfo.roughness = max(materialData.roughness * materialData.roughness, 1e-7);
     shadingInfo.metallic = materialData.metallic;
     shadingInfo.F0 = PbrShadingInfo.calculateF0(materialData.albedo, materialData.metallic);
     shadingInfo.F90 = PbrShadingInfo.calculateF90();

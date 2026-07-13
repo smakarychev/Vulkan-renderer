@@ -81,11 +81,10 @@ internal struct AmosphereScatteredLuminance {
             float shadowMap = 1.0f;
             if (withShadow) {
                 const float3 shadowWs = info.view.camera.position + rd * t * 1e+3;
-                const float shadowZView = mul(float4(shadowWs, 1.0f), info.view.camera.view).z;
 
                 PcfShadowSampler pcfShadowSampler;
                 CsmShadow csmShadow = CsmShadow(info.csm.csmData, info.csm.csmTexture, info.shadowSampler, info.sunDir);
-                shadowMap = 1.0f - csmShadow.sample(pcfShadowSampler, shadowWs, float3(0.0f), shadowZView);
+                shadowMap = 1.0f - csmShadow.sample(pcfShadowSampler, shadowWs, float3(0.0f));
 
                 CloudsShadow cloudShadow = CloudsShadow(info.view, info.cloudShadow, info.blackSampler);
                 shadowMap *= 1.0f - cloudShadow.sample(shadowWs);

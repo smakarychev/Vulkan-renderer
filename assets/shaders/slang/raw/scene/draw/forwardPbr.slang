@@ -119,7 +119,7 @@ float4 pixelMain(VSOutput input) {
     PcfShadowSampler pcfShadowSampler;
     CsmShadow csmShadow = CsmShadow(resources.csm.csmData, resources.csm.csmTexture, samplers.shadowSampler,
         resources.view.shading.primaryDirectionalLightDirection);
-    float shadow = 1.0f - csmShadow.sample(pcfShadowSampler, input.positionWs, flatNormal, input.viewZ);
+    float shadow = 1.0f - csmShadow.sample(pcfShadowSampler, input.positionWs, flatNormal);
     CloudsShadow cloudsShadow = CloudsShadow(
         resources.view, resources.view.shading.volumetricCloudShadow.desc, samplers.blackSampler);
     shadow *= 1.0f - cloudsShadow.sample(input.positionWs);
