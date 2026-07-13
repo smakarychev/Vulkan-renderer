@@ -223,13 +223,13 @@ private:
     RG::PersistentImageResource m_SkyPrefilterMap{};
     RG::ImageResource m_SkyPrefilterMapResource{};
 
-    lux::ExternalImageAsset m_MipsTest{};
+    lux::PersistentImageAsset m_MipsTest{};
     
     RG::PersistentImageResource m_SkyAtmosphereWithCloudsEnvironment{};
     RG::PersistentImageResource m_CloudsEnvironment{};
 
-    lux::ExternalImageAsset m_CloudCoverage{};
-    lux::ExternalImageAsset m_CloudProfileMap{};
+    lux::PersistentImageAsset m_CloudCoverage{};
+    lux::PersistentImageAsset m_CloudProfileMap{};
     RG::PersistentImageResource m_CloudShapeLowFrequency{};
     RG::PersistentImageResource m_CloudShapeHighFrequency{};
     RG::PersistentImageResource m_CloudCurlNoise{};
