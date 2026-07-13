@@ -251,6 +251,7 @@ void ShaderAssetManager::OnRawFileModified(const std::filesystem::path& path)
                 {
                     const import::ShaderImportSettings settings = CreateBakeSettings(rebakeInfo);
                     import::ShaderImporter importer(m_Ctx, settings);
+                    AssetSystemFileLockGuard fileLock = m_AssetSystem->LockAssetFile(shaderPath, importer);
                     
                     auto pipelineInfo = DoLoad(importer, shaderPath);
                     if (!pipelineInfo.has_value())

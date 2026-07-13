@@ -88,6 +88,8 @@ void ImageAssetManager::OnRawFileModified(const std::filesystem::path& path)
         .ImportFn = [this, path]()
         {
             import::ImageImporter importer(m_Ctx, {});
+            AssetSystemFileLockGuard fileLock = m_AssetSystem->LockAssetFile(path, importer);
+            
             const ImageAsset newImage = DoLoad(importer, path);
             if (!newImage.HasValue())
                 return;
