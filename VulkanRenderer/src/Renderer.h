@@ -86,6 +86,7 @@ private:
     void InitRenderingStructures();
     void InitRenderGraph();
     void ExecuteSingleTimePasses();
+    void ExecuteSkyboxPasses();
     void SetupRenderSlimePasses();
     void SetupRenderGraph();
     void UpdateGlobalRenderGraphResources();
@@ -211,6 +212,8 @@ private:
     RG::BufferResource m_DepthMinMaxCurrentFrame{};
     RG::CsmData m_CsmData{};
     
+    std::vector<std::function<void()>> m_RenderGraphNextFrameTasks;
+    lux::ImageHandle m_Equirectangular{};
     RG::PersistentImageResource m_SkyboxTexture{};
     RG::PersistentImageResource m_SkyboxPrefilterMap{};
     RG::PersistentImageResource m_BRDFLut{};

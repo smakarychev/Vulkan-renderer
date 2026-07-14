@@ -352,79 +352,89 @@ void Renderer::InitRenderGraph()
 
 void Renderer::ExecuteSingleTimePasses()
 {
-    static constexpr std::string_view SKYBOX_PATH = "../assets/textures/forest.hdr";
-    const lux::ImageHandle equirectangular = m_ImageAssetManager->LoadResource({.Path = SKYBOX_PATH});
-
-    const TextureDescription& equirectangularDescription =
-        Device::GetImageDescription(m_ImageAssetManager->Get(equirectangular));
-    m_SkyboxTexture = m_Graph->AddPersistent(Device::CreateImage({
-        .Description = ImageDescription{
-            .Width = equirectangularDescription.Width / 2,
-            .Height = equirectangularDescription.Width / 2,
-            .Mipmaps = Images::mipmapCount(glm::uvec2{equirectangularDescription.Width / 2}),
-            .Format = Format::RGBA16_FLOAT,
-            .Kind = ImageKind::ImageCubemap,
-            .Usage = ImageUsage::Sampled | ImageUsage::Storage
-        },
-        .CalculateMipmaps = false
-    }));
-
     m_MipsTest.Load(*m_Graph, *m_ImageAssetManager, "../assets/textures/texture.png");
     m_PersistentImageAssetMap.Add(m_MipsTest);
 
-    m_SkyboxPrefilterMap = m_Graph->AddPersistent(Device::CreateImage({
-        .Description = Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(
-            *CVars::Get().GetI32CVar("Renderer.IBL.PrefilterResolution"_hsv)),
-        .CalculateMipmaps = false
-    }));
-
-    m_SkyPrefilterMap = m_Graph->AddPersistent(Device::CreateImage({
-        .Description = Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(
-            *CVars::Get().GetI32CVar("Renderer.IBL.PrefilterResolutionRealtime"_hsv)),
-        .CalculateMipmaps = false
-    }));
-
-    m_IrradianceSH = m_Graph->AddPersistent(Device::CreateBuffer({
-        .Description = {
-            .SizeBytes = sizeof(SH2Irradiance),
-            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Uniform,
-        }
-    }));
-    m_SkyIrradianceSH = m_Graph->AddPersistent(Device::CreateBuffer({
-        .Description = {
-            .SizeBytes = sizeof(SH2Irradiance),
-            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Uniform
-        }
-    }));
-
+    ExecuteSkyboxPasses();
+    
     m_BRDFLut = m_Graph->AddPersistent(Device::CreateImage({
         .Description = Passes::BRDFLut::getLutDescription(),
         .CalculateMipmaps = false
     }));
     
-    m_Graph->Reset();
-
-    const RG::ImageResource cubemap = Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox"_hsv, *m_Graph, {
-        .Equirectangular = m_Graph->Import(
-            "Equirectangular"_hsv, m_ImageAssetManager->Get(equirectangular), ImageLayout::Readonly),
-        .Cubemap = m_Graph->ImportPersistent("Cubemap"_hsv, m_SkyboxTexture),
-        .Exposure = Passes::PbrCameraExposure::convertEV100ToExposure(
-            *CVars::Get().GetF32CVar("Renderer.FixedExposure"_hsv))
-    }).Cubemap;
-    
-    Passes::DiffuseIrradianceSH::addToGraph(
-        "Scene.DiffuseIrradianceSH"_hsv, *m_Graph, cubemap, 
-        m_Graph->ImportPersistent("IrradianceSH"_hsv, m_IrradianceSH), false);
-    Passes::EnvironmentPrefilter::addToGraph(
-        "Scene.EnvironmentPrefilter"_hsv, *m_Graph, cubemap,
-        m_Graph->ImportPersistent("SkyboxPrefilterMap"_hsv, m_SkyboxPrefilterMap), false);
     Passes::BRDFLut::addToGraph(
         "Scene.BRDFLut"_hsv, *m_Graph, {.Lut = m_Graph->ImportPersistent("BRDFLut"_hsv, m_BRDFLut)});
 
     m_Graph->Compile(GetFrameContext());
     m_Graph->Execute(GetFrameContext());
+}
 
-    m_ImageAssetManager->UnloadResource(equirectangular);
+void Renderer::ExecuteSkyboxPasses()
+{
+    static constexpr std::string_view SKYBOX_PATH = "../assets/textures/forest.hdr";
+    m_Equirectangular = m_ImageAssetManager->LoadResource({.Path = SKYBOX_PATH});
+
+    const TextureDescription& equirectangularDescription =
+        Device::GetImageDescription(m_ImageAssetManager->Get(m_Equirectangular));
+    
+    if (!m_SkyboxTexture.HasValue())
+        m_SkyboxTexture = m_Graph->AddPersistent(Device::CreateImage({
+            .Description = ImageDescription{
+                .Width = equirectangularDescription.Width / 2,
+                .Height = equirectangularDescription.Width / 2,
+                .Mipmaps = Images::mipmapCount(glm::uvec2{equirectangularDescription.Width / 2}),
+                .Format = Format::RGBA16_FLOAT,
+                .Kind = ImageKind::ImageCubemap,
+                .Usage = ImageUsage::Sampled | ImageUsage::Storage
+            },
+            .CalculateMipmaps = false
+        }));
+    
+    if (!m_SkyboxPrefilterMap.HasValue())
+        m_SkyboxPrefilterMap = m_Graph->AddPersistent(Device::CreateImage({
+            .Description = Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(
+                *CVars::Get().GetI32CVar("Renderer.IBL.PrefilterResolution"_hsv)),
+            .CalculateMipmaps = false
+        }));
+
+    if (!m_SkyPrefilterMap.HasValue())
+        m_SkyPrefilterMap = m_Graph->AddPersistent(Device::CreateImage({
+            .Description = Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(
+                *CVars::Get().GetI32CVar("Renderer.IBL.PrefilterResolutionRealtime"_hsv)),
+            .CalculateMipmaps = false
+        }));
+
+
+    if (!m_IrradianceSH.HasValue())
+        m_IrradianceSH = m_Graph->AddPersistent(Device::CreateBuffer({
+            .Description = {
+                .SizeBytes = sizeof(SH2Irradiance),
+                .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Uniform,
+            }
+        }));
+
+    if (!m_SkyIrradianceSH.HasValue())
+        m_SkyIrradianceSH = m_Graph->AddPersistent(Device::CreateBuffer({
+            .Description = {
+                .SizeBytes = sizeof(SH2Irradiance),
+                .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Uniform
+            }
+        }));
+
+    const RG::ImageResource cubemap = Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox"_hsv, *m_Graph, {
+        .Equirectangular = m_Graph->Import(
+            "Equirectangular"_hsv, m_ImageAssetManager->Get(m_Equirectangular), ImageLayout::Readonly),
+        .Cubemap = m_Graph->ImportPersistent("Cubemap"_hsv, m_SkyboxTexture),
+        .Exposure = Passes::PbrCameraExposure::convertEV100ToExposure(
+            *CVars::Get().GetF32CVar("Renderer.FixedExposure"_hsv))
+    }).Cubemap;
+
+    Passes::DiffuseIrradianceSH::addToGraph(
+        "Scene.DiffuseIrradianceSH"_hsv, *m_Graph, cubemap,
+        m_Graph->ImportPersistent("IrradianceSH"_hsv, m_IrradianceSH), false);
+    Passes::EnvironmentPrefilter::addToGraph(
+        "Scene.EnvironmentPrefilter"_hsv, *m_Graph, cubemap,
+        m_Graph->ImportPersistent("SkyboxPrefilterMap"_hsv, m_SkyboxPrefilterMap), false);
 }
 
 void Renderer::SetupRenderSlimePasses()
@@ -439,6 +449,10 @@ void Renderer::SetupRenderGraph()
     
     m_Graph->Reset();
     m_Graph->SetBackbufferImage(Device::GetSwapchainDescription(m_Swapchain).DrawImage);
+    
+    for (auto& task : m_RenderGraphNextFrameTasks)
+        task();
+    m_RenderGraphNextFrameTasks.clear();
 
     UpdateGlobalRenderGraphResources();
 
@@ -1736,6 +1750,9 @@ void Renderer::RenderGraphCloudShadows(const CloudMapsInfo& cloudMaps)
 void Renderer::OnImageAssetReloaded(lux::ImageHandle image)
 {
     m_PersistentImageAssetMap.SetLayout(image, ImageLayout::Readonly);
+    
+    if (image == m_Equirectangular)
+        m_RenderGraphNextFrameTasks.push_back([this](){ExecuteSkyboxPasses();});
 }
 
 Renderer* Renderer::Get()
