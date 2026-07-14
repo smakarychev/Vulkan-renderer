@@ -156,12 +156,7 @@ private:
     };
     CloudsInfo RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::ImageResource color, 
         RG::ImageResource aerialPerspective, RG::ImageResource minMaxDepth, RG::ImageResource sceneDepth);
-    struct CloudShadowInfo
-    {
-        RG::ImageResource Shadow{};
-        ViewInfoGPU View{};
-    };
-    CloudShadowInfo RenderGraphCloudShadows(const CloudMapsInfo& cloudMaps);
+    void RenderGraphCloudShadows(const CloudMapsInfo& cloudMaps);
     
     void OnImageAssetReloaded(lux::ImageHandle image);
     
