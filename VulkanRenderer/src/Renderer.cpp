@@ -148,6 +148,11 @@ void Renderer::Init()
 
     m_AssetSystem.ScanAssetsDirectory();
     
+    m_ImageAssetReloadedHandler = lux::AssetUpdatedHandler([this](const lux::AssetUpdatedInfo& updatedImage) {
+        OnImageAssetReloaded(updatedImage.AssetHandle);
+    });
+    m_AssetSystem.SubscribeOnAssetUpdate(lux::assetlib::image::ASSET_TYPE, m_ImageAssetReloadedHandler);
+    
     InitRenderingStructures();
     Device::BeginFrame(GetFrameContext());
 
@@ -365,6 +370,7 @@ void Renderer::ExecuteSingleTimePasses()
     }));
 
     m_MipsTest.Load(*m_Graph, *m_ImageAssetManager, "../assets/textures/texture.png");
+    m_PersistentImageAssetMap.Add(m_MipsTest);
 
     m_SkyboxPrefilterMap = m_Graph->AddPersistent(Device::CreateImage({
         .Description = Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(
@@ -1481,7 +1487,10 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     if (loadCoverage)
     {
         if (!m_CloudCoverage.HasValue())
+        {
             m_CloudCoverage.Load(*m_Graph, *m_ImageAssetManager, "../assets/textures/clouds/coverage.png");
+            m_PersistentImageAssetMap.Add(m_CloudCoverage);
+        }
        cloudCoverageResource = m_Graph->ImportPersistent("CloudCoverage.Loaded"_hsv,
            m_CloudCoverage.Update(*m_Graph, *m_ImageAssetManager).Image);
     }
@@ -1508,7 +1517,10 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     if (loadProfile)
     {
         if (!m_CloudProfileMap.HasValue())
+        {
             m_CloudProfileMap.Load(*m_Graph, *m_ImageAssetManager, "../assets/textures/clouds/profile.png");
+            m_PersistentImageAssetMap.Add(m_CloudProfileMap);
+        }
         cloudProfileMapResource = m_Graph->ImportPersistent("CloudProfileMap.Loaded"_hsv,
             m_CloudProfileMap.Update(*m_Graph, *m_ImageAssetManager).Image);
     }
@@ -1726,6 +1738,11 @@ Renderer::CloudShadowInfo Renderer::RenderGraphCloudShadows(const CloudMapsInfo&
         .Shadow = cloudShadow.Shadow,
         .View = cloudShadow.ShadowView
     };
+}
+
+void Renderer::OnImageAssetReloaded(lux::ImageHandle image)
+{
+    m_PersistentImageAssetMap.SetLayout(image, ImageLayout::Readonly);
 }
 
 Renderer* Renderer::Get()

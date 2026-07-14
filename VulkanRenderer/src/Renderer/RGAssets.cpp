@@ -15,9 +15,29 @@ void PersistentImageAsset::Load(RG::Graph& graph, ImageAssetManager& manager, co
 
 PersistentImageAsset& PersistentImageAsset::Update(RG::Graph& graph, ImageAssetManager& manager)
 {
-    // todo: I believe we need to reset layout to ReadOnly if asset was hot-reloaded
-    graph.UpdatePersistent(Image, manager.Get(AssetHandle));
+    if (Layout.has_value())
+        graph.UpdatePersistent(Image, manager.Get(AssetHandle), *Layout);
+    else
+        graph.UpdatePersistent(Image, manager.Get(AssetHandle));
+    Layout = std::nullopt;
     
     return *this;
+}
+
+PersistentImageAssetHandle PersistentImageAssetMap::Add(PersistentImageAsset& persistentImageAsset)
+{
+    const ImageHandle handle = persistentImageAsset.AssetHandle;
+    m_Map[handle] = &persistentImageAsset;
+    
+    return handle;
+}
+
+void PersistentImageAssetMap::SetLayout(PersistentImageAssetHandle handle, ImageLayout layout) const
+{
+    auto it = m_Map.find(handle);
+    if (it == m_Map.end())
+        return;
+    
+    it->second->Layout = layout;
 }
 }

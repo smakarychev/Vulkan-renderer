@@ -163,6 +163,8 @@ private:
     };
     CloudShadowInfo RenderGraphCloudShadows(const CloudMapsInfo& cloudMaps);
     
+    void OnImageAssetReloaded(lux::ImageHandle image);
+    
     RenderingInfo GetImGuiUIRenderingInfo();
 
     void OnWindowResize();
@@ -279,6 +281,9 @@ private:
     TextureHandle m_SkyViewLutBindlessIndex{};
     TextureHandle m_BlueNoiseBindlessIndex{};
     TextureHandle m_VolumetricShadowBindlessIndex{};
+
+    lux::AssetUpdatedHandler m_ImageAssetReloadedHandler;
+    lux::PersistentImageAssetMap m_PersistentImageAssetMap;
     
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};
