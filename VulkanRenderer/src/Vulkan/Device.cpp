@@ -1446,6 +1446,7 @@ private:
     ResourceContainerWithLock<FenceResource> m_Fences2;
     ResourceContainerWithLock<SemaphoreResource> m_Semaphores2;
     ResourceContainerWithLock<TimelineSemaphoreResource> m_TimelineSemaphores2;
+    ResourceContainerWithLock<SplitBarrierResource> m_SplitBarriers2;
     ResourceContainerType<SwapchainResource> m_Swapchains;
     ResourceContainerType<BufferResource> m_Buffers;
     ResourceContainerType<BufferArenaResource> m_BufferArenas;
@@ -1461,7 +1462,6 @@ private:
     ResourceContainerType<RenderingAttachmentResource> m_RenderingAttachments;
     ResourceContainerType<RenderingInfoResource> m_RenderingInfos;
     ResourceContainerType<DependencyInfoResource> m_DependencyInfos;
-    ResourceContainerType<SplitBarrierResource> m_SplitBarriers;
 
     std::vector<std::vector<u32>> m_CommandPoolToBuffersMap;
 };
@@ -1493,6 +1493,9 @@ public:
     static void TimelineSemaphoreWaitCPU(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore, u64 value);
     static void TimelineSemaphoreSignalCPU(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore, 
         u64 value);
+    
+    static SplitBarrier CreateSplitBarrier(View<SplitBarrierTag>& resources, DeletionQueue& deletionQueue);
+    static void Destroy(View<SplitBarrierTag>& resources, SplitBarrier splitBarrier);
     
 #ifdef DESCRIPTOR_BUFFER
     static u32 GetDescriptorSizeBytes(DescriptorType type);
@@ -1559,8 +1562,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_RenderingInfos, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, DependencyInfoResource>)
         return AddToResourceList(m_DependencyInfos, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, SplitBarrierResource>)
-        return AddToResourceList(m_SplitBarriers, std::forward<Resource>(resource));
     else
         static_assert(!sizeof(Resource), "No match for resource");
     std::unreachable();
@@ -1603,8 +1604,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_RenderingInfos.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, DependencyInfoTag>)
         m_DependencyInfos.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, SplitBarrierTag>)
-        m_SplitBarriers.Erase(handle);
     else
         static_assert(!sizeof(Type), "No match for type");
 }
@@ -1650,8 +1649,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_RenderingInfos[type];
     else if constexpr (std::is_same_v<Decayed, DependencyInfo>)
         return m_DependencyInfos[type];
-    else if constexpr (std::is_same_v<Decayed, SplitBarrier>)
-        return m_SplitBarriers[type];
     else
         static_assert(!sizeof(Type), "No match for type");
     std::unreachable();
@@ -3863,23 +3860,15 @@ void Device::Destroy(DependencyInfo dependencyInfo)
 
 SplitBarrier Device::CreateSplitBarrier(::DeletionQueue& deletionQueue)
 {
-    VkEventCreateInfo eventCreateInfo = {};
-    eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
-
-    DeviceResources::SplitBarrierResource splitBarrierResource = {};
-    deviceCheck(vkCreateEvent(s_State.Device, &eventCreateInfo, nullptr, &splitBarrierResource.Event),
-        "Failed to create split barrier");
-
-    SplitBarrier splitBarrier = Resources().AddResource(splitBarrierResource);
-    deletionQueue.Enqueue(splitBarrier);
-
-    return splitBarrier;
+    auto view = Resources().GetLockedView<SplitBarrierTag>();
+    
+    return DeviceInternal::CreateSplitBarrier(view, deletionQueue);
 }
 
 void Device::Destroy(SplitBarrier splitBarrier)
 {
-    vkDestroyEvent(s_State.Device, Resources().m_SplitBarriers[splitBarrier.m_Id].Event, nullptr);
-    Resources().RemoveResource(splitBarrier);
+    auto view = Resources().GetLockedView<SplitBarrierTag>();
+    DeviceInternal::Destroy(view, splitBarrier);
 }
 
 void Device::CreateInstance(const DeviceCreateInfo& createInfo)
@@ -4963,6 +4952,7 @@ void Device::CompileCommand(CommandBuffer cmd, const WaitOnBarrierCommand& comma
 
 void Device::CompileCommand(CommandBuffer cmd, const SignalSplitBarrierCommand& command)
 {
+    auto view = Resources().GetLockedView<SplitBarrierTag>();
     const DeviceResources::DependencyInfoResource& dependencyInfo = Resources()[command.DependencyInfo];
 
     VkDependencyInfo vkDependencyInfo = dependencyInfo.DependencyInfo;
@@ -4972,11 +4962,13 @@ void Device::CompileCommand(CommandBuffer cmd, const SignalSplitBarrierCommand& 
     vkDependencyInfo.pImageMemoryBarriers = dependencyInfo.LayoutDependency ?
                                                 std::to_address(dependencyInfo.LayoutDependency) :
                                                 nullptr;
-    vkCmdSetEvent2(Resources()[cmd].CommandBuffer, Resources()[command.SplitBarrier].Event, &vkDependencyInfo);
+    vkCmdSetEvent2(Resources()[cmd].CommandBuffer, view[command.SplitBarrier].Event, &vkDependencyInfo);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const WaitOnSplitBarrierCommand& command)
 {
+    auto view = Resources().GetLockedView<SplitBarrierTag>();
+    
     const DeviceResources::DependencyInfoResource& dependencyInfo = Resources()[command.DependencyInfo];
 
     VkDependencyInfo vkDependencyInfo = dependencyInfo.DependencyInfo;
@@ -4986,14 +4978,17 @@ void Device::CompileCommand(CommandBuffer cmd, const WaitOnSplitBarrierCommand& 
     vkDependencyInfo.pImageMemoryBarriers = dependencyInfo.LayoutDependency ?
                                                 std::to_address(dependencyInfo.LayoutDependency) :
                                                 nullptr;
-    vkCmdWaitEvents2(Resources()[cmd].CommandBuffer, 1, &Resources()[command.SplitBarrier].Event,
+    vkCmdWaitEvents2(Resources()[cmd].CommandBuffer, 1, &view[command.SplitBarrier].Event,
         &vkDependencyInfo);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const ResetSplitBarrierCommand& command)
 {
     ASSERT(Resources()[command.DependencyInfo].MemoryBarriersCount != 0, "Invalid reset operation")
-    vkCmdResetEvent2(Resources()[cmd].CommandBuffer, Resources()[command.SplitBarrier].Event,
+    
+    auto view = Resources().GetLockedView<SplitBarrierTag>();
+    
+    vkCmdResetEvent2(Resources()[cmd].CommandBuffer, view[command.SplitBarrier].Event,
         Resources()[command.DependencyInfo].MemoryBarriers.front().dstStageMask);
 }
 
@@ -5316,6 +5311,27 @@ void DeviceInternal::TimelineSemaphoreSignalCPU(View<TimelineSemaphoreTag>& reso
         "Failed to signal semaphore");
 
     resources[semaphore].Timeline = value;
+}
+
+SplitBarrier DeviceInternal::CreateSplitBarrier(View<SplitBarrierTag>& resources, DeletionQueue& deletionQueue)
+{
+    VkEventCreateInfo eventCreateInfo = {};
+    eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
+
+    DeviceResources::SplitBarrierResource splitBarrierResource = {};
+    deviceCheck(vkCreateEvent(Device::s_State.Device, &eventCreateInfo, nullptr, &splitBarrierResource.Event),
+        "Failed to create split barrier");
+
+    SplitBarrier splitBarrier = resources.Add(splitBarrierResource);
+    deletionQueue.Enqueue(splitBarrier);
+
+    return splitBarrier;
+}
+
+void DeviceInternal::Destroy(View<SplitBarrierTag>& resources, SplitBarrier splitBarrier)
+{
+    vkDestroyEvent(Device::s_State.Device, resources[splitBarrier].Event, nullptr);
+    resources.Remove(splitBarrier);
 }
 
 #ifdef DESCRIPTOR_BUFFER
