@@ -1432,6 +1432,8 @@ private:
             return m_Fences2;
         else if constexpr(std::is_same_v<Tag, SemaphoreTag>)
             return m_Semaphores2;
+        else if constexpr(std::is_same_v<Tag, TimelineSemaphoreTag>)
+            return m_TimelineSemaphores2;
         else 
             static_assert(!sizeof(Tag), "No match for type");
         std::unreachable();
@@ -1443,6 +1445,7 @@ private:
     ResourceContainerWithLock<SamplerResource> m_Samplers2;
     ResourceContainerWithLock<FenceResource> m_Fences2;
     ResourceContainerWithLock<SemaphoreResource> m_Semaphores2;
+    ResourceContainerWithLock<TimelineSemaphoreResource> m_TimelineSemaphores2;
     ResourceContainerType<SwapchainResource> m_Swapchains;
     ResourceContainerType<BufferResource> m_Buffers;
     ResourceContainerType<BufferArenaResource> m_BufferArenas;
@@ -1457,7 +1460,6 @@ private:
     ResourceContainerType<ShaderModuleResource> m_ShaderModules;
     ResourceContainerType<RenderingAttachmentResource> m_RenderingAttachments;
     ResourceContainerType<RenderingInfoResource> m_RenderingInfos;
-    ResourceContainerType<TimelineSemaphoreResource> m_TimelineSemaphores;
     ResourceContainerType<DependencyInfoResource> m_DependencyInfos;
     ResourceContainerType<SplitBarrierResource> m_SplitBarriers;
 
@@ -1485,6 +1487,13 @@ public:
     static Semaphore CreateSemaphore(View<SemaphoreTag>& resources, DeletionQueue& deletionQueue);
     static void Destroy(View<SemaphoreTag>& resources, Semaphore semaphore);
     
+    static TimelineSemaphore CreateTimelineSemaphore(View<TimelineSemaphoreTag>& resources, 
+        TimelineSemaphoreCreateInfo&& createInfo, DeletionQueue& deletionQueue);
+    static void Destroy(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore);
+    static void TimelineSemaphoreWaitCPU(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore, u64 value);
+    static void TimelineSemaphoreSignalCPU(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore, 
+        u64 value);
+    
 #ifdef DESCRIPTOR_BUFFER
     static u32 GetDescriptorSizeBytes(DescriptorType type);
     static void WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo slotInfo, u32 index,
@@ -1499,9 +1508,8 @@ public:
 
     static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(const View<SemaphoreTag>& resources,
         Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages);
-    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
-        Span<const TimelineSemaphore> semaphores,
-        Span<const u64> waitValues, Span<const PipelineStage> waitStages);
+    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(const View<TimelineSemaphoreTag>& resources,
+        Span<const TimelineSemaphore> semaphores, Span<const u64> waitValues, Span<const PipelineStage> waitStages);
     static void BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
         u32 firstSet, VkPipelineBindPoint bindPoint);
     static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
@@ -1549,8 +1557,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_RenderingAttachments, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, RenderingInfoResource>)
         return AddToResourceList(m_RenderingInfos, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, TimelineSemaphoreResource>)
-        return AddToResourceList(m_TimelineSemaphores, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, DependencyInfoResource>)
         return AddToResourceList(m_DependencyInfos, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, SplitBarrierResource>)
@@ -1595,8 +1601,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_RenderingAttachments.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, RenderingInfoTag>)
         m_RenderingInfos.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, TimelineSemaphoreTag>)
-        m_TimelineSemaphores.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, DependencyInfoTag>)
         m_DependencyInfos.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, SplitBarrierTag>)
@@ -1644,8 +1648,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_RenderingAttachments[type];
     else if constexpr (std::is_same_v<Decayed, RenderingInfo>)
         return m_RenderingInfos[type];
-    else if constexpr (std::is_same_v<Decayed, TimelineSemaphore>)
-        return m_TimelineSemaphores[type];
     else if constexpr (std::is_same_v<Decayed, DependencyInfo>)
         return m_DependencyInfos[type];
     else if constexpr (std::is_same_v<Decayed, SplitBarrier>)
@@ -2232,10 +2234,10 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
 void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
     const BufferSubmitTimelineSyncInfo& submitSync)
 {
-    auto view = Resources().GetLockedView<FenceTag>();
+    auto view = Resources().GetLockedView<FenceTag, TimelineSemaphoreTag>();
     
     for (u32 i = 0; i < submitSync.SignalSemaphores.size(); i++)
-        Resources()[submitSync.SignalSemaphores[i]].Timeline = submitSync.SignalValues[i];
+        view[submitSync.SignalSemaphores[i]].Timeline = submitSync.SignalValues[i];
 
     std::vector commandBufferSubmitInfos(cmds.size(), VkCommandBufferSubmitInfo{});
     for (auto&& [i, cmd] : std::views::enumerate(cmds))
@@ -2248,12 +2250,12 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
     for (auto&& [i, semaphore] : std::views::enumerate(submitSync.SignalSemaphores))
     {
         signalSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        signalSemaphoreSubmitInfos[i].semaphore = Resources()[semaphore].Semaphore;
+        signalSemaphoreSubmitInfos[i].semaphore = view[semaphore].Semaphore;
         signalSemaphoreSubmitInfos[i].value = submitSync.SignalValues[i];
     }
 
     std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = DeviceInternal::CreateVulkanSemaphoreSubmit(
-        submitSync.WaitSemaphores, submitSync.WaitValues, submitSync.WaitStages);
+        view, submitSync.WaitSemaphores, submitSync.WaitValues, submitSync.WaitStages);
 
     VkSubmitInfo2 submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
@@ -3760,54 +3762,27 @@ void Device::Destroy(Semaphore semaphore)
 TimelineSemaphore Device::CreateTimelineSemaphore(TimelineSemaphoreCreateInfo&& createInfo,
     ::DeletionQueue& deletionQueue)
 {
-    VkSemaphoreTypeCreateInfo timelineCreateInfo = {};
-    timelineCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-    timelineCreateInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-    timelineCreateInfo.initialValue = createInfo.InitialValue;
-
-    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
-    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    semaphoreCreateInfo.pNext = &timelineCreateInfo;
-
-    DeviceResources::TimelineSemaphoreResource semaphoreResource = {};
-    vkCreateSemaphore(s_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore);
-    semaphoreResource.Timeline = createInfo.InitialValue;
-
-    TimelineSemaphore semaphore = Resources().AddResource(semaphoreResource);
-    deletionQueue.Enqueue(semaphore);
-
-    return semaphore;
+    auto view = Resources().GetLockedView<TimelineSemaphoreTag>();
+    
+    return DeviceInternal::CreateTimelineSemaphore(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(TimelineSemaphore semaphore)
 {
-    vkDestroySemaphore(s_State.Device, Resources().m_TimelineSemaphores[semaphore.m_Id].Semaphore, nullptr);
-    Resources().RemoveResource(semaphore);
+    auto view = Resources().GetLockedView<TimelineSemaphoreTag>();
+    DeviceInternal::Destroy(view, semaphore);
 }
 
 void Device::TimelineSemaphoreWaitCPU(TimelineSemaphore semaphore, u64 value)
 {
-    VkSemaphoreWaitInfo waitInfo = {};
-    waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-    waitInfo.semaphoreCount = 1;
-    waitInfo.pSemaphores = &Resources()[semaphore].Semaphore;
-    waitInfo.pValues = &value;
-
-    deviceCheck(vkWaitSemaphores(s_State.Device, &waitInfo, UINT64_MAX),
-        "Failed to wait for timeline semaphore");
+    auto view = Resources().GetLockedView<TimelineSemaphoreTag>();
+    DeviceInternal::TimelineSemaphoreWaitCPU(view, semaphore, value);
 }
 
 void Device::TimelineSemaphoreSignalCPU(TimelineSemaphore semaphore, u64 value)
 {
-    VkSemaphoreSignalInfo signalInfo = {};
-    signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
-    signalInfo.semaphore = Resources()[semaphore].Semaphore;
-    signalInfo.value = value;
-
-    deviceCheck(vkSignalSemaphore(s_State.Device, &signalInfo),
-        "Failed to signal semaphore");
-
-    Resources()[semaphore].Timeline = value;
+    auto view = Resources().GetLockedView<TimelineSemaphoreTag>();
+    DeviceInternal::TimelineSemaphoreSignalCPU(view, semaphore, value);
 }
 
 DependencyInfo Device::CreateDependencyInfo(DependencyInfoCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
@@ -5288,6 +5263,61 @@ void DeviceInternal::Destroy(View<SemaphoreTag>& resources, Semaphore semaphore)
     resources.Remove(semaphore);
 }
 
+TimelineSemaphore DeviceInternal::CreateTimelineSemaphore(View<TimelineSemaphoreTag>& resources,
+    TimelineSemaphoreCreateInfo&& createInfo, DeletionQueue& deletionQueue)
+{
+    VkSemaphoreTypeCreateInfo timelineCreateInfo = {};
+    timelineCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+    timelineCreateInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+    timelineCreateInfo.initialValue = createInfo.InitialValue;
+
+    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semaphoreCreateInfo.pNext = &timelineCreateInfo;
+
+    DeviceResources::TimelineSemaphoreResource semaphoreResource = {};
+    vkCreateSemaphore(Device::s_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore);
+    semaphoreResource.Timeline = createInfo.InitialValue;
+
+    TimelineSemaphore semaphore = resources.Add(semaphoreResource);
+    deletionQueue.Enqueue(semaphore);
+
+    return semaphore;
+}
+
+void DeviceInternal::Destroy(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore)
+{
+    vkDestroySemaphore(Device::s_State.Device, resources[semaphore].Semaphore, nullptr);
+    resources.Remove(semaphore);
+}
+
+void DeviceInternal::TimelineSemaphoreWaitCPU(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore,
+    u64 value)
+{
+    VkSemaphoreWaitInfo waitInfo = {};
+    waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+    waitInfo.semaphoreCount = 1;
+    waitInfo.pSemaphores = &resources[semaphore].Semaphore;
+    waitInfo.pValues = &value;
+
+    deviceCheck(vkWaitSemaphores(Device::s_State.Device, &waitInfo, UINT64_MAX),
+        "Failed to wait for timeline semaphore");
+}
+
+void DeviceInternal::TimelineSemaphoreSignalCPU(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore,
+    u64 value)
+{
+    VkSemaphoreSignalInfo signalInfo = {};
+    signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
+    signalInfo.semaphore = resources[semaphore].Semaphore;
+    signalInfo.value = value;
+
+    deviceCheck(vkSignalSemaphore(Device::s_State.Device, &signalInfo),
+        "Failed to signal semaphore");
+
+    resources[semaphore].Timeline = value;
+}
+
 #ifdef DESCRIPTOR_BUFFER
 u32 DeviceInternal::GetDescriptorSizeBytes(DescriptorType type)
 {
@@ -5450,14 +5480,15 @@ std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(c
     return waitSemaphoreSubmitInfos;
 }
 
-std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(Span<const TimelineSemaphore> semaphores,
-    Span<const u64> waitValues, Span<const PipelineStage> waitStages)
+std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(
+    const View<TimelineSemaphoreTag>& resources, Span<const TimelineSemaphore> semaphores, Span<const u64> waitValues, 
+    Span<const PipelineStage> waitStages)
 {
     std::vector waitSemaphoreSubmitInfos(semaphores.size(), VkSemaphoreSubmitInfo{});
     for (auto&& [i, semaphore] : std::views::enumerate(semaphores))
     {
         waitSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        waitSemaphoreSubmitInfos[i].semaphore = Device::Resources()[semaphore].Semaphore;
+        waitSemaphoreSubmitInfos[i].semaphore = resources[semaphore].Semaphore;
         waitSemaphoreSubmitInfos[i].value = waitValues[i];
         waitSemaphoreSubmitInfos[i].stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i]);
     }
