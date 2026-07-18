@@ -1428,6 +1428,8 @@ private:
             return m_Swapchains2;
         else if constexpr(std::is_same_v<Tag, SamplerTag>)
             return m_Samplers2;
+        else if constexpr(std::is_same_v<Tag, FenceTag>)
+            return m_Fences2;
         else 
             static_assert(!sizeof(Tag), "No match for type");
         std::unreachable();
@@ -1437,6 +1439,7 @@ private:
     u64 m_DeallocatedCount{0};
 
     ResourceContainerWithLock<SamplerResource> m_Samplers2;
+    ResourceContainerWithLock<FenceResource> m_Fences2;
     ResourceContainerType<SwapchainResource> m_Swapchains;
     ResourceContainerType<BufferResource> m_Buffers;
     ResourceContainerType<BufferArenaResource> m_BufferArenas;
@@ -1451,7 +1454,6 @@ private:
     ResourceContainerType<ShaderModuleResource> m_ShaderModules;
     ResourceContainerType<RenderingAttachmentResource> m_RenderingAttachments;
     ResourceContainerType<RenderingInfoResource> m_RenderingInfos;
-    ResourceContainerType<FenceResource> m_Fences;
     ResourceContainerType<SemaphoreResource> m_Semaphores;
     ResourceContainerType<TimelineSemaphoreResource> m_TimelineSemaphores;
     ResourceContainerType<DependencyInfoResource> m_DependencyInfos;
@@ -1471,6 +1473,12 @@ public:
     
     static Sampler CreateSampler(View<SamplerTag>& resources, SamplerCreateInfo&& createInfo);
     static void Destroy(View<SamplerTag>& resources, Sampler sampler);
+    
+    static Fence CreateFence(View<FenceTag>& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue);
+    static void Destroy(View<FenceTag>& resources, Fence fence);
+    static void WaitForFence(View<FenceTag>& resources, Fence fence);
+    static bool CheckFence(View<FenceTag>& resources, Fence fence);
+    static void ResetFence(View<FenceTag>& resources, Fence fence);
     
 #ifdef DESCRIPTOR_BUFFER
     static u32 GetDescriptorSizeBytes(DescriptorType type);
@@ -1536,8 +1544,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_RenderingAttachments, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, RenderingInfoResource>)
         return AddToResourceList(m_RenderingInfos, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, FenceResource>)
-        return AddToResourceList(m_Fences, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, SemaphoreResource>)
         return AddToResourceList(m_Semaphores, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, TimelineSemaphoreResource>)
@@ -1586,8 +1592,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_RenderingAttachments.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, RenderingInfoTag>)
         m_RenderingInfos.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, FenceTag>)
-        m_Fences.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, SemaphoreTag>)
         m_Semaphores.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, TimelineSemaphoreTag>)
@@ -1639,8 +1643,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_RenderingAttachments[type];
     else if constexpr (std::is_same_v<Decayed, RenderingInfo>)
         return m_RenderingInfos[type];
-    else if constexpr (std::is_same_v<Decayed, Fence>)
-        return m_Fences[type];
     else if constexpr (std::is_same_v<Decayed, Semaphore>)
         return m_Semaphores[type];
     else if constexpr (std::is_same_v<Decayed, TimelineSemaphore>)
@@ -2169,6 +2171,8 @@ void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind,
 
 void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, Fence fence)
 {
+    auto view = Resources().GetLockedView<FenceTag>();
+    
     VkCommandBufferSubmitInfo commandBufferSubmitInfo = {};
     commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
     commandBufferSubmitInfo.commandBuffer = Resources()[cmd].CommandBuffer;
@@ -2179,13 +2183,15 @@ void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, Fence f
     submitInfo.pCommandBufferInfos = &commandBufferSubmitInfo;
 
     deviceCheck(vkQueueSubmit2(s_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
-            fence.HasValue() ? Resources()[fence].Fence : VK_NULL_HANDLE),
+            fence.HasValue() ? view[fence].Fence : VK_NULL_HANDLE),
         "Error while submitting command buffer");
 }
 
 void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
     const BufferSubmitSyncInfo& submitSync)
 {
+    auto view = Resources().GetLockedView<FenceTag>();
+    
     std::vector commandBufferSubmitInfos(cmds.size(), VkCommandBufferSubmitInfo{});
     for (auto&& [i, cmd] : std::views::enumerate(cmds))
     {
@@ -2213,13 +2219,15 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
     submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
 
     deviceCheck(vkQueueSubmit2(s_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
-            submitSync.Fence.HasValue() ? Resources()[submitSync.Fence].Fence : VK_NULL_HANDLE),
+            submitSync.Fence.HasValue() ? view[submitSync.Fence].Fence : VK_NULL_HANDLE),
         "Error while submitting command buffers");
 }
 
 void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
     const BufferSubmitTimelineSyncInfo& submitSync)
 {
+    auto view = Resources().GetLockedView<FenceTag>();
+    
     for (u32 i = 0; i < submitSync.SignalSemaphores.size(); i++)
         Resources()[submitSync.SignalSemaphores[i]].Timeline = submitSync.SignalValues[i];
 
@@ -2251,7 +2259,7 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
     submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
 
     deviceCheck(vkQueueSubmit2(s_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
-            submitSync.Fence.HasValue() ? Resources()[submitSync.Fence].Fence : VK_NULL_HANDLE),
+            submitSync.Fence.HasValue() ? view[submitSync.Fence].Fence : VK_NULL_HANDLE),
         "Error while submitting command buffers");
 }
 
@@ -3700,44 +3708,34 @@ void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotI
 
 Fence Device::CreateFence(FenceCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    VkFenceCreateInfo fenceCreateInfo = {};
-    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    if (createInfo.IsSignaled)
-        fenceCreateInfo.flags |= VK_FENCE_CREATE_SIGNALED_BIT;
-    else
-        fenceCreateInfo.flags &= ~VK_FENCE_CREATE_SIGNALED_BIT;
-
-    DeviceResources::FenceResource fenceResource = {};
-    deviceCheck(vkCreateFence(s_State.Device, &fenceCreateInfo, nullptr, &fenceResource.Fence),
-        "Failed to create fence");
-
-    Fence fence = Resources().AddResource(fenceResource);
-    deletionQueue.Enqueue(fence);
-
-    return fence;
+    auto view = Resources().GetLockedView<FenceTag>();
+    
+    return DeviceInternal::CreateFence(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(Fence fence)
 {
-    vkDestroyFence(s_State.Device, Resources().m_Fences[fence.m_Id].Fence, nullptr);
-    Resources().RemoveResource(fence);
+    auto view = Resources().GetLockedView<FenceTag>();
+    DeviceInternal::Destroy(view, fence);
 }
 
 void Device::WaitForFence(Fence fence)
 {
-    deviceCheck(vkWaitForFences(s_State.Device, 1, &Resources()[fence].Fence, true, 10'000'000'000),
-        "Error while waiting for fences");
+    auto view = Resources().GetLockedView<FenceTag>();
+    DeviceInternal::WaitForFence(view, fence);
 }
 
 bool Device::CheckFence(Fence fence)
 {
-    const VkResult result = vkGetFenceStatus(s_State.Device, Resources()[fence].Fence);
-    return result == VK_SUCCESS;
+    auto view = Resources().GetLockedView<FenceTag>();
+    
+    return DeviceInternal::CheckFence(view, fence);
 }
 
 void Device::ResetFence(Fence fence)
 {
-    deviceCheck(vkResetFences(s_State.Device, 1, &Resources()[fence].Fence), "Error while resetting fences");
+    auto view = Resources().GetLockedView<FenceTag>();
+    DeviceInternal::ResetFence(view, fence);
 }
 
 Semaphore Device::CreateSemaphore(::DeletionQueue& deletionQueue)
@@ -5227,6 +5225,48 @@ void DeviceInternal::Destroy(View<SamplerTag>& resources, Sampler sampler)
 {
     vkDestroySampler(Device::s_State.Device, resources[sampler].Sampler, nullptr);
     resources.Remove(sampler);
+}
+
+Fence DeviceInternal::CreateFence(View<FenceTag>& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue)
+{
+    VkFenceCreateInfo fenceCreateInfo = {};
+    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    if (createInfo.IsSignaled)
+        fenceCreateInfo.flags |= VK_FENCE_CREATE_SIGNALED_BIT;
+    else
+        fenceCreateInfo.flags &= ~VK_FENCE_CREATE_SIGNALED_BIT;
+
+    DeviceResources::FenceResource fenceResource = {};
+    deviceCheck(vkCreateFence(Device::s_State.Device, &fenceCreateInfo, nullptr, &fenceResource.Fence),
+        "Failed to create fence");
+
+    Fence fence = resources.Add(fenceResource);
+    deletionQueue.Enqueue(fence);
+
+    return fence;
+}
+
+void DeviceInternal::Destroy(View<FenceTag>& resources, Fence fence)
+{
+    vkDestroyFence(Device::s_State.Device, resources[fence].Fence, nullptr);
+    resources.Remove(fence);
+}
+
+void DeviceInternal::WaitForFence(View<FenceTag>& resources, Fence fence)
+{
+    deviceCheck(vkWaitForFences(Device::s_State.Device, 1, &resources[fence].Fence, true, 10'000'000'000),
+        "Error while waiting for fences");
+}
+
+bool DeviceInternal::CheckFence(View<FenceTag>& resources, Fence fence)
+{
+    const VkResult result = vkGetFenceStatus(Device::s_State.Device, resources[fence].Fence);
+    return result == VK_SUCCESS;
+}
+
+void DeviceInternal::ResetFence(View<FenceTag>& resources, Fence fence)
+{
+    deviceCheck(vkResetFences(Device::s_State.Device, 1, &resources[fence].Fence), "Error while resetting fences");
 }
 
 #ifdef DESCRIPTOR_BUFFER
