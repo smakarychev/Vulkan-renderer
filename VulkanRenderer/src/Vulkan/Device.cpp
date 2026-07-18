@@ -17,6 +17,7 @@
 #include "Rendering/Buffer/Buffer.h"
 #include "Core/ProfilerContext.h"
 #include "Core/Window/Window.h"
+#include "CoreLib/Containers/Traits.h"
 #include "CoreLib/Utils/MemoryUtils.h"
 #include "Rendering/FormatTraits.h"
 #include "Imgui/ImguiUI.h"
@@ -1022,31 +1023,6 @@ void deviceCheck(VkResult res, std::string_view message)
 }
 }
 
-class DeviceInternal
-{
-public:
-#ifdef DESCRIPTOR_BUFFER
-    static u32 GetDescriptorSizeBytes(DescriptorType type);
-    static void WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo slotInfo, u32 index,
-        VkDescriptorGetInfoEXT& descriptorGetInfo);
-#else
-    static u32 GetFreePoolIndexFromAllocator(DescriptorArenaAllocator allocator, DescriptorPoolFlags poolFlags);
-#endif
-    static VmaAllocator& Allocator();
-    static Buffer AllocateBuffer(const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
-        VmaAllocationCreateFlags allocationFlags);
-    static VkImageView CreateVulkanImageView(const ImageSubresource& image, VkFormat format);
-
-    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
-        Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages);
-    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
-        Span<const TimelineSemaphore> semaphores,
-        Span<const u64> waitValues, Span<const PipelineStage> waitStages);
-    static void BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
-        u32 firstSet, VkPipelineBindPoint bindPoint);
-    static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
-};
-
 class DeviceResources
 {
     FRIEND_INTERNAL
@@ -1054,6 +1030,13 @@ class DeviceResources
 
     template <typename T>
     using ResourceContainerType = DeviceSparseSet<T>;
+    
+    template <typename T>
+    struct ResourceContainerWithLock
+    {
+        ResourceContainerType<T> Container{};
+        std::mutex Mutex{};
+    };
 
 private:
     template <typename ResourceList, typename Resource>
@@ -1296,15 +1279,168 @@ private:
         using ObjectType = SplitBarrierTag;
         VkEvent Event{VK_NULL_HANDLE};
     };
+    
+    template <typename Tag>
+    struct TagTraits { static_assert(!sizeof(Tag), "No match for type"); };
+    template<>
+    struct TagTraits<SwapchainTag> { using ResourceType = SwapchainResource; };
+    template<>
+    struct TagTraits<BufferTag> { using ResourceType = BufferResource; };
+    template<>
+    struct TagTraits<BufferArenaTag> { using ResourceType = BufferArenaResource; };
+    template<>
+    struct TagTraits<ImageTag> { using ResourceType = ImageResource; };
+    template<>
+    struct TagTraits<SamplerTag> { using ResourceType = SamplerResource; };
+    template<>
+    struct TagTraits<CommandPoolTag> { using ResourceType = CommandPoolResource; };
+    template<>
+    struct TagTraits<CommandBufferTag> { using ResourceType = CommandBufferResource; };
+    template<>
+    struct TagTraits<DescriptorsLayoutTag> { using ResourceType = DescriptorsLayoutResource; };
+    template<>
+    struct TagTraits<DescriptorsTag> { using ResourceType = DescriptorsResource; };
+    template<>
+    struct TagTraits<DescriptorArenaAllocatorTag> { using ResourceType = DescriptorArenaAllocatorResource; };
+    template<>
+    struct TagTraits<PipelineLayoutTag> { using ResourceType = PipelineLayoutResource; };
+    template<>
+    struct TagTraits<PipelineTag> { using ResourceType = PipelineResource; };
+    template<>
+    struct TagTraits<ShaderModuleTag> { using ResourceType = ShaderModuleResource; };
+    template<>
+    struct TagTraits<RenderingAttachmentTag> { using ResourceType = RenderingAttachmentResource; };
+    template<>
+    struct TagTraits<RenderingInfoTag> { using ResourceType = RenderingInfoResource; };
+    template<>
+    struct TagTraits<FenceTag> { using ResourceType = FenceResource; };
+    template<>
+    struct TagTraits<SemaphoreTag> { using ResourceType = SemaphoreResource; };
+    template<>
+    struct TagTraits<TimelineSemaphoreTag> { using ResourceType = TimelineSemaphoreResource; };
+    template<>
+    struct TagTraits<DependencyInfoTag> { using ResourceType = DependencyInfoResource; };
+    template<>
+    struct TagTraits<SplitBarrierTag> { using ResourceType = SplitBarrierResource; };
+
+    template <typename... Tags>
+    class View
+    {
+        friend class DeviceResources;
+    public:
+        template <typename Resource>
+        constexpr auto Add(Resource&& resource)
+        {
+            using Decayed = std::decay_t<Resource>;
+            return GetContainer<typename Decayed::ObjectType>().Insert(std::forward<Resource>(resource));
+        }
+        template <typename Tag>
+        constexpr void Remove(ResourceHandleType<Tag> handle)
+        {
+            GetContainer<Tag>().Erase(handle);
+        }
+        template <typename Tag>
+        constexpr const auto& operator[](ResourceHandleType<Tag> handle) const
+        {
+            return GetContainer<Tag>()[handle];
+        }
+        template <typename Tag>
+        constexpr auto& operator[](ResourceHandleType<Tag> handle)
+        {
+            return GetContainer<Tag>()[handle];
+        }
+    protected:
+        View(ResourceContainerType<typename TagTraits<Tags>::ResourceType>&... containers)
+            : m_Containers(&containers...)
+        {
+        }
+
+        template <typename Tag>
+        auto& GetContainer()
+        {
+            using ResourceType = TagTraits<Tag>::ResourceType;
+            return *std::get<ResourceContainerType<ResourceType>*>(m_Containers);
+        }
+
+        template <typename Tag>
+        const auto& GetContainer() const
+        {
+            using ResourceType = TagTraits<Tag>::ResourceType;
+            return *std::get<ResourceContainerType<ResourceType>*>(m_Containers);
+        }
+    private:
+        std::tuple<ResourceContainerType<typename TagTraits<Tags>::ResourceType> *...> m_Containers;
+    };
+    
+#ifndef NDEBUG
+    struct ViewLockHolderGuard
+    {
+        ViewLockHolderGuard() { ASSERT(!HoldsLockedView, "Already have active locked view") HoldsLockedView = true; }
+        ~ViewLockHolderGuard() { HoldsLockedView = false; }
+        inline static thread_local bool HoldsLockedView{false};
+    };
+#else
+    struct ViewLockHolderGuard {};
+#endif // NDEBUG
+
+    template <typename... Tags>
+    class LockedView : public View<Tags...>
+    {
+        friend class DeviceResources;
+        
+        template <typename... R>
+        friend class View;
+
+        template <typename T>
+        using MutexT = std::mutex;
+        using LockType = decltype(std::scoped_lock(std::declval<MutexT<Tags>&>()...));
+    public:
+        LockedView(ResourceContainerWithLock<typename TagTraits<Tags>::ResourceType>&... containers)
+            : View<Tags...>(containers.Container...),
+              m_Lock(containers.Mutex...)
+        {
+        }
+        
+        template <typename ... R>
+        operator View<R...>()
+        {
+            static_assert(is_unique_v<R...>, "Types must be unique");
+            return View<R...>(this->template GetContainer<R>()...);    
+        }
+        
+    private:
+        ViewLockHolderGuard m_LockHolderGuard;
+        LockType m_Lock;
+    };
+    
+    template <typename ... Tags>
+    auto GetLockedView()
+    {
+        static_assert(is_unique_v<Tags...>, "Types must be unique");
+        
+        return LockedView<Tags...>(GetContainer<Tags>()...);
+    }
+    
+    template <typename Tag>
+    ResourceContainerWithLock<typename TagTraits<Tag>::ResourceType>& GetContainer()
+    {
+        if constexpr(std::is_same_v<Tag, SwapchainTag>)
+            return m_Swapchains2;
+        else if constexpr(std::is_same_v<Tag, SamplerTag>)
+            return m_Samplers2;
+        else 
+            static_assert(!sizeof(Tag), "No match for type");
+        std::unreachable();
+    }
 
     u64 m_AllocatedCount{0};
     u64 m_DeallocatedCount{0};
 
+    ResourceContainerWithLock<SamplerResource> m_Samplers2;
     ResourceContainerType<SwapchainResource> m_Swapchains;
     ResourceContainerType<BufferResource> m_Buffers;
     ResourceContainerType<BufferArenaResource> m_BufferArenas;
     ResourceContainerType<ImageResource> m_Images;
-    ResourceContainerType<SamplerResource> m_Samplers;
     ResourceContainerType<CommandPoolResource> m_CommandPools;
     ResourceContainerType<CommandBufferResource> m_CommandBuffers;
     ResourceContainerType<DescriptorsLayoutResource> m_DescriptorLayouts;
@@ -1322,6 +1458,40 @@ private:
     ResourceContainerType<SplitBarrierResource> m_SplitBarriers;
 
     std::vector<std::vector<u32>> m_CommandPoolToBuffersMap;
+};
+
+class DeviceInternal
+{
+public:
+    template <typename ... Tags>
+    using View = DeviceResources::View<Tags...>;
+    
+    Swapchain CreateSwapchain(View<SwapchainTag>& resources, SwapchainCreateInfo&& createInfo,
+        DeletionQueue& deletionQueue);    
+    
+    static Sampler CreateSampler(View<SamplerTag>& resources, SamplerCreateInfo&& createInfo);
+    static void Destroy(View<SamplerTag>& resources, Sampler sampler);
+    
+#ifdef DESCRIPTOR_BUFFER
+    static u32 GetDescriptorSizeBytes(DescriptorType type);
+    static void WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo slotInfo, u32 index,
+        VkDescriptorGetInfoEXT& descriptorGetInfo);
+#else
+    static u32 GetFreePoolIndexFromAllocator(DescriptorArenaAllocator allocator, DescriptorPoolFlags poolFlags);
+#endif
+    static VmaAllocator& Allocator();
+    static Buffer AllocateBuffer(const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
+        VmaAllocationCreateFlags allocationFlags);
+    static VkImageView CreateVulkanImageView(const ImageSubresource& image, VkFormat format);
+
+    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
+        Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages);
+    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
+        Span<const TimelineSemaphore> semaphores,
+        Span<const u64> waitValues, Span<const PipelineStage> waitStages);
+    static void BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+        u32 firstSet, VkPipelineBindPoint bindPoint);
+    static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
 };
 
 template <typename ResourceList, typename Resource>
@@ -1346,8 +1516,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_BufferArenas, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, ImageResource>)
         return AddToResourceList(m_Images, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, SamplerResource>)
-        return AddToResourceList(m_Samplers, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, CommandPoolResource>)
         return AddToResourceList(m_CommandPools, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, CommandBufferResource>)
@@ -1398,8 +1566,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_BufferArenas.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, ImageTag>)
         m_Images.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, SamplerTag>)
-        m_Samplers.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, CommandPoolTag>)
         m_CommandPools.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, CommandBufferTag>)
@@ -1453,8 +1619,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_BufferArenas[type];
     else if constexpr (std::is_same_v<Decayed, Image>)
         return m_Images[type];
-    else if constexpr (std::is_same_v<Decayed, Sampler>)
-        return m_Samplers[type];
     else if constexpr (std::is_same_v<Decayed, CommandPool>)
         return m_CommandPools[type];
     else if constexpr (std::is_same_v<Decayed, CommandBuffer>)
@@ -2746,54 +2910,16 @@ const ImageDescription& Device::GetImageDescription(Image image)
 
 Sampler Device::CreateSampler(SamplerCreateInfo&& createInfo)
 {
-    const SamplerCache::CacheKey key = SamplerCache::CreateCacheKey(createInfo);
-    Sampler cached = SamplerCache::Find(key);
-    if (cached.HasValue())
-        return cached;
-
-    VkSamplerCreateInfo samplerCreateInfo = {};
-    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerCreateInfo.magFilter = vulkanFilterFromImageFilter(createInfo.MagnificationFilter);
-    samplerCreateInfo.minFilter = vulkanFilterFromImageFilter(createInfo.MinificationFilter);
-    samplerCreateInfo.mipmapMode = vulkanMipmapModeFromSamplerFilter(samplerCreateInfo.minFilter);
-    samplerCreateInfo.addressModeU = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
-    samplerCreateInfo.addressModeV = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
-    samplerCreateInfo.addressModeW = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
-    samplerCreateInfo.minLod = 0.0f;
-    samplerCreateInfo.maxLod = createInfo.MaxLod;
-    samplerCreateInfo.maxAnisotropy = GetAnisotropyLevel();
-    samplerCreateInfo.anisotropyEnable = (u32)createInfo.WithAnisotropy;
-    samplerCreateInfo.mipLodBias = createInfo.LodBias;
-    samplerCreateInfo.compareEnable =
-        isVulkanSamplerCompareOpEnabledFromSamplerDepthCompareMode(createInfo.DepthCompareMode);
-    samplerCreateInfo.compareOp = vulkanSamplerCompareOpFromSamplerDepthCompareMode(createInfo.DepthCompareMode);
-    samplerCreateInfo.borderColor = vulkanBorderColorFromBorderColor(createInfo.BorderColor);
-
-    VkSamplerReductionModeCreateInfo reductionModeCreateInfo = {};
-    if (createInfo.ReductionMode.has_value())
-    {
-        reductionModeCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO;
-        reductionModeCreateInfo.reductionMode = vulkanSamplerReductionModeFromSamplerReductionMode(
-            *createInfo.ReductionMode);
-        samplerCreateInfo.pNext = &reductionModeCreateInfo;
-    }
-
-    DeviceResources::SamplerResource samplerResource = {};
-    deviceCheck(vkCreateSampler(s_State.Device, &samplerCreateInfo, nullptr, &samplerResource.Sampler),
-        "Failed to create depth pyramid sampler");
-
-    Sampler sampler = Resources().AddResource(samplerResource);
-    DeletionQueue().Enqueue(sampler);
-
-    SamplerCache::Emplace(key, sampler);
-
-    return sampler;
+    auto view = Resources().GetLockedView<SamplerTag>();
+    
+    return DeviceInternal::CreateSampler(view, std::move(createInfo));
 }
 
 void Device::Destroy(Sampler sampler)
 {
-    vkDestroySampler(s_State.Device, Resources().m_Samplers[sampler.m_Id].Sampler, nullptr);
-    Resources().RemoveResource(sampler);
+    auto view = Resources().GetLockedView<SamplerTag>();
+    
+    DeviceInternal::Destroy(view, sampler);
 }
 
 RenderingAttachment Device::CreateRenderingAttachment(RenderingAttachmentCreateInfo&& createInfo,
@@ -3139,6 +3265,8 @@ void Device::Destroy(ShaderModule shaderModule)
 
 DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& createInfo)
 {
+    auto view = Resources().GetLockedView<SamplerTag>();
+    
     const DescriptorLayoutCache::CacheKey key = DescriptorLayoutCache::CreateCacheKey(createInfo);
     DescriptorsLayout cached = DescriptorLayoutCache::Find(key);
     if (cached.HasValue())
@@ -3179,7 +3307,7 @@ DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& 
 
         layoutHasImmutableSamplers |= binding.ImmutableSampler.HasValue();
         if (binding.ImmutableSampler.HasValue())
-            bindings.back().pImmutableSamplers = &Resources()[binding.ImmutableSampler].Sampler;
+            bindings.back().pImmutableSamplers = &view[binding.ImmutableSampler].Sampler;
     }
 
     VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo = {};
@@ -3389,13 +3517,14 @@ void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotI
 
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo, Sampler sampler)
 {
+    auto view = Resources().GetLockedView<SamplerTag>();
     auto&& [slot, type] = slotInfo;
     ASSERT(type == DescriptorType::Sampler)
 
     VkDescriptorGetInfoEXT descriptorGetInfo = {};
     descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
     descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
-    descriptorGetInfo.data.pSampler = &Resources()[sampler].Sampler;
+    descriptorGetInfo.data.pSampler = &view[sampler].Sampler;
     DeviceInternal::WriteDescriptor(descriptors, slotInfo, 0, descriptorGetInfo);
 }
 
@@ -3530,9 +3659,11 @@ void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotI
 
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo, Sampler sampler)
 {
+    auto view = Resources().GetLockedView<SamplerTag>();
+    
     auto&& [slot, type] = slotInfo;
     VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.sampler = Resources()[sampler].Sampler;
+    descriptorTextureInfo.sampler = view[sampler].Sampler;
 
     VkWriteDescriptorSet write = {};
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -4452,8 +4583,10 @@ void Device::CollectGpuProfileFrames()
 
 ImTextureID Device::CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout)
 {
+    auto view = Resources().GetLockedView<SamplerTag>();
+    
     ImageViewHandle viewHandle = GetImageViewHandle(texture.Image, texture.Description);
-    VkDescriptorSet imageDescriptorSet = ImGui_ImplVulkan_AddTexture(Resources()[sampler].Sampler,
+    VkDescriptorSet imageDescriptorSet = ImGui_ImplVulkan_AddTexture(view[sampler].Sampler,
         Resources()[texture.Image].Views.ViewList[viewHandle.m_Index],
         vulkanImageLayoutFromImageLayout(layout));
 
@@ -5044,6 +5177,58 @@ void Device::CompileCommand(CommandBuffer cmd, const DispatchIndirectCommand& co
     vkCmdDispatchIndirect(Resources()[cmd].CommandBuffer, Resources()[command.Buffer].Buffer, command.Offset);
 }
 
+Sampler DeviceInternal::CreateSampler(View<SamplerTag>& resources, SamplerCreateInfo&& createInfo)
+{
+    const SamplerCache::CacheKey key = SamplerCache::CreateCacheKey(createInfo);
+    Sampler cached = SamplerCache::Find(key);
+    if (cached.HasValue())
+        return cached;
+
+    VkSamplerCreateInfo samplerCreateInfo = {};
+    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerCreateInfo.magFilter = vulkanFilterFromImageFilter(createInfo.MagnificationFilter);
+    samplerCreateInfo.minFilter = vulkanFilterFromImageFilter(createInfo.MinificationFilter);
+    samplerCreateInfo.mipmapMode = vulkanMipmapModeFromSamplerFilter(samplerCreateInfo.minFilter);
+    samplerCreateInfo.addressModeU = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
+    samplerCreateInfo.addressModeV = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
+    samplerCreateInfo.addressModeW = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
+    samplerCreateInfo.minLod = 0.0f;
+    samplerCreateInfo.maxLod = createInfo.MaxLod;
+    samplerCreateInfo.maxAnisotropy = Device::GetAnisotropyLevel();
+    samplerCreateInfo.anisotropyEnable = (u32)createInfo.WithAnisotropy;
+    samplerCreateInfo.mipLodBias = createInfo.LodBias;
+    samplerCreateInfo.compareEnable =
+        isVulkanSamplerCompareOpEnabledFromSamplerDepthCompareMode(createInfo.DepthCompareMode);
+    samplerCreateInfo.compareOp = vulkanSamplerCompareOpFromSamplerDepthCompareMode(createInfo.DepthCompareMode);
+    samplerCreateInfo.borderColor = vulkanBorderColorFromBorderColor(createInfo.BorderColor);
+
+    VkSamplerReductionModeCreateInfo reductionModeCreateInfo = {};
+    if (createInfo.ReductionMode.has_value())
+    {
+        reductionModeCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO;
+        reductionModeCreateInfo.reductionMode = vulkanSamplerReductionModeFromSamplerReductionMode(
+            *createInfo.ReductionMode);
+        samplerCreateInfo.pNext = &reductionModeCreateInfo;
+    }
+
+    DeviceResources::SamplerResource samplerResource = {};
+    deviceCheck(vkCreateSampler(Device::s_State.Device, &samplerCreateInfo, nullptr, &samplerResource.Sampler),
+        "Failed to create depth pyramid sampler");
+
+    Sampler sampler = resources.Add(samplerResource);
+    Device::DeletionQueue().Enqueue(sampler);
+
+    SamplerCache::Emplace(key, sampler);
+
+    return sampler;
+}
+
+void DeviceInternal::Destroy(View<SamplerTag>& resources, Sampler sampler)
+{
+    vkDestroySampler(Device::s_State.Device, resources[sampler].Sampler, nullptr);
+    resources.Remove(sampler);
+}
+
 #ifdef DESCRIPTOR_BUFFER
 u32 DeviceInternal::GetDescriptorSizeBytes(DescriptorType type)
 {
@@ -5091,6 +5276,7 @@ void DeviceInternal::BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineL
         Device::Resources()[pipelineLayout].Layout, firstSet, 1, &allocatorResource.DescriptorSet, &offset);
 }
 #else
+
 u32 DeviceInternal::GetFreePoolIndexFromAllocator(DescriptorArenaAllocator allocator, DescriptorPoolFlags poolFlags)
 {
     DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Device::Resources()[allocator];
