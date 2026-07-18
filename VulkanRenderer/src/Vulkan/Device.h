@@ -85,7 +85,7 @@ public:
     static Buffer CreateBuffer(BufferCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(Buffer buffer);
     static Buffer CreateStagingBuffer(u64 sizeBytes);
-    static void ResizeBuffer(Buffer buffer, u64 newSize, RenderCommandList& cmdList, bool copyData = true);
+    static void ResizeBuffer(Buffer buffer, u64 newSize, CommandBuffer cmd, bool copyData = true);
     static void* MapBuffer(Buffer buffer);
     static void UnmapBuffer(Buffer buffer);
     static void SetBufferData(Buffer buffer, Span<const std::byte> data, u64 offsetBytes);
@@ -100,7 +100,7 @@ public:
     static BufferArena CreateBufferArena(BufferArenaCreateInfo&& createInfo, 
         DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(BufferArena arena);
-    static void ResizeBufferArenaPhysical(BufferArena arena, u64 newSize, RenderCommandList& cmdList,
+    static void ResizeBufferArenaPhysical(BufferArena arena, u64 newSize, CommandBuffer cmd,
         bool copyData = true);
     static Buffer GetBufferArenaUnderlyingBuffer(BufferArena arena);
     static u64 GetBufferArenaSizeBytesPhysical(BufferArena arena);

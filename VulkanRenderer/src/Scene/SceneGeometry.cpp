@@ -12,16 +12,15 @@
 
 namespace
 {
-void growBufferArena(BufferArena arena, u64 newMinSize, RenderCommandList& cmdList)
+void growBufferArena(BufferArena arena, u64 newMinSize, CommandBuffer cmd)
 {
     static constexpr f32 GROWTH_RATE = 1.5f;
 
     const u64 newSize = std::max(newMinSize, (u64)GROWTH_RATE * Device::GetBufferArenaSizeBytesPhysical(arena));
-    Device::ResizeBufferArenaPhysical(arena, newSize, cmdList);
+    Device::ResizeBufferArenaPhysical(arena, newSize, cmd);
 }
 
-BufferSuballocation suballocateResizeIfFailed(BufferArena arena, u64 sizeBytes, u32 alignment,
-    RenderCommandList& cmdList)
+BufferSuballocation suballocateResizeIfFailed(BufferArena arena, u64 sizeBytes, u32 alignment, CommandBuffer cmd)
 {
     BufferSuballocationResult suballocationResult = Device::BufferArenaSuballocate(arena, sizeBytes, alignment);
     if (suballocationResult.has_value())
@@ -30,7 +29,7 @@ BufferSuballocation suballocateResizeIfFailed(BufferArena arena, u64 sizeBytes, 
     ASSERT(suballocationResult.error() != BufferSuballocationError::OutOfVirtualMemory,
         "Out of virtual memory for buffer arena")
 
-    growBufferArena(arena, Device::GetBufferArenaSizeBytesPhysical(arena) + sizeBytes, cmdList);
+    growBufferArena(arena, Device::GetBufferArenaSizeBytesPhysical(arena) + sizeBytes, cmd);
     suballocationResult = Device::BufferArenaSuballocate(arena, sizeBytes, alignment);
     ASSERT(suballocationResult.has_value(), "Failed to suballocate")
 
@@ -44,7 +43,7 @@ void writeSuballocation(BufferArena arena, const std::vector<T>& data,
     if (data.empty())
         return;
     const BufferSuballocation suballocation = suballocateResizeIfFailed(arena,
-        data.size() * sizeof(T), sizeof(T), ctx.CommandList);
+        data.size() * sizeof(T), sizeof(T), ctx.Cmd);
     offsets.ElementOffsets[(u32)bufferType] = (u32)(suballocation.Description.Offset / sizeof(T));
     offsets.Suballocations[(u32)bufferType] = suballocation.Handle;
     ctx.ResourceUploader->UpdateBuffer(suballocation.Buffer, data, suballocation.Description.Offset);
@@ -241,7 +240,7 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
 
     SceneInstanceInfo instanceInfo = {};
     instanceInfo.RenderObjectsSuballocation = suballocateResizeIfFailed(RenderObjects,
-        renderObjectsSizeBytes, 0, ctx.CommandList);
+        renderObjectsSizeBytes, 0, ctx.Cmd);
     const u32 firstRenderObject =
         (u32)(instanceInfo.RenderObjectsSuballocation.Description.Offset / sizeof(RenderObjectGPU));
 
@@ -255,14 +254,14 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
     if (instanceHasSkinsOrBlendShapes)
     {
         instanceInfo.RenderObjectSkinnedInfosSuballocation = suballocateResizeIfFailed(RenderObjectSkinnedInfos,
-            renderObjectSkinnedInfosSizeBytes, 0, ctx.CommandList);
+            renderObjectSkinnedInfosSizeBytes, 0, ctx.Cmd);
         
         if (instanceHasSkins)
         {
             instanceInfo.JointMatricesSuballocation = suballocateResizeIfFailed(JointMatrices,
-                jointMatricesSizeBytes, 0, ctx.CommandList);
+                jointMatricesSizeBytes, 0, ctx.Cmd);
             
-            instanceInfo.SkinsSuballocation = suballocateResizeIfFailed(Skins, skinsSizeBytes, 0, ctx.CommandList);
+            instanceInfo.SkinsSuballocation = suballocateResizeIfFailed(Skins, skinsSizeBytes, 0, ctx.Cmd);
             
             currentSkinOffset = (u32)(instanceInfo.SkinsSuballocation.Description.Offset / sizeof(SkinGPU));
         
@@ -272,16 +271,16 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
         if (instanceHasBlendShapes)
         {
             instanceInfo.BlendShapesSuballocation = suballocateResizeIfFailed(BlendShapes, 
-                blendShapesSizeBytes, 0, ctx.CommandList);
+                blendShapesSizeBytes, 0, ctx.Cmd);
             currentBlendShapeOffset = 
                 (u32)(instanceInfo.BlendShapesSuballocation.Description.Offset / sizeof(BlendShapeGPU));
         }
         
         instanceInfo.SkinnedVertexSuballocation = suballocateResizeIfFailed(Attributes, skinnedVerticesSizeBytes, 
-            sizeof(SkinnedVertexGPU), ctx.CommandList);
+            sizeof(SkinnedVertexGPU), ctx.Cmd);
         
         instanceInfo.SkinnedMeshletBoundSuballocation = suballocateResizeIfFailed(Meshlets,
-            skinnedMeshletBoundsSizeBytes, sizeof(MeshletBoundsGPU), ctx.CommandList);
+            skinnedMeshletBoundsSizeBytes, sizeof(MeshletBoundsGPU), ctx.Cmd);
         
         currentRenderObjectSkinnedInfoOffset = 
             (u32)(instanceInfo.RenderObjectSkinnedInfosSuballocation.Description.Offset /

@@ -10,6 +10,7 @@
 
 class RenderCommandList
 {
+    FRIEND_INTERNAL
 public:
     void SetCommandBuffer(CommandBuffer cmd);
     

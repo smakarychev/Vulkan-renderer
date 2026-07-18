@@ -78,7 +78,7 @@ void SceneLight::UpdateDirectionalLight(lux::CommonLight& light, u32 lightIndex,
         .Intensity = light.Intensity,
         .Radius = light.Radius
     }};
-    ::Buffers::grow(m_Buffers.DirectionalLights, sizeof(directionalLight) * (lightIndex + 1), ctx.CommandList);
+    ::Buffers::grow(m_Buffers.DirectionalLights, sizeof(directionalLight) * (lightIndex + 1), ctx.Cmd);
     if (m_CachedDirectionalLights.size() <= lightIndex)
         m_CachedDirectionalLights.resize(lightIndex + 1);
     else if (m_CachedDirectionalLights[lightIndex] == directionalLight)
@@ -97,7 +97,7 @@ void SceneLight::UpdatePointLight(lux::CommonLight& light, u32 lightIndex, Frame
         .Intensity = light.Intensity,
         .Radius = light.Radius
     }};
-    ::Buffers::grow(m_Buffers.PointLights, sizeof(pointLight) * (lightIndex + 1), ctx.CommandList);
+    ::Buffers::grow(m_Buffers.PointLights, sizeof(pointLight) * (lightIndex + 1), ctx.Cmd);
     if (m_CachedPointLights.size() <= lightIndex)
         m_CachedPointLights.resize(lightIndex + 1);
     else if (m_CachedPointLights[lightIndex] == pointLight)

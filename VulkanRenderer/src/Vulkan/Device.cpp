@@ -1428,12 +1428,16 @@ private:
             return m_Swapchains2;
         else if constexpr(std::is_same_v<Tag, SamplerTag>)
             return m_Samplers2;
+        else if constexpr(std::is_same_v<Tag, BufferTag>)
+            return m_Buffers2;
         else if constexpr(std::is_same_v<Tag, FenceTag>)
             return m_Fences2;
         else if constexpr(std::is_same_v<Tag, SemaphoreTag>)
             return m_Semaphores2;
         else if constexpr(std::is_same_v<Tag, TimelineSemaphoreTag>)
             return m_TimelineSemaphores2;
+        else if constexpr(std::is_same_v<Tag, SplitBarrierTag>)
+            return m_SplitBarriers2;
         else 
             static_assert(!sizeof(Tag), "No match for type");
         std::unreachable();
@@ -1442,13 +1446,14 @@ private:
     u64 m_AllocatedCount{0};
     u64 m_DeallocatedCount{0};
 
+    ResourceContainerWithLock<SwapchainResource> m_Swapchains2;
+    ResourceContainerWithLock<BufferResource> m_Buffers2;
     ResourceContainerWithLock<SamplerResource> m_Samplers2;
     ResourceContainerWithLock<FenceResource> m_Fences2;
     ResourceContainerWithLock<SemaphoreResource> m_Semaphores2;
     ResourceContainerWithLock<TimelineSemaphoreResource> m_TimelineSemaphores2;
     ResourceContainerWithLock<SplitBarrierResource> m_SplitBarriers2;
     ResourceContainerType<SwapchainResource> m_Swapchains;
-    ResourceContainerType<BufferResource> m_Buffers;
     ResourceContainerType<BufferArenaResource> m_BufferArenas;
     ResourceContainerType<ImageResource> m_Images;
     ResourceContainerType<CommandPoolResource> m_CommandPools;
@@ -1474,6 +1479,23 @@ public:
     
     Swapchain CreateSwapchain(View<SwapchainTag>& resources, SwapchainCreateInfo&& createInfo,
         DeletionQueue& deletionQueue);    
+    
+    static Buffer CreateBuffer(View<BufferTag>& resources, BufferCreateInfo&& createInfo, DeletionQueue& deletionQueue);
+    static void Destroy(View<BufferTag>& resources, Buffer buffer);
+    static Buffer CreateStagingBuffer(View<BufferTag>& resources, u64 sizeBytes);
+    static void ResizeBuffer(View<BufferTag>& resources, Buffer buffer, u64 newSize, CommandBuffer cmd,
+        bool copyData = true);
+    static void* MapBuffer(View<BufferTag>& resources, Buffer buffer);
+    static void UnmapBuffer(View<BufferTag>& resources, Buffer buffer);
+    static void SetBufferData(View<BufferTag>& resources, Buffer buffer, Span<const std::byte> data, u64 offsetBytes);
+    static void SetBufferData(View<BufferTag>& resources, void* mappedAddress, Span<const std::byte> data,
+        u64 offsetBytes);
+    static void* GetBufferMappedAddress(View<BufferTag>& resources, Buffer buffer);
+    static usize GetBufferSizeBytes(View<BufferTag>& resources, Buffer buffer);
+    static const BufferDescription& GetBufferDescription(View<BufferTag>& resources, Buffer buffer);
+    static u64 GetDeviceAddress(View<BufferTag>& resources, Buffer buffer);
+    static Buffer AllocateBuffer(View<BufferTag>& resources, const BufferCreateInfo& createInfo,
+        VkBufferUsageFlags usage, VmaAllocationCreateFlags allocationFlags);
     
     static Sampler CreateSampler(View<SamplerTag>& resources, SamplerCreateInfo&& createInfo);
     static void Destroy(View<SamplerTag>& resources, Sampler sampler);
@@ -1505,8 +1527,6 @@ public:
     static u32 GetFreePoolIndexFromAllocator(DescriptorArenaAllocator allocator, DescriptorPoolFlags poolFlags);
 #endif
     static VmaAllocator& Allocator();
-    static Buffer AllocateBuffer(const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
-        VmaAllocationCreateFlags allocationFlags);
     static VkImageView CreateVulkanImageView(const ImageSubresource& image, VkFormat format);
 
     static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(const View<SemaphoreTag>& resources,
@@ -1516,6 +1536,13 @@ public:
     static void BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
         u32 firstSet, VkPipelineBindPoint bindPoint);
     static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
+    
+    // todo: add cmd tag here
+    static void CompileCommand(const View<BufferTag>& resources, CommandBuffer cmd,
+        const CopyBufferCommand& command);
+    // todo: add cmd tag here
+    static void CompileCommand(const View<BufferTag>& resources, CommandBuffer cmd, 
+        const CopyBufferToImageCommand& command);
 };
 
 template <typename ResourceList, typename Resource>
@@ -1534,8 +1561,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
 
     if constexpr (std::is_same_v<Decayed, SwapchainResource>)
         return AddToResourceList(m_Swapchains, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, BufferResource>)
-        return AddToResourceList(m_Buffers, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, BufferArenaResource>)
         return AddToResourceList(m_BufferArenas, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, ImageResource>)
@@ -1576,8 +1601,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
 
     if constexpr (std::is_same_v<Decayed, SwapchainTag>)
         m_Swapchains.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, BufferTag>)
-        m_Buffers.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, BufferArenaTag>)
         m_BufferArenas.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, ImageTag>)
@@ -1621,8 +1644,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
 
     if constexpr (std::is_same_v<Decayed, Swapchain>)
         return m_Swapchains[type];
-    else if constexpr (std::is_same_v<Decayed, Buffer>)
-        return m_Buffers[type];
     else if constexpr (std::is_same_v<Decayed, BufferArena>)
         return m_BufferArenas[type];
     else if constexpr (std::is_same_v<Decayed, Image>)
@@ -2270,144 +2291,82 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
 
 Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    VmaAllocationCreateFlags flags = 0;
-    if (enumHasAny(createInfo.Description.Usage, BufferUsage::Mappable))
-        flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-    if (enumHasAny(createInfo.Description.Usage, BufferUsage::MappableRandomAccess))
-        flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-
-    if (createInfo.PersistentMapping)
-        flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-    Buffer buffer = DeviceInternal::AllocateBuffer(createInfo,
-        vulkanBufferUsageFromUsage(createInfo.Description.Usage), flags);
-
-    if (!createInfo.InitialData.empty())
-    {
-        if (enumHasAny(createInfo.Description.Usage, BufferUsage::Mappable | BufferUsage::MappableRandomAccess))
-        {
-            SetBufferData(buffer, createInfo.InitialData, 0);
-        }
-        else
-        {
-            Buffer stagingBuffer = CreateStagingBuffer(createInfo.InitialData.size());
-            SetBufferData(stagingBuffer, createInfo.InitialData, 0);
-            ImmediateSubmit([&](RenderCommandList& cmdList)
-            {
-                cmdList.CopyBuffer({
-                    .Source = stagingBuffer,
-                    .Destination = buffer,
-                    .SizeBytes = createInfo.InitialData.size()
-                });
-            });
-            Destroy(stagingBuffer);
-        }
-    }
-
-    deletionQueue.Enqueue(buffer);
-
-    return buffer;
+    auto view = Resources().GetLockedView<BufferTag>();
+    
+    return DeviceInternal::CreateBuffer(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(Buffer buffer)
 {
-    const DeviceResources::BufferResource& resource = Resources().m_Buffers[buffer.m_Id];
-    vmaDestroyBuffer(DeviceInternal::Allocator(), resource.Buffer, resource.Allocation);
-    Resources().RemoveResource(buffer);
+    auto view = Resources().GetLockedView<BufferTag>();
+    DeviceInternal::Destroy(view, buffer);
 }
 
 Buffer Device::CreateStagingBuffer(u64 sizeBytes)
 {
-    return CreateBuffer({
-            .Description = {
-                .SizeBytes = sizeBytes,
-                .Usage = BufferUsage::Staging | BufferUsage::Mappable,
-            },
-            .PersistentMapping = true
-        },
-        DummyDeletionQueue());
+    auto view = Resources().GetLockedView<BufferTag>();
+    
+    return DeviceInternal::CreateStagingBuffer(view, sizeBytes);
 }
 
-void Device::ResizeBuffer(Buffer buffer, u64 newSize, RenderCommandList& cmdList, bool copyData)
+void Device::ResizeBuffer(Buffer buffer, u64 newSize, CommandBuffer cmd, bool copyData)
 {
-    const DeviceResources::BufferResource& resource = Resources()[buffer];
-    const BufferDescription& description = resource.Description;
-    const u64 oldSize = description.SizeBytes;
-    if (description.SizeBytes == newSize)
-        return;
-
-    const Buffer newBuffer = CreateBuffer({
-            .Description = {
-                .SizeBytes = newSize,
-                .Usage = description.Usage,
-            },
-            .PersistentMapping = resource.HostAddress != nullptr
-        },
-        *s_State.FrameDeletionQueue);
-
-    /* seems very questionable
-     * after this line new Buffer will inherit lifetime of old buffer,
-     * and old buffer will be deleted in frame queue
-     */
-    std::swap(Resources()[buffer], Resources()[newBuffer]);
-
-    /* the source and destination are intentionally swapped */
-    if (copyData)
-        cmdList.CopyBuffer({
-            .Source = newBuffer,
-            .Destination = buffer,
-            .SizeBytes = std::min(oldSize, newSize)
-        });
+    auto view = Resources().GetLockedView<BufferTag>();
+    DeviceInternal::ResizeBuffer(view, buffer, newSize, cmd, copyData);
+    
 }
 
 void* Device::MapBuffer(Buffer buffer)
 {
-    const DeviceResources::BufferResource& resource = Resources()[buffer];
-    void* mappedData;
-    vmaMapMemory(DeviceInternal::Allocator(), resource.Allocation, &mappedData);
-    return mappedData;
+    auto view = Resources().GetLockedView<BufferTag>();
+    
+    return DeviceInternal::MapBuffer(view, buffer);
 }
 
 void Device::UnmapBuffer(Buffer buffer)
 {
-    const DeviceResources::BufferResource& resource = Resources()[buffer];
-    vmaUnmapMemory(DeviceInternal::Allocator(), resource.Allocation);
+    auto view = Resources().GetLockedView<BufferTag>();
+    DeviceInternal::UnmapBuffer(view, buffer);
 }
 
 void Device::SetBufferData(Buffer buffer, Span<const std::byte> data, u64 offsetBytes)
 {
-    const DeviceResources::BufferResource& resource = Resources()[buffer];
-    vmaCopyMemoryToAllocation(DeviceInternal::Allocator(), data.data(), resource.Allocation, offsetBytes, data.size());
+    auto view = Resources().GetLockedView<BufferTag>();
+    DeviceInternal::SetBufferData(view, buffer, data, offsetBytes);
 }
 
 void Device::SetBufferData(void* mappedAddress, Span<const std::byte> data, u64 offsetBytes)
 {
-    mappedAddress = (void*)((u8*)mappedAddress + offsetBytes);
-    std::memcpy(mappedAddress, data.data(), data.size());
+    auto view = Resources().GetLockedView<BufferTag>();
+    DeviceInternal::SetBufferData(view, mappedAddress, data, offsetBytes);
 }
 
 void* Device::GetBufferMappedAddress(Buffer buffer)
 {
-    return Resources()[buffer].HostAddress;
+    auto view = Resources().GetLockedView<BufferTag>();
+    
+    return DeviceInternal::GetBufferMappedAddress(view, buffer);
 }
 
 usize Device::GetBufferSizeBytes(Buffer buffer)
 {
-    return Resources()[buffer].Description.SizeBytes;
+    auto view = Resources().GetLockedView<BufferTag>();
+    
+    return DeviceInternal::GetBufferSizeBytes(view, buffer);
 }
 
 const BufferDescription& Device::GetBufferDescription(Buffer buffer)
 {
-    return Resources()[buffer].Description;
+    auto view = Resources().GetLockedView<BufferTag>();
+    
+    return DeviceInternal::GetBufferDescription(view, buffer);
 }
 
 u64 Device::GetDeviceAddress(Buffer buffer)
 {
-    VkBufferDeviceAddressInfo deviceAddressInfo = {};
-    deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-    deviceAddressInfo.buffer = Resources()[buffer].Buffer;
-
-    return vkGetBufferDeviceAddress(s_State.Device, &deviceAddressInfo);
+    auto view = Resources().GetLockedView<BufferTag>();
+    
+    return DeviceInternal::GetDeviceAddress(view, buffer);
 }
 
 BufferArena Device::CreateBufferArena(BufferArenaCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
@@ -2437,15 +2396,16 @@ void Device::Destroy(BufferArena bufferArena)
     Resources().RemoveResource(bufferArena);
 }
 
-void Device::ResizeBufferArenaPhysical(BufferArena arena, u64 newSize, RenderCommandList& cmdList, bool copyData)
+void Device::ResizeBufferArenaPhysical(BufferArena arena, u64 newSize, CommandBuffer cmd, bool copyData)
 {
+    auto view = Resources().GetLockedView<BufferTag>();
     const DeviceResources::BufferArenaResource& arenaResource = Resources()[arena];
-    const DeviceResources::BufferResource& bufferResource = Resources()[arenaResource.Buffer];
+    const DeviceResources::BufferResource& bufferResource = view[arenaResource.Buffer];
     const u64 oldSize = bufferResource.Description.SizeBytes;
     if (oldSize == newSize)
         return;
 
-    ResizeBuffer(arenaResource.Buffer, newSize, cmdList, copyData);
+    DeviceInternal::ResizeBuffer(view, arenaResource.Buffer, newSize, cmd, copyData);
 }
 
 Buffer Device::GetBufferArenaUnderlyingBuffer(BufferArena bufferArena)
@@ -2517,32 +2477,38 @@ Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletio
 
 Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, const lux::assetlib::ImageAsset* asset)
 {
-    u64 totalSizeBytes = 0;
-    for (auto& mip : asset->Header.MipmapSizes)
-        for (const u64 layerSize : mip)
-            totalSizeBytes += layerSize;
-
-    const Buffer imageBuffer = CreateBuffer({
-        .Description = {
-            .SizeBytes = totalSizeBytes,
-            .Usage = BufferUsage::Source | BufferUsage::StagingRandomAccess,
-        },
-        .PersistentMapping = true
-    }, DummyDeletionQueue());
-    const DeviceResources::BufferResource& imageBufferResource = Resources()[imageBuffer];
-
-    const Image image = AllocateImage(createInfo);
-    CreateViews(ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
-
-    ImageSubresource imageSubresource = {
-        .Image = image,
-        .Description = {.Mipmaps = (i8)asset->Header.Mipmaps, .Layers = (i8)asset->Header.Layers}
-    };
-
+    Image image{};
+    Buffer imageBuffer{};
+    
     ImmediateSubmit([&](RenderCommandList& cmdList)
     {
+        auto view = Resources().GetLockedView<BufferTag>();
+        u64 totalSizeBytes = 0;
+        for (auto& mip : asset->Header.MipmapSizes)
+            for (const u64 layerSize : mip)
+                totalSizeBytes += layerSize;
+
+        imageBuffer = DeviceInternal::CreateBuffer(view, {
+            .Description = {
+                .SizeBytes = totalSizeBytes,
+                .Usage = BufferUsage::Source | BufferUsage::StagingRandomAccess,
+            },
+            .PersistentMapping = true
+        }, DummyDeletionQueue());
+        const DeviceResources::BufferResource& imageBufferResource = view[imageBuffer];
+
+        image = AllocateImage(createInfo);
+        CreateViews(ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
+
+        ImageSubresource imageSubresource = {
+            .Image = image,
+            .Description = {.Mipmaps = (i8)asset->Header.Mipmaps, .Layers = (i8)asset->Header.Layers}
+        };
+
+
         ::DeletionQueue deletionQueue = {};
 
+        // todo: mt: use device internal here
         cmdList.WaitOnBarrier({
             .DependencyInfo = CreateDependencyInfo({
                 .LayoutTransitionInfo = LayoutTransitionInfo{
@@ -2576,7 +2542,7 @@ Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, const lux::a
                 mipSize += size;
             }
 
-            cmdList.CopyBufferToImage({
+            DeviceInternal::CompileCommand(view, cmdList.m_Cmd, {
                 .Buffer = imageBuffer,
                 .Image = image,
                 .SizeBytes = mipSize,
@@ -2597,6 +2563,7 @@ Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, const lux::a
             imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
         }
 
+        // todo: mt: use device internal here
         cmdList.WaitOnBarrier({
             .DependencyInfo = CreateDependencyInfo({
                 .LayoutTransitionInfo = LayoutTransitionInfo{
@@ -3652,9 +3619,10 @@ void Device::ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator)
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
     const BufferSubresource& buffer, u32 index)
 {
+    auto view = Resources().GetLockedView<BufferTag>();
     auto&& [slot, type] = slotInfo;
     VkDescriptorBufferInfo descriptorBufferInfo = {};
-    descriptorBufferInfo.buffer = Resources()[buffer.Buffer].Buffer;
+    descriptorBufferInfo.buffer = view[buffer.Buffer].Buffer;
     descriptorBufferInfo.offset = buffer.Description.Offset;
     descriptorBufferInfo.range = buffer.Description.SizeBytes;
 
@@ -4520,6 +4488,62 @@ VkCommandBuffer DeviceInternal::GetProfilerCommandBuffer(ProfilerContext* contex
     return Device::Resources()[context->m_GraphicsCommandBuffers[context->m_CurrentFrame]].CommandBuffer;
 }
 
+void DeviceInternal::CompileCommand(const View<BufferTag>& resources, CommandBuffer cmd,
+    const CopyBufferCommand& command)
+{
+    VkBufferCopy2 copy = {};
+    copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
+    copy.size = command.SizeBytes;
+    copy.srcOffset = command.SourceOffset;
+    copy.dstOffset = command.DestinationOffset;
+
+    const DeviceResources::BufferResource& sourceResource = resources[command.Source];
+    const DeviceResources::BufferResource& destinationResource = resources[command.Destination];
+    VkCopyBufferInfo2 copyBufferInfo = {};
+    copyBufferInfo.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
+    copyBufferInfo.srcBuffer = sourceResource.Buffer;
+    copyBufferInfo.dstBuffer = destinationResource.Buffer;
+    copyBufferInfo.regionCount = 1;
+    copyBufferInfo.pRegions = &copy;
+
+    // todo: use view
+    vkCmdCopyBuffer2(Device::Resources()[cmd].CommandBuffer, &copyBufferInfo);   
+}
+
+void DeviceInternal::CompileCommand(const View<BufferTag>& resources, CommandBuffer cmd,
+    const CopyBufferToImageCommand& command)
+{
+    ASSERT(command.ImageSubresource.Mipmaps == 1, "Buffer to image copies one mipmap at a time")
+
+    // todo: use view
+    const DeviceResources::ImageResource& imageResource = Device::Resources()[command.Image];
+
+    VkBufferImageCopy2 bufferImageCopy = {};
+    bufferImageCopy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
+    bufferImageCopy.bufferOffset = command.BufferOffset;
+    bufferImageCopy.imageExtent = {
+        .width = std::max(1u, imageResource.Description.Width >> command.ImageSubresource.MipmapBase),
+        .height = std::max(1u, imageResource.Description.Height >> command.ImageSubresource.MipmapBase),
+        .depth = imageResource.Description.GetDepth(command.ImageSubresource.MipmapBase)
+    };
+    bufferImageCopy.imageSubresource.aspectMask = vulkanImageAspectFromImageUsage(imageResource.Description.Usage);
+    bufferImageCopy.imageSubresource.mipLevel = (u32)(i32)command.ImageSubresource.MipmapBase;
+    bufferImageCopy.imageSubresource.baseArrayLayer = (u32)(i32)command.ImageSubresource.LayerBase;
+    bufferImageCopy.imageSubresource.layerCount = (u32)(i32)command.ImageSubresource.Layers;
+
+    const DeviceResources::BufferResource& sourceResource = resources[command.Buffer];
+    VkCopyBufferToImageInfo2 copyBufferToImageInfo = {};
+    copyBufferToImageInfo.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2;
+    copyBufferToImageInfo.srcBuffer = sourceResource.Buffer;
+    copyBufferToImageInfo.dstImage = Device::Resources()[command.Image].Image;
+    copyBufferToImageInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    copyBufferToImageInfo.regionCount = 1;
+    copyBufferToImageInfo.pRegions = &bufferImageCopy;
+
+    // todo: use view
+    vkCmdCopyBufferToImage2(Device::Resources()[cmd].CommandBuffer, &copyBufferToImageInfo);
+}
+
 void Device::CreateGpuProfileFrame(ProfilerScopedZoneGpu& zoneGpu, const SourceLocationData& sourceLocationData)
 {
     static_assert(sizeof(zoneGpu.Impl) >= sizeof(tracy::VkCtxScope));
@@ -4604,7 +4628,8 @@ void nameVulkanHandle(VkDevice device, u64 handle, VkObjectType type, std::strin
 
 void Device::NameBuffer(Buffer buffer, std::string_view name)
 {
-    nameVulkanHandle(s_State.Device, (u64)Resources()[buffer].Buffer, VK_OBJECT_TYPE_BUFFER, name);
+    auto view = Resources().GetLockedView<BufferTag>();
+    nameVulkanHandle(s_State.Device, (u64)view[buffer].Buffer, VK_OBJECT_TYPE_BUFFER, name);
 }
 
 void Device::NameImage(Image image, std::string_view name)
@@ -4728,9 +4753,10 @@ void Device::CompileCommand(CommandBuffer cmd, const ImGuiEndCommand& command)
 
 void Device::CompileCommand(CommandBuffer cmd, const BeginConditionalRenderingCommand& command)
 {
+    auto view = Resources().GetLockedView<BufferTag>();
     VkConditionalRenderingBeginInfoEXT beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_CONDITIONAL_RENDERING_BEGIN_INFO_EXT;
-    beginInfo.buffer = Resources()[command.Buffer].Buffer;
+    beginInfo.buffer = view[command.Buffer].Buffer;
     beginInfo.offset = command.Offset;
 
     vkCmdBeginConditionalRenderingEXT(Resources()[cmd].CommandBuffer, &beginInfo);
@@ -4769,53 +4795,14 @@ void Device::CompileCommand(CommandBuffer cmd, const SetDepthBiasCommand& comman
 
 void Device::CompileCommand(CommandBuffer cmd, const CopyBufferCommand& command)
 {
-    VkBufferCopy2 copy = {};
-    copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
-    copy.size = command.SizeBytes;
-    copy.srcOffset = command.SourceOffset;
-    copy.dstOffset = command.DestinationOffset;
-
-    const DeviceResources::BufferResource& sourceResource = Resources()[command.Source];
-    const DeviceResources::BufferResource& destinationResource = Resources()[command.Destination];
-    VkCopyBufferInfo2 copyBufferInfo = {};
-    copyBufferInfo.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
-    copyBufferInfo.srcBuffer = sourceResource.Buffer;
-    copyBufferInfo.dstBuffer = destinationResource.Buffer;
-    copyBufferInfo.regionCount = 1;
-    copyBufferInfo.pRegions = &copy;
-
-    vkCmdCopyBuffer2(Resources()[cmd].CommandBuffer, &copyBufferInfo);
+    auto view = Resources().GetLockedView<BufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const CopyBufferToImageCommand& command)
 {
-    ASSERT(command.ImageSubresource.Mipmaps == 1, "Buffer to image copies one mipmap at a time")
-
-    const DeviceResources::ImageResource& imageResource = Resources()[command.Image];
-
-    VkBufferImageCopy2 bufferImageCopy = {};
-    bufferImageCopy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
-    bufferImageCopy.bufferOffset = command.BufferOffset;
-    bufferImageCopy.imageExtent = {
-        .width = std::max(1u, imageResource.Description.Width >> command.ImageSubresource.MipmapBase),
-        .height = std::max(1u, imageResource.Description.Height >> command.ImageSubresource.MipmapBase),
-        .depth = imageResource.Description.GetDepth(command.ImageSubresource.MipmapBase)
-    };
-    bufferImageCopy.imageSubresource.aspectMask = vulkanImageAspectFromImageUsage(imageResource.Description.Usage);
-    bufferImageCopy.imageSubresource.mipLevel = (u32)(i32)command.ImageSubresource.MipmapBase;
-    bufferImageCopy.imageSubresource.baseArrayLayer = (u32)(i32)command.ImageSubresource.LayerBase;
-    bufferImageCopy.imageSubresource.layerCount = (u32)(i32)command.ImageSubresource.Layers;
-
-    const DeviceResources::BufferResource& sourceResource = Resources()[command.Buffer];
-    VkCopyBufferToImageInfo2 copyBufferToImageInfo = {};
-    copyBufferToImageInfo.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2;
-    copyBufferToImageInfo.srcBuffer = sourceResource.Buffer;
-    copyBufferToImageInfo.dstImage = Resources()[command.Image].Image;
-    copyBufferToImageInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    copyBufferToImageInfo.regionCount = 1;
-    copyBufferToImageInfo.pRegions = &bufferImageCopy;
-
-    vkCmdCopyBufferToImage2(Resources()[cmd].CommandBuffer, &copyBufferToImageInfo);
+    auto view = Resources().GetLockedView<BufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const CopyImageCommand& command)
@@ -4953,6 +4940,7 @@ void Device::CompileCommand(CommandBuffer cmd, const WaitOnBarrierCommand& comma
 void Device::CompileCommand(CommandBuffer cmd, const SignalSplitBarrierCommand& command)
 {
     auto view = Resources().GetLockedView<SplitBarrierTag>();
+    
     const DeviceResources::DependencyInfoResource& dependencyInfo = Resources()[command.DependencyInfo];
 
     VkDependencyInfo vkDependencyInfo = dependencyInfo.DependencyInfo;
@@ -4994,9 +4982,11 @@ void Device::CompileCommand(CommandBuffer cmd, const ResetSplitBarrierCommand& c
 
 void Device::CompileCommand(CommandBuffer cmd, const BindVertexBuffersCommand& command)
 {
+    auto view = Resources().GetLockedView<BufferTag>();
+    
     std::vector<VkBuffer> vkBuffers(command.Buffers.size());
     for (u32 i = 0; i < vkBuffers.size(); i++)
-        vkBuffers[i] = Resources()[command.Buffers[i]].Buffer;
+        vkBuffers[i] = view[command.Buffers[i]].Buffer;
 
     vkCmdBindVertexBuffers(Resources()[cmd].CommandBuffer, 0, (u32)vkBuffers.size(), vkBuffers.data(),
         command.Offsets.data());
@@ -5004,19 +4994,25 @@ void Device::CompileCommand(CommandBuffer cmd, const BindVertexBuffersCommand& c
 
 void Device::CompileCommand(CommandBuffer cmd, const BindIndexU32BufferCommand& command)
 {
-    vkCmdBindIndexBuffer(Resources()[cmd].CommandBuffer, Resources()[command.Buffer].Buffer, command.Offset,
+    auto view = Resources().GetLockedView<BufferTag>();
+    
+    vkCmdBindIndexBuffer(Resources()[cmd].CommandBuffer, view[command.Buffer].Buffer, command.Offset,
         VK_INDEX_TYPE_UINT32);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindIndexU16BufferCommand& command)
 {
-    vkCmdBindIndexBuffer(Resources()[cmd].CommandBuffer, Resources()[command.Buffer].Buffer, command.Offset,
+    auto view = Resources().GetLockedView<BufferTag>();
+    
+    vkCmdBindIndexBuffer(Resources()[cmd].CommandBuffer, view[command.Buffer].Buffer, command.Offset,
         VK_INDEX_TYPE_UINT16);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindIndexU8BufferCommand& command)
 {
-    vkCmdBindIndexBuffer(Resources()[cmd].CommandBuffer, Resources()[command.Buffer].Buffer, command.Offset,
+    auto view = Resources().GetLockedView<BufferTag>();
+    
+    vkCmdBindIndexBuffer(Resources()[cmd].CommandBuffer, view[command.Buffer].Buffer, command.Offset,
         VK_INDEX_TYPE_UINT8_EXT);
 }
 
@@ -5120,15 +5116,19 @@ void Device::CompileCommand(CommandBuffer cmd, const DrawIndexedCommand& command
 
 void Device::CompileCommand(CommandBuffer cmd, const DrawIndexedIndirectCommand& command)
 {
-    vkCmdDrawIndexedIndirect(Resources()[cmd].CommandBuffer, Resources()[command.Buffer].Buffer,
+    auto view = Resources().GetLockedView<BufferTag>();
+    
+    vkCmdDrawIndexedIndirect(Resources()[cmd].CommandBuffer, view[command.Buffer].Buffer,
         command.Offset, command.Count, command.Stride);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const DrawIndexedIndirectCountCommand& command)
 {
+    auto view = Resources().GetLockedView<BufferTag>();
+    
     vkCmdDrawIndexedIndirectCount(Resources()[cmd].CommandBuffer,
-        Resources()[command.DrawBuffer].Buffer, command.DrawOffset,
-        Resources()[command.CountBuffer].Buffer, command.CountOffset,
+        view[command.DrawBuffer].Buffer, command.DrawOffset,
+        view[command.CountBuffer].Buffer, command.CountOffset,
         command.MaxCount, command.Stride);
 }
 
@@ -5140,7 +5140,180 @@ void Device::CompileCommand(CommandBuffer cmd, const DispatchCommand& command)
 
 void Device::CompileCommand(CommandBuffer cmd, const DispatchIndirectCommand& command)
 {
-    vkCmdDispatchIndirect(Resources()[cmd].CommandBuffer, Resources()[command.Buffer].Buffer, command.Offset);
+    auto view = Resources().GetLockedView<BufferTag>();
+    
+    vkCmdDispatchIndirect(Resources()[cmd].CommandBuffer, view[command.Buffer].Buffer, command.Offset);
+}
+Buffer DeviceInternal::CreateBuffer(View<BufferTag>& resources, BufferCreateInfo&& createInfo,
+    DeletionQueue& deletionQueue)
+{
+    VmaAllocationCreateFlags flags = 0;
+    if (enumHasAny(createInfo.Description.Usage, BufferUsage::Mappable))
+        flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+    if (enumHasAny(createInfo.Description.Usage, BufferUsage::MappableRandomAccess))
+        flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+
+    if (createInfo.PersistentMapping)
+        flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    const Buffer buffer = AllocateBuffer(resources, createInfo, 
+        vulkanBufferUsageFromUsage(createInfo.Description.Usage), flags);
+
+    if (!createInfo.InitialData.empty())
+    {
+        if (enumHasAny(createInfo.Description.Usage, BufferUsage::Mappable | BufferUsage::MappableRandomAccess))
+        {
+            SetBufferData(resources, buffer, createInfo.InitialData, 0);
+        }
+        else
+        {
+            const Buffer stagingBuffer = CreateStagingBuffer(resources, createInfo.InitialData.size());
+            SetBufferData(resources, stagingBuffer, createInfo.InitialData, 0);
+            Device::ImmediateSubmit([&](RenderCommandList& cmdList)
+            {
+                cmdList.CopyBuffer({
+                    .Source = stagingBuffer,
+                    .Destination = buffer,
+                    .SizeBytes = createInfo.InitialData.size()
+                });
+            });
+            Destroy(resources, stagingBuffer);
+        }
+    }
+
+    deletionQueue.Enqueue(buffer);
+
+    return buffer;
+}
+
+void DeviceInternal::Destroy(View<BufferTag>& resources, Buffer buffer)
+{
+    const DeviceResources::BufferResource& resource = resources[buffer];
+    vmaDestroyBuffer(Allocator(), resource.Buffer, resource.Allocation);
+    resources.Remove(buffer);
+}
+
+Buffer DeviceInternal::CreateStagingBuffer(View<BufferTag>& resources, u64 sizeBytes)
+{
+    return CreateBuffer(resources, {
+            .Description = {
+                .SizeBytes = sizeBytes,
+                .Usage = BufferUsage::Staging | BufferUsage::Mappable,
+            },
+            .PersistentMapping = true
+        },
+        Device::DummyDeletionQueue());
+}
+
+void DeviceInternal::ResizeBuffer(View<BufferTag>& resources, Buffer buffer, u64 newSize, CommandBuffer cmd,
+    bool copyData)
+{
+    const DeviceResources::BufferResource& resource = resources[buffer];
+    const BufferDescription& description = resource.Description;
+    const u64 oldSize = description.SizeBytes;
+    if (description.SizeBytes == newSize)
+        return;
+
+    const Buffer newBuffer = CreateBuffer(resources, {
+            .Description = {
+                .SizeBytes = newSize,
+                .Usage = description.Usage,
+            },
+            .PersistentMapping = resource.HostAddress != nullptr
+        },
+        *Device::s_State.FrameDeletionQueue);
+
+    /* seems very questionable
+     * after this line new Buffer will inherit lifetime of old buffer,
+     * and old buffer will be deleted in frame queue
+     */
+    std::swap(resources[buffer], resources[newBuffer]);
+
+    /* the source and destination are intentionally swapped */
+    if (copyData)
+        CompileCommand(resources, cmd, {
+            .Source = newBuffer,
+            .Destination = buffer,
+            .SizeBytes = std::min(oldSize, newSize)
+        });
+}
+
+void* DeviceInternal::MapBuffer(View<BufferTag>& resources, Buffer buffer)
+{
+    const DeviceResources::BufferResource& resource = resources[buffer];
+    void* mappedData;
+    vmaMapMemory(Allocator(), resource.Allocation, &mappedData);
+    return mappedData;
+}
+
+void DeviceInternal::UnmapBuffer(View<BufferTag>& resources, Buffer buffer)
+{
+    const DeviceResources::BufferResource& resource = resources[buffer];
+    vmaUnmapMemory(Allocator(), resource.Allocation);
+}
+
+void DeviceInternal::SetBufferData(View<BufferTag>& resources, Buffer buffer, Span<const std::byte> data,
+    u64 offsetBytes)
+{
+    const DeviceResources::BufferResource& resource = resources[buffer];
+    vmaCopyMemoryToAllocation(Allocator(), data.data(), resource.Allocation, offsetBytes, data.size());
+}
+
+void DeviceInternal::SetBufferData(View<BufferTag>&, void* mappedAddress, Span<const std::byte> data,
+    u64 offsetBytes)
+{
+    mappedAddress = (void*)((u8*)mappedAddress + offsetBytes);
+    std::memcpy(mappedAddress, data.data(), data.size());
+}
+
+void* DeviceInternal::GetBufferMappedAddress(View<BufferTag>& resources, Buffer buffer)
+{
+    return resources[buffer].HostAddress;
+}
+
+usize DeviceInternal::GetBufferSizeBytes(View<BufferTag>& resources, Buffer buffer)
+{
+    return resources[buffer].Description.SizeBytes;
+}
+
+const BufferDescription& DeviceInternal::GetBufferDescription(View<BufferTag>& resources, Buffer buffer)
+{
+    return resources[buffer].Description;
+}
+
+// todo: just store it like host address
+u64 DeviceInternal::GetDeviceAddress(View<BufferTag>& resources, Buffer buffer)
+{
+    VkBufferDeviceAddressInfo deviceAddressInfo = {};
+    deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+    deviceAddressInfo.buffer = resources[buffer].Buffer;
+
+    return vkGetBufferDeviceAddress(Device::s_State.Device, &deviceAddressInfo);
+}
+
+Buffer DeviceInternal::AllocateBuffer(View<BufferTag>& resources, const BufferCreateInfo& createInfo,
+    VkBufferUsageFlags usage, VmaAllocationCreateFlags allocationFlags)
+{
+    VkBufferCreateInfo bufferCreateInfo = {};
+    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.size = createInfo.Description.SizeBytes;
+    bufferCreateInfo.usage = usage;
+
+    VmaAllocationCreateInfo allocationCreateInfo = {};
+    allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    allocationCreateInfo.flags = allocationFlags;
+
+    DeviceResources::BufferResource bufferResource = {};
+    deviceCheck(vmaCreateBuffer(Allocator(), &bufferCreateInfo, &allocationCreateInfo,
+            &bufferResource.Buffer, &bufferResource.Allocation, nullptr),
+        "Failed to create a buffer");
+
+    bufferResource.Description.SizeBytes = createInfo.Description.SizeBytes;
+    bufferResource.Description.Usage = createInfo.Description.Usage;
+    if (createInfo.PersistentMapping)
+        bufferResource.HostAddress = bufferResource.Allocation->GetMappedData();
+
+    return resources.Add(bufferResource);
 }
 
 Sampler DeviceInternal::CreateSampler(View<SamplerTag>& resources, SamplerCreateInfo&& createInfo)
@@ -5427,31 +5600,6 @@ void DeviceInternal::BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineL
 VmaAllocator& DeviceInternal::Allocator()
 {
     return Device::s_State.Allocator;
-}
-
-Buffer DeviceInternal::AllocateBuffer(const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
-    VmaAllocationCreateFlags allocationFlags)
-{
-    VkBufferCreateInfo bufferCreateInfo = {};
-    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferCreateInfo.size = createInfo.Description.SizeBytes;
-    bufferCreateInfo.usage = usage;
-
-    VmaAllocationCreateInfo allocationCreateInfo = {};
-    allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    allocationCreateInfo.flags = allocationFlags;
-
-    DeviceResources::BufferResource bufferResource = {};
-    deviceCheck(vmaCreateBuffer(Allocator(), &bufferCreateInfo, &allocationCreateInfo,
-            &bufferResource.Buffer, &bufferResource.Allocation, nullptr),
-        "Failed to create a buffer");
-
-    bufferResource.Description.SizeBytes = createInfo.Description.SizeBytes;
-    bufferResource.Description.Usage = createInfo.Description.Usage;
-    if (createInfo.PersistentMapping)
-        bufferResource.HostAddress = bufferResource.Allocation->GetMappedData();
-
-    return Device::Resources().AddResource(bufferResource);
 }
 
 VkImageView DeviceInternal::CreateVulkanImageView(const ImageSubresource& image, VkFormat format)

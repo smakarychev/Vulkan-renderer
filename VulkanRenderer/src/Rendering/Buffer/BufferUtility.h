@@ -33,14 +33,14 @@ namespace Buffers
 {
     template <typename PushBufferGrowthPolicy = PushBufferMinimalGrowthPolicy>
     requires BufferGrowthPolicyConcept<PushBufferGrowthPolicy>
-    void grow(Buffer buffer, u64 requiredSize, RenderCommandList& cmdList)
+    void grow(Buffer buffer, u64 requiredSize, CommandBuffer cmd)
     {
         const u64 currentSize = Device::GetBufferSizeBytes(buffer);
         if (currentSize >= requiredSize)
             return;
 
         const u64 newSize = PushBufferGrowthPolicy::GrownSize(currentSize, requiredSize);
-        Device::ResizeBuffer(buffer, newSize, cmdList);
+        Device::ResizeBuffer(buffer, newSize, cmd);
     }
 }
 
@@ -48,12 +48,12 @@ namespace PushBuffers
 {
     template <typename PushBufferGrowthPolicy = PushBufferMinimalGrowthPolicy, typename T>
     requires BufferGrowthPolicyConcept<PushBufferGrowthPolicy>
-    void push(PushBuffer& pushBuffer, T&& data, RenderCommandList& cmdList, ResourceUploader& uploader)
+    void push(PushBuffer& pushBuffer, T&& data, CommandBuffer cmd, ResourceUploader& uploader)
     {
         auto&& [_, pushSize] = UploadUtils::getAddressAndSize(data);
         if (pushSize == 0)
             return;
-        grow<PushBufferGrowthPolicy>(pushBuffer, pushSize, cmdList);
+        grow<PushBufferGrowthPolicy>(pushBuffer, pushSize, cmd);
         uploader.UpdateBuffer(pushBuffer.Buffer, std::forward<T>(data), pushBuffer.Offset);
         pushBuffer.Offset += pushSize;
     }
@@ -65,26 +65,26 @@ namespace PushBuffers
     requires
         BufferGrowthPolicyConcept<PushBufferGrowthPolicy> &&
         (is_array_v<Range<T>> || is_vector_v<Range<T>> || is_span_v<Range<T>>)
-    void push(PushBufferTyped<T>& pushBuffer, Range<T>&& data, RenderCommandList& cmdList,
+    void push(PushBufferTyped<T>& pushBuffer, Range<T>&& data, CommandBuffer cmd,
         ResourceUploader& uploader)
     {
         if (data.size() == 0)
             return;
-        grow<PushBufferGrowthPolicy>(pushBuffer, (u32)data.size(), cmdList);
+        grow<PushBufferGrowthPolicy>(pushBuffer, (u32)data.size(), cmd);
         uploader.UpdateBuffer(pushBuffer.Buffer, std::forward<Range<T>>(data), pushBuffer.Offset * sizeof(T));
     }
 
     template <typename PushBufferGrowthPolicy = PushBufferMinimalGrowthPolicy>
     requires BufferGrowthPolicyConcept<PushBufferGrowthPolicy>
-    void grow(PushBuffer buffer, u64 pushSize, RenderCommandList& cmdList)
+    void grow(PushBuffer buffer, u64 pushSize, CommandBuffer cmd)
     {
-        ::Buffers::grow(buffer.Buffer, buffer.Offset + pushSize, cmdList);
+        ::Buffers::grow(buffer.Buffer, buffer.Offset + pushSize, cmd);
     }
 
     template <typename PushBufferGrowthPolicy = PushBufferMinimalGrowthPolicy, typename T>
     requires BufferGrowthPolicyConcept<PushBufferGrowthPolicy>
-    void grow(PushBufferTyped<T> buffer, u32 pushElements, RenderCommandList& cmdList)
+    void grow(PushBufferTyped<T> buffer, u32 pushElements, CommandBuffer cmd)
     {
-        ::Buffers::grow(buffer.Buffer, sizeof(T) * (buffer.Offset + pushElements), cmdList);
+        ::Buffers::grow(buffer.Buffer, sizeof(T) * (buffer.Offset + pushElements), cmd);
     }
 }
