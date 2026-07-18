@@ -1430,6 +1430,8 @@ private:
             return m_Samplers2;
         else if constexpr(std::is_same_v<Tag, FenceTag>)
             return m_Fences2;
+        else if constexpr(std::is_same_v<Tag, SemaphoreTag>)
+            return m_Semaphores2;
         else 
             static_assert(!sizeof(Tag), "No match for type");
         std::unreachable();
@@ -1440,6 +1442,7 @@ private:
 
     ResourceContainerWithLock<SamplerResource> m_Samplers2;
     ResourceContainerWithLock<FenceResource> m_Fences2;
+    ResourceContainerWithLock<SemaphoreResource> m_Semaphores2;
     ResourceContainerType<SwapchainResource> m_Swapchains;
     ResourceContainerType<BufferResource> m_Buffers;
     ResourceContainerType<BufferArenaResource> m_BufferArenas;
@@ -1454,7 +1457,6 @@ private:
     ResourceContainerType<ShaderModuleResource> m_ShaderModules;
     ResourceContainerType<RenderingAttachmentResource> m_RenderingAttachments;
     ResourceContainerType<RenderingInfoResource> m_RenderingInfos;
-    ResourceContainerType<SemaphoreResource> m_Semaphores;
     ResourceContainerType<TimelineSemaphoreResource> m_TimelineSemaphores;
     ResourceContainerType<DependencyInfoResource> m_DependencyInfos;
     ResourceContainerType<SplitBarrierResource> m_SplitBarriers;
@@ -1480,6 +1482,9 @@ public:
     static bool CheckFence(View<FenceTag>& resources, Fence fence);
     static void ResetFence(View<FenceTag>& resources, Fence fence);
     
+    static Semaphore CreateSemaphore(View<SemaphoreTag>& resources, DeletionQueue& deletionQueue);
+    static void Destroy(View<SemaphoreTag>& resources, Semaphore semaphore);
+    
 #ifdef DESCRIPTOR_BUFFER
     static u32 GetDescriptorSizeBytes(DescriptorType type);
     static void WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo slotInfo, u32 index,
@@ -1492,7 +1497,7 @@ public:
         VmaAllocationCreateFlags allocationFlags);
     static VkImageView CreateVulkanImageView(const ImageSubresource& image, VkFormat format);
 
-    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
+    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(const View<SemaphoreTag>& resources,
         Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages);
     static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
         Span<const TimelineSemaphore> semaphores,
@@ -1544,8 +1549,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_RenderingAttachments, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, RenderingInfoResource>)
         return AddToResourceList(m_RenderingInfos, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, SemaphoreResource>)
-        return AddToResourceList(m_Semaphores, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, TimelineSemaphoreResource>)
         return AddToResourceList(m_TimelineSemaphores, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, DependencyInfoResource>)
@@ -1592,8 +1595,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_RenderingAttachments.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, RenderingInfoTag>)
         m_RenderingInfos.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, SemaphoreTag>)
-        m_Semaphores.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, TimelineSemaphoreTag>)
         m_TimelineSemaphores.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, DependencyInfoTag>)
@@ -1643,8 +1644,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_RenderingAttachments[type];
     else if constexpr (std::is_same_v<Decayed, RenderingInfo>)
         return m_RenderingInfos[type];
-    else if constexpr (std::is_same_v<Decayed, Semaphore>)
-        return m_Semaphores[type];
     else if constexpr (std::is_same_v<Decayed, TimelineSemaphore>)
         return m_TimelineSemaphores[type];
     else if constexpr (std::is_same_v<Decayed, DependencyInfo>)
@@ -2028,15 +2027,21 @@ void Device::DestroySwapchainImages(Swapchain swapchain)
 u32 Device::AcquireNextImage(Swapchain swapchain, Fence renderFence, Semaphore presentSemaphore)
 {
     WaitForFence(renderFence);
-
+    
     u32 imageIndex;
-    VkResult res = vkAcquireNextImageKHR(s_State.Device, Resources()[swapchain].Swapchain,
-        10'000'000'000, Resources()[presentSemaphore].Semaphore, VK_NULL_HANDLE,
-        &imageIndex);
-    if (res == VK_ERROR_OUT_OF_DATE_KHR)
-        return INVALID_SWAPCHAIN_IMAGE;
+    // todo: WaitForFence above also has view
+    // todo: remove this scope !!! 
+    {
+        auto view = Resources().GetLockedView<SemaphoreTag>();
 
-    ASSERT(res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR, "Failed to acquire swapchain image")
+        VkResult res = vkAcquireNextImageKHR(s_State.Device, Resources()[swapchain].Swapchain,
+            10'000'000'000, view[presentSemaphore].Semaphore, VK_NULL_HANDLE,
+            &imageIndex);
+        if (res == VK_ERROR_OUT_OF_DATE_KHR)
+            return INVALID_SWAPCHAIN_IMAGE;
+
+        ASSERT(res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR, "Failed to acquire swapchain image")
+    }
 
     ResetFence(renderFence);
 
@@ -2045,6 +2050,7 @@ u32 Device::AcquireNextImage(Swapchain swapchain, Fence renderFence, Semaphore p
 
 bool Device::Present(Swapchain swapchain, QueueKind queueKind, u32 imageIndex)
 {
+    auto view = Resources().GetLockedView<SemaphoreTag>();
     DeviceResources::SwapchainResource& swapchainResource = Resources()[swapchain];
 
     VkPresentInfoKHR presentInfo = {};
@@ -2053,7 +2059,7 @@ bool Device::Present(Swapchain swapchain, QueueKind queueKind, u32 imageIndex)
     presentInfo.pSwapchains = &Resources()[swapchain].Swapchain;
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &Resources()[swapchainResource.RenderSemaphores[imageIndex]].Semaphore;
+    presentInfo.pWaitSemaphores = &view[swapchainResource.RenderSemaphores[imageIndex]].Semaphore;
 
     VkResult result = vkQueuePresentKHR(s_State.Queues.GetQueueByKind(queueKind).Queue, &presentInfo);
 
@@ -2190,7 +2196,7 @@ void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, Fence f
 void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
     const BufferSubmitSyncInfo& submitSync)
 {
-    auto view = Resources().GetLockedView<FenceTag>();
+    auto view = Resources().GetLockedView<FenceTag, SemaphoreTag>();
     
     std::vector commandBufferSubmitInfos(cmds.size(), VkCommandBufferSubmitInfo{});
     for (auto&& [i, cmd] : std::views::enumerate(cmds))
@@ -2203,11 +2209,11 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
     for (auto&& [i, semaphore] : std::views::enumerate(submitSync.SignalSemaphores))
     {
         signalSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        signalSemaphoreSubmitInfos[i].semaphore = Resources()[semaphore].Semaphore;
+        signalSemaphoreSubmitInfos[i].semaphore = view[semaphore].Semaphore;
     }
 
     std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = DeviceInternal::CreateVulkanSemaphoreSubmit(
-        submitSync.WaitSemaphores, submitSync.WaitStages);
+        view, submitSync.WaitSemaphores, submitSync.WaitStages);
 
     VkSubmitInfo2 submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
@@ -3740,23 +3746,15 @@ void Device::ResetFence(Fence fence)
 
 Semaphore Device::CreateSemaphore(::DeletionQueue& deletionQueue)
 {
-    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
-    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-    DeviceResources::SemaphoreResource semaphoreResource = {};
-    deviceCheck(vkCreateSemaphore(s_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore),
-        "Failed to create semaphore");
-
-    Semaphore semaphore = Resources().AddResource(semaphoreResource);
-    deletionQueue.Enqueue(semaphore);
-
-    return semaphore;
+    auto view = Resources().GetLockedView<SemaphoreTag>();
+    
+    return DeviceInternal::CreateSemaphore(view, deletionQueue);
 }
 
-void Device::Destroy(TimelineSemaphore semaphore)
+void Device::Destroy(Semaphore semaphore)
 {
-    vkDestroySemaphore(s_State.Device, Resources().m_Semaphores[semaphore.m_Id].Semaphore, nullptr);
-    Resources().RemoveResource(semaphore);
+    auto view = Resources().GetLockedView<SemaphoreTag>();
+    DeviceInternal::Destroy(view, semaphore);
 }
 
 TimelineSemaphore Device::CreateTimelineSemaphore(TimelineSemaphoreCreateInfo&& createInfo,
@@ -3781,9 +3779,9 @@ TimelineSemaphore Device::CreateTimelineSemaphore(TimelineSemaphoreCreateInfo&& 
     return semaphore;
 }
 
-void Device::Destroy(Semaphore semaphore)
+void Device::Destroy(TimelineSemaphore semaphore)
 {
-    vkDestroySemaphore(s_State.Device, Resources().m_Semaphores[semaphore.m_Id].Semaphore, nullptr);
+    vkDestroySemaphore(s_State.Device, Resources().m_TimelineSemaphores[semaphore.m_Id].Semaphore, nullptr);
     Resources().RemoveResource(semaphore);
 }
 
@@ -5213,7 +5211,7 @@ Sampler DeviceInternal::CreateSampler(View<SamplerTag>& resources, SamplerCreate
     deviceCheck(vkCreateSampler(Device::s_State.Device, &samplerCreateInfo, nullptr, &samplerResource.Sampler),
         "Failed to create depth pyramid sampler");
 
-    Sampler sampler = resources.Add(samplerResource);
+    const Sampler sampler = resources.Add(samplerResource);
     Device::DeletionQueue().Enqueue(sampler);
 
     SamplerCache::Emplace(key, sampler);
@@ -5240,7 +5238,7 @@ Fence DeviceInternal::CreateFence(View<FenceTag>& resources, FenceCreateInfo&& c
     deviceCheck(vkCreateFence(Device::s_State.Device, &fenceCreateInfo, nullptr, &fenceResource.Fence),
         "Failed to create fence");
 
-    Fence fence = resources.Add(fenceResource);
+    const Fence fence = resources.Add(fenceResource);
     deletionQueue.Enqueue(fence);
 
     return fence;
@@ -5267,6 +5265,27 @@ bool DeviceInternal::CheckFence(View<FenceTag>& resources, Fence fence)
 void DeviceInternal::ResetFence(View<FenceTag>& resources, Fence fence)
 {
     deviceCheck(vkResetFences(Device::s_State.Device, 1, &resources[fence].Fence), "Error while resetting fences");
+}
+
+Semaphore DeviceInternal::CreateSemaphore(View<SemaphoreTag>& resources, DeletionQueue& deletionQueue)
+{
+    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    DeviceResources::SemaphoreResource semaphoreResource = {};
+    deviceCheck(vkCreateSemaphore(Device::s_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore),
+        "Failed to create semaphore");
+
+    const Semaphore semaphore =resources.Add(semaphoreResource);
+    deletionQueue.Enqueue(semaphore);
+
+    return semaphore;
+}
+
+void DeviceInternal::Destroy(View<SemaphoreTag>& resources, Semaphore semaphore)
+{
+    vkDestroySemaphore(Device::s_State.Device, resources[semaphore].Semaphore, nullptr);
+    resources.Remove(semaphore);
 }
 
 #ifdef DESCRIPTOR_BUFFER
@@ -5417,14 +5436,14 @@ VkImageView DeviceInternal::CreateVulkanImageView(const ImageSubresource& image,
     return imageView;
 }
 
-std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(Span<const Semaphore> semaphores,
-    Span<const PipelineStage> waitStages)
+std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(const View<SemaphoreTag>& resources,
+    Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages)
 {
     std::vector waitSemaphoreSubmitInfos(semaphores.size(), VkSemaphoreSubmitInfo{});
     for (auto&& [i, semaphore] : std::views::enumerate(semaphores))
     {
         waitSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        waitSemaphoreSubmitInfos[i].semaphore = Device::Resources()[semaphore].Semaphore;
+        waitSemaphoreSubmitInfos[i].semaphore = resources[semaphore].Semaphore;
         waitSemaphoreSubmitInfos[i].stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i]);
     }
 
