@@ -4,6 +4,7 @@
 
 #define FRIEND_INTERNAL \
     friend class Device; \
+    friend class DeviceInternal; \
     friend class DeviceResources; \
     friend class DeletionQueue; \
 

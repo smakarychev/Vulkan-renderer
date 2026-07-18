@@ -85,6 +85,11 @@ void RenderCommandList::BlitImage(BlitImageCommand&& command)
     Device::CompileCommand(m_Cmd, command);
 }
 
+void RenderCommandList::MipmapImage(MipmapImageCommand&& command)
+{
+    Device::CompileCommand(m_Cmd, command);
+}
+
 void RenderCommandList::WaitOnFullPipelineBarrier(WaitOnFullPipelineBarrierCommand&& command)
 {
     Device::CompileCommand(m_Cmd, command);

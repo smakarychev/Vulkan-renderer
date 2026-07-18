@@ -34,6 +34,7 @@ public:
 
     void CopyImage(CopyImageCommand&& command);
     void BlitImage(BlitImageCommand&& command);
+    void MipmapImage(MipmapImageCommand&& command);
 
     void WaitOnFullPipelineBarrier(WaitOnFullPipelineBarrierCommand&& command);
     void WaitOnBarrier(WaitOnBarrierCommand&& command);

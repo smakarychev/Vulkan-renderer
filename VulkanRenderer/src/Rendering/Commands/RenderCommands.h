@@ -41,6 +41,7 @@ enum class RenderCommandType
     /* image commands */
     ImageCopy,
     ImageBlit,
+    ImageMipmaps,
 
     /* synchronization */
     BarrierFull,
@@ -199,6 +200,11 @@ struct BlitImageCommand : RenderCommandTyped<RenderCommandType::ImageBlit, Rende
     ImageFilter Filter{ImageFilter::Linear};
     ImageSubregion SourceSubregion{};
     ImageSubregion DestinationSubregion{};
+};
+struct MipmapImageCommand : RenderCommandTyped<RenderCommandType::ImageMipmaps, RenderCommandQueueType::Transfer>
+{
+    Image Image{};
+    ImageLayout Layout{ImageLayout::Undefined};
 };
 
 

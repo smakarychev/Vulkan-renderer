@@ -304,8 +304,18 @@ void Renderer::InitRenderGraph()
     /* initial submit */
     Device::ImmediateSubmit([&](RenderCommandList& cmdList)
     {
-        FrameContext ctx = GetFrameContext();
-        ctx.CommandList = cmdList;
+        FrameContext ctx = {
+            .CommandBufferIndex = GetFrameContext().CommandBufferIndex,
+            .FrameSync = GetFrameContext().FrameSync,
+            .FrameNumber = GetFrameContext().FrameNumber,
+            .FrameNumberTick = GetFrameContext().FrameNumberTick,
+            .Dt = GetFrameContext().Dt,
+            .Resolution = GetFrameContext().Resolution,
+            .Cmd = GetFrameContext().Cmd,
+            .CommandList = cmdList,
+            .PrimaryCamera = GetFrameContext().PrimaryCamera,
+            .ResourceUploader = GetFrameContext().ResourceUploader
+        };
         m_Scenes.push_back(
             m_SceneAssetManager->LoadResource(
                 {.Path = *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/hotReloadTest/scene.gltf"}));
@@ -2021,7 +2031,6 @@ void Renderer::InitRenderingStructures()
 
     static constexpr bool ASYNC_COMPUTE = true;
     Device::Init(DeviceCreateInfo::Default(m_Window.get(), ASYNC_COMPUTE));
-    Images::Default::Init();
 
     m_ResourceUploader.Init();
     
@@ -2049,6 +2058,11 @@ void Renderer::InitRenderingStructures()
         
         m_FrameContexts[i].ResourceUploader = &m_ResourceUploader;
     }
+    
+    Device::BeginFrame(m_FrameContexts[0]);
+    
+    Images::Default::Init();
+    
 
     std::array<CommandBuffer, BUFFERED_FRAMES> cmds;
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)

@@ -112,8 +112,6 @@ public:
     static void Destroy(Image image);
     static void CreateViews(const ImageSubresource& image,
         const std::vector<ImageSubresourceDescription>& additionalViews);
-    static void CreateMipmaps(Image image, RenderCommandList& cmdList,
-        ImageLayout currentLayout);
     static Span<const ImageSubresourceDescription> GetAdditionalImageViews(Image image);
     static ImageViewHandle GetImageViewHandle(Image image, ImageSubresourceDescription subresourceDescription);
     static const ImageDescription& GetImageDescription(Image image);
@@ -204,8 +202,8 @@ public:
 
     static u32 GetMaxIndexingStorageBuffersDynamic();
     static u32 GetSubgroupSize();
-    static ImmediateSubmitContext GetSubmitContext();
-    static void FreeSubmitContext(const ImmediateSubmitContext& ctx);
+    static ImmediateSubmitContext StartSubmitContext();
+    static void EndSubmitContext(const ImmediateSubmitContext& ctx);
     
     static ProfilerContext::Ctx CreateTracyGraphicsContext(CommandBuffer cmd);
     static void DestroyTracyGraphicsContext(ProfilerContext::Ctx context);
@@ -246,6 +244,7 @@ public:
 
     static void CompileCommand(CommandBuffer cmd, const CopyImageCommand& command);
     static void CompileCommand(CommandBuffer cmd, const BlitImageCommand& command);
+    static void CompileCommand(CommandBuffer cmd, const MipmapImageCommand& command);
 
     static void CompileCommand(CommandBuffer cmd, const WaitOnFullPipelineBarrierCommand& command);
     static void CompileCommand(CommandBuffer cmd, const WaitOnBarrierCommand& command);
@@ -293,14 +292,9 @@ private:
 
     static void CreateSwapchainImages(Swapchain swapchain);
     static void DestroySwapchainImages(Swapchain swapchain);
-
-    static Image CreateImageFromAssetFile(ImageCreateInfo& createInfo, const lux::assetlib::ImageAsset* asset);
-    static Image CreateImageFromPixels(ImageCreateInfo& createInfo, Span<const std::byte> pixels);
-    static Image CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer);
-    static void PreprocessCreateInfo(ImageCreateInfo& createInfo);
-    static Image AllocateImage(ImageCreateInfo& createInfo);
 private:
     struct State;
+    // todo: just make global
     static State s_State;
 };
 
@@ -314,7 +308,7 @@ Span<const T> Device::GetMappedBufferView(const BufferSubresource& buffer)
 template <typename Fn>
 void Device::ImmediateSubmit(Fn&& uploadFunction)
 {
-    auto ctx = GetSubmitContext();
+    auto ctx = StartSubmitContext();
     uploadFunction(ctx.CommandList);
-    FreeSubmitContext(ctx);
+    EndSubmitContext(ctx);
 }

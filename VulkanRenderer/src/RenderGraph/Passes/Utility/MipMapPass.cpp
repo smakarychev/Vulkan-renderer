@@ -24,7 +24,7 @@ Passes::Mipmap::PassData& Passes::Mipmap::addToGraph(StringId name, RG::Graph& r
 
             // todo: nvpro mipmap software generation?
             Texture sourceTexture = graph.GetImage(passData.Texture);
-            Device::CreateMipmaps(sourceTexture, frameContext.CommandList, ImageLayout::Destination);
+            frameContext.CommandList.MipmapImage({.Image = sourceTexture, .Layout = ImageLayout::Destination});
             frameContext.CommandList.WaitOnBarrier({
                 .DependencyInfo = Device::CreateDependencyInfo({
                     .LayoutTransitionInfo = LayoutTransitionInfo{
