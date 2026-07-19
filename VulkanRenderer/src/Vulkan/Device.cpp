@@ -1435,6 +1435,8 @@ private:
             return m_Samplers2;
         else if constexpr(std::is_same_v<Tag, RenderingAttachmentTag>)
             return m_RenderingAttachments2;
+        else if constexpr(std::is_same_v<Tag, RenderingInfoTag>)
+            return m_RenderingInfos2;
         else if constexpr(std::is_same_v<Tag, FenceTag>)
             return m_Fences2;
         else if constexpr(std::is_same_v<Tag, SemaphoreTag>)
@@ -1461,6 +1463,7 @@ private:
     ResourceContainerWithLock<ImageResource> m_Images2;
     ResourceContainerWithLock<SamplerResource> m_Samplers2;
     ResourceContainerWithLock<RenderingAttachmentResource> m_RenderingAttachments2;
+    ResourceContainerWithLock<RenderingInfoResource> m_RenderingInfos2;
     ResourceContainerWithLock<FenceResource> m_Fences2;
     ResourceContainerWithLock<SemaphoreResource> m_Semaphores2;
     ResourceContainerWithLock<TimelineSemaphoreResource> m_TimelineSemaphores2;
@@ -1472,7 +1475,6 @@ private:
     ResourceContainerType<PipelineLayoutResource> m_PipelineLayouts;
     ResourceContainerType<PipelineResource> m_Pipelines;
     ResourceContainerType<ShaderModuleResource> m_ShaderModules;
-    ResourceContainerType<RenderingInfoResource> m_RenderingInfos;
 
     std::vector<std::vector<CommandBuffer>> m_CommandPoolToBuffersMap;
 };
@@ -1587,6 +1589,10 @@ public:
         RenderingAttachmentCreateInfo&& createInfo, DeletionQueue& deletionQueue);
     static void Destroy(const View<RenderingAttachmentTag>& resources, RenderingAttachment renderingAttachment);
     
+    static RenderingInfo CreateRenderingInfo(const View<RenderingInfoTag, RenderingAttachmentTag>& resources, RenderingInfoCreateInfo&& createInfo,
+        DeletionQueue& deletionQueue);
+    static void Destroy(const View<RenderingInfoTag>& resources, RenderingInfo renderingInfo);
+    
     static Fence CreateFence(const View<FenceTag>& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue);
     static void Destroy(const View<FenceTag>& resources, Fence fence);
     static void WaitForFence(const View<FenceTag>& resources, Fence fence);
@@ -1635,11 +1641,11 @@ public:
     
     static void CompileCommand(const View<CommandBufferTag, SwapchainTag, DependencyInfoTag, ImageTag>& resources, CommandBuffer cmd, const PrepareSwapchainPresentCommand& command);
 
-    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BeginRenderingCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, RenderingInfoTag>& resources, CommandBuffer cmd, const BeginRenderingCommand& command);
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const EndRenderingCommand& command);
     
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const ImGuiBeginCommand& command);
-    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const ImGuiEndCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, RenderingInfoTag>& resources, CommandBuffer cmd, const ImGuiEndCommand& command);
 
     static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const BeginConditionalRenderingCommand& command);
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const EndConditionalRenderingCommand& command);
@@ -1694,6 +1700,29 @@ public:
     static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const DispatchIndirectCommand& command);
 };
 
+RenderingInfo DeviceInternal::CreateRenderingInfo(const View<RenderingInfoTag, RenderingAttachmentTag>& resources,
+    RenderingInfoCreateInfo&& createInfo, DeletionQueue& deletionQueue)
+{
+    DeviceResources::RenderingInfoResource renderingInfoResource = {};
+    renderingInfoResource.ColorAttachments.reserve(createInfo.ColorAttachments.size());
+
+    for (auto& attachment : createInfo.ColorAttachments)
+        renderingInfoResource.ColorAttachments.push_back(resources[attachment].AttachmentInfo);
+    if (createInfo.DepthAttachment.has_value())
+        renderingInfoResource.DepthAttachment = resources[*createInfo.DepthAttachment].AttachmentInfo;
+
+    renderingInfoResource.RenderArea = createInfo.RenderArea;
+    const RenderingInfo renderingInfo = resources.Add(renderingInfoResource);
+    deletionQueue.Enqueue(renderingInfo);
+
+    return renderingInfo;
+}
+
+void DeviceInternal::Destroy(const View<RenderingInfoTag>& resources, RenderingInfo renderingInfo)
+{
+    resources.Remove(renderingInfo);
+}
+
 template <typename ResourceList, typename Resource>
 constexpr auto DeviceResources::AddToResourceList(ResourceList& list, Resource&& value)
 {
@@ -1720,8 +1749,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_Pipelines, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, ShaderModuleResource>)
         return AddToResourceList(m_ShaderModules, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, RenderingInfoResource>)
-        return AddToResourceList(m_RenderingInfos, std::forward<Resource>(resource));
     else
         static_assert(!sizeof(Resource), "No match for resource");
     std::unreachable();
@@ -1746,8 +1773,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_Pipelines.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, ShaderModuleTag>)
         m_ShaderModules.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, RenderingInfoTag>)
-        m_RenderingInfos.Erase(handle);
     else
         static_assert(!sizeof(Type), "No match for type");
 }
@@ -1775,8 +1800,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_Pipelines[type];
     else if constexpr (std::is_same_v<Decayed, ShaderModule>)
         return m_ShaderModules[type];
-    else if constexpr (std::is_same_v<Decayed, RenderingInfo>)
-        return m_RenderingInfos[type];
     else
         static_assert(!sizeof(Type), "No match for type");
     std::unreachable();
@@ -2248,25 +2271,15 @@ void Device::Destroy(RenderingAttachment renderingAttachment)
 
 RenderingInfo Device::CreateRenderingInfo(RenderingInfoCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<RenderingAttachmentTag>();
-    DeviceResources::RenderingInfoResource renderingInfoResource = {};
-    renderingInfoResource.ColorAttachments.reserve(createInfo.ColorAttachments.size());
-
-    for (auto& attachment : createInfo.ColorAttachments)
-        renderingInfoResource.ColorAttachments.push_back(view[attachment].AttachmentInfo);
-    if (createInfo.DepthAttachment.has_value())
-        renderingInfoResource.DepthAttachment = view[*createInfo.DepthAttachment].AttachmentInfo;
-
-    renderingInfoResource.RenderArea = createInfo.RenderArea;
-    RenderingInfo renderingInfo = Resources().AddResource(renderingInfoResource);
-    deletionQueue.Enqueue(renderingInfo);
-
-    return renderingInfo;
+    auto view = Resources().GetLockedView<RenderingInfoTag, RenderingAttachmentTag>();
+    
+    return DeviceInternal::CreateRenderingInfo(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(RenderingInfo renderingInfo)
 {
-    Resources().RemoveResource(renderingInfo);
+    auto view = Resources().GetLockedView<RenderingInfoTag>();
+    DeviceInternal::Destroy(view, renderingInfo);
 }
 
 PipelineLayout Device::CreatePipelineLayout(PipelineLayoutCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
@@ -3795,10 +3808,10 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag, SwapchainTag, D
     });
 }
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, RenderingInfoTag>& resources, CommandBuffer cmd,
     const BeginRenderingCommand& command)
 {
-    const DeviceResources::RenderingInfoResource& renderingInfoResource = Device::Resources()[command.RenderingInfo];
+    const DeviceResources::RenderingInfoResource& renderingInfoResource = resources[command.RenderingInfo];
 
     VkRenderingInfo renderingInfoVulkan = {};
     renderingInfoVulkan.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -3807,10 +3820,10 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, Com
         .offset = {},
         .extent = {renderingInfoResource.RenderArea.x, renderingInfoResource.RenderArea.y}
     };
-    renderingInfoVulkan.colorAttachmentCount = (u32)Device::Resources()[command.RenderingInfo].ColorAttachments.size();
-    renderingInfoVulkan.pColorAttachments = Device::Resources()[command.RenderingInfo].ColorAttachments.data();
-    if (Device::Resources()[command.RenderingInfo].DepthAttachment.has_value())
-        renderingInfoVulkan.pDepthAttachment = Device::Resources()[command.RenderingInfo].DepthAttachment.operator->();
+    renderingInfoVulkan.colorAttachmentCount = (u32)resources[command.RenderingInfo].ColorAttachments.size();
+    renderingInfoVulkan.pColorAttachments = resources[command.RenderingInfo].ColorAttachments.data();
+    if (resources[command.RenderingInfo].DepthAttachment.has_value())
+        renderingInfoVulkan.pDepthAttachment = resources[command.RenderingInfo].DepthAttachment.operator->();
 
     vkCmdBeginRendering(resources[cmd].CommandBuffer, &renderingInfoVulkan);
 }
@@ -3829,7 +3842,7 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag>&, CommandBuffer
     ImGui::NewFrame();
 }
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, RenderingInfoTag>& resources, CommandBuffer cmd,
     const ImGuiEndCommand& command)
 {    
     ImGui::Render();
@@ -4500,7 +4513,7 @@ void Device::CompileCommand(CommandBuffer cmd, const PrepareSwapchainPresentComm
 
 void Device::CompileCommand(CommandBuffer cmd, const BeginRenderingCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, ImageTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, RenderingInfoTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
@@ -4518,7 +4531,7 @@ void Device::CompileCommand(CommandBuffer cmd, const ImGuiBeginCommand& command)
 
 void Device::CompileCommand(CommandBuffer cmd, const ImGuiEndCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, RenderingInfoTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
