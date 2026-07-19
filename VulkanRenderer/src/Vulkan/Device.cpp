@@ -1439,6 +1439,8 @@ private:
             return m_RenderingInfos2;
         else if constexpr(std::is_same_v<Tag, PipelineLayoutTag>)
             return m_PipelineLayouts2;
+        else if constexpr(std::is_same_v<Tag, PipelineTag>)
+            return m_Pipelines2;
         else if constexpr(std::is_same_v<Tag, ShaderModuleTag>)
             return m_ShaderModules2;
         else if constexpr(std::is_same_v<Tag, DescriptorsLayoutTag>)
@@ -1471,6 +1473,7 @@ private:
     ResourceContainerWithLock<RenderingAttachmentResource> m_RenderingAttachments2;
     ResourceContainerWithLock<RenderingInfoResource> m_RenderingInfos2;
     ResourceContainerWithLock<PipelineLayoutResource> m_PipelineLayouts2;
+    ResourceContainerWithLock<PipelineResource> m_Pipelines2;
     ResourceContainerWithLock<ShaderModuleResource> m_ShaderModules2;
     ResourceContainerWithLock<DescriptorsLayoutResource> m_DescriptorLayouts2;
     ResourceContainerWithLock<FenceResource> m_Fences2;
@@ -1480,7 +1483,6 @@ private:
     ResourceContainerWithLock<SplitBarrierResource> m_SplitBarriers2;
     ResourceContainerType<DescriptorsResource> m_Descriptors;
     ResourceContainerType<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators;
-    ResourceContainerType<PipelineResource> m_Pipelines;
 
     std::vector<std::vector<CommandBuffer>> m_CommandPoolToBuffersMap;
 };
@@ -1603,6 +1605,9 @@ public:
         DeletionQueue& deletionQueue);
     static void Destroy(const View<PipelineLayoutTag>& resources, PipelineLayout pipelineLayout);
     
+    static Pipeline CreatePipeline(const View<PipelineTag, PipelineLayoutTag, ShaderModuleTag>& resources, PipelineCreateInfo&& createInfo, DeletionQueue& deletionQueue);
+    static void Destroy(const View<PipelineTag>& resources, Pipeline pipeline);
+    
     static ShaderModule CreateShaderModule(const View<ShaderModuleTag>& resources, ShaderModuleCreateInfo&& createInfo,
         DeletionQueue& deletionQueue);
     static void Destroy(const View<ShaderModuleTag>& resources, ShaderModule shaderModule);
@@ -1699,8 +1704,8 @@ public:
     static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const BindIndexU16BufferCommand& command);
     static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const BindIndexU8BufferCommand& command);
 
-    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindPipelineGraphicsCommand& command);
-    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindPipelineComputeCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineTag>& resources, CommandBuffer cmd, const BindPipelineGraphicsCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineTag>& resources, CommandBuffer cmd, const BindPipelineComputeCommand& command);
     static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command);
     static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command);
     static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command);
@@ -1717,6 +1722,7 @@ public:
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const DispatchCommand& command);
     static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const DispatchIndirectCommand& command);
 };
+
 
 RenderingInfo DeviceInternal::CreateRenderingInfo(const View<RenderingInfoTag, RenderingAttachmentTag>& resources,
     RenderingInfoCreateInfo&& createInfo, DeletionQueue& deletionQueue)
@@ -1759,8 +1765,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_Descriptors, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, DescriptorArenaAllocatorResource>)
         return AddToResourceList(m_DescriptorArenaAllocators, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, PipelineResource>)
-        return AddToResourceList(m_Pipelines, std::forward<Resource>(resource));
     else
         static_assert(!sizeof(Resource), "No match for resource");
     std::unreachable();
@@ -1777,8 +1781,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_Descriptors.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, DescriptorArenaAllocatorTag>)
         m_DescriptorArenaAllocators.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, PipelineTag>)
-        m_Pipelines.Erase(handle);
     else
         static_assert(!sizeof(Type), "No match for type");
 }
@@ -1798,8 +1800,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_Descriptors[type];
     else if constexpr (std::is_same_v<Decayed, DescriptorArenaAllocator>)
         return m_DescriptorArenaAllocators[type];
-    else if constexpr (std::is_same_v<Decayed, Pipeline>)
-        return m_Pipelines[type];
     else
         static_assert(!sizeof(Type), "No match for type");
     std::unreachable();
@@ -2297,219 +2297,15 @@ void Device::Destroy(PipelineLayout pipelineLayout)
 
 Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<PipelineLayoutTag, ShaderModuleTag>();
-    VkPipelineLayout layout = view[createInfo.PipelineLayout].Layout;
-    std::vector<VkPipelineShaderStageCreateInfo> shaders;
-    shaders.reserve(createInfo.Shaders.size());
-    for (auto&& [i, shader] : std::views::enumerate(createInfo.Shaders))
-    {
-        auto& module = view[shader];
-
-        VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
-        shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        shaderStageCreateInfo.stage = vulkanStageBitFromShaderStage(createInfo.ShaderStages[i]);
-        shaderStageCreateInfo.module = module.Module;
-        shaderStageCreateInfo.pName = createInfo.ShaderEntryPoints[i].data();
-
-        shaders.push_back(shaderStageCreateInfo);
-    }
-
-    std::vector<std::vector<VkSpecializationMapEntry>> shaderSpecializationEntries(createInfo.Shaders.size());
-    std::vector<VkSpecializationInfo> shaderSpecializationInfos;
-    shaderSpecializationInfos.reserve(createInfo.Shaders.size());
-    for (u32 shaderIndex = 0; shaderIndex < createInfo.Shaders.size(); shaderIndex++)
-    {
-        auto& shader = shaders[shaderIndex];
-        VkSpecializationInfo shaderSpecializationInfo = {};
-        for (const auto& specialization : createInfo.Specialization.Descriptions)
-            if (enumHasAny(
-                shader.stage, (VkShaderStageFlagBits)vulkanShaderStageFromShaderStage(specialization.ShaderStages)))
-                shaderSpecializationEntries[shaderIndex].push_back({
-                    .constantID = specialization.Id,
-                    .offset = specialization.Offset,
-                    .size = specialization.SizeBytes
-                });
-
-        shaderSpecializationInfo.dataSize = createInfo.Specialization.Data.size();
-        shaderSpecializationInfo.pData = createInfo.Specialization.Data.data();
-        shaderSpecializationInfo.mapEntryCount = (u32)shaderSpecializationEntries[shaderIndex].size();
-        shaderSpecializationInfo.pMapEntries = shaderSpecializationEntries[shaderIndex].data();
-
-        shaderSpecializationInfos.push_back(shaderSpecializationInfo);
-        shader.pSpecializationInfo = &shaderSpecializationInfos.back();
-    }
-
-    Pipeline pipeline = {};
-    if (createInfo.IsComputePipeline)
-    {
-        VkComputePipelineCreateInfo pipelineCreateInfo = {};
-        pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-        pipelineCreateInfo.stage = shaders.front();
-        pipelineCreateInfo.layout = layout;
-
-#ifdef DESCRIPTOR_BUFFER
-        pipelineCreateInfo.flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
-#endif
-
-        DeviceResources::PipelineResource pipelineResource = {};
-        deviceCheck(vkCreateComputePipelines(s_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
-            &pipelineResource.Pipeline), "Failed to create compute pipeline");
-        pipeline = Resources().AddResource(pipelineResource);
-    }
-    else
-    {
-        ASSERT(
-            !createInfo.ColorFormats.empty() ||
-            createInfo.DepthFormat != Format::Undefined, "No rendering details provided")
-
-        std::vector<VkDynamicState> dynamicStates = vulkanDynamicStatesFromDynamicStates(createInfo.DynamicStates);
-
-        VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
-        dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-        dynamicStateInfo.dynamicStateCount = (u32)dynamicStates.size();
-        dynamicStateInfo.pDynamicStates = dynamicStates.data();
-
-        VkPipelineViewportStateCreateInfo viewportState = {};
-        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-        viewportState.viewportCount = 1;
-        viewportState.scissorCount = 1;
-
-        VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
-        inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        inputAssemblyState.primitiveRestartEnable = VK_FALSE;
-        inputAssemblyState.topology = vulkanTopologyFromPrimitiveKind(createInfo.PrimitiveKind);
-
-        VkPipelineVertexInputStateCreateInfo vertexInputState = {};
-        vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        std::vector<VkVertexInputBindingDescription> bindings;
-        std::vector<VkVertexInputAttributeDescription> attributes;
-        bindings.reserve(createInfo.VertexDescription.Bindings.size());
-        attributes.reserve(createInfo.VertexDescription.Attributes.size());
-        for (auto& binding : createInfo.VertexDescription.Bindings)
-            bindings.push_back({
-                .binding = binding.Index,
-                .stride = binding.StrideBytes,
-                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-            });
-
-        for (auto& attribute : createInfo.VertexDescription.Attributes)
-            attributes.push_back({
-                .location = attribute.Index,
-                .binding = attribute.BindingIndex,
-                .format = vulkanFormatFromFormat(attribute.Format),
-                .offset = attribute.OffsetBytes
-            });
-        vertexInputState.vertexBindingDescriptionCount = (u32)bindings.size();
-        vertexInputState.pVertexBindingDescriptions = bindings.data();
-        vertexInputState.vertexAttributeDescriptionCount = (u32)attributes.size();
-        vertexInputState.pVertexAttributeDescriptions = attributes.data();
-
-        VkPipelineRasterizationStateCreateInfo rasterizationState = {};
-        rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        rasterizationState.depthClampEnable = createInfo.ClampDepth ? VK_TRUE : VK_FALSE;
-        rasterizationState.depthBiasEnable = enumHasAny(createInfo.DynamicStates, DynamicStates::DepthBias);
-        rasterizationState.rasterizerDiscardEnable = VK_FALSE; // if we do not want an output
-        rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
-        rasterizationState.lineWidth = 1.0f;
-        rasterizationState.cullMode = vulkanCullModeFromFaceCullMode(createInfo.CullMode);
-        rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-
-        VkPipelineMultisampleStateCreateInfo multisampleState = {};
-        multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        multisampleState.sampleShadingEnable = VK_FALSE;
-        multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-        VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
-        depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depthStencilState.depthTestEnable = createInfo.DepthMode == DepthMode::None ? VK_FALSE : VK_TRUE;
-        depthStencilState.depthWriteEnable =
-        (createInfo.DepthMode == DepthMode::None ||
-            createInfo.DepthMode == DepthMode::Read) ?
-            VK_FALSE :
-            VK_TRUE;
-        depthStencilState.depthCompareOp = createInfo.DepthTest == DepthTest::GreaterOrEqual ?
-                                               VK_COMPARE_OP_GREATER_OR_EQUAL :
-                                               VK_COMPARE_OP_EQUAL;
-        depthStencilState.depthBoundsTestEnable = VK_FALSE;
-        depthStencilState.stencilTestEnable = VK_FALSE;
-
-        VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
-        colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-            VK_COLOR_COMPONENT_G_BIT |
-            VK_COLOR_COMPONENT_B_BIT |
-            VK_COLOR_COMPONENT_A_BIT;
-        switch (createInfo.AlphaBlending)
-        {
-        case AlphaBlending::None:
-            colorBlendAttachmentState.blendEnable = VK_FALSE;
-            break;
-        case AlphaBlending::Over:
-            colorBlendAttachmentState.blendEnable = VK_TRUE;
-            colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-            colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-            colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-            colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-            colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-            break;
-        default:
-            ASSERT(false, "Unsupported blending mode")
-        }
-
-        VkPipelineColorBlendStateCreateInfo colorBlendState = {};
-        colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        colorBlendState.logicOpEnable = VK_FALSE;
-        colorBlendState.attachmentCount = 1;
-        colorBlendState.pAttachments = &colorBlendAttachmentState;
-
-        std::vector<VkFormat> colorFormats;
-        colorFormats.resize(createInfo.ColorFormats.size());
-
-        for (u32 colorIndex = 0; colorIndex < createInfo.ColorFormats.size(); colorIndex++)
-            colorFormats[colorIndex] = vulkanFormatFromFormat(createInfo.ColorFormats[colorIndex]);
-
-        VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
-        pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-        pipelineRenderingCreateInfo.colorAttachmentCount = (u32)colorFormats.size();
-        pipelineRenderingCreateInfo.pColorAttachmentFormats = colorFormats.data();
-        pipelineRenderingCreateInfo.depthAttachmentFormat = vulkanFormatFromFormat(
-            createInfo.DepthFormat);
-
-        VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
-        pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipelineCreateInfo.stageCount = (u32)shaders.size();
-        pipelineCreateInfo.pStages = shaders.data();
-        pipelineCreateInfo.pDynamicState = &dynamicStateInfo;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pVertexInputState = &vertexInputState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.layout = layout;
-        pipelineCreateInfo.renderPass = VK_NULL_HANDLE;
-        pipelineCreateInfo.subpass = 0;
-        pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
-
-#ifdef DESCRIPTOR_BUFFER
-        pipelineCreateInfo.flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
-#endif
-
-        DeviceResources::PipelineResource pipelineResource = {};
-        deviceCheck(vkCreateGraphicsPipelines(s_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
-            &pipelineResource.Pipeline), "Failed to create graphics pipeline");
-        pipeline = Resources().AddResource(pipelineResource);
-    }
-    deletionQueue.Enqueue(pipeline);
-
-    return pipeline;
+    auto view = Resources().GetLockedView<PipelineTag, PipelineLayoutTag, ShaderModuleTag>();
+    
+    return DeviceInternal::CreatePipeline(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(Pipeline pipeline)
 {
-    vkDestroyPipeline(s_State.Device, Resources().m_Pipelines[pipeline.m_Id].Pipeline, nullptr);
-    Resources().RemoveResource(pipeline);
+    auto view = Resources().GetLockedView<PipelineTag>();
+    DeviceInternal::Destroy(view, pipeline);
 }
 
 ShaderModule Device::CreateShaderModule(ShaderModuleCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
@@ -4148,18 +3944,18 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag, BufferTag>& res
         VK_INDEX_TYPE_UINT8_EXT);
 }
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineTag>& resources, CommandBuffer cmd,
     const BindPipelineGraphicsCommand& command)
 {
     vkCmdBindPipeline(resources[cmd].CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-        Device::Resources()[command.Pipeline].Pipeline);
+        resources[command.Pipeline].Pipeline);
 }
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineTag>& resources, CommandBuffer cmd,
     const BindPipelineComputeCommand& command)
 {
     vkCmdBindPipeline(resources[cmd].CommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-        Device::Resources()[command.Pipeline].Pipeline);
+        resources[command.Pipeline].Pipeline);
 }
 
 #ifdef DESCRIPTOR_BUFFER
@@ -4380,7 +4176,8 @@ void Device::NameImage(Image image, std::string_view name)
 
 void Device::NamePipeline(Pipeline pipeline, std::string_view name)
 {
-    nameVulkanHandle(s_State.Device, (u64)Resources()[pipeline].Pipeline, VK_OBJECT_TYPE_PIPELINE, name);
+    auto view = Resources().GetLockedView<PipelineTag>();
+    nameVulkanHandle(s_State.Device, (u64)view[pipeline].Pipeline, VK_OBJECT_TYPE_PIPELINE, name);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const ExecuteSecondaryBufferCommand& command)
@@ -4535,13 +4332,13 @@ void Device::CompileCommand(CommandBuffer cmd, const BindIndexU8BufferCommand& c
 
 void Device::CompileCommand(CommandBuffer cmd, const BindPipelineGraphicsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindPipelineComputeCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
@@ -5873,6 +5670,223 @@ void DeviceInternal::Destroy(const View<PipelineLayoutTag>& resources, PipelineL
 {
     vkDestroyPipelineLayout(Device::s_State.Device, resources[pipelineLayout].Layout, nullptr);
     resources.Remove(pipelineLayout);
+}
+
+Pipeline DeviceInternal::CreatePipeline(const View<PipelineTag, PipelineLayoutTag, ShaderModuleTag>& resources,
+    PipelineCreateInfo&& createInfo, DeletionQueue& deletionQueue)
+{
+    VkPipelineLayout layout = resources[createInfo.PipelineLayout].Layout;
+    std::vector<VkPipelineShaderStageCreateInfo> shaders;
+    shaders.reserve(createInfo.Shaders.size());
+    for (auto&& [i, shader] : std::views::enumerate(createInfo.Shaders))
+    {
+        auto& module = resources[shader];
+
+        VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
+        shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shaderStageCreateInfo.stage = vulkanStageBitFromShaderStage(createInfo.ShaderStages[i]);
+        shaderStageCreateInfo.module = module.Module;
+        shaderStageCreateInfo.pName = createInfo.ShaderEntryPoints[i].data();
+
+        shaders.push_back(shaderStageCreateInfo);
+    }
+
+    std::vector<std::vector<VkSpecializationMapEntry>> shaderSpecializationEntries(createInfo.Shaders.size());
+    std::vector<VkSpecializationInfo> shaderSpecializationInfos;
+    shaderSpecializationInfos.reserve(createInfo.Shaders.size());
+    for (u32 shaderIndex = 0; shaderIndex < createInfo.Shaders.size(); shaderIndex++)
+    {
+        auto& shader = shaders[shaderIndex];
+        VkSpecializationInfo shaderSpecializationInfo = {};
+        for (const auto& specialization : createInfo.Specialization.Descriptions)
+            if (enumHasAny(
+                shader.stage, (VkShaderStageFlagBits)vulkanShaderStageFromShaderStage(specialization.ShaderStages)))
+                shaderSpecializationEntries[shaderIndex].push_back({
+                    .constantID = specialization.Id,
+                    .offset = specialization.Offset,
+                    .size = specialization.SizeBytes
+                });
+
+        shaderSpecializationInfo.dataSize = createInfo.Specialization.Data.size();
+        shaderSpecializationInfo.pData = createInfo.Specialization.Data.data();
+        shaderSpecializationInfo.mapEntryCount = (u32)shaderSpecializationEntries[shaderIndex].size();
+        shaderSpecializationInfo.pMapEntries = shaderSpecializationEntries[shaderIndex].data();
+
+        shaderSpecializationInfos.push_back(shaderSpecializationInfo);
+        shader.pSpecializationInfo = &shaderSpecializationInfos.back();
+    }
+
+    Pipeline pipeline = {};
+    if (createInfo.IsComputePipeline)
+    {
+        VkComputePipelineCreateInfo pipelineCreateInfo = {};
+        pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        pipelineCreateInfo.stage = shaders.front();
+        pipelineCreateInfo.layout = layout;
+
+#ifdef DESCRIPTOR_BUFFER
+        pipelineCreateInfo.flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+#endif
+
+        DeviceResources::PipelineResource pipelineResource = {};
+        deviceCheck(vkCreateComputePipelines(Device::s_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
+            &pipelineResource.Pipeline), "Failed to create compute pipeline");
+        pipeline = resources.Add(pipelineResource);
+    }
+    else
+    {
+        ASSERT(
+            !createInfo.ColorFormats.empty() ||
+            createInfo.DepthFormat != Format::Undefined, "No rendering details provided")
+
+        std::vector<VkDynamicState> dynamicStates = vulkanDynamicStatesFromDynamicStates(createInfo.DynamicStates);
+
+        VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
+        dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicStateInfo.dynamicStateCount = (u32)dynamicStates.size();
+        dynamicStateInfo.pDynamicStates = dynamicStates.data();
+
+        VkPipelineViewportStateCreateInfo viewportState = {};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.scissorCount = 1;
+
+        VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
+        inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssemblyState.primitiveRestartEnable = VK_FALSE;
+        inputAssemblyState.topology = vulkanTopologyFromPrimitiveKind(createInfo.PrimitiveKind);
+
+        VkPipelineVertexInputStateCreateInfo vertexInputState = {};
+        vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        std::vector<VkVertexInputBindingDescription> bindings;
+        std::vector<VkVertexInputAttributeDescription> attributes;
+        bindings.reserve(createInfo.VertexDescription.Bindings.size());
+        attributes.reserve(createInfo.VertexDescription.Attributes.size());
+        for (auto& binding : createInfo.VertexDescription.Bindings)
+            bindings.push_back({
+                .binding = binding.Index,
+                .stride = binding.StrideBytes,
+                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+            });
+
+        for (auto& attribute : createInfo.VertexDescription.Attributes)
+            attributes.push_back({
+                .location = attribute.Index,
+                .binding = attribute.BindingIndex,
+                .format = vulkanFormatFromFormat(attribute.Format),
+                .offset = attribute.OffsetBytes
+            });
+        vertexInputState.vertexBindingDescriptionCount = (u32)bindings.size();
+        vertexInputState.pVertexBindingDescriptions = bindings.data();
+        vertexInputState.vertexAttributeDescriptionCount = (u32)attributes.size();
+        vertexInputState.pVertexAttributeDescriptions = attributes.data();
+
+        VkPipelineRasterizationStateCreateInfo rasterizationState = {};
+        rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizationState.depthClampEnable = createInfo.ClampDepth ? VK_TRUE : VK_FALSE;
+        rasterizationState.depthBiasEnable = enumHasAny(createInfo.DynamicStates, DynamicStates::DepthBias);
+        rasterizationState.rasterizerDiscardEnable = VK_FALSE; // if we do not want an output
+        rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizationState.lineWidth = 1.0f;
+        rasterizationState.cullMode = vulkanCullModeFromFaceCullMode(createInfo.CullMode);
+        rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+        VkPipelineMultisampleStateCreateInfo multisampleState = {};
+        multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampleState.sampleShadingEnable = VK_FALSE;
+        multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
+        depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencilState.depthTestEnable = createInfo.DepthMode == DepthMode::None ? VK_FALSE : VK_TRUE;
+        depthStencilState.depthWriteEnable =
+        (createInfo.DepthMode == DepthMode::None ||
+            createInfo.DepthMode == DepthMode::Read) ?
+            VK_FALSE :
+            VK_TRUE;
+        depthStencilState.depthCompareOp = createInfo.DepthTest == DepthTest::GreaterOrEqual ?
+                                               VK_COMPARE_OP_GREATER_OR_EQUAL :
+                                               VK_COMPARE_OP_EQUAL;
+        depthStencilState.depthBoundsTestEnable = VK_FALSE;
+        depthStencilState.stencilTestEnable = VK_FALSE;
+
+        VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
+        colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
+            VK_COLOR_COMPONENT_G_BIT |
+            VK_COLOR_COMPONENT_B_BIT |
+            VK_COLOR_COMPONENT_A_BIT;
+        switch (createInfo.AlphaBlending)
+        {
+        case AlphaBlending::None:
+            colorBlendAttachmentState.blendEnable = VK_FALSE;
+            break;
+        case AlphaBlending::Over:
+            colorBlendAttachmentState.blendEnable = VK_TRUE;
+            colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+            colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+            colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+            colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+            break;
+        default:
+            ASSERT(false, "Unsupported blending mode")
+        }
+
+        VkPipelineColorBlendStateCreateInfo colorBlendState = {};
+        colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlendState.logicOpEnable = VK_FALSE;
+        colorBlendState.attachmentCount = 1;
+        colorBlendState.pAttachments = &colorBlendAttachmentState;
+
+        std::vector<VkFormat> colorFormats;
+        colorFormats.resize(createInfo.ColorFormats.size());
+
+        for (u32 colorIndex = 0; colorIndex < createInfo.ColorFormats.size(); colorIndex++)
+            colorFormats[colorIndex] = vulkanFormatFromFormat(createInfo.ColorFormats[colorIndex]);
+
+        VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
+        pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+        pipelineRenderingCreateInfo.colorAttachmentCount = (u32)colorFormats.size();
+        pipelineRenderingCreateInfo.pColorAttachmentFormats = colorFormats.data();
+        pipelineRenderingCreateInfo.depthAttachmentFormat = vulkanFormatFromFormat(
+            createInfo.DepthFormat);
+
+        VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
+        pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineCreateInfo.stageCount = (u32)shaders.size();
+        pipelineCreateInfo.pStages = shaders.data();
+        pipelineCreateInfo.pDynamicState = &dynamicStateInfo;
+        pipelineCreateInfo.pViewportState = &viewportState;
+        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
+        pipelineCreateInfo.pVertexInputState = &vertexInputState;
+        pipelineCreateInfo.pRasterizationState = &rasterizationState;
+        pipelineCreateInfo.pMultisampleState = &multisampleState;
+        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
+        pipelineCreateInfo.pColorBlendState = &colorBlendState;
+        pipelineCreateInfo.layout = layout;
+        pipelineCreateInfo.renderPass = VK_NULL_HANDLE;
+        pipelineCreateInfo.subpass = 0;
+        pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
+
+#ifdef DESCRIPTOR_BUFFER
+        pipelineCreateInfo.flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+#endif
+
+        DeviceResources::PipelineResource pipelineResource = {};
+        deviceCheck(vkCreateGraphicsPipelines(Device::s_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
+            &pipelineResource.Pipeline), "Failed to create graphics pipeline");
+        pipeline = resources.Add(pipelineResource);
+    }
+    deletionQueue.Enqueue(pipeline);
+
+    return pipeline;
+}
+
+void DeviceInternal::Destroy(const View<PipelineTag>& resources, Pipeline pipeline)
+{
+    vkDestroyPipeline(Device::s_State.Device, resources[pipeline].Pipeline, nullptr);
+    resources.Remove(pipeline);
 }
 
 ShaderModule DeviceInternal::CreateShaderModule(const View<ShaderModuleTag>& resources,
