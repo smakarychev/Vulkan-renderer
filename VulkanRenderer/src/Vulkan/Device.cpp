@@ -1447,6 +1447,8 @@ private:
             return m_DescriptorLayouts2;
         else if constexpr(std::is_same_v<Tag, DescriptorArenaAllocatorTag>)
             return m_DescriptorArenaAllocators2;
+        else if constexpr(std::is_same_v<Tag, DescriptorsTag>)
+            return m_Descriptors2;
         else if constexpr(std::is_same_v<Tag, FenceTag>)
             return m_Fences2;
         else if constexpr(std::is_same_v<Tag, SemaphoreTag>)
@@ -1479,12 +1481,12 @@ private:
     ResourceContainerWithLock<ShaderModuleResource> m_ShaderModules2;
     ResourceContainerWithLock<DescriptorsLayoutResource> m_DescriptorLayouts2;
     ResourceContainerWithLock<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators2;
+    ResourceContainerWithLock<DescriptorsResource> m_Descriptors2;
     ResourceContainerWithLock<FenceResource> m_Fences2;
     ResourceContainerWithLock<SemaphoreResource> m_Semaphores2;
     ResourceContainerWithLock<TimelineSemaphoreResource> m_TimelineSemaphores2;
     ResourceContainerWithLock<DependencyInfoResource> m_DependencyInfos2;
     ResourceContainerWithLock<SplitBarrierResource> m_SplitBarriers2;
-    ResourceContainerType<DescriptorsResource> m_Descriptors;
 
     std::vector<std::vector<CommandBuffer>> m_CommandPoolToBuffersMap;
 };
@@ -1621,11 +1623,17 @@ public:
     static DescriptorArenaAllocator CreateDescriptorArenaAllocator(
         const View<DescriptorArenaAllocatorTag, BufferTag>& resources, DescriptorArenaAllocatorCreateInfo&& createInfo,
         DeletionQueue& deletionQueue);
-    static void Destroy(const View<DescriptorArenaAllocatorTag, BufferTag>& resources, DescriptorArenaAllocator allocator);
+    static void Destroy(const View<DescriptorArenaAllocatorTag, DescriptorsTag, BufferTag>& resources, DescriptorArenaAllocator allocator);
     static std::optional<Descriptors> AllocateDescriptors(
-        const View<DescriptorArenaAllocatorTag, DescriptorsLayoutTag>& resources, DescriptorArenaAllocator allocator,
+        const View<DescriptorArenaAllocatorTag, DescriptorsLayoutTag, DescriptorsTag>& resources, DescriptorArenaAllocator allocator,
         DescriptorsLayout layout, DescriptorAllocatorAllocationBindings&& bindings);
-    static void ResetDescriptorArenaAllocator(const View<DescriptorArenaAllocatorTag>& resources, DescriptorArenaAllocator allocator);
+    static void ResetDescriptorArenaAllocator(const View<DescriptorArenaAllocatorTag, DescriptorsTag>& resources, DescriptorArenaAllocator allocator);
+    
+    static void UpdateDescriptors(const View<DescriptorsTag, DescriptorArenaAllocatorTag, BufferTag>& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo,
+        const BufferSubresource& buffer, u32 index);  
+    static void UpdateDescriptors(const View<DescriptorsTag, DescriptorArenaAllocatorTag, SamplerTag>& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo, Sampler sampler);  
+    static void UpdateDescriptors(const View<DescriptorsTag, DescriptorArenaAllocatorTag, ImageTag>& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo,
+        const ImageSubresource& image, ImageLayout layout, u32 index);
     
     static Fence CreateFence(const View<FenceTag>& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue);
     static void Destroy(const View<FenceTag>& resources, Fence fence);
@@ -1657,8 +1665,8 @@ public:
     
 #ifdef DESCRIPTOR_BUFFER
     static u32 GetDescriptorSizeBytes(DescriptorType type);
-    static void WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo slotInfo, u32 index,
-        VkDescriptorGetInfoEXT& descriptorGetInfo);
+    static void WriteDescriptor(const View<DescriptorsTag, DescriptorArenaAllocatorTag>& resources, 
+        Descriptors descriptors, DescriptorSlotInfo slotInfo, u32 index, VkDescriptorGetInfoEXT& descriptorGetInfo);
 #else
     static u32 GetFreePoolIndexFromAllocator(const View<DescriptorArenaAllocatorTag>& resources, DescriptorArenaAllocator allocator, DescriptorPoolFlags poolFlags);
 #endif
@@ -1668,7 +1676,7 @@ public:
         Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages);
     static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(const View<TimelineSemaphoreTag>& resources,
         Span<const TimelineSemaphore> semaphores, Span<const u64> waitValues, Span<const PipelineStage> waitStages);
-    static void BindDescriptors(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+    static void BindDescriptors(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
         u32 firstSet, VkPipelineBindPoint bindPoint);
     
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const ExecuteSecondaryBufferCommand& command);
@@ -1717,10 +1725,10 @@ public:
 
     static void CompileCommand(const View<CommandBufferTag, PipelineTag>& resources, CommandBuffer cmd, const BindPipelineGraphicsCommand& command);
     static void CompileCommand(const View<CommandBufferTag, PipelineTag>& resources, CommandBuffer cmd, const BindPipelineComputeCommand& command);
-    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command);
-    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command);
-    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command);
-    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const BindDescriptorsComputeCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd, const BindDescriptorsComputeCommand& command);
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command);
 
     static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const PushConstantsCommand& command);
@@ -1771,10 +1779,7 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
 
     using Decayed = std::decay_t<Resource>;
 
-    if constexpr (std::is_same_v<Decayed, DescriptorsResource>)
-        return AddToResourceList(m_Descriptors, std::forward<Resource>(resource));
-    else
-        static_assert(!sizeof(Resource), "No match for resource");
+    static_assert(!sizeof(Resource), "No match for resource");
     std::unreachable();
 }
 
@@ -1785,10 +1790,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
 
     using Decayed = std::decay_t<Type>;
 
-    if constexpr (std::is_same_v<Decayed, DescriptorsTag>)
-        m_Descriptors.Erase(handle);
-    else
-        static_assert(!sizeof(Type), "No match for type");
+    static_assert(!sizeof(Type), "No match for type");
 }
 
 template <typename Type>
@@ -1802,10 +1804,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
 {
     using Decayed = std::decay_t<Type>;
 
-    if constexpr (std::is_same_v<Decayed, Descriptors>)
-        return m_Descriptors[type];
-    else
-        static_assert(!sizeof(Type), "No match for type");
+    static_assert(!sizeof(Type), "No match for type");
     std::unreachable();
 }
 
@@ -2345,70 +2344,6 @@ void Device::Destroy(DescriptorsLayout layout)
     DeviceInternal::Destroy(view, layout);
 }
 
-#ifdef DESCRIPTOR_BUFFER
-void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
-    const BufferSubresource& buffer, u32 index)
-{
-    auto&& [slot, type] = slotInfo;
-    ASSERT(type != DescriptorType::TexelStorage && type != DescriptorType::TexelUniform,
-        "Texel buffers require format information")
-    ASSERT(type != DescriptorType::StorageBufferDynamic && type != DescriptorType::UniformBufferDynamic,
-        "Dynamic buffers are not supported when using descriptor buffer")
-
-    const DeviceResources::BufferResource& bufferResource = Resources()[buffer.Buffer];
-    VkBufferDeviceAddressInfo deviceAddressInfo = {};
-    deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-    deviceAddressInfo.buffer = bufferResource.Buffer;
-    u64 deviceAddress = vkGetBufferDeviceAddress(s_State.Device, &deviceAddressInfo);
-
-    VkDescriptorAddressInfoEXT descriptorAddressInfo = {};
-    descriptorAddressInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
-    descriptorAddressInfo.address = deviceAddress + buffer.Description.Offset;
-    descriptorAddressInfo.format = VK_FORMAT_UNDEFINED;
-    ASSERT(
-        buffer.Description.SizeBytes <= bufferResource.Description.SizeBytes ||
-        buffer.Description.SizeBytes == BufferSubresourceDescription::WHOLE_SIZE,
-        "Buffer subresource size is too large")
-    descriptorAddressInfo.range = std::min(buffer.Description.SizeBytes, bufferResource.Description.SizeBytes);
-
-    VkDescriptorGetInfoEXT descriptorGetInfo = {};
-    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
-    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
-    // using the fact that 'descriptorGetInfo.data' is union
-    descriptorGetInfo.data.pUniformBuffer = &descriptorAddressInfo;
-
-    DeviceInternal::WriteDescriptor(descriptors, slotInfo, index, descriptorGetInfo);
-}
-
-void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo, Sampler sampler)
-{
-    auto view = Resources().GetLockedView<SamplerTag>();
-    auto&& [slot, type] = slotInfo;
-    ASSERT(type == DescriptorType::Sampler)
-
-    VkDescriptorGetInfoEXT descriptorGetInfo = {};
-    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
-    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
-    descriptorGetInfo.data.pSampler = &view[sampler].Sampler;
-    DeviceInternal::WriteDescriptor(descriptors, slotInfo, 0, descriptorGetInfo);
-}
-
-void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
-    const ImageSubresource& image, ImageLayout layout, u32 index)
-{
-    auto&& [slot, type] = slotInfo;
-    VkDescriptorGetInfoEXT descriptorGetInfo = {};
-    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
-    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
-    VkDescriptorImageInfo descriptorImageInfo = {};
-    descriptorImageInfo.imageView =
-        Resources()[image.Image].Views.ViewList[GetImageViewHandle(image.Image, image.Description).m_Index];
-    descriptorImageInfo.imageLayout = vulkanImageLayoutFromImageLayout(layout);
-    descriptorGetInfo.data.pSampledImage = &descriptorImageInfo;
-
-    DeviceInternal::WriteDescriptor(descriptors, slotInfo, index, descriptorGetInfo);
-}
-#else
 DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo,
     ::DeletionQueue& deletionQueue)
 {
@@ -2419,89 +2354,43 @@ DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaA
 
 void Device::Destroy(DescriptorArenaAllocator allocator)
 {
-    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag, BufferTag>();
+    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsTag, BufferTag>();
     DeviceInternal::Destroy(view, allocator);
 }
 
 std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator allocator, DescriptorsLayout layout,
     DescriptorAllocatorAllocationBindings&& bindings)
 {
-    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsLayoutTag>();
+    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsLayoutTag, DescriptorsTag>();
     
     return DeviceInternal::AllocateDescriptors(view, allocator, layout, std::move(bindings));
 }
 
 void Device::ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator)
 {
-    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag>();
+    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsTag>();
     DeviceInternal::ResetDescriptorArenaAllocator(view, allocator);
 }
 
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
     const BufferSubresource& buffer, u32 index)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
-    auto&& [slot, type] = slotInfo;
-    VkDescriptorBufferInfo descriptorBufferInfo = {};
-    descriptorBufferInfo.buffer = view[buffer.Buffer].Buffer;
-    descriptorBufferInfo.offset = buffer.Description.Offset;
-    descriptorBufferInfo.range = buffer.Description.SizeBytes;
-
-    VkWriteDescriptorSet write = {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.descriptorCount = 1;
-    write.dstSet = Resources()[descriptors].DescriptorSet;
-    write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
-    write.dstBinding = slot;
-    write.pBufferInfo = &descriptorBufferInfo;
-    write.dstArrayElement = index;
-
-    vkUpdateDescriptorSets(s_State.Device, 1, &write, 0, nullptr);
+    auto view = Resources().GetLockedView<DescriptorsTag, DescriptorArenaAllocatorTag, BufferTag>();
+    DeviceInternal::UpdateDescriptors(view, descriptors, slotInfo, buffer, index);
 }
 
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo, Sampler sampler)
 {
-    auto view = Resources().GetLockedView<SamplerTag>();
-    
-    auto&& [slot, type] = slotInfo;
-    VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.sampler = view[sampler].Sampler;
-
-    VkWriteDescriptorSet write = {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.descriptorCount = 1;
-    write.dstSet = Resources()[descriptors].DescriptorSet;
-    write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
-    write.dstBinding = slot;
-    write.pImageInfo = &descriptorTextureInfo;
-
-    vkUpdateDescriptorSets(s_State.Device, 1, &write, 0, nullptr);
+    auto view = Resources().GetLockedView<DescriptorsTag, DescriptorArenaAllocatorTag, SamplerTag>();
+    DeviceInternal::UpdateDescriptors(view, descriptors, slotInfo, sampler);
 }
 
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
     const ImageSubresource& image, ImageLayout layout, u32 index)
 {
-    auto view = Resources().GetLockedView<ImageTag>();
-    
-    auto&& [slot, type] = slotInfo;
-    VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.imageView =
-        view[image.Image].Views.ViewList[DeviceInternal::GetImageViewHandle(
-            view, image.Image, image.Description).m_Index];
-    descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(layout);
-
-    VkWriteDescriptorSet write = {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.descriptorCount = 1;
-    write.dstSet = Resources()[descriptors].DescriptorSet;
-    write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
-    write.dstBinding = slot;
-    write.pImageInfo = &descriptorTextureInfo;
-    write.dstArrayElement = index;
-
-    vkUpdateDescriptorSets(s_State.Device, 1, &write, 0, nullptr);
+    auto view = Resources().GetLockedView<DescriptorsTag, DescriptorArenaAllocatorTag, ImageTag>();
+    DeviceInternal::UpdateDescriptors(view, descriptors, slotInfo, image, layout, index);
 }
-#endif
 
 Fence Device::CreateFence(FenceCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
@@ -3780,45 +3669,45 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineTag>& r
 }
 
 #ifdef DESCRIPTOR_BUFFER
-void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd,
     const BindImmutableSamplersGraphicsCommand& command)
 {
     vkCmdBindDescriptorBufferEmbeddedSamplersEXT(resources[cmd].CommandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS, Device::Resources()[command.PipelineLayout].Layout, command.Set);
+        VK_PIPELINE_BIND_POINT_GRAPHICS, resources[command.PipelineLayout].Layout, command.Set);
 }
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd,
     const BindImmutableSamplersComputeCommand& command)
 {
     vkCmdBindDescriptorBufferEmbeddedSamplersEXT(resources[cmd].CommandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE, Device::Resources()[command.PipelineLayout].Layout, command.Set);
+        VK_PIPELINE_BIND_POINT_COMPUTE, resources[command.PipelineLayout].Layout, command.Set);
 }
 #else // DESCRIPTOR_BUFFER
-void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd,
     const BindImmutableSamplersGraphicsCommand& command)
 {
     vkCmdBindDescriptorSets(resources[cmd].CommandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS, resources[command.PipelineLayout].Layout, command.Set, 1,
-        &Device::Resources()[command.Descriptors].DescriptorSet, 0, nullptr);
+        &resources[command.Descriptors].DescriptorSet, 0, nullptr);
 }
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd,
     const BindImmutableSamplersComputeCommand& command)
 {
     vkCmdBindDescriptorSets(resources[cmd].CommandBuffer,
         VK_PIPELINE_BIND_POINT_COMPUTE, resources[command.PipelineLayout].Layout, command.Set, 1,
-        &Device::Resources()[command.Descriptors].DescriptorSet, 0, nullptr);
+        &resources[command.Descriptors].DescriptorSet, 0, nullptr);
 } 
 #endif // DESCRIPTOR_BUFFER
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd,
     const BindDescriptorsGraphicsCommand& command)
 {
     BindDescriptors(resources, cmd, command.PipelineLayout, command.Descriptors, command.Set,
         VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd,
     const BindDescriptorsComputeCommand& command)
 {
     BindDescriptors(resources, cmd, command.PipelineLayout, command.Descriptors, command.Set,
@@ -4165,25 +4054,25 @@ void Device::CompileCommand(CommandBuffer cmd, const BindPipelineComputeCommand&
 
 void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsComputeCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
@@ -5880,7 +5769,7 @@ DescriptorArenaAllocator DeviceInternal::CreateDescriptorArenaAllocator(
     return allocator;
 }
 
-void DeviceInternal::Destroy(const View<DescriptorArenaAllocatorTag, BufferTag>& resources,
+void DeviceInternal::Destroy(const View<DescriptorArenaAllocatorTag, DescriptorsTag, BufferTag>& resources,
     DescriptorArenaAllocator allocator)
 {
     ResetDescriptorArenaAllocator(resources, allocator);
@@ -5889,7 +5778,7 @@ void DeviceInternal::Destroy(const View<DescriptorArenaAllocatorTag, BufferTag>&
 }
 
 std::optional<Descriptors> DeviceInternal::AllocateDescriptors(
-    const View<DescriptorArenaAllocatorTag, DescriptorsLayoutTag>& resources, DescriptorArenaAllocator allocator,
+    const View<DescriptorArenaAllocatorTag, DescriptorsLayoutTag, DescriptorsTag>& resources, DescriptorArenaAllocator allocator,
     DescriptorsLayout layout, DescriptorAllocatorAllocationBindings&& bindings)
 {
     DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
@@ -5937,8 +5826,7 @@ std::optional<Descriptors> DeviceInternal::AllocateDescriptors(
     descriptorsResource.SizeBytes = layoutSizeBytes;
     descriptorsResource.Allocator = allocator;
     
-    // todo: mt:
-    Descriptors descriptors = Device::Resources().AddResource(descriptorsResource);
+    Descriptors descriptors = resources.Add(descriptorsResource);
     allocatorResource.Descriptors.push_back(descriptors);
 
     allocatorResource.CurrentOffset += layoutSizeBytes;
@@ -5957,6 +5845,68 @@ void DeviceInternal::ResetDescriptorArenaAllocator(const View<DescriptorArenaAll
 
     allocatorResource.CurrentOffset = 0;
 }
+void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorArenaAllocatorTag, BufferTag>& resources, Descriptors descriptors,
+    DescriptorSlotInfo slotInfo, const BufferSubresource& buffer, u32 index)
+{
+    auto&& [slot, type] = slotInfo;
+    ASSERT(type != DescriptorType::TexelStorage && type != DescriptorType::TexelUniform,
+        "Texel buffers require format information")
+    ASSERT(type != DescriptorType::StorageBufferDynamic && type != DescriptorType::UniformBufferDynamic,
+        "Dynamic buffers are not supported when using descriptor buffer")
+
+    const DeviceResources::BufferResource& bufferResource = resources[buffer.Buffer];
+    VkBufferDeviceAddressInfo deviceAddressInfo = {};
+    deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+    deviceAddressInfo.buffer = bufferResource.Buffer;
+    u64 deviceAddress = vkGetBufferDeviceAddress(Device::s_State.Device, &deviceAddressInfo);
+
+    VkDescriptorAddressInfoEXT descriptorAddressInfo = {};
+    descriptorAddressInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
+    descriptorAddressInfo.address = deviceAddress + buffer.Description.Offset;
+    descriptorAddressInfo.format = VK_FORMAT_UNDEFINED;
+    ASSERT(
+        buffer.Description.SizeBytes <= bufferResource.Description.SizeBytes ||
+        buffer.Description.SizeBytes == BufferSubresourceDescription::WHOLE_SIZE,
+        "Buffer subresource size is too large")
+    descriptorAddressInfo.range = std::min(buffer.Description.SizeBytes, bufferResource.Description.SizeBytes);
+
+    VkDescriptorGetInfoEXT descriptorGetInfo = {};
+    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
+    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
+    // using the fact that 'descriptorGetInfo.data' is union
+    descriptorGetInfo.data.pUniformBuffer = &descriptorAddressInfo;
+
+    DeviceInternal::WriteDescriptor(resources, descriptors, slotInfo, index, descriptorGetInfo);
+}
+
+void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorArenaAllocatorTag, SamplerTag>& resources, Descriptors descriptors,
+    DescriptorSlotInfo slotInfo, Sampler sampler)
+{
+    auto&& [slot, type] = slotInfo;
+    ASSERT(type == DescriptorType::Sampler)
+
+    VkDescriptorGetInfoEXT descriptorGetInfo = {};
+    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
+    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
+    descriptorGetInfo.data.pSampler = &resources[sampler].Sampler;
+    DeviceInternal::WriteDescriptor(resources, descriptors, slotInfo, 0, descriptorGetInfo);
+}
+
+void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorArenaAllocatorTag, ImageTag>& resources, Descriptors descriptors,
+    DescriptorSlotInfo slotInfo, const ImageSubresource& image, ImageLayout layout, u32 index)
+{
+    auto&& [slot, type] = slotInfo;
+    VkDescriptorGetInfoEXT descriptorGetInfo = {};
+    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
+    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
+    VkDescriptorImageInfo descriptorImageInfo = {};
+    descriptorImageInfo.imageView =
+        resources[image.Image].Views.ViewList[GetImageViewHandle(resources, image.Image, image.Description).m_Index];
+    descriptorImageInfo.imageLayout = vulkanImageLayoutFromImageLayout(layout);
+    descriptorGetInfo.data.pSampledImage = &descriptorImageInfo;
+
+    DeviceInternal::WriteDescriptor(resources, descriptors, slotInfo, index, descriptorGetInfo);
+}
 #else // DESCRIPTOR_BUFFER
 DescriptorArenaAllocator DeviceInternal::CreateDescriptorArenaAllocator(
     const View<DescriptorArenaAllocatorTag, BufferTag>& resources, DescriptorArenaAllocatorCreateInfo&& createInfo,
@@ -5972,7 +5922,7 @@ DescriptorArenaAllocator DeviceInternal::CreateDescriptorArenaAllocator(
     return allocator;
 }
 
-void DeviceInternal::Destroy(const View<DescriptorArenaAllocatorTag, BufferTag>& resources,
+void DeviceInternal::Destroy(const View<DescriptorArenaAllocatorTag, DescriptorsTag, BufferTag>& resources,
     DescriptorArenaAllocator allocator)
 {    
     ResetDescriptorArenaAllocator(resources, allocator);
@@ -5987,7 +5937,7 @@ void DeviceInternal::Destroy(const View<DescriptorArenaAllocatorTag, BufferTag>&
 }
 
 std::optional<Descriptors> DeviceInternal::AllocateDescriptors(
-    const View<DescriptorArenaAllocatorTag, DescriptorsLayoutTag>& resources, DescriptorArenaAllocator allocator,
+    const View<DescriptorArenaAllocatorTag, DescriptorsLayoutTag, DescriptorsTag>& resources, DescriptorArenaAllocator allocator,
     DescriptorsLayout layout, DescriptorAllocatorAllocationBindings&& bindings)
 {
     const bool hasBindless = bindings.BindlessCount > 0;
@@ -6031,13 +5981,13 @@ std::optional<Descriptors> DeviceInternal::AllocateDescriptors(
         descriptorSetResource.Pool = pool;
     }
 
-    const Descriptors set = Device::Resources().AddResource(descriptorSetResource);
+    const Descriptors set = resources.Add(descriptorSetResource);
     allocatorResource.Descriptors.push_back(set);
 
     return set;
 }
 
-void DeviceInternal::ResetDescriptorArenaAllocator(const View<DescriptorArenaAllocatorTag>& resources,
+void DeviceInternal::ResetDescriptorArenaAllocator(const View<DescriptorArenaAllocatorTag, DescriptorsTag>& resources,
     DescriptorArenaAllocator allocator)
 {
     DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
@@ -6050,11 +6000,69 @@ void DeviceInternal::ResetDescriptorArenaAllocator(const View<DescriptorArenaAll
     }
     allocatorResource.UsedPools.clear();
     for (Descriptors set : allocatorResource.Descriptors)
-        Device::Resources().RemoveResource(set);
+        resources.Remove(set);
     allocatorResource.Descriptors.clear();
 }
-#endif // DESCRIPTOR_BUFFER
+void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorArenaAllocatorTag, BufferTag>& resources,
+    Descriptors descriptors, DescriptorSlotInfo slotInfo, const BufferSubresource& buffer, u32 index)
+{
+    auto&& [slot, type] = slotInfo;
+    VkDescriptorBufferInfo descriptorBufferInfo = {};
+    descriptorBufferInfo.buffer = resources[buffer.Buffer].Buffer;
+    descriptorBufferInfo.offset = buffer.Description.Offset;
+    descriptorBufferInfo.range = buffer.Description.SizeBytes;
 
+    VkWriteDescriptorSet write = {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.descriptorCount = 1;
+    write.dstSet = resources[descriptors].DescriptorSet;
+    write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
+    write.dstBinding = slot;
+    write.pBufferInfo = &descriptorBufferInfo;
+    write.dstArrayElement = index;
+
+    vkUpdateDescriptorSets(Device::s_State.Device, 1, &write, 0, nullptr);
+}
+
+void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorArenaAllocatorTag, SamplerTag>& resources,
+    Descriptors descriptors, DescriptorSlotInfo slotInfo, Sampler sampler)
+{
+    auto&& [slot, type] = slotInfo;
+    VkDescriptorImageInfo descriptorTextureInfo = {};
+    descriptorTextureInfo.sampler = resources[sampler].Sampler;
+
+    VkWriteDescriptorSet write = {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.descriptorCount = 1;
+    write.dstSet = resources[descriptors].DescriptorSet;
+    write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
+    write.dstBinding = slot;
+    write.pImageInfo = &descriptorTextureInfo;
+
+    vkUpdateDescriptorSets(Device::s_State.Device, 1, &write, 0, nullptr);
+}
+
+void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorArenaAllocatorTag, ImageTag>& resources,
+    Descriptors descriptors, DescriptorSlotInfo slotInfo, const ImageSubresource& image, ImageLayout layout, u32 index)
+{
+    auto&& [slot, type] = slotInfo;
+    VkDescriptorImageInfo descriptorTextureInfo = {};
+    descriptorTextureInfo.imageView = resources[image.Image].Views.ViewList[GetImageViewHandle(
+        resources, image.Image, image.Description).m_Index];
+    descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(layout);
+
+    VkWriteDescriptorSet write = {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.descriptorCount = 1;
+    write.dstSet = resources[descriptors].DescriptorSet;
+    write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
+    write.dstBinding = slot;
+    write.pImageInfo = &descriptorTextureInfo;
+    write.dstArrayElement = index;
+
+    vkUpdateDescriptorSets(Device::s_State.Device, 1, &write, 0, nullptr);
+}
+#endif // DESCRIPTOR_BUFFER
 
 Fence DeviceInternal::CreateFence(const View<FenceTag>& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue)
 {
@@ -6345,11 +6353,12 @@ u32 DeviceInternal::GetDescriptorSizeBytes(DescriptorType type)
     }
 }
 
-void DeviceInternal::WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo slotInfo, u32 index,
+void DeviceInternal::WriteDescriptor(const View<DescriptorsTag, DescriptorArenaAllocatorTag>& resources,
+    Descriptors descriptors, DescriptorSlotInfo slotInfo, u32 index,
     VkDescriptorGetInfoEXT& descriptorGetInfo)
 {
     auto&& [slot, type] = slotInfo;
-    const DeviceResources::DescriptorsResource& descriptorsResource = Device::Resources()[descriptors];
+    const DeviceResources::DescriptorsResource& descriptorsResource = resources[descriptors];
     const u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
     const u64 innerOffsetBytes = descriptorSizeBytes * index;
     ASSERT(innerOffsetBytes + descriptorSizeBytes <= descriptorsResource.SizeBytes,
@@ -6357,7 +6366,7 @@ void DeviceInternal::WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo
 
     const u64 offsetBytes = descriptorsResource.Offsets[slot] + innerOffsetBytes;
     const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource =
-        Device::Resources()[descriptorsResource.Allocator];
+        resources[descriptorsResource.Allocator];
     vkGetDescriptorEXT(Device::s_State.Device, &descriptorGetInfo, descriptorSizeBytes,
         (u8*)allocatorResource.MappedAddress + offsetBytes);
 }
@@ -6407,10 +6416,10 @@ u32 DeviceInternal::GetFreePoolIndexFromAllocator(const View<DescriptorArenaAllo
     return index;
 }
 
-void DeviceInternal::BindDescriptors(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+void DeviceInternal::BindDescriptors(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
     u32 firstSet, VkPipelineBindPoint bindPoint)
 {
-    const DeviceResources::DescriptorsResource& descriptorsResource = Device::Resources()[descriptors];
+    const DeviceResources::DescriptorsResource& descriptorsResource = resources[descriptors];
     vkCmdBindDescriptorSets(resources[cmd].CommandBuffer, bindPoint,
         resources[pipelineLayout].Layout, firstSet, 1, &descriptorsResource.DescriptorSet, 0, nullptr);
 }
