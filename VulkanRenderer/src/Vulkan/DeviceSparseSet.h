@@ -4,8 +4,6 @@
 
 #include <CoreLib/Containers/SlotMapType.h>
 
-#include <mutex>
-
 template <typename T>
 class DeviceSparseSet
 {
@@ -29,28 +27,24 @@ public:
     constexpr void Clear();
 private:
     lux::SlotMapType<T, Handle> m_SlotMap;
-    mutable std::mutex m_Mutex;
 };
 
 template <typename T>
 template <typename ... Args>
 constexpr DeviceSparseSet<T>::Handle DeviceSparseSet<T>::Insert(Args&&... args)
 {
-    std::lock_guard lock(m_Mutex);
     return m_SlotMap.insert(std::forward<Args>(args)...);
 }
 
 template <typename T>
 constexpr void DeviceSparseSet<T>::Erase(Handle handle)
 {
-    std::lock_guard lock(m_Mutex);
     m_SlotMap.erase(handle);
 }
 
 template <typename T>
 constexpr const T& DeviceSparseSet<T>::operator[](Handle handle) const
 {
-    std::lock_guard lock(m_Mutex);
     return m_SlotMap[handle];
 }
 
@@ -63,6 +57,5 @@ constexpr T& DeviceSparseSet<T>::operator[](Handle handle)
 template <typename T>
 constexpr void DeviceSparseSet<T>::Clear()
 {
-    std::lock_guard lock(m_Mutex);
     m_SlotMap.clear();
 }
