@@ -63,11 +63,12 @@ public:
     static SwapchainDescription& GetSwapchainDescription(Swapchain swapchain);
     static Semaphore GetSwapchainRenderSemaphore(Swapchain swapchain, u32 imageIndex);
     
-    static CommandBuffer CreateCommandBuffer(CommandBufferCreateInfo&& createInfo);
     static CommandPool CreateCommandPool(CommandPoolCreateInfo&& createInfo,
         DeletionQueue& deletionQueue = DeletionQueue());
-    static void Destroy(CommandPool commandPool);
+    static void Destroy(CommandPool pool);
     static void ResetPool(CommandPool pool);
+    
+    static CommandBuffer CreateCommandBuffer(CommandBufferCreateInfo&& createInfo);
     static void ResetCommandBuffer(CommandBuffer cmd);
     static void BeginCommandBuffer(CommandBuffer cmd);
     static void BeginCommandBuffer(CommandBuffer cmd, CommandBufferUsage usage);

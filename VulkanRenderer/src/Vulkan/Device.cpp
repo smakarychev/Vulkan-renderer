@@ -1329,29 +1329,24 @@ private:
         friend class DeviceResources;
     public:
         template <typename Resource>
-        constexpr auto Add(Resource&& resource)
+        constexpr auto Add(Resource&& resource) const
         {
             using Decayed = std::decay_t<Resource>;
             return GetContainer<typename Decayed::ObjectType>().Insert(std::forward<Resource>(resource));
         }
         template <typename Tag>
-        constexpr void Remove(ResourceHandleType<Tag> handle)
+        constexpr void Remove(ResourceHandleType<Tag> handle) const
         {
             GetContainer<Tag>().Erase(handle);
         }
         template <typename Tag>
-        constexpr const auto& operator[](ResourceHandleType<Tag> handle) const
-        {
-            return GetContainer<Tag>()[handle];
-        }
-        template <typename Tag>
-        constexpr auto& operator[](ResourceHandleType<Tag> handle)
+        constexpr auto& operator[](ResourceHandleType<Tag> handle) const
         {
             return GetContainer<Tag>()[handle];
         }
 
         template <typename... R>
-        operator View<R...>()
+        operator View<R...>() const
         {
             static_assert(is_unique_v<R...>, "Types must be unique");
             return View<R...>(this->template GetContainer<R>()...);
@@ -1363,14 +1358,7 @@ private:
         }
 
         template <typename Tag>
-        auto& GetContainer()
-        {
-            using ResourceType = TagTraits<Tag>::ResourceType;
-            return *std::get<ResourceContainerType<ResourceType>*>(m_Containers);
-        }
-
-        template <typename Tag>
-        const auto& GetContainer() const
+        auto& GetContainer() const
         {
             using ResourceType = TagTraits<Tag>::ResourceType;
             return *std::get<ResourceContainerType<ResourceType>*>(m_Containers);
@@ -1409,7 +1397,7 @@ private:
         }
         
         template <typename ... R>
-        operator View<R...>()
+        operator View<R...>() const
         {
             static_assert(is_unique_v<R...>, "Types must be unique");
             return View<R...>(this->template GetContainer<R>()...);    
@@ -1433,14 +1421,20 @@ private:
     {
         if constexpr(std::is_same_v<Tag, SwapchainTag>)
             return m_Swapchains2;
-        else if constexpr(std::is_same_v<Tag, SamplerTag>)
-            return m_Samplers2;
+        else if constexpr(std::is_same_v<Tag, CommandPoolTag>)
+            return m_CommandPools2;
+        else if constexpr(std::is_same_v<Tag, CommandBufferTag>)
+            return m_CommandBuffers2;
         else if constexpr(std::is_same_v<Tag, BufferTag>)
             return m_Buffers2;
         else if constexpr(std::is_same_v<Tag, BufferArenaTag>)
             return m_BufferArenas2;
         else if constexpr(std::is_same_v<Tag, ImageTag>)
             return m_Images2;
+        else if constexpr(std::is_same_v<Tag, SamplerTag>)
+            return m_Samplers2;
+        else if constexpr(std::is_same_v<Tag, RenderingAttachmentTag>)
+            return m_RenderingAttachments2;
         else if constexpr(std::is_same_v<Tag, FenceTag>)
             return m_Fences2;
         else if constexpr(std::is_same_v<Tag, SemaphoreTag>)
@@ -1460,28 +1454,28 @@ private:
     u64 m_DeallocatedCount{0};
 
     ResourceContainerWithLock<SwapchainResource> m_Swapchains2;
+    ResourceContainerWithLock<CommandPoolResource> m_CommandPools2;
+    ResourceContainerWithLock<CommandBufferResource> m_CommandBuffers2;
     ResourceContainerWithLock<BufferResource> m_Buffers2;
     ResourceContainerWithLock<BufferArenaResource> m_BufferArenas2;
     ResourceContainerWithLock<ImageResource> m_Images2;
     ResourceContainerWithLock<SamplerResource> m_Samplers2;
+    ResourceContainerWithLock<RenderingAttachmentResource> m_RenderingAttachments2;
     ResourceContainerWithLock<FenceResource> m_Fences2;
     ResourceContainerWithLock<SemaphoreResource> m_Semaphores2;
     ResourceContainerWithLock<TimelineSemaphoreResource> m_TimelineSemaphores2;
     ResourceContainerWithLock<DependencyInfoResource> m_DependencyInfos2;
     ResourceContainerWithLock<SplitBarrierResource> m_SplitBarriers2;
     ResourceContainerType<SwapchainResource> m_Swapchains;
-    ResourceContainerType<CommandPoolResource> m_CommandPools;
-    ResourceContainerType<CommandBufferResource> m_CommandBuffers;
     ResourceContainerType<DescriptorsLayoutResource> m_DescriptorLayouts;
     ResourceContainerType<DescriptorsResource> m_Descriptors;
     ResourceContainerType<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators;
     ResourceContainerType<PipelineLayoutResource> m_PipelineLayouts;
     ResourceContainerType<PipelineResource> m_Pipelines;
     ResourceContainerType<ShaderModuleResource> m_ShaderModules;
-    ResourceContainerType<RenderingAttachmentResource> m_RenderingAttachments;
     ResourceContainerType<RenderingInfoResource> m_RenderingInfos;
 
-    std::vector<std::vector<u32>> m_CommandPoolToBuffersMap;
+    std::vector<std::vector<CommandBuffer>> m_CommandPoolToBuffersMap;
 };
 
 class DeviceInternal
@@ -1490,92 +1484,123 @@ public:
     template <typename ... Tags>
     using View = DeviceResources::View<Tags...>;
     
-    Swapchain CreateSwapchain(View<SwapchainTag>& resources, SwapchainCreateInfo&& createInfo,
+    Swapchain CreateSwapchain(const View<SwapchainTag>& resources, SwapchainCreateInfo&& createInfo,
         DeletionQueue& deletionQueue);    
     
+    static CommandPool CreateCommandPool(const View<CommandPoolTag>& resources, CommandPoolCreateInfo&& createInfo,
+        DeletionQueue& deletionQueue);
+    static void Destroy(const View<CommandPoolTag, CommandBufferTag>& resources, CommandPool commandPool);
+    static void ResetPool(const View<CommandPoolTag>& resources, CommandPool pool);
     
-    static void SubmitCommandBuffer(View<FenceTag>& resources, CommandBuffer cmd, QueueKind queueKind, Fence fence);
+    static CommandBuffer CreateCommandBuffer(const View<CommandBufferTag, CommandPoolTag>& resources, 
+        CommandBufferCreateInfo&& createInfo);
+    static void ResetCommandBuffer(const View<CommandBufferTag>& resources, CommandBuffer cmd);
+    static void BeginCommandBuffer(const View<CommandBufferTag>& resources, CommandBuffer cmd);
+    static void BeginCommandBuffer(const View<CommandBufferTag>& resources, CommandBuffer cmd, CommandBufferUsage usage);
+    static void EndCommandBuffer(const View<CommandBufferTag>& resources, CommandBuffer cmd);
+    static void SubmitCommandBuffer(const View<CommandBufferTag, FenceTag, SemaphoreTag>& resources, CommandBuffer cmd, 
+        QueueKind queueKind, const BufferSubmitSyncInfo& submitSync);
+    static void SubmitCommandBuffer(const View<CommandBufferTag, FenceTag, TimelineSemaphoreTag>& resources, 
+        CommandBuffer cmd, QueueKind queueKind, const BufferSubmitTimelineSyncInfo& submitSync);    
+    static void SubmitCommandBuffer(const View<CommandBufferTag, FenceTag>& resources, CommandBuffer cmd, QueueKind queueKind,
+        Fence fence);
+    static void SubmitCommandBuffers(const View<CommandBufferTag, FenceTag, SemaphoreTag>& resources, 
+        Span<const CommandBuffer> cmds, QueueKind queueKind,
+        const BufferSubmitSyncInfo& submitSync);
+    static void SubmitCommandBuffers(const View<CommandBufferTag, FenceTag, TimelineSemaphoreTag>& resources,
+        Span<const CommandBuffer> cmds, QueueKind queueKind, const BufferSubmitTimelineSyncInfo& submitSync);
+    static void BeginCommandBufferLabel(const View<CommandBufferTag>& resources, CommandBuffer cmd, std::string_view label);
+    static void EndCommandBufferLabel(const View<CommandBufferTag>& resources, CommandBuffer cmd);
+    static ProfilerContext::Ctx CreateTracyGraphicsContext(const View<CommandBufferTag>& resources, CommandBuffer cmd);
+    static VkCommandBuffer GetProfilerCommandBuffer(const View<CommandBufferTag>& resources, ProfilerContext* context);
     
-    static Buffer CreateBuffer(View<BufferTag>& resources, BufferCreateInfo&& createInfo, DeletionQueue& deletionQueue);
-    static void Destroy(View<BufferTag>& resources, Buffer buffer);
-    static Buffer CreateStagingBuffer(View<BufferTag>& resources, u64 sizeBytes);
-    static void ResizeBuffer(View<BufferTag>& resources, Buffer buffer, u64 newSize, CommandBuffer cmd,
+    static Buffer CreateBuffer(const View<BufferTag>& resources, BufferCreateInfo&& createInfo, DeletionQueue& deletionQueue);
+    static void Destroy(const View<BufferTag>& resources, Buffer buffer);
+    static Buffer CreateStagingBuffer(const View<BufferTag>& resources, u64 sizeBytes);
+    static void ResizeBuffer(const View<CommandBufferTag, BufferTag>& resources, Buffer buffer, u64 newSize, CommandBuffer cmd,
         bool copyData = true);
-    static void* MapBuffer(View<BufferTag>& resources, Buffer buffer);
-    static void UnmapBuffer(View<BufferTag>& resources, Buffer buffer);
-    static void SetBufferData(View<BufferTag>& resources, Buffer buffer, Span<const std::byte> data, u64 offsetBytes);
-    static void SetBufferData(View<BufferTag>& resources, void* mappedAddress, Span<const std::byte> data,
+    static void* MapBuffer(const View<BufferTag>& resources, Buffer buffer);
+    static void UnmapBuffer(const View<BufferTag>& resources, Buffer buffer);
+    static void SetBufferData(const View<BufferTag>& resources, Buffer buffer, Span<const std::byte> data, u64 offsetBytes);
+    static void SetBufferData(const View<BufferTag>& resources, void* mappedAddress, Span<const std::byte> data,
         u64 offsetBytes);
-    static void* GetBufferMappedAddress(View<BufferTag>& resources, Buffer buffer);
-    static usize GetBufferSizeBytes(View<BufferTag>& resources, Buffer buffer);
-    static const BufferDescription& GetBufferDescription(View<BufferTag>& resources, Buffer buffer);
-    static u64 GetDeviceAddress(View<BufferTag>& resources, Buffer buffer);
-    static Buffer AllocateBuffer(View<BufferTag>& resources, const BufferCreateInfo& createInfo,
+    static void* GetBufferMappedAddress(const View<BufferTag>& resources, Buffer buffer);
+    static usize GetBufferSizeBytes(const View<BufferTag>& resources, Buffer buffer);
+    static const BufferDescription& GetBufferDescription(const View<BufferTag>& resources, Buffer buffer);
+    static u64 GetDeviceAddress(const View<BufferTag>& resources, Buffer buffer);
+    static Buffer AllocateBuffer(const View<BufferTag>& resources, const BufferCreateInfo& createInfo,
         VkBufferUsageFlags usage, VmaAllocationCreateFlags allocationFlags);
     
-    static BufferArena CreateBufferArena(View<BufferArenaTag>& resources, BufferArenaCreateInfo&& createInfo, 
+    static BufferArena CreateBufferArena(const View<BufferArenaTag>& resources, BufferArenaCreateInfo&& createInfo, 
         DeletionQueue& deletionQueue);
-    static void Destroy(View<BufferArenaTag>& resources, BufferArena arena);
-    static void ResizeBufferArenaPhysical(View<BufferArenaTag, BufferTag>& resources, BufferArena arena, u64 newSize,
+    static void Destroy(const View<BufferArenaTag>& resources, BufferArena arena);
+    static void ResizeBufferArenaPhysical(const View<CommandBufferTag, BufferArenaTag, BufferTag>& resources, BufferArena arena, u64 newSize,
         CommandBuffer cmd, bool copyData);
-    static Buffer GetBufferArenaUnderlyingBuffer(View<BufferArenaTag>& resources, BufferArena arena);
-    static u64 GetBufferArenaSizeBytesPhysical(View<BufferArenaTag, BufferTag>& resources, BufferArena arena);
-    static BufferSuballocationResult BufferArenaSuballocate(View<BufferArenaTag, BufferTag>& resources,
+    static Buffer GetBufferArenaUnderlyingBuffer(const View<BufferArenaTag>& resources, BufferArena arena);
+    static u64 GetBufferArenaSizeBytesPhysical(const View<BufferArenaTag, BufferTag>& resources, BufferArena arena);
+    static BufferSuballocationResult BufferArenaSuballocate(const View<BufferArenaTag, BufferTag>& resources,
         BufferArena arena, u64 sizeBytes, u32 alignment);
-    static void BufferArenaFree(View<BufferArenaTag>& resources, BufferArena arena, 
+    static void BufferArenaFree(const View<BufferArenaTag>& resources, BufferArena arena, 
         BufferSuballocationHandle suballocation);
     
-    static Image CreateImage(View<ImageTag, BufferTag, DependencyInfoTag, FenceTag>& resources, 
+    static Image CreateImage(const View<ImageTag, BufferTag, DependencyInfoTag, FenceTag, CommandBufferTag, CommandPoolTag>& resources, 
         ImageCreateInfo&& createInfo, DeletionQueue& deletionQueue);
-    static void Destroy(View<ImageTag>& resources, Image image);
-    static void CreateViews(View<ImageTag>& resources, const ImageSubresource& image,
+    static void Destroy(const View<ImageTag>& resources, Image image);
+    static void CreateViews(const View<ImageTag>& resources, const ImageSubresource& image,
         const std::vector<ImageSubresourceDescription>& additionalViews);
-    static Span<const ImageSubresourceDescription> GetAdditionalImageViews(View<ImageTag>& resources, Image image);
-    static ImageViewHandle GetImageViewHandle(View<ImageTag>& resources, Image image, 
+    static Span<const ImageSubresourceDescription> GetAdditionalImageViews(const View<ImageTag>& resources, Image image);
+    static ImageViewHandle GetImageViewHandle(const View<ImageTag>& resources, Image image, 
         ImageSubresourceDescription subresourceDescription);
-    static const ImageDescription& GetImageDescription(View<ImageTag>& resources, Image image);
-    static Image CreateImageFromAssetFile(View<ImageTag, BufferTag, DependencyInfoTag, FenceTag>& resources, 
+    static const ImageDescription& GetImageDescription(const View<ImageTag>& resources, Image image);
+    static Image CreateImageFromAssetFile(
+        const View<ImageTag, BufferTag, DependencyInfoTag, FenceTag, CommandBufferTag, CommandPoolTag>& resources, 
         ImageCreateInfo& createInfo, const lux::assetlib::ImageAsset* asset);
-    static Image CreateImageFromPixels(View<ImageTag, BufferTag, DependencyInfoTag, FenceTag>& resources,
+    static Image CreateImageFromPixels(
+        const View<ImageTag, BufferTag, DependencyInfoTag, FenceTag, CommandBufferTag, CommandPoolTag>& resources,
         ImageCreateInfo& createInfo, Span<const std::byte> pixels);
-    static Image CreateImageFromBuffer(View<ImageTag, BufferTag, DependencyInfoTag, FenceTag>& resources, 
+    static Image CreateImageFromBuffer(
+        const View<ImageTag, BufferTag, DependencyInfoTag, FenceTag, CommandBufferTag, CommandPoolTag>& resources, 
         ImageCreateInfo& createInfo, Buffer buffer);
     static void PreprocessCreateInfo(ImageCreateInfo& createInfo);
-    static Image AllocateImage(View<ImageTag>& resources,
+    static Image AllocateImage(const View<ImageTag>& resources,
         ImageCreateInfo& createInfo);
-    static VkImageView CreateVulkanImageView(View<ImageTag>& resources, const ImageSubresource& image, VkFormat format);
-    static ImTextureID CreateImGuiImage(View<ImageTag, SamplerTag>& resources, const ImageSubresource& texture, 
+    static VkImageView CreateVulkanImageView(const View<ImageTag>& resources, const ImageSubresource& image, VkFormat format);
+    static ImTextureID CreateImGuiImage(const View<ImageTag, SamplerTag>& resources, const ImageSubresource& texture, 
         Sampler sampler, ImageLayout layout);
     static void DestroyImGuiImage(ImTextureID image);
     
-    static Sampler CreateSampler(View<SamplerTag>& resources, SamplerCreateInfo&& createInfo);
-    static void Destroy(View<SamplerTag>& resources, Sampler sampler);
+    static Sampler CreateSampler(const View<SamplerTag>& resources, SamplerCreateInfo&& createInfo);
+    static void Destroy(const View<SamplerTag>& resources, Sampler sampler);
     
-    static Fence CreateFence(View<FenceTag>& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue);
-    static void Destroy(View<FenceTag>& resources, Fence fence);
-    static void WaitForFence(View<FenceTag>& resources, Fence fence);
-    static bool CheckFence(View<FenceTag>& resources, Fence fence);
-    static void ResetFence(View<FenceTag>& resources, Fence fence);
+    static RenderingAttachment CreateRenderingAttachment(const View<RenderingAttachmentTag, ImageTag>& resources,
+        RenderingAttachmentCreateInfo&& createInfo, DeletionQueue& deletionQueue);
+    static void Destroy(const View<RenderingAttachmentTag>& resources, RenderingAttachment renderingAttachment);
     
-    static Semaphore CreateSemaphore(View<SemaphoreTag>& resources, DeletionQueue& deletionQueue);
-    static void Destroy(View<SemaphoreTag>& resources, Semaphore semaphore);
+    static Fence CreateFence(const View<FenceTag>& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue);
+    static void Destroy(const View<FenceTag>& resources, Fence fence);
+    static void WaitForFence(const View<FenceTag>& resources, Fence fence);
+    static bool CheckFence(const View<FenceTag>& resources, Fence fence);
+    static void ResetFence(const View<FenceTag>& resources, Fence fence);
     
-    static TimelineSemaphore CreateTimelineSemaphore(View<TimelineSemaphoreTag>& resources, 
+    static Semaphore CreateSemaphore(const View<SemaphoreTag>& resources, DeletionQueue& deletionQueue);
+    static void Destroy(const View<SemaphoreTag>& resources, Semaphore semaphore);
+    
+    static TimelineSemaphore CreateTimelineSemaphore(const View<TimelineSemaphoreTag>& resources, 
         TimelineSemaphoreCreateInfo&& createInfo, DeletionQueue& deletionQueue);
-    static void Destroy(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore);
-    static void TimelineSemaphoreWaitCPU(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore, u64 value);
-    static void TimelineSemaphoreSignalCPU(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore, 
+    static void Destroy(const View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore);
+    static void TimelineSemaphoreWaitCPU(const View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore, u64 value);
+    static void TimelineSemaphoreSignalCPU(const View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore, 
         u64 value);
     
-    static DependencyInfo CreateDependencyInfo(View<DependencyInfoTag, ImageTag>& resources,
+    static DependencyInfo CreateDependencyInfo(const View<DependencyInfoTag, ImageTag>& resources,
         DependencyInfoCreateInfo&& createInfo, DeletionQueue& deletionQueue);
-    static void Destroy(View<DependencyInfoTag>& resources, DependencyInfo dependencyInfo);
+    static void Destroy(const View<DependencyInfoTag>& resources, DependencyInfo dependencyInfo);
     
-    static SplitBarrier CreateSplitBarrier(View<SplitBarrierTag>& resources, DeletionQueue& deletionQueue);
-    static void Destroy(View<SplitBarrierTag>& resources, SplitBarrier splitBarrier);
+    static SplitBarrier CreateSplitBarrier(const View<SplitBarrierTag>& resources, DeletionQueue& deletionQueue);
+    static void Destroy(const View<SplitBarrierTag>& resources, SplitBarrier splitBarrier);
     
-    static ImmediateSubmitContext StartSubmitContext(View<FenceTag>& resources);
-    static void EndSubmitContext(View<FenceTag>& resources, const ImmediateSubmitContext& ctx);
+    static ImmediateSubmitContext StartSubmitContext(const View<FenceTag, CommandBufferTag, CommandPoolTag>& resources);
+    static void EndSubmitContext(const View<FenceTag, CommandBufferTag, CommandPoolTag>& resources, const ImmediateSubmitContext& ctx);
     template <typename LockedView, typename Fn>
     static void ImmediateSubmit(LockedView& resources, Fn&& uploadFunction);
     
@@ -1592,31 +1617,70 @@ public:
         Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages);
     static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(const View<TimelineSemaphoreTag>& resources,
         Span<const TimelineSemaphore> semaphores, Span<const u64> waitValues, Span<const PipelineStage> waitStages);
-    static void BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+    static void BindDescriptors(const View<CommandBufferTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
         u32 firstSet, VkPipelineBindPoint bindPoint);
-    static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
     
-    // todo: mt: add cmd tag below
-    static void CompileCommand(const View<BufferTag>& resources, CommandBuffer cmd,
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const ExecuteSecondaryBufferCommand& command);
+    
+    static void CompileCommand(const View<CommandBufferTag, DependencyInfoTag, ImageTag>& resources, CommandBuffer cmd, const PrepareSwapchainPresentCommand& command);
+
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BeginRenderingCommand& command);
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const EndRenderingCommand& command);
+    
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const ImGuiBeginCommand& command);
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const ImGuiEndCommand& command);
+
+    static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const BeginConditionalRenderingCommand& command);
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const EndConditionalRenderingCommand& command);
+    
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const SetViewportCommand& command);
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const SetScissorsCommand& command);
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const SetDepthBiasCommand& command);
+    
+    static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd,
         const CopyBufferCommand& command);
-    static void CompileCommand(const View<BufferTag, ImageTag>& resources, CommandBuffer cmd, 
+    static void CompileCommand(const View<CommandBufferTag, BufferTag, ImageTag>& resources, CommandBuffer cmd, 
         const CopyBufferToImageCommand& command);
 
-    static void CompileCommand(const View<ImageTag>& resources, CommandBuffer cmd, const CopyImageCommand& command);
-    static void CompileCommand(const View<ImageTag>& resources, CommandBuffer cmd, const BlitImageCommand& command);
-    static void CompileCommand(View<DependencyInfoTag, ImageTag>& resources, CommandBuffer cmd,
+    static void CompileCommand(const View<CommandBufferTag, ImageTag>& resources, CommandBuffer cmd, const CopyImageCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, ImageTag>& resources, CommandBuffer cmd, const BlitImageCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, DependencyInfoTag, ImageTag>& resources, CommandBuffer cmd,
         const MipmapImageCommand& command);
 
-    static void CompileCommand(CommandBuffer cmd, 
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, 
         const WaitOnFullPipelineBarrierCommand& command);
-    static void CompileCommand(const View<DependencyInfoTag>& resources, CommandBuffer cmd, 
+    static void CompileCommand(const View<CommandBufferTag, DependencyInfoTag>& resources, CommandBuffer cmd, 
         const WaitOnBarrierCommand& command);
-    static void CompileCommand(const View<DependencyInfoTag, SplitBarrierTag>& resources, CommandBuffer cmd,
+    static void CompileCommand(const View<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>& resources, CommandBuffer cmd,
         const SignalSplitBarrierCommand& command);
-    static void CompileCommand(const View<DependencyInfoTag, SplitBarrierTag>& resources, CommandBuffer cmd, 
+    static void CompileCommand(const View<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>& resources, CommandBuffer cmd, 
         const WaitOnSplitBarrierCommand& command);
-    static void CompileCommand(const View<DependencyInfoTag, SplitBarrierTag>& resources, CommandBuffer cmd,
+    static void CompileCommand(const View<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>& resources, CommandBuffer cmd,
         const ResetSplitBarrierCommand& command);
+    
+    
+    static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const BindVertexBuffersCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const BindIndexU32BufferCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const BindIndexU16BufferCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const BindIndexU8BufferCommand& command);
+
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindPipelineGraphicsCommand& command);
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindPipelineComputeCommand& command);
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command);
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command);
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command);
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindDescriptorsComputeCommand& command);
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command);
+
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const PushConstantsCommand& command);
+    
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const DrawCommand& command);
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const DrawIndexedCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const DrawIndexedIndirectCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const DrawIndexedIndirectCountCommand& command);
+
+    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const DispatchCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const DispatchIndirectCommand& command);
 };
 
 template <typename ResourceList, typename Resource>
@@ -1635,10 +1699,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
 
     if constexpr (std::is_same_v<Decayed, SwapchainResource>)
         return AddToResourceList(m_Swapchains, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, CommandPoolResource>)
-        return AddToResourceList(m_CommandPools, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, CommandBufferResource>)
-        return AddToResourceList(m_CommandBuffers, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, DescriptorsLayoutResource>)
         return AddToResourceList(m_DescriptorLayouts, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, DescriptorsResource>)
@@ -1651,8 +1711,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_Pipelines, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, ShaderModuleResource>)
         return AddToResourceList(m_ShaderModules, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, RenderingAttachmentResource>)
-        return AddToResourceList(m_RenderingAttachments, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, RenderingInfoResource>)
         return AddToResourceList(m_RenderingInfos, std::forward<Resource>(resource));
     else
@@ -1669,10 +1727,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
 
     if constexpr (std::is_same_v<Decayed, SwapchainTag>)
         m_Swapchains.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, CommandPoolTag>)
-        m_CommandPools.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, CommandBufferTag>)
-        m_CommandBuffers.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, DescriptorsLayoutTag>)
         m_DescriptorLayouts.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, DescriptorsTag>)
@@ -1685,8 +1739,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_Pipelines.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, ShaderModuleTag>)
         m_ShaderModules.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, RenderingAttachmentTag>)
-        m_RenderingAttachments.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, RenderingInfoTag>)
         m_RenderingInfos.Erase(handle);
     else
@@ -1706,10 +1758,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
 
     if constexpr (std::is_same_v<Decayed, Swapchain>)
         return m_Swapchains[type];
-    else if constexpr (std::is_same_v<Decayed, CommandPool>)
-        return m_CommandPools[type];
-    else if constexpr (std::is_same_v<Decayed, CommandBuffer>)
-        return m_CommandBuffers[type];
     else if constexpr (std::is_same_v<Decayed, DescriptorsLayout>)
         return m_DescriptorLayouts[type];
     else if constexpr (std::is_same_v<Decayed, Descriptors>)
@@ -1722,8 +1770,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_Pipelines[type];
     else if constexpr (std::is_same_v<Decayed, ShaderModule>)
         return m_ShaderModules[type];
-    else if constexpr (std::is_same_v<Decayed, RenderingAttachment>)
-        return m_RenderingAttachments[type];
     else if constexpr (std::is_same_v<Decayed, RenderingInfo>)
         return m_RenderingInfos[type];
     else
@@ -1777,8 +1823,8 @@ void DeviceResources::MapCmdToPool(CommandBuffer cmd, CommandPool pool)
 
 void DeviceResources::DestroyCmdsOfPool(CommandPool pool)
 {
-    for (auto index : m_CommandPoolToBuffersMap[pool.m_Id])
-        m_CommandBuffers.Erase(index);
+    for (auto cmd : m_CommandPoolToBuffersMap[pool.m_Id])
+        m_CommandBuffers2.Container.Erase(cmd);
     m_DeallocatedCount += (u32)m_CommandPoolToBuffersMap[pool.m_Id].size();
     m_CommandPoolToBuffersMap[pool.m_Id].clear();
 }
@@ -2122,182 +2168,87 @@ Semaphore Device::GetSwapchainRenderSemaphore(Swapchain swapchain, u32 imageInde
     return Resources()[swapchain].RenderSemaphores[imageIndex];
 }
 
-CommandBuffer Device::CreateCommandBuffer(CommandBufferCreateInfo&& createInfo)
-{
-    VkCommandBufferAllocateInfo allocateInfo = {};
-    allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocateInfo.commandPool = Resources()[createInfo.Pool].CommandPool;
-    allocateInfo.level = vulkanBufferLevelFromBufferKind(createInfo.Kind);
-    allocateInfo.commandBufferCount = 1;
-
-    DeviceResources::CommandBufferResource commandBufferResource = {};
-    commandBufferResource.Kind = createInfo.Kind;
-    deviceCheck(vkAllocateCommandBuffers(s_State.Device, &allocateInfo, &commandBufferResource.CommandBuffer),
-        "Failed to allocate command buffer");
-
-    CommandBuffer cmd = Resources().AddResource(commandBufferResource);
-    Resources().MapCmdToPool(cmd, createInfo.Pool);
-
-    return cmd;
-}
-
 CommandPool Device::CreateCommandPool(CommandPoolCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    VkCommandPoolCreateFlags flags = 0;
-    if (createInfo.PerBufferReset)
-        flags |= VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-
-    VkCommandPoolCreateInfo poolCreateInfo = {};
-    poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolCreateInfo.flags = flags;
-    poolCreateInfo.queueFamilyIndex = s_State.Queues.GetFamilyByKind(createInfo.QueueKind);
-
-    DeviceResources::CommandPoolResource commandPoolResource = {};
-    deviceCheck(vkCreateCommandPool(s_State.Device, &poolCreateInfo, nullptr, &commandPoolResource.CommandPool),
-        "Failed to create command pool");
-
-    CommandPool commandPool = Resources().AddResource(commandPoolResource);
-    if (commandPool.m_Id >= Resources().m_CommandPoolToBuffersMap.size())
-        Resources().m_CommandPoolToBuffersMap.resize(commandPool.m_Id + 1);
-    deletionQueue.Enqueue(commandPool);
-
-    return commandPool;
+    auto view = Resources().GetLockedView<CommandPoolTag>();
+    
+    return DeviceInternal::CreateCommandPool(view, std::move(createInfo), deletionQueue);
 }
 
-void Device::Destroy(CommandPool commandPool)
+void Device::Destroy(CommandPool pool)
 {
-    vkDestroyCommandPool(s_State.Device, Resources().m_CommandPools[commandPool.m_Id].CommandPool, nullptr);
-    Resources().DestroyCmdsOfPool(commandPool);
-    Resources().RemoveResource(commandPool);
+    auto view = Resources().GetLockedView<CommandPoolTag, CommandBufferTag>();
+    DeviceInternal::Destroy(view, pool);
 }
 
 void Device::ResetPool(CommandPool pool)
 {
-    deviceCheck(vkResetCommandPool(s_State.Device, Resources()[pool].CommandPool, 0),
-        "Error while resetting command pool");
+    auto view = Resources().GetLockedView<CommandPoolTag>();
+    DeviceInternal::ResetPool(view, pool);
+}
+
+CommandBuffer Device::CreateCommandBuffer(CommandBufferCreateInfo&& createInfo)
+{
+    auto view = Resources().GetLockedView<CommandBufferTag, CommandPoolTag>();
+    
+    return DeviceInternal::CreateCommandBuffer(view, std::move(createInfo));
 }
 
 void Device::ResetCommandBuffer(CommandBuffer cmd)
 {
-    deviceCheck(vkResetCommandBuffer(Resources()[cmd].CommandBuffer, 0), "Error while resetting command buffer");
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::ResetCommandBuffer(view, cmd);
 }
 
 void Device::BeginCommandBuffer(CommandBuffer cmd)
 {
-    BeginCommandBuffer(cmd, CommandBufferUsage::SingleSubmit);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::BeginCommandBuffer(view, cmd);
 }
 
 void Device::BeginCommandBuffer(CommandBuffer cmd, CommandBufferUsage usage)
 {
-    VkCommandBufferInheritanceInfo inheritanceInfo = {};
-    inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
-    VkCommandBufferBeginInfo beginInfo = {};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = vulkanCommandBufferFlagsFromUsage(usage);
-    DeviceResources::CommandBufferResource& commandBufferResource = Resources()[cmd];
-    if (commandBufferResource.Kind == CommandBufferKind::Secondary)
-        beginInfo.pInheritanceInfo = &inheritanceInfo;
-
-    deviceCheck(vkBeginCommandBuffer(Resources()[cmd].CommandBuffer, &beginInfo),
-        "Error while beginning command buffer");
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::BeginCommandBuffer(view, cmd, usage);
 }
 
 void Device::EndCommandBuffer(CommandBuffer cmd)
 {
-    deviceCheck(vkEndCommandBuffer(Resources()[cmd].CommandBuffer), "Error while ending command buffer");
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::EndCommandBuffer(view, cmd);
 }
 
 void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, const BufferSubmitSyncInfo& submitSync)
 {
-    SubmitCommandBuffers({cmd}, queueKind, submitSync);
+    auto view = Resources().GetLockedView<CommandBufferTag, FenceTag, SemaphoreTag>();
+    DeviceInternal::SubmitCommandBuffer(view, cmd, queueKind, submitSync);
 }
 
 void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind,
     const BufferSubmitTimelineSyncInfo& submitSync)
 {
-    SubmitCommandBuffers({cmd}, queueKind, submitSync);
+    auto view = Resources().GetLockedView<CommandBufferTag, FenceTag, TimelineSemaphoreTag>();
+    DeviceInternal::SubmitCommandBuffer(view, cmd, queueKind, submitSync);
 }
 
 void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, Fence fence)
 {
-    auto view = Resources().GetLockedView<FenceTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, FenceTag>();
     DeviceInternal::SubmitCommandBuffer(view, cmd, queueKind, fence);
 }
 
 void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
     const BufferSubmitSyncInfo& submitSync)
 {
-    auto view = Resources().GetLockedView<FenceTag, SemaphoreTag>();
-    
-    std::vector commandBufferSubmitInfos(cmds.size(), VkCommandBufferSubmitInfo{});
-    for (auto&& [i, cmd] : std::views::enumerate(cmds))
-    {
-        commandBufferSubmitInfos[i].sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
-        commandBufferSubmitInfos[i].commandBuffer = Resources()[cmd].CommandBuffer;
-    }
-
-    std::vector signalSemaphoreSubmitInfos(submitSync.SignalSemaphores.size(), VkSemaphoreSubmitInfo{});
-    for (auto&& [i, semaphore] : std::views::enumerate(submitSync.SignalSemaphores))
-    {
-        signalSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        signalSemaphoreSubmitInfos[i].semaphore = view[semaphore].Semaphore;
-    }
-
-    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = DeviceInternal::CreateVulkanSemaphoreSubmit(
-        view, submitSync.WaitSemaphores, submitSync.WaitStages);
-
-    VkSubmitInfo2 submitInfo = {};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-    submitInfo.commandBufferInfoCount = (u32)commandBufferSubmitInfos.size();
-    submitInfo.pCommandBufferInfos = commandBufferSubmitInfos.data();
-    submitInfo.signalSemaphoreInfoCount = (u32)signalSemaphoreSubmitInfos.size();
-    submitInfo.pSignalSemaphoreInfos = signalSemaphoreSubmitInfos.data();
-    submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
-    submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
-
-    deviceCheck(vkQueueSubmit2(s_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
-            submitSync.Fence.HasValue() ? view[submitSync.Fence].Fence : VK_NULL_HANDLE),
-        "Error while submitting command buffers");
+    auto view = Resources().GetLockedView<CommandBufferTag, FenceTag, SemaphoreTag>();
+    DeviceInternal::SubmitCommandBuffers(view, cmds, queueKind, submitSync);
 }
 
 void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
     const BufferSubmitTimelineSyncInfo& submitSync)
 {
-    auto view = Resources().GetLockedView<FenceTag, TimelineSemaphoreTag>();
-    
-    for (u32 i = 0; i < submitSync.SignalSemaphores.size(); i++)
-        view[submitSync.SignalSemaphores[i]].Timeline = submitSync.SignalValues[i];
-
-    std::vector commandBufferSubmitInfos(cmds.size(), VkCommandBufferSubmitInfo{});
-    for (auto&& [i, cmd] : std::views::enumerate(cmds))
-    {
-        commandBufferSubmitInfos[i].sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
-        commandBufferSubmitInfos[i].commandBuffer = Resources()[cmd].CommandBuffer;
-    }
-
-    std::vector signalSemaphoreSubmitInfos(submitSync.SignalSemaphores.size(), VkSemaphoreSubmitInfo{});
-    for (auto&& [i, semaphore] : std::views::enumerate(submitSync.SignalSemaphores))
-    {
-        signalSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        signalSemaphoreSubmitInfos[i].semaphore = view[semaphore].Semaphore;
-        signalSemaphoreSubmitInfos[i].value = submitSync.SignalValues[i];
-    }
-
-    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = DeviceInternal::CreateVulkanSemaphoreSubmit(
-        view, submitSync.WaitSemaphores, submitSync.WaitValues, submitSync.WaitStages);
-
-    VkSubmitInfo2 submitInfo = {};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-    submitInfo.commandBufferInfoCount = (u32)commandBufferSubmitInfos.size();
-    submitInfo.pCommandBufferInfos = commandBufferSubmitInfos.data();
-    submitInfo.signalSemaphoreInfoCount = (u32)signalSemaphoreSubmitInfos.size();
-    submitInfo.pSignalSemaphoreInfos = signalSemaphoreSubmitInfos.data();
-    submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
-    submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
-
-    deviceCheck(vkQueueSubmit2(s_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
-            submitSync.Fence.HasValue() ? view[submitSync.Fence].Fence : VK_NULL_HANDLE),
-        "Error while submitting command buffers");
+    auto view = Resources().GetLockedView<CommandBufferTag, FenceTag, TimelineSemaphoreTag>();
+    DeviceInternal::SubmitCommandBuffers(view, cmds, queueKind, submitSync);
 }
 
 Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
@@ -2322,7 +2273,7 @@ Buffer Device::CreateStagingBuffer(u64 sizeBytes)
 
 void Device::ResizeBuffer(Buffer buffer, u64 newSize, CommandBuffer cmd, bool copyData)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
     DeviceInternal::ResizeBuffer(view, buffer, newSize, cmd, copyData);
     
 }
@@ -2395,7 +2346,7 @@ void Device::Destroy(BufferArena bufferArena)
 
 void Device::ResizeBufferArenaPhysical(BufferArena arena, u64 newSize, CommandBuffer cmd, bool copyData)
 {
-    auto view = Resources().GetLockedView<BufferArenaTag, BufferTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, BufferArenaTag, BufferTag>();
     DeviceInternal::ResizeBufferArenaPhysical(view, arena, newSize, cmd, copyData);
 }
 
@@ -2428,7 +2379,7 @@ void Device::BufferArenaFree(BufferArena arena, BufferSuballocationHandle suball
 
 Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<ImageTag, BufferTag, DependencyInfoTag, FenceTag>();
+    auto view = Resources().GetLockedView<ImageTag, BufferTag, DependencyInfoTag, FenceTag, CommandBufferTag, CommandPoolTag>();
     
     return DeviceInternal::CreateImage(view, std::move(createInfo), deletionQueue);
 }
@@ -2483,52 +2434,27 @@ void Device::Destroy(Sampler sampler)
 RenderingAttachment Device::CreateRenderingAttachment(RenderingAttachmentCreateInfo&& createInfo,
     ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<ImageTag>();
+    auto view = Resources().GetLockedView<RenderingAttachmentTag, ImageTag>();
     
-    DeviceResources::RenderingAttachmentResource renderingAttachmentResource = {};
-
-    renderingAttachmentResource.AttachmentInfo = {};
-    renderingAttachmentResource.AttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    renderingAttachmentResource.AttachmentInfo.clearValue = VkClearValue{
-        .color = {
-            .float32 = {
-                createInfo.Description.Clear.Color.F.r,
-                createInfo.Description.Clear.Color.F.g,
-                createInfo.Description.Clear.Color.F.b,
-                createInfo.Description.Clear.Color.F.a
-            }
-        }
-    };
-    renderingAttachmentResource.AttachmentInfo.imageLayout = vulkanImageLayoutFromImageLayout(
-        createInfo.Layout);
-    renderingAttachmentResource.AttachmentInfo.imageView = view[createInfo.Image].Views.ViewList[
-        DeviceInternal::GetImageViewHandle(view, createInfo.Image, createInfo.Description.Subresource).m_Index];
-    renderingAttachmentResource.AttachmentInfo.loadOp = vulkanAttachmentLoadFromAttachmentLoad(
-        createInfo.Description.OnLoad);
-    renderingAttachmentResource.AttachmentInfo.storeOp = vulkanAttachmentStoreFromAttachmentStore(
-        createInfo.Description.OnStore);
-    renderingAttachmentResource.AttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-
-    RenderingAttachment renderingAttachment = Resources().AddResource(renderingAttachmentResource);
-    deletionQueue.Enqueue(renderingAttachment);
-
-    return renderingAttachment;
+    return DeviceInternal::CreateRenderingAttachment(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(RenderingAttachment renderingAttachment)
 {
-    Resources().RemoveResource(renderingAttachment);
+    auto view = Resources().GetLockedView<RenderingAttachmentTag>();
+    DeviceInternal::Destroy(view, renderingAttachment);
 }
 
 RenderingInfo Device::CreateRenderingInfo(RenderingInfoCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
+    auto view = Resources().GetLockedView<RenderingAttachmentTag>();
     DeviceResources::RenderingInfoResource renderingInfoResource = {};
     renderingInfoResource.ColorAttachments.reserve(createInfo.ColorAttachments.size());
 
     for (auto& attachment : createInfo.ColorAttachments)
-        renderingInfoResource.ColorAttachments.push_back(Resources()[attachment].AttachmentInfo);
+        renderingInfoResource.ColorAttachments.push_back(view[attachment].AttachmentInfo);
     if (createInfo.DepthAttachment.has_value())
-        renderingInfoResource.DepthAttachment = Resources()[*createInfo.DepthAttachment].AttachmentInfo;
+        renderingInfoResource.DepthAttachment = view[*createInfo.DepthAttachment].AttachmentInfo;
 
     renderingInfoResource.RenderArea = createInfo.RenderArea;
     RenderingInfo renderingInfo = Resources().AddResource(renderingInfoResource);
@@ -3895,7 +3821,7 @@ u32 Device::GetSubgroupSize()
 
 ImmediateSubmitContext Device::StartSubmitContext()
 {
-    auto view = Resources().GetLockedView<FenceTag>();
+    auto view = Resources().GetLockedView<FenceTag, CommandBufferTag, CommandPoolTag>();
     auto ctx = DeviceInternal::StartSubmitContext(view);
 
     return ctx;
@@ -3903,7 +3829,7 @@ ImmediateSubmitContext Device::StartSubmitContext()
 
 void Device::EndSubmitContext(const ImmediateSubmitContext& ctx)
 {
-    auto view = Resources().GetLockedView<FenceTag>();
+    auto view = Resources().GetLockedView<FenceTag, CommandBufferTag, CommandPoolTag>();
     DeviceInternal::EndSubmitContext(view, ctx);
 }
 
@@ -3988,9 +3914,9 @@ void Device::ShutdownImGuiUI()
 
 ProfilerContext::Ctx Device::CreateTracyGraphicsContext(CommandBuffer cmd)
 {
-    TracyVkCtx context = TracyVkContext(s_State.GPU, s_State.Device,
-        s_State.Queues.Graphics.Queue, Resources()[cmd].CommandBuffer)
-    return context;
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    
+    return DeviceInternal::CreateTracyGraphicsContext(view, cmd);
 }
 
 void Device::DestroyTracyGraphicsContext(ProfilerContext::Ctx context)
@@ -3998,12 +3924,168 @@ void Device::DestroyTracyGraphicsContext(ProfilerContext::Ctx context)
     TracyVkDestroy((TracyVkCtx)context)
 }
 
-VkCommandBuffer DeviceInternal::GetProfilerCommandBuffer(ProfilerContext* context)
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const ExecuteSecondaryBufferCommand& command)
 {
-    return Device::Resources()[context->m_GraphicsCommandBuffers[context->m_CurrentFrame]].CommandBuffer;
+    vkCmdExecuteCommands(resources[cmd].CommandBuffer, 1, &resources[command.Cmd].CommandBuffer);
 }
 
-void DeviceInternal::CompileCommand(const View<BufferTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, DependencyInfoTag, ImageTag>& resources, CommandBuffer cmd,
+    const PrepareSwapchainPresentCommand& command)
+{
+    DeviceResources::SwapchainResource& swapchainResource = Device::Resources()[command.Swapchain];
+
+    ImageSubresource drawSubresource = {
+        .Image = swapchainResource.Description.DrawImage,
+        .Description = {.Mipmaps = 1, .Layers = 1}
+    };
+    ImageSubresource presentSubresource = {
+        .Image = swapchainResource.Description.ColorImages[command.ImageIndex],
+        .Description = {.Mipmaps = 1, .Layers = 1}
+    };
+    ::DeletionQueue& deletionQueue = *Device::s_State.FrameDeletionQueue;
+
+    LayoutTransitionInfo presentToDestinationTransitionInfo = {
+        .ImageSubresource = presentSubresource,
+        .SourceStage = PipelineStage::ColorOutput,
+        .DestinationStage = PipelineStage::Bottom,
+        .SourceAccess = PipelineAccess::ReadColorAttachment | PipelineAccess::WriteColorAttachment,
+        .DestinationAccess = PipelineAccess::None,
+        .OldLayout = ImageLayout::Undefined,
+        .NewLayout = ImageLayout::Destination
+    };
+
+    LayoutTransitionInfo destinationToPresentTransitionInfo = presentToDestinationTransitionInfo;
+    destinationToPresentTransitionInfo.OldLayout = ImageLayout::Destination;
+    destinationToPresentTransitionInfo.NewLayout = ImageLayout::Present;
+
+    CompileCommand(resources, cmd, WaitOnBarrierCommand{
+        .DependencyInfo = CreateDependencyInfo(resources, {
+            .LayoutTransitionInfo = presentToDestinationTransitionInfo
+        }, deletionQueue)
+    });
+
+    ImageSubregion sourceSubregion = {
+        .Mipmap = (u32)drawSubresource.Description.MipmapBase,
+        .LayerBase = (u32)drawSubresource.Description.LayerBase,
+        .Layers = (u32)drawSubresource.Description.Layers,
+        .Top = GetImageDescription(resources, swapchainResource.Description.DrawImage).Dimensions()
+    };
+
+    ImageSubregion destinationSubregion = {
+        .Mipmap = (u32)presentSubresource.Description.MipmapBase,
+        .LayerBase = (u32)presentSubresource.Description.LayerBase,
+        .Layers = (u32)presentSubresource.Description.Layers,
+        .Top = GetImageDescription(resources, swapchainResource.Description.ColorImages[command.ImageIndex]).Dimensions()
+    };
+
+    CompileCommand(resources, cmd, BlitImageCommand{
+        .Source = swapchainResource.Description.DrawImage,
+        .Destination = swapchainResource.Description.ColorImages[command.ImageIndex],
+        .Filter = ImageFilter::Linear,
+        .SourceSubregion = sourceSubregion,
+        .DestinationSubregion = destinationSubregion
+    });
+
+    CompileCommand(resources, cmd, WaitOnBarrierCommand{
+        .DependencyInfo = CreateDependencyInfo(resources, {
+            .LayoutTransitionInfo = destinationToPresentTransitionInfo
+        }, deletionQueue)
+    });
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const BeginRenderingCommand& command)
+{
+    const DeviceResources::RenderingInfoResource& renderingInfoResource = Device::Resources()[command.RenderingInfo];
+
+    VkRenderingInfo renderingInfoVulkan = {};
+    renderingInfoVulkan.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    renderingInfoVulkan.layerCount = 1;
+    renderingInfoVulkan.renderArea = VkRect2D{
+        .offset = {},
+        .extent = {renderingInfoResource.RenderArea.x, renderingInfoResource.RenderArea.y}
+    };
+    renderingInfoVulkan.colorAttachmentCount = (u32)Device::Resources()[command.RenderingInfo].ColorAttachments.size();
+    renderingInfoVulkan.pColorAttachments = Device::Resources()[command.RenderingInfo].ColorAttachments.data();
+    if (Device::Resources()[command.RenderingInfo].DepthAttachment.has_value())
+        renderingInfoVulkan.pDepthAttachment = Device::Resources()[command.RenderingInfo].DepthAttachment.operator->();
+
+    vkCmdBeginRendering(resources[cmd].CommandBuffer, &renderingInfoVulkan);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const EndRenderingCommand&)
+{
+    vkCmdEndRendering(resources[cmd].CommandBuffer);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>&, CommandBuffer,
+    const ImGuiBeginCommand&)
+{    
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const ImGuiEndCommand& command)
+{    
+    ImGui::Render();
+    CompileCommand(resources, cmd, BeginRenderingCommand{
+        .RenderingInfo = command.RenderingInfo
+    });
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), resources[cmd].CommandBuffer);
+    CompileCommand(resources, cmd, EndRenderingCommand{});
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd,
+    const BeginConditionalRenderingCommand& command)
+{
+    VkConditionalRenderingBeginInfoEXT beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_CONDITIONAL_RENDERING_BEGIN_INFO_EXT;
+    beginInfo.buffer = resources[command.Buffer].Buffer;
+    beginInfo.offset = command.Offset;
+
+    vkCmdBeginConditionalRenderingEXT(resources[cmd].CommandBuffer, &beginInfo);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const EndConditionalRenderingCommand&)
+{
+    vkCmdEndConditionalRenderingEXT(resources[cmd].CommandBuffer);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const SetViewportCommand& command)
+{
+    const VkViewport viewport = {
+        .x = 0, .y = 0,
+        .width = (f32)command.Size.x, .height = (f32)command.Size.y,
+        .minDepth = 0.0f, .maxDepth = 1.0f
+    };
+
+    vkCmdSetViewport(resources[cmd].CommandBuffer, 0, 1, &viewport);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const SetScissorsCommand& command)
+{
+    const VkRect2D scissor = {
+        .offset = {(i32)command.Offset.x, (i32)command.Offset.y},
+        .extent = {(u32)command.Size.x, (u32)command.Size.y}
+    };
+
+    vkCmdSetScissor(resources[cmd].CommandBuffer, 0, 1, &scissor);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const SetDepthBiasCommand& command)
+{
+    vkCmdSetDepthBias(resources[cmd].CommandBuffer, command.Constant, 0.0f, command.Slope);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd,
     const CopyBufferCommand& command)
 {
     VkBufferCopy2 copy = {};
@@ -4021,11 +4103,10 @@ void DeviceInternal::CompileCommand(const View<BufferTag>& resources, CommandBuf
     copyBufferInfo.regionCount = 1;
     copyBufferInfo.pRegions = &copy;
 
-    // todo: use view
-    vkCmdCopyBuffer2(Device::Resources()[cmd].CommandBuffer, &copyBufferInfo);   
+    vkCmdCopyBuffer2(resources[cmd].CommandBuffer, &copyBufferInfo);   
 }
 
-void DeviceInternal::CompileCommand(const View<BufferTag, ImageTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, BufferTag, ImageTag>& resources, CommandBuffer cmd,
     const CopyBufferToImageCommand& command)
 {
     ASSERT(command.ImageSubresource.Mipmaps == 1, "Buffer to image copies one mipmap at a time")
@@ -4054,11 +4135,10 @@ void DeviceInternal::CompileCommand(const View<BufferTag, ImageTag>& resources, 
     copyBufferToImageInfo.regionCount = 1;
     copyBufferToImageInfo.pRegions = &bufferImageCopy;
 
-    // todo: use view
-    vkCmdCopyBufferToImage2(Device::Resources()[cmd].CommandBuffer, &copyBufferToImageInfo);
+    vkCmdCopyBufferToImage2(resources[cmd].CommandBuffer, &copyBufferToImageInfo);
 }
 
-void DeviceInternal::CompileCommand(const View<ImageTag>& resources, CommandBuffer cmd, const CopyImageCommand& command)
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, ImageTag>& resources, CommandBuffer cmd, const CopyImageCommand& command)
 {
     const DeviceResources::ImageResource& sourceResource = resources[command.Source];
     const DeviceResources::ImageResource& destinationResource = resources[command.Destination];
@@ -4104,10 +4184,10 @@ void DeviceInternal::CompileCommand(const View<ImageTag>& resources, CommandBuff
 
     copyImageInfo.pRegions = &imageCopy;
 
-    vkCmdCopyImage2(Device::Resources()[cmd].CommandBuffer, &copyImageInfo);
+    vkCmdCopyImage2(resources[cmd].CommandBuffer, &copyImageInfo);
 }
 
-void DeviceInternal::CompileCommand(const View<ImageTag>& resources, CommandBuffer cmd, const BlitImageCommand& command)
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, ImageTag>& resources, CommandBuffer cmd, const BlitImageCommand& command)
 {
     
     const DeviceResources::ImageResource& sourceResource = resources[command.Source];
@@ -4157,10 +4237,10 @@ void DeviceInternal::CompileCommand(const View<ImageTag>& resources, CommandBuff
 
     blitImageInfo.pRegions = &imageBlit;
 
-    vkCmdBlitImage2(Device::Resources()[cmd].CommandBuffer, &blitImageInfo);
+    vkCmdBlitImage2(resources[cmd].CommandBuffer, &blitImageInfo);
 }
 
-void DeviceInternal::CompileCommand(View<DependencyInfoTag, ImageTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, DependencyInfoTag, ImageTag>& resources, CommandBuffer cmd,
     const MipmapImageCommand& command)
 {
     const DeviceResources::ImageResource& imageResource = resources[command.Image];
@@ -4266,7 +4346,7 @@ void DeviceInternal::CompileCommand(View<DependencyInfoTag, ImageTag>& resources
     }
 }
 
-void DeviceInternal::CompileCommand(CommandBuffer cmd, const WaitOnFullPipelineBarrierCommand&)
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const WaitOnFullPipelineBarrierCommand&)
 {
     VkMemoryBarrier2 memoryBarrier = {};
     memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
@@ -4280,10 +4360,10 @@ void DeviceInternal::CompileCommand(CommandBuffer cmd, const WaitOnFullPipelineB
     dependencyInfo.memoryBarrierCount = 1;
     dependencyInfo.pMemoryBarriers = &memoryBarrier;
 
-    vkCmdPipelineBarrier2(Device::Resources()[cmd].CommandBuffer, &dependencyInfo);
+    vkCmdPipelineBarrier2(resources[cmd].CommandBuffer, &dependencyInfo);
 }
 
-void DeviceInternal::CompileCommand(const View<DependencyInfoTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, DependencyInfoTag>& resources, CommandBuffer cmd,
     const WaitOnBarrierCommand& command)
 {
     const DeviceResources::DependencyInfoResource& dependencyInfo = resources[command.DependencyInfo];
@@ -4295,10 +4375,10 @@ void DeviceInternal::CompileCommand(const View<DependencyInfoTag>& resources, Co
     vkDependencyInfo.pImageMemoryBarriers = dependencyInfo.LayoutDependency ?
         std::to_address(dependencyInfo.LayoutDependency) :
         nullptr;
-    vkCmdPipelineBarrier2(Device::Resources()[cmd].CommandBuffer, &vkDependencyInfo);
+    vkCmdPipelineBarrier2(resources[cmd].CommandBuffer, &vkDependencyInfo);
 }
 
-void DeviceInternal::CompileCommand(const View<DependencyInfoTag, SplitBarrierTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>& resources, CommandBuffer cmd,
     const SignalSplitBarrierCommand& command)
 {
     const DeviceResources::DependencyInfoResource& dependencyInfo = resources[command.DependencyInfo];
@@ -4308,12 +4388,12 @@ void DeviceInternal::CompileCommand(const View<DependencyInfoTag, SplitBarrierTa
     vkDependencyInfo.pMemoryBarriers = dependencyInfo.MemoryBarriers.data();
     vkDependencyInfo.imageMemoryBarrierCount = dependencyInfo.LayoutDependency ? 1u : 0u;
     vkDependencyInfo.pImageMemoryBarriers = dependencyInfo.LayoutDependency ?
-                                                std::to_address(dependencyInfo.LayoutDependency) :
-                                                nullptr;
-    vkCmdSetEvent2(Device::Resources()[cmd].CommandBuffer, resources[command.SplitBarrier].Event, &vkDependencyInfo);
+        std::to_address(dependencyInfo.LayoutDependency) :
+        nullptr;
+    vkCmdSetEvent2(resources[cmd].CommandBuffer, resources[command.SplitBarrier].Event, &vkDependencyInfo);
 }
 
-void DeviceInternal::CompileCommand(const View<DependencyInfoTag, SplitBarrierTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>& resources, CommandBuffer cmd,
     const WaitOnSplitBarrierCommand& command)
 {
     const DeviceResources::DependencyInfoResource& dependencyInfo = resources[command.DependencyInfo];
@@ -4325,26 +4405,202 @@ void DeviceInternal::CompileCommand(const View<DependencyInfoTag, SplitBarrierTa
     vkDependencyInfo.pImageMemoryBarriers = dependencyInfo.LayoutDependency ?
                                                 std::to_address(dependencyInfo.LayoutDependency) :
                                                 nullptr;
-    vkCmdWaitEvents2(Device::Resources()[cmd].CommandBuffer, 1, &resources[command.SplitBarrier].Event,
+    vkCmdWaitEvents2(resources[cmd].CommandBuffer, 1, &resources[command.SplitBarrier].Event,
         &vkDependencyInfo);
 }
 
-void DeviceInternal::CompileCommand(const View<DependencyInfoTag, SplitBarrierTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>& resources, CommandBuffer cmd,
     const ResetSplitBarrierCommand& command)
 {
     ASSERT(resources[command.DependencyInfo].MemoryBarriersCount != 0, "Invalid reset operation")
     
-    vkCmdResetEvent2(Device::Resources()[cmd].CommandBuffer, resources[command.SplitBarrier].Event,
+    vkCmdResetEvent2(resources[cmd].CommandBuffer, resources[command.SplitBarrier].Event,
         resources[command.DependencyInfo].MemoryBarriers.front().dstStageMask);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd,
+    const BindVertexBuffersCommand& command)
+{
+    std::vector<VkBuffer> vkBuffers(command.Buffers.size());
+    for (u32 i = 0; i < vkBuffers.size(); i++)
+        vkBuffers[i] = resources[command.Buffers[i]].Buffer;
+
+    vkCmdBindVertexBuffers(resources[cmd].CommandBuffer, 0, (u32)vkBuffers.size(), vkBuffers.data(),
+        command.Offsets.data());
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd,
+    const BindIndexU32BufferCommand& command)
+{
+    vkCmdBindIndexBuffer(resources[cmd].CommandBuffer, resources[command.Buffer].Buffer, command.Offset,
+        VK_INDEX_TYPE_UINT32);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd,
+    const BindIndexU16BufferCommand& command)
+{
+    vkCmdBindIndexBuffer(resources[cmd].CommandBuffer, resources[command.Buffer].Buffer, command.Offset,
+        VK_INDEX_TYPE_UINT16);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd,
+    const BindIndexU8BufferCommand& command)
+{
+    vkCmdBindIndexBuffer(resources[cmd].CommandBuffer, resources[command.Buffer].Buffer, command.Offset,
+        VK_INDEX_TYPE_UINT8_EXT);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const BindPipelineGraphicsCommand& command)
+{
+    vkCmdBindPipeline(resources[cmd].CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        Device::Resources()[command.Pipeline].Pipeline);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const BindPipelineComputeCommand& command)
+{
+    vkCmdBindPipeline(resources[cmd].CommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+        Device::Resources()[command.Pipeline].Pipeline);
+}
+
+#ifdef DESCRIPTOR_BUFFER
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const BindImmutableSamplersGraphicsCommand& command)
+{
+    vkCmdBindDescriptorBufferEmbeddedSamplersEXT(resources[cmd].CommandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS, Device::Resources()[command.PipelineLayout].Layout, command.Set);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const BindImmutableSamplersComputeCommand& command)
+{
+    vkCmdBindDescriptorBufferEmbeddedSamplersEXT(resources[cmd].CommandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE, Device::Resources()[command.PipelineLayout].Layout, command.Set);
+}
+#else // DESCRIPTOR_BUFFER
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const BindImmutableSamplersGraphicsCommand& command)
+{
+    vkCmdBindDescriptorSets(resources[cmd].CommandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS, Device::Resources()[command.PipelineLayout].Layout, command.Set, 1,
+        &Device::Resources()[command.Descriptors].DescriptorSet, 0, nullptr);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const BindImmutableSamplersComputeCommand& command)
+{
+    vkCmdBindDescriptorSets(resources[cmd].CommandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE, Device::Resources()[command.PipelineLayout].Layout, command.Set, 1,
+        &Device::Resources()[command.Descriptors].DescriptorSet, 0, nullptr);
+} 
+#endif // DESCRIPTOR_BUFFER
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const BindDescriptorsGraphicsCommand& command)
+{
+    BindDescriptors(resources, cmd, command.PipelineLayout, command.Descriptors, command.Set,
+        VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const BindDescriptorsComputeCommand& command)
+{
+    BindDescriptors(resources, cmd, command.PipelineLayout, command.Descriptors, command.Set,
+        VK_PIPELINE_BIND_POINT_COMPUTE);
+}
+
+#ifdef DESCRIPTOR_BUFFER
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const BindDescriptorArenaAllocatorsCommand& command)
+{
+    std::vector<VkDescriptorBufferBindingInfoEXT> descriptorBufferBindings;
+    descriptorBufferBindings.reserve(command.Allocators->m_TransientAllocators.size());
+
+    for (auto& allocator : command.Allocators->m_TransientAllocators)
+    {
+        const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Device::Resources()[allocator];
+        const u64 deviceAddress = allocatorResource.DeviceAddress;
+
+        VkDescriptorBufferBindingInfoEXT binding = {};
+        binding.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
+        binding.address = deviceAddress;
+        binding.usage = allocatorResource.DescriptorBufferUsage;
+
+        descriptorBufferBindings.push_back(binding);
+    }
+
+    vkCmdBindDescriptorBuffersEXT(resources[cmd].CommandBuffer, (u32)descriptorBufferBindings.size(),
+        descriptorBufferBindings.data());
+}
+#else // DESCRIPTOR_BUFFER
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>&, CommandBuffer,
+    const BindDescriptorArenaAllocatorsCommand&)
+{
+}
+#endif // DESCRIPTOR_BUFFER
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const PushConstantsCommand& command)
+{
+    const DeviceResources::PipelineLayoutResource& layout = Device::Resources()[command.PipelineLayout];
+    const VkPushConstantRange& pushConstantRange = layout.PushConstants.front();
+    vkCmdPushConstants(resources[cmd].CommandBuffer, layout.Layout,
+        pushConstantRange.stageFlags, 0, pushConstantRange.size, command.Data.data());
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const DrawCommand& command)
+{
+    vkCmdDraw(resources[cmd].CommandBuffer, command.VertexCount, 1, 0, command.BaseInstance);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const DrawIndexedCommand& command)
+{
+    vkCmdDrawIndexed(resources[cmd].CommandBuffer, command.IndexCount, 1, 0, 0, command.BaseInstance);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd,
+    const DrawIndexedIndirectCommand& command)
+{    
+    vkCmdDrawIndexedIndirect(resources[cmd].CommandBuffer, resources[command.Buffer].Buffer,
+        command.Offset, command.Count, command.Stride);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd,
+    const DrawIndexedIndirectCountCommand& command)
+{
+    vkCmdDrawIndexedIndirectCount(resources[cmd].CommandBuffer,
+        resources[command.DrawBuffer].Buffer, command.DrawOffset,
+        resources[command.CountBuffer].Buffer, command.CountOffset,
+        command.MaxCount, command.Stride);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+    const DispatchCommand& command)
+{
+    const glm::uvec3 groupSize = (command.Invocations + command.GroupSize - glm::uvec3{1}) / command.GroupSize;
+    vkCmdDispatch(resources[cmd].CommandBuffer, groupSize.x, groupSize.y, groupSize.z);
+}
+
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd,
+    const DispatchIndirectCommand& command)
+{
+    vkCmdDispatchIndirect(resources[cmd].CommandBuffer, resources[command.Buffer].Buffer, command.Offset);
+
 }
 
 void Device::CreateGpuProfileFrame(ProfilerScopedZoneGpu& zoneGpu, const SourceLocationData& sourceLocationData)
 {
     static_assert(sizeof(zoneGpu.Impl) >= sizeof(tracy::VkCtxScope));
+    
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    
     new(&zoneGpu.Impl) tracy::VkCtxScope(
         (TracyVkCtx)ProfilerContext::Get()->GraphicsContext(),
         (const tracy::SourceLocationData*)&sourceLocationData,
-        DeviceInternal::GetProfilerCommandBuffer(ProfilerContext::Get()), true);
+        DeviceInternal::GetProfilerCommandBuffer(view, ProfilerContext::Get()), true);
 }
 
 void Device::DestroyGpuProfileFrame(ProfilerScopedZoneGpu& zoneGpu)
@@ -4354,9 +4610,11 @@ void Device::DestroyGpuProfileFrame(ProfilerScopedZoneGpu& zoneGpu)
 
 void Device::CollectGpuProfileFrames()
 {
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    
     TracyVkCollect(
         ((TracyVkCtx)ProfilerContext::Get()->GraphicsContext()),
-        DeviceInternal::GetProfilerCommandBuffer(ProfilerContext::Get()))
+        DeviceInternal::GetProfilerCommandBuffer(view, ProfilerContext::Get()))
 }
 
 ImTextureID Device::CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout)
@@ -4385,19 +4643,14 @@ void Device::DumpMemoryStats(const std::filesystem::path& path)
 
 void Device::BeginCommandBufferLabel(CommandBuffer cmd, std::string_view label)
 {
-#ifdef VULKAN_VAL_LAYERS
-    VkDebugUtilsLabelEXT debugLabel = {};
-    debugLabel.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
-    debugLabel.pLabelName = label.data();
-    vkCmdBeginDebugUtilsLabelEXT(Resources()[cmd].CommandBuffer, &debugLabel);
-#endif
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::BeginCommandBufferLabel(view, cmd, label);
 }
 
 void Device::EndCommandBufferLabel(CommandBuffer cmd)
 {
-#ifdef VULKAN_VAL_LAYERS
-    vkCmdEndDebugUtilsLabelEXT(Resources()[cmd].CommandBuffer);
-#endif
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::EndCommandBufferLabel(view, cmd);
 }
 
 namespace
@@ -4434,383 +4687,346 @@ void Device::NamePipeline(Pipeline pipeline, std::string_view name)
 
 void Device::CompileCommand(CommandBuffer cmd, const ExecuteSecondaryBufferCommand& command)
 {
-    vkCmdExecuteCommands(Resources()[cmd].CommandBuffer, 1, &Resources()[command.Cmd].CommandBuffer);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const PrepareSwapchainPresentCommand& command)
 {
-    DeviceResources::SwapchainResource& swapchainResource = Resources()[command.Swapchain];
-
-    ImageSubresource drawSubresource = {
-        .Image = swapchainResource.Description.DrawImage,
-        .Description = {.Mipmaps = 1, .Layers = 1}
-    };
-    ImageSubresource presentSubresource = {
-        .Image = swapchainResource.Description.ColorImages[command.ImageIndex],
-        .Description = {.Mipmaps = 1, .Layers = 1}
-    };
-    ::DeletionQueue& deletionQueue = *Device::s_State.FrameDeletionQueue;
-
-    LayoutTransitionInfo presentToDestinationTransitionInfo = {
-        .ImageSubresource = presentSubresource,
-        .SourceStage = PipelineStage::ColorOutput,
-        .DestinationStage = PipelineStage::Bottom,
-        .SourceAccess = PipelineAccess::ReadColorAttachment | PipelineAccess::WriteColorAttachment,
-        .DestinationAccess = PipelineAccess::None,
-        .OldLayout = ImageLayout::Undefined,
-        .NewLayout = ImageLayout::Destination
-    };
-
-    LayoutTransitionInfo destinationToPresentTransitionInfo = presentToDestinationTransitionInfo;
-    destinationToPresentTransitionInfo.OldLayout = ImageLayout::Destination;
-    destinationToPresentTransitionInfo.NewLayout = ImageLayout::Present;
-
-    CompileCommand(cmd, WaitOnBarrierCommand{
-        .DependencyInfo = CreateDependencyInfo({
-            .LayoutTransitionInfo = presentToDestinationTransitionInfo
-        }, deletionQueue)
-    });
-
-    ImageSubregion sourceSubregion = {
-        .Mipmap = (u32)drawSubresource.Description.MipmapBase,
-        .LayerBase = (u32)drawSubresource.Description.LayerBase,
-        .Layers = (u32)drawSubresource.Description.Layers,
-        .Top = GetImageDescription(swapchainResource.Description.DrawImage).Dimensions()
-    };
-
-    ImageSubregion destinationSubregion = {
-        .Mipmap = (u32)presentSubresource.Description.MipmapBase,
-        .LayerBase = (u32)presentSubresource.Description.LayerBase,
-        .Layers = (u32)presentSubresource.Description.Layers,
-        .Top = GetImageDescription(swapchainResource.Description.ColorImages[command.ImageIndex]).Dimensions()
-    };
-
-    CompileCommand(cmd, BlitImageCommand{
-        .Source = swapchainResource.Description.DrawImage,
-        .Destination = swapchainResource.Description.ColorImages[command.ImageIndex],
-        .Filter = ImageFilter::Linear,
-        .SourceSubregion = sourceSubregion,
-        .DestinationSubregion = destinationSubregion
-    });
-
-    CompileCommand(cmd, WaitOnBarrierCommand{
-        .DependencyInfo = CreateDependencyInfo({
-            .LayoutTransitionInfo = destinationToPresentTransitionInfo
-        }, deletionQueue)
-    });
+    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, ImageTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BeginRenderingCommand& command)
 {
-    const DeviceResources::RenderingInfoResource& renderingInfoResource = Resources()[command.RenderingInfo];
-
-    VkRenderingInfo renderingInfoVulkan = {};
-    renderingInfoVulkan.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    renderingInfoVulkan.layerCount = 1;
-    renderingInfoVulkan.renderArea = VkRect2D{
-        .offset = {},
-        .extent = {renderingInfoResource.RenderArea.x, renderingInfoResource.RenderArea.y}
-    };
-    renderingInfoVulkan.colorAttachmentCount = (u32)Resources()[command.RenderingInfo].ColorAttachments.size();
-    renderingInfoVulkan.pColorAttachments = Resources()[command.RenderingInfo].ColorAttachments.data();
-    if (Resources()[command.RenderingInfo].DepthAttachment.has_value())
-        renderingInfoVulkan.pDepthAttachment = Resources()[command.RenderingInfo].DepthAttachment.operator->();
-
-    vkCmdBeginRendering(Resources()[cmd].CommandBuffer, &renderingInfoVulkan);
+    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, ImageTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
-void Device::CompileCommand(CommandBuffer cmd, const EndRenderingCommand&)
+void Device::CompileCommand(CommandBuffer cmd, const EndRenderingCommand& command)
 {
-    vkCmdEndRendering(Resources()[cmd].CommandBuffer);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const ImGuiBeginCommand& command)
-{
-    ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
+{    
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const ImGuiEndCommand& command)
 {
-    ImGui::Render();
-    CompileCommand(cmd, BeginRenderingCommand{
-        .RenderingInfo = command.RenderingInfo
-    });
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), Resources()[cmd].CommandBuffer);
-    CompileCommand(cmd, EndRenderingCommand{});
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BeginConditionalRenderingCommand& command)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
-    VkConditionalRenderingBeginInfoEXT beginInfo = {};
-    beginInfo.sType = VK_STRUCTURE_TYPE_CONDITIONAL_RENDERING_BEGIN_INFO_EXT;
-    beginInfo.buffer = view[command.Buffer].Buffer;
-    beginInfo.offset = command.Offset;
-
-    vkCmdBeginConditionalRenderingEXT(Resources()[cmd].CommandBuffer, &beginInfo);
+    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const EndConditionalRenderingCommand& command)
 {
-    vkCmdEndConditionalRenderingEXT(Resources()[cmd].CommandBuffer);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const SetViewportCommand& command)
 {
-    VkViewport viewport = {
-        .x = 0, .y = 0,
-        .width = (f32)command.Size.x, .height = (f32)command.Size.y,
-        .minDepth = 0.0f, .maxDepth = 1.0f
-    };
-
-    vkCmdSetViewport(Resources()[cmd].CommandBuffer, 0, 1, &viewport);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const SetScissorsCommand& command)
 {
-    VkRect2D scissor = {
-        .offset = {(i32)command.Offset.x, (i32)command.Offset.y},
-        .extent = {(u32)command.Size.x, (u32)command.Size.y}
-    };
-
-    vkCmdSetScissor(Resources()[cmd].CommandBuffer, 0, 1, &scissor);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const SetDepthBiasCommand& command)
 {
-    vkCmdSetDepthBias(Resources()[cmd].CommandBuffer, command.Constant, 0.0f, command.Slope);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const CopyBufferCommand& command)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const CopyBufferToImageCommand& command)
 {
-    auto view = Resources().GetLockedView<BufferTag, ImageTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const CopyImageCommand& command)
 {
-    auto view = Resources().GetLockedView<ImageTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BlitImageCommand& command)
 {
-    auto view = Resources().GetLockedView<ImageTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const MipmapImageCommand& command)
 {
-    auto view = Resources().GetLockedView<DependencyInfoTag, ImageTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const WaitOnFullPipelineBarrierCommand& command)
 {
-    DeviceInternal::CompileCommand(cmd, command);
+    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, ImageTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const WaitOnBarrierCommand& command)
 {
-    auto view = Resources().GetLockedView<DependencyInfoTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const SignalSplitBarrierCommand& command)
 {
-    auto view = Resources().GetLockedView<DependencyInfoTag, SplitBarrierTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const WaitOnSplitBarrierCommand& command)
 {
-    auto view = Resources().GetLockedView<DependencyInfoTag, SplitBarrierTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const ResetSplitBarrierCommand& command)
 {
-    auto view = Resources().GetLockedView<DependencyInfoTag, SplitBarrierTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindVertexBuffersCommand& command)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
-    
-    std::vector<VkBuffer> vkBuffers(command.Buffers.size());
-    for (u32 i = 0; i < vkBuffers.size(); i++)
-        vkBuffers[i] = view[command.Buffers[i]].Buffer;
-
-    vkCmdBindVertexBuffers(Resources()[cmd].CommandBuffer, 0, (u32)vkBuffers.size(), vkBuffers.data(),
-        command.Offsets.data());
+    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindIndexU32BufferCommand& command)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
-    
-    vkCmdBindIndexBuffer(Resources()[cmd].CommandBuffer, view[command.Buffer].Buffer, command.Offset,
-        VK_INDEX_TYPE_UINT32);
+    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindIndexU16BufferCommand& command)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
-    
-    vkCmdBindIndexBuffer(Resources()[cmd].CommandBuffer, view[command.Buffer].Buffer, command.Offset,
-        VK_INDEX_TYPE_UINT16);
+    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindIndexU8BufferCommand& command)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
-    
-    vkCmdBindIndexBuffer(Resources()[cmd].CommandBuffer, view[command.Buffer].Buffer, command.Offset,
-        VK_INDEX_TYPE_UINT8_EXT);
+    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindPipelineGraphicsCommand& command)
 {
-    vkCmdBindPipeline(Resources()[cmd].CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-        Resources()[command.Pipeline].Pipeline);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindPipelineComputeCommand& command)
 {
-    vkCmdBindPipeline(Resources()[cmd].CommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-        Resources()[command.Pipeline].Pipeline);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
-#ifdef DESCRIPTOR_BUFFER
 void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command)
 {
-    vkCmdBindDescriptorBufferEmbeddedSamplersEXT(Resources()[cmd].CommandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS, Resources()[command.PipelineLayout].Layout, command.Set);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command)
 {
-    vkCmdBindDescriptorBufferEmbeddedSamplersEXT(Resources()[cmd].CommandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE, Resources()[command.PipelineLayout].Layout, command.Set);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
-#else
-void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command)
-{
-    vkCmdBindDescriptorSets(Resources()[cmd].CommandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS, Resources()[command.PipelineLayout].Layout, command.Set, 1,
-        &Resources()[command.Descriptors].DescriptorSet, 0, nullptr);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command)
-{
-    vkCmdBindDescriptorSets(Resources()[cmd].CommandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE, Resources()[command.PipelineLayout].Layout, command.Set, 1,
-        &Resources()[command.Descriptors].DescriptorSet, 0, nullptr);
-}
-#endif
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command)
 {
-    DeviceInternal::BindDescriptors(cmd, command.PipelineLayout, command.Descriptors, command.Set,
-        VK_PIPELINE_BIND_POINT_GRAPHICS);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsComputeCommand& command)
 {
-    DeviceInternal::BindDescriptors(cmd, command.PipelineLayout, command.Descriptors, command.Set,
-        VK_PIPELINE_BIND_POINT_COMPUTE);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
-#ifdef DESCRIPTOR_BUFFER
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command)
 {
-    std::vector<VkDescriptorBufferBindingInfoEXT> descriptorBufferBindings;
-    descriptorBufferBindings.reserve(command.Allocators->m_TransientAllocators.size());
-
-    for (auto& allocator : command.Allocators->m_TransientAllocators)
-    {
-        const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[allocator];
-        const u64 deviceAddress = allocatorResource.DeviceAddress;
-
-        VkDescriptorBufferBindingInfoEXT binding = {};
-        binding.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
-        binding.address = deviceAddress;
-        binding.usage = allocatorResource.DescriptorBufferUsage;
-
-        descriptorBufferBindings.push_back(binding);
-    }
-
-    vkCmdBindDescriptorBuffersEXT(Resources()[cmd].CommandBuffer, (u32)descriptorBufferBindings.size(),
-        descriptorBufferBindings.data());
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
-#else
-void Device::CompileCommand(CommandBuffer, const BindDescriptorArenaAllocatorsCommand&)
-{
-}
-#endif
 
 void Device::CompileCommand(CommandBuffer cmd, const PushConstantsCommand& command)
 {
-    const DeviceResources::PipelineLayoutResource& layout = Resources()[command.PipelineLayout];
-    const VkPushConstantRange& pushConstantRange = layout.PushConstants.front();
-    vkCmdPushConstants(Resources()[cmd].CommandBuffer, layout.Layout,
-        pushConstantRange.stageFlags, 0, pushConstantRange.size, command.Data.data());
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const DrawCommand& command)
 {
-    vkCmdDraw(Resources()[cmd].CommandBuffer, command.VertexCount, 1, 0, command.BaseInstance);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const DrawIndexedCommand& command)
 {
-    vkCmdDrawIndexed(Resources()[cmd].CommandBuffer, command.IndexCount, 1, 0, 0, command.BaseInstance);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const DrawIndexedIndirectCommand& command)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
-    
-    vkCmdDrawIndexedIndirect(Resources()[cmd].CommandBuffer, view[command.Buffer].Buffer,
-        command.Offset, command.Count, command.Stride);
+    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const DrawIndexedIndirectCountCommand& command)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
-    
-    vkCmdDrawIndexedIndirectCount(Resources()[cmd].CommandBuffer,
-        view[command.DrawBuffer].Buffer, command.DrawOffset,
-        view[command.CountBuffer].Buffer, command.CountOffset,
-        command.MaxCount, command.Stride);
+    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const DispatchCommand& command)
 {
-    const glm::uvec3 groupSize = (command.Invocations + command.GroupSize - glm::uvec3{1}) / command.GroupSize;
-    vkCmdDispatch(Resources()[cmd].CommandBuffer, groupSize.x, groupSize.y, groupSize.z);
+    auto view = Resources().GetLockedView<CommandBufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const DispatchIndirectCommand& command)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
-    
-    vkCmdDispatchIndirect(Resources()[cmd].CommandBuffer, view[command.Buffer].Buffer, command.Offset);
+    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
 }
-void DeviceInternal::SubmitCommandBuffer(View<FenceTag>& resources, CommandBuffer cmd, QueueKind queueKind, Fence fence)
+
+}
+
+CommandPool DeviceInternal::CreateCommandPool(const View<CommandPoolTag>& resources, CommandPoolCreateInfo&& createInfo,
+    DeletionQueue& deletionQueue)
 {
+    VkCommandPoolCreateFlags flags = 0;
+    if (createInfo.PerBufferReset)
+        flags |= VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
+    VkCommandPoolCreateInfo poolCreateInfo = {};
+    poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolCreateInfo.flags = flags;
+    poolCreateInfo.queueFamilyIndex = Device::s_State.Queues.GetFamilyByKind(createInfo.QueueKind);
+
+    DeviceResources::CommandPoolResource commandPoolResource = {};
+    deviceCheck(vkCreateCommandPool(Device::s_State.Device, &poolCreateInfo, nullptr, &commandPoolResource.CommandPool),
+        "Failed to create command pool");
+
+    const CommandPool commandPool = resources.Add(commandPoolResource);
+    if (commandPool.m_Id >= Device::Resources().m_CommandPoolToBuffersMap.size())
+        Device::Resources().m_CommandPoolToBuffersMap.resize(commandPool.m_Id + 1);
+    deletionQueue.Enqueue(commandPool);
+
+    return commandPool;
+}
+
+void DeviceInternal::Destroy(const View<CommandPoolTag, CommandBufferTag>& resources, CommandPool commandPool)
+{
+    vkDestroyCommandPool(Device::s_State.Device, resources[commandPool].CommandPool, nullptr);
+    // todo: mt:
+    Device::Resources().DestroyCmdsOfPool(commandPool);
+    resources.Remove(commandPool);
+}
+
+void DeviceInternal::ResetPool(const View<CommandPoolTag>& resources, CommandPool pool)
+{
+    deviceCheck(vkResetCommandPool(Device::s_State.Device, resources[pool].CommandPool, 0),
+        "Error while resetting command pool");
+}
+
+CommandBuffer DeviceInternal::CreateCommandBuffer(const View<CommandBufferTag, CommandPoolTag>& resources,
+    CommandBufferCreateInfo&& createInfo)
+{
+    VkCommandBufferAllocateInfo allocateInfo = {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocateInfo.commandPool = resources[createInfo.Pool].CommandPool;
+    allocateInfo.level = vulkanBufferLevelFromBufferKind(createInfo.Kind);
+    allocateInfo.commandBufferCount = 1;
+
+    DeviceResources::CommandBufferResource commandBufferResource = {};
+    commandBufferResource.Kind = createInfo.Kind;
+    deviceCheck(vkAllocateCommandBuffers(Device::s_State.Device, &allocateInfo, &commandBufferResource.CommandBuffer),
+        "Failed to allocate command buffer");
+
+    CommandBuffer cmd = resources.Add(commandBufferResource);
+    Device::Resources().MapCmdToPool(cmd, createInfo.Pool);
+
+    return cmd;
+}
+
+void DeviceInternal::ResetCommandBuffer(const View<CommandBufferTag>& resources, CommandBuffer cmd)
+{
+    deviceCheck(vkResetCommandBuffer(resources[cmd].CommandBuffer, 0), "Error while resetting command buffer");
+}
+
+void DeviceInternal::BeginCommandBuffer(const View<CommandBufferTag>& resources, CommandBuffer cmd)
+{
+    BeginCommandBuffer(resources, cmd, CommandBufferUsage::SingleSubmit);
+}
+
+void DeviceInternal::BeginCommandBuffer(const View<CommandBufferTag>& resources, CommandBuffer cmd, CommandBufferUsage usage)
+{
+    VkCommandBufferInheritanceInfo inheritanceInfo = {};
+    inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = vulkanCommandBufferFlagsFromUsage(usage);
+    DeviceResources::CommandBufferResource& commandBufferResource = resources[cmd];
+    if (commandBufferResource.Kind == CommandBufferKind::Secondary)
+        beginInfo.pInheritanceInfo = &inheritanceInfo;
+
+    deviceCheck(vkBeginCommandBuffer(resources[cmd].CommandBuffer, &beginInfo),
+        "Error while beginning command buffer");
+}
+
+void DeviceInternal::EndCommandBuffer(const View<CommandBufferTag>& resources, CommandBuffer cmd)
+{
+    deviceCheck(vkEndCommandBuffer(resources[cmd].CommandBuffer), "Error while ending command buffer");
+}
+
+void DeviceInternal::SubmitCommandBuffer(const View<CommandBufferTag, FenceTag, SemaphoreTag>& resources, CommandBuffer cmd,
+    QueueKind queueKind, const BufferSubmitSyncInfo& submitSync)
+{
+    SubmitCommandBuffers(resources, {cmd}, queueKind, submitSync);
+}
+
+void DeviceInternal::SubmitCommandBuffer(const View<CommandBufferTag, FenceTag, TimelineSemaphoreTag>& resources,
+    CommandBuffer cmd, QueueKind queueKind, const BufferSubmitTimelineSyncInfo& submitSync)
+{
+    SubmitCommandBuffers(resources, {cmd}, queueKind, submitSync);
+}
+
+void DeviceInternal::SubmitCommandBuffer(const View<CommandBufferTag, FenceTag>& resources, CommandBuffer cmd,
+    QueueKind queueKind, Fence fence)
+{    
     VkCommandBufferSubmitInfo commandBufferSubmitInfo = {};
     commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
-    commandBufferSubmitInfo.commandBuffer = Device::Resources()[cmd].CommandBuffer;
+    commandBufferSubmitInfo.commandBuffer = resources[cmd].CommandBuffer;
 
     VkSubmitInfo2 submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
@@ -4822,7 +5038,109 @@ void DeviceInternal::SubmitCommandBuffer(View<FenceTag>& resources, CommandBuffe
         "Error while submitting command buffer");
 }
 
-Buffer DeviceInternal::CreateBuffer(View<BufferTag>& resources, BufferCreateInfo&& createInfo,
+void DeviceInternal::SubmitCommandBuffers(const View<CommandBufferTag, FenceTag, SemaphoreTag>& resources,
+    Span<const CommandBuffer> cmds, QueueKind queueKind, const BufferSubmitSyncInfo& submitSync)
+{ 
+    std::vector commandBufferSubmitInfos(cmds.size(), VkCommandBufferSubmitInfo{});
+    for (auto&& [i, cmd] : std::views::enumerate(cmds))
+    {
+        commandBufferSubmitInfos[i].sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+        commandBufferSubmitInfos[i].commandBuffer = resources[cmd].CommandBuffer;
+    }
+
+    std::vector signalSemaphoreSubmitInfos(submitSync.SignalSemaphores.size(), VkSemaphoreSubmitInfo{});
+    for (auto&& [i, semaphore] : std::views::enumerate(submitSync.SignalSemaphores))
+    {
+        signalSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        signalSemaphoreSubmitInfos[i].semaphore = resources[semaphore].Semaphore;
+    }
+
+    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = CreateVulkanSemaphoreSubmit(
+        resources, submitSync.WaitSemaphores, submitSync.WaitStages);
+
+    VkSubmitInfo2 submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submitInfo.commandBufferInfoCount = (u32)commandBufferSubmitInfos.size();
+    submitInfo.pCommandBufferInfos = commandBufferSubmitInfos.data();
+    submitInfo.signalSemaphoreInfoCount = (u32)signalSemaphoreSubmitInfos.size();
+    submitInfo.pSignalSemaphoreInfos = signalSemaphoreSubmitInfos.data();
+    submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
+    submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
+
+    deviceCheck(vkQueueSubmit2(Device::s_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
+            submitSync.Fence.HasValue() ? resources[submitSync.Fence].Fence : VK_NULL_HANDLE),
+        "Error while submitting command buffers");
+}
+
+void DeviceInternal::SubmitCommandBuffers(const View<CommandBufferTag, FenceTag, TimelineSemaphoreTag>& resources,
+    Span<const CommandBuffer> cmds, QueueKind queueKind, const BufferSubmitTimelineSyncInfo& submitSync)
+{
+    for (u32 i = 0; i < submitSync.SignalSemaphores.size(); i++)
+        resources[submitSync.SignalSemaphores[i]].Timeline = submitSync.SignalValues[i];
+
+    std::vector commandBufferSubmitInfos(cmds.size(), VkCommandBufferSubmitInfo{});
+    for (auto&& [i, cmd] : std::views::enumerate(cmds))
+    {
+        commandBufferSubmitInfos[i].sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+        commandBufferSubmitInfos[i].commandBuffer = resources[cmd].CommandBuffer;
+    }
+
+    std::vector signalSemaphoreSubmitInfos(submitSync.SignalSemaphores.size(), VkSemaphoreSubmitInfo{});
+    for (auto&& [i, semaphore] : std::views::enumerate(submitSync.SignalSemaphores))
+    {
+        signalSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        signalSemaphoreSubmitInfos[i].semaphore = resources[semaphore].Semaphore;
+        signalSemaphoreSubmitInfos[i].value = submitSync.SignalValues[i];
+    }
+
+    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = CreateVulkanSemaphoreSubmit(
+        resources, submitSync.WaitSemaphores, submitSync.WaitValues, submitSync.WaitStages);
+
+    VkSubmitInfo2 submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submitInfo.commandBufferInfoCount = (u32)commandBufferSubmitInfos.size();
+    submitInfo.pCommandBufferInfos = commandBufferSubmitInfos.data();
+    submitInfo.signalSemaphoreInfoCount = (u32)signalSemaphoreSubmitInfos.size();
+    submitInfo.pSignalSemaphoreInfos = signalSemaphoreSubmitInfos.data();
+    submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
+    submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
+
+    deviceCheck(vkQueueSubmit2(Device::s_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
+            submitSync.Fence.HasValue() ? resources[submitSync.Fence].Fence : VK_NULL_HANDLE),
+        "Error while submitting command buffers");
+}
+
+void DeviceInternal::BeginCommandBufferLabel(const View<CommandBufferTag>& resources, CommandBuffer cmd, std::string_view label)
+{
+#ifdef VULKAN_VAL_LAYERS
+    VkDebugUtilsLabelEXT debugLabel = {};
+    debugLabel.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+    debugLabel.pLabelName = label.data();
+    vkCmdBeginDebugUtilsLabelEXT(resources[cmd].CommandBuffer, &debugLabel);
+#endif // VULKAN_VAL_LAYERS
+}
+
+void DeviceInternal::EndCommandBufferLabel(const View<CommandBufferTag>& resources, CommandBuffer cmd)
+{
+#ifdef VULKAN_VAL_LAYERS
+    vkCmdEndDebugUtilsLabelEXT(resources[cmd].CommandBuffer);
+#endif // VULKAN_VAL_LAYERS
+}
+
+ProfilerContext::Ctx DeviceInternal::CreateTracyGraphicsContext(const View<CommandBufferTag>& resources, CommandBuffer cmd)
+{
+    const TracyVkCtx context = TracyVkContext(Device::s_State.GPU, Device::s_State.Device,
+        Device::s_State.Queues.Graphics.Queue, resources[cmd].CommandBuffer)
+    
+    return context;
+}
+
+VkCommandBuffer DeviceInternal::GetProfilerCommandBuffer(const View<CommandBufferTag>& resources, ProfilerContext* context)
+{
+    return resources[context->m_GraphicsCommandBuffers[context->m_CurrentFrame]].CommandBuffer;
+}
+
+Buffer DeviceInternal::CreateBuffer(const View<BufferTag>& resources, BufferCreateInfo&& createInfo,
     DeletionQueue& deletionQueue)
 {
     VmaAllocationCreateFlags flags = 0;
@@ -4864,14 +5182,14 @@ Buffer DeviceInternal::CreateBuffer(View<BufferTag>& resources, BufferCreateInfo
     return buffer;
 }
 
-void DeviceInternal::Destroy(View<BufferTag>& resources, Buffer buffer)
+void DeviceInternal::Destroy(const View<BufferTag>& resources, Buffer buffer)
 {
     const DeviceResources::BufferResource& resource = resources[buffer];
     vmaDestroyBuffer(Allocator(), resource.Buffer, resource.Allocation);
     resources.Remove(buffer);
 }
 
-Buffer DeviceInternal::CreateStagingBuffer(View<BufferTag>& resources, u64 sizeBytes)
+Buffer DeviceInternal::CreateStagingBuffer(const View<BufferTag>& resources, u64 sizeBytes)
 {
     return CreateBuffer(resources, {
             .Description = {
@@ -4883,7 +5201,7 @@ Buffer DeviceInternal::CreateStagingBuffer(View<BufferTag>& resources, u64 sizeB
         Device::DummyDeletionQueue());
 }
 
-void DeviceInternal::ResizeBuffer(View<BufferTag>& resources, Buffer buffer, u64 newSize, CommandBuffer cmd,
+void DeviceInternal::ResizeBuffer(const View<CommandBufferTag, BufferTag>& resources, Buffer buffer, u64 newSize, CommandBuffer cmd,
     bool copyData)
 {
     const DeviceResources::BufferResource& resource = resources[buffer];
@@ -4916,7 +5234,7 @@ void DeviceInternal::ResizeBuffer(View<BufferTag>& resources, Buffer buffer, u64
         });
 }
 
-void* DeviceInternal::MapBuffer(View<BufferTag>& resources, Buffer buffer)
+void* DeviceInternal::MapBuffer(const View<BufferTag>& resources, Buffer buffer)
 {
     const DeviceResources::BufferResource& resource = resources[buffer];
     void* mappedData;
@@ -4924,43 +5242,43 @@ void* DeviceInternal::MapBuffer(View<BufferTag>& resources, Buffer buffer)
     return mappedData;
 }
 
-void DeviceInternal::UnmapBuffer(View<BufferTag>& resources, Buffer buffer)
+void DeviceInternal::UnmapBuffer(const View<BufferTag>& resources, Buffer buffer)
 {
     const DeviceResources::BufferResource& resource = resources[buffer];
     vmaUnmapMemory(Allocator(), resource.Allocation);
 }
 
-void DeviceInternal::SetBufferData(View<BufferTag>& resources, Buffer buffer, Span<const std::byte> data,
+void DeviceInternal::SetBufferData(const View<BufferTag>& resources, Buffer buffer, Span<const std::byte> data,
     u64 offsetBytes)
 {
     const DeviceResources::BufferResource& resource = resources[buffer];
     vmaCopyMemoryToAllocation(Allocator(), data.data(), resource.Allocation, offsetBytes, data.size());
 }
 
-void DeviceInternal::SetBufferData(View<BufferTag>&, void* mappedAddress, Span<const std::byte> data,
+void DeviceInternal::SetBufferData(const View<BufferTag>&, void* mappedAddress, Span<const std::byte> data,
     u64 offsetBytes)
 {
     mappedAddress = (void*)((u8*)mappedAddress + offsetBytes);
     std::memcpy(mappedAddress, data.data(), data.size());
 }
 
-void* DeviceInternal::GetBufferMappedAddress(View<BufferTag>& resources, Buffer buffer)
+void* DeviceInternal::GetBufferMappedAddress(const View<BufferTag>& resources, Buffer buffer)
 {
     return resources[buffer].HostAddress;
 }
 
-usize DeviceInternal::GetBufferSizeBytes(View<BufferTag>& resources, Buffer buffer)
+usize DeviceInternal::GetBufferSizeBytes(const View<BufferTag>& resources, Buffer buffer)
 {
     return resources[buffer].Description.SizeBytes;
 }
 
-const BufferDescription& DeviceInternal::GetBufferDescription(View<BufferTag>& resources, Buffer buffer)
+const BufferDescription& DeviceInternal::GetBufferDescription(const View<BufferTag>& resources, Buffer buffer)
 {
     return resources[buffer].Description;
 }
 
 // todo: just store it like host address
-u64 DeviceInternal::GetDeviceAddress(View<BufferTag>& resources, Buffer buffer)
+u64 DeviceInternal::GetDeviceAddress(const View<BufferTag>& resources, Buffer buffer)
 {
     VkBufferDeviceAddressInfo deviceAddressInfo = {};
     deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
@@ -4969,7 +5287,7 @@ u64 DeviceInternal::GetDeviceAddress(View<BufferTag>& resources, Buffer buffer)
     return vkGetBufferDeviceAddress(Device::s_State.Device, &deviceAddressInfo);
 }
 
-Buffer DeviceInternal::AllocateBuffer(View<BufferTag>& resources, const BufferCreateInfo& createInfo,
+Buffer DeviceInternal::AllocateBuffer(const View<BufferTag>& resources, const BufferCreateInfo& createInfo,
     VkBufferUsageFlags usage, VmaAllocationCreateFlags allocationFlags)
 {
     VkBufferCreateInfo bufferCreateInfo = {};
@@ -4994,7 +5312,7 @@ Buffer DeviceInternal::AllocateBuffer(View<BufferTag>& resources, const BufferCr
     return resources.Add(bufferResource);
 }
 
-BufferArena DeviceInternal::CreateBufferArena(View<BufferArenaTag>& resources, BufferArenaCreateInfo&& createInfo,
+BufferArena DeviceInternal::CreateBufferArena(const View<BufferArenaTag>& resources, BufferArenaCreateInfo&& createInfo,
     DeletionQueue& deletionQueue)
 {
     VmaVirtualBlockCreateInfo virtualBlockCreateInfo = {};
@@ -5012,7 +5330,7 @@ BufferArena DeviceInternal::CreateBufferArena(View<BufferArenaTag>& resources, B
     return arena;
 }
 
-void DeviceInternal::Destroy(View<BufferArenaTag>& resources, BufferArena arena)
+void DeviceInternal::Destroy(const View<BufferArenaTag>& resources, BufferArena arena)
 {
     DeviceResources::BufferArenaResource& bufferArenaResource = resources[arena];
 
@@ -5022,7 +5340,7 @@ void DeviceInternal::Destroy(View<BufferArenaTag>& resources, BufferArena arena)
     resources.Remove(arena);
 }
 
-void DeviceInternal::ResizeBufferArenaPhysical(View<BufferArenaTag, BufferTag>& resources, BufferArena arena, 
+void DeviceInternal::ResizeBufferArenaPhysical(const View<CommandBufferTag, BufferArenaTag, BufferTag>& resources, BufferArena arena, 
     u64 newSize, CommandBuffer cmd, bool copyData)
 {
     const DeviceResources::BufferArenaResource& arenaResource = resources[arena];
@@ -5031,16 +5349,15 @@ void DeviceInternal::ResizeBufferArenaPhysical(View<BufferArenaTag, BufferTag>& 
     if (oldSize == newSize)
         return;
 
-    View<BufferTag> bufferView = resources; 
-    ResizeBuffer(bufferView, arenaResource.Buffer, newSize, cmd, copyData);
+    ResizeBuffer(resources, arenaResource.Buffer, newSize, cmd, copyData);
 }
 
-Buffer DeviceInternal::GetBufferArenaUnderlyingBuffer(View<BufferArenaTag>& resources, BufferArena arena)
+Buffer DeviceInternal::GetBufferArenaUnderlyingBuffer(const View<BufferArenaTag>& resources, BufferArena arena)
 {
     return resources[arena].Buffer;
 }
 
-u64 DeviceInternal::GetBufferArenaSizeBytesPhysical(View<BufferArenaTag, BufferTag>& resources, BufferArena arena)
+u64 DeviceInternal::GetBufferArenaSizeBytesPhysical(const View<BufferArenaTag, BufferTag>& resources, BufferArena arena)
 {
     View<BufferTag> buffersView = resources;
     View<BufferArenaTag> arenasView = resources;
@@ -5048,7 +5365,7 @@ u64 DeviceInternal::GetBufferArenaSizeBytesPhysical(View<BufferArenaTag, BufferT
     return GetBufferSizeBytes(buffersView, GetBufferArenaUnderlyingBuffer(arenasView, arena));
 }
 
-BufferSuballocationResult DeviceInternal::BufferArenaSuballocate(View<BufferArenaTag, BufferTag>& resources,
+BufferSuballocationResult DeviceInternal::BufferArenaSuballocate(const View<BufferArenaTag, BufferTag>& resources,
     BufferArena arena, u64 sizeBytes, u32 alignment)
 {
     VmaVirtualAllocationCreateInfo allocationCreateInfo = {};
@@ -5087,14 +5404,14 @@ BufferSuballocationResult DeviceInternal::BufferArenaSuballocate(View<BufferAren
     };
 }
 
-void DeviceInternal::BufferArenaFree(View<BufferArenaTag>& resources, BufferArena arena,
+void DeviceInternal::BufferArenaFree(const View<BufferArenaTag>& resources, BufferArena arena,
     BufferSuballocationHandle suballocation)
 {
     vmaVirtualFree(resources[arena].VirtualBlock, (VmaVirtualAllocation)suballocation);
 }
 
-Image DeviceInternal::CreateImage(View<ImageTag, BufferTag, DependencyInfoTag, FenceTag>& resources, ImageCreateInfo&& createInfo,
-    DeletionQueue& deletionQueue)
+Image DeviceInternal::CreateImage(const View<ImageTag, BufferTag, DependencyInfoTag, FenceTag, CommandBufferTag, CommandPoolTag>& resources,
+    ImageCreateInfo&& createInfo, DeletionQueue& deletionQueue)
 {
     Image image = {};
 
@@ -5110,15 +5427,12 @@ Image DeviceInternal::CreateImage(View<ImageTag, BufferTag, DependencyInfoTag, F
     return image;
 }
 
-Image DeviceInternal::CreateImageFromAssetFile(View<ImageTag, BufferTag, DependencyInfoTag, FenceTag>& resources, 
+Image DeviceInternal::CreateImageFromAssetFile(
+    const View<ImageTag, BufferTag, DependencyInfoTag, FenceTag, CommandBufferTag, CommandPoolTag>& resources, 
     ImageCreateInfo& createInfo, const lux::assetlib::ImageAsset* asset)
 {
     Image image = {};
     Buffer imageBuffer = {};
-    
-    View<ImageTag> imagesView = resources;
-    View<BufferTag> buffersView = resources;
-    View<DependencyInfoTag, ImageTag> dependencyInfosView = resources;
     
     ImmediateSubmit(resources, [&](RenderCommandList& cmdList)
     {
@@ -5127,17 +5441,17 @@ Image DeviceInternal::CreateImageFromAssetFile(View<ImageTag, BufferTag, Depende
             for (const u64 layerSize : mip)
                 totalSizeBytes += layerSize;
 
-        imageBuffer = CreateBuffer(buffersView, {
+        imageBuffer = CreateBuffer(resources, {
             .Description = {
                 .SizeBytes = totalSizeBytes,
                 .Usage = BufferUsage::Source | BufferUsage::StagingRandomAccess,
             },
             .PersistentMapping = true
         }, Device::DummyDeletionQueue());
-        const DeviceResources::BufferResource& imageBufferResource = buffersView[imageBuffer];
+        const DeviceResources::BufferResource& imageBufferResource = resources[imageBuffer];
 
-        image = AllocateImage(imagesView, createInfo);
-        CreateViews(imagesView, ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
+        image = AllocateImage(resources, createInfo);
+        CreateViews(resources, ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
 
         ImageSubresource imageSubresource = {
             .Image = image,
@@ -5146,8 +5460,8 @@ Image DeviceInternal::CreateImageFromAssetFile(View<ImageTag, BufferTag, Depende
 
         ::DeletionQueue& deletionQueue = *Device::s_State.FrameDeletionQueue;
 
-        CompileCommand(dependencyInfosView, cmdList.m_Cmd, WaitOnBarrierCommand{
-            .DependencyInfo = CreateDependencyInfo(dependencyInfosView, {
+        CompileCommand(resources, cmdList.m_Cmd, WaitOnBarrierCommand{
+            .DependencyInfo = CreateDependencyInfo(resources, {
                 .LayoutTransitionInfo = LayoutTransitionInfo{
                     .ImageSubresource = imageSubresource,
                     .SourceStage = PipelineStage::AllTransfer,
@@ -5195,7 +5509,7 @@ Image DeviceInternal::CreateImageFromAssetFile(View<ImageTag, BufferTag, Depende
         ImageLayout currentLayout = ImageLayout::Destination;
         if (createInfo.CalculateMipmaps)
         {
-            CompileCommand(dependencyInfosView, cmdList.m_Cmd, MipmapImageCommand{
+            CompileCommand(resources, cmdList.m_Cmd, MipmapImageCommand{
                 .Image = image, 
                 .Layout = currentLayout
             });
@@ -5203,8 +5517,8 @@ Image DeviceInternal::CreateImageFromAssetFile(View<ImageTag, BufferTag, Depende
             imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
         }
 
-        CompileCommand(dependencyInfosView, cmdList.m_Cmd, WaitOnBarrierCommand{
-            .DependencyInfo = CreateDependencyInfo(dependencyInfosView, {
+        CompileCommand(resources, cmdList.m_Cmd, WaitOnBarrierCommand{
+            .DependencyInfo = CreateDependencyInfo(resources, {
                 .LayoutTransitionInfo = LayoutTransitionInfo{
                     .ImageSubresource = imageSubresource,
                     .SourceStage = PipelineStage::AllTransfer,
@@ -5218,26 +5532,24 @@ Image DeviceInternal::CreateImageFromAssetFile(View<ImageTag, BufferTag, Depende
         });
     });
 
-    Destroy(buffersView, imageBuffer);
+    Destroy(resources, imageBuffer);
 
     return image;
 }
 
-Image DeviceInternal::CreateImageFromPixels(View<ImageTag, BufferTag, DependencyInfoTag, FenceTag>& resources, 
+Image DeviceInternal::CreateImageFromPixels(
+    const View<ImageTag, BufferTag, DependencyInfoTag, FenceTag, CommandBufferTag, CommandPoolTag>& resources, 
     ImageCreateInfo& createInfo, Span<const std::byte> pixels)
 {
-    View<ImageTag> imagesView = resources;
-    View<BufferTag> buffersView = resources;
-    
     if (pixels.empty())
     {
-        Image image = AllocateImage(imagesView, createInfo);
-        CreateViews(imagesView, ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
+        Image image = AllocateImage(resources, createInfo);
+        CreateViews(resources, ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
 
         return image;
     }
 
-    const Buffer imageBuffer = CreateBuffer(buffersView, {
+    const Buffer imageBuffer = CreateBuffer(resources, {
             .Description = {
                 .SizeBytes = pixels.size(),
                 .Usage = BufferUsage::Source | BufferUsage::Staging,
@@ -5247,30 +5559,28 @@ Image DeviceInternal::CreateImageFromPixels(View<ImageTag, BufferTag, Dependency
         Device::DummyDeletionQueue());
 
     const Image image = CreateImageFromBuffer(resources, createInfo, imageBuffer);
-    Destroy(buffersView, imageBuffer);
+    Destroy(resources, imageBuffer);
 
     return image;
 }
 
-Image DeviceInternal::CreateImageFromBuffer(View<ImageTag, BufferTag, DependencyInfoTag, FenceTag>& resources, 
+Image DeviceInternal::CreateImageFromBuffer(
+    const View<ImageTag, BufferTag, DependencyInfoTag, FenceTag, CommandBufferTag, CommandPoolTag>& resources, 
     ImageCreateInfo& createInfo, Buffer buffer)
 {
     Image image = {};
     
     ImmediateSubmit(resources, [&](RenderCommandList& cmdList)
     {
-        View<ImageTag> imagesView = resources;
-        View<DependencyInfoTag, ImageTag> dependencyInfosView = resources;
-
-        image = AllocateImage(imagesView, createInfo);
-        CreateViews(imagesView, ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
+        image = AllocateImage(resources, createInfo);
+        CreateViews(resources, ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
 
         ImageSubresource imageSubresource = {.Image = image, .Description = {.Mipmaps = 1, .Layers = 1}};
 
         ::DeletionQueue& deletionQueue = *Device::s_State.FrameDeletionQueue;
 
-        CompileCommand(dependencyInfosView, cmdList.m_Cmd, WaitOnBarrierCommand{
-            .DependencyInfo = CreateDependencyInfo(dependencyInfosView, {
+        CompileCommand(resources, cmdList.m_Cmd, WaitOnBarrierCommand{
+            .DependencyInfo = CreateDependencyInfo(resources, {
                 .LayoutTransitionInfo = LayoutTransitionInfo{
                     .ImageSubresource = imageSubresource,
                     .SourceStage = PipelineStage::AllTransfer,
@@ -5295,7 +5605,7 @@ Image DeviceInternal::CreateImageFromBuffer(View<ImageTag, BufferTag, Dependency
         ImageLayout currentLayout = ImageLayout::Destination;
         if (createInfo.CalculateMipmaps)
         {
-            CompileCommand(dependencyInfosView, cmdList.m_Cmd, MipmapImageCommand{
+            CompileCommand(resources, cmdList.m_Cmd, MipmapImageCommand{
                 .Image = image,
                 .Layout = currentLayout
             });
@@ -5303,8 +5613,8 @@ Image DeviceInternal::CreateImageFromBuffer(View<ImageTag, BufferTag, Dependency
             imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
         }
 
-        CompileCommand(dependencyInfosView, cmdList.m_Cmd, WaitOnBarrierCommand{
-            .DependencyInfo = CreateDependencyInfo(dependencyInfosView, {
+        CompileCommand(resources, cmdList.m_Cmd, WaitOnBarrierCommand{
+            .DependencyInfo = CreateDependencyInfo(resources, {
                 .LayoutTransitionInfo = LayoutTransitionInfo{
                     .ImageSubresource = imageSubresource,
                     .SourceStage = PipelineStage::AllTransfer,
@@ -5336,7 +5646,7 @@ void DeviceInternal::PreprocessCreateInfo(ImageCreateInfo& createInfo)
         createInfo.Description.Usage |= ImageUsage::Source;
 }
 
-Image DeviceInternal::AllocateImage(View<ImageTag>& resources, ImageCreateInfo& createInfo)
+Image DeviceInternal::AllocateImage(const View<ImageTag>& resources, ImageCreateInfo& createInfo)
 {
     PreprocessCreateInfo(createInfo);
 
@@ -5375,7 +5685,7 @@ Image DeviceInternal::AllocateImage(View<ImageTag>& resources, ImageCreateInfo& 
     return resources.Add(imageResource);
 }
 
-void DeviceInternal::Destroy(View<ImageTag>& resources, Image image)
+void DeviceInternal::Destroy(const View<ImageTag>& resources, Image image)
 {
     const DeviceResources::ImageResource& imageResource = resources[image];
     if (imageResource.Views.ViewList == &imageResource.Views.ViewType.View)
@@ -5392,7 +5702,7 @@ void DeviceInternal::Destroy(View<ImageTag>& resources, Image image)
     resources.Remove(image);
 }
 
-void DeviceInternal::CreateViews(View<ImageTag>& resources, const ImageSubresource& image,
+void DeviceInternal::CreateViews(const View<ImageTag>& resources, const ImageSubresource& image,
     const std::vector<ImageSubresourceDescription>& additionalViews)
 {
     DeviceResources::ImageResource& resource = resources[image.Image];
@@ -5413,7 +5723,7 @@ void DeviceInternal::CreateViews(View<ImageTag>& resources, const ImageSubresour
 }
 
 
-VkImageView DeviceInternal::CreateVulkanImageView(View<ImageTag>& resources, const ImageSubresource& image,
+VkImageView DeviceInternal::CreateVulkanImageView(const View<ImageTag>& resources, const ImageSubresource& image,
     VkFormat format)
 {
     const DeviceResources::ImageResource& imageResource = resources[image.Image];
@@ -5442,12 +5752,12 @@ VkImageView DeviceInternal::CreateVulkanImageView(View<ImageTag>& resources, con
     return imageView;
 }
 
-Span<const ImageSubresourceDescription> DeviceInternal::GetAdditionalImageViews(View<ImageTag>& resources, Image image)
+Span<const ImageSubresourceDescription> DeviceInternal::GetAdditionalImageViews(const View<ImageTag>& resources, Image image)
 {
     return resources[image].Description.AdditionalViews;
 }
 
-ImageViewHandle DeviceInternal::GetImageViewHandle(View<ImageTag>& resources, Image image,
+ImageViewHandle DeviceInternal::GetImageViewHandle(const View<ImageTag>& resources, Image image,
     ImageSubresourceDescription subresourceDescription)
 {
     if (subresourceDescription == ImageSubresourceDescription{})
@@ -5463,12 +5773,12 @@ ImageViewHandle DeviceInternal::GetImageViewHandle(View<ImageTag>& resources, Im
     return ImageViewHandle{};
 }
 
-const ImageDescription& DeviceInternal::GetImageDescription(View<ImageTag>& resources, Image image)
+const ImageDescription& DeviceInternal::GetImageDescription(const View<ImageTag>& resources, Image image)
 {
     return resources[image].Description;
 }
 
-ImTextureID DeviceInternal::CreateImGuiImage(View<ImageTag, SamplerTag>& resources, const ImageSubresource& texture,
+ImTextureID DeviceInternal::CreateImGuiImage(const View<ImageTag, SamplerTag>& resources, const ImageSubresource& texture,
     Sampler sampler, ImageLayout layout)
 {
     View<ImageTag> imagesView = resources;
@@ -5486,7 +5796,7 @@ void DeviceInternal::DestroyImGuiImage( ImTextureID image)
     ImGui_ImplVulkan_RemoveTexture((VkDescriptorSet)image);
 }
 
-Sampler DeviceInternal::CreateSampler(View<SamplerTag>& resources, SamplerCreateInfo&& createInfo)
+Sampler DeviceInternal::CreateSampler(const View<SamplerTag>& resources, SamplerCreateInfo&& createInfo)
 {
     const SamplerCache::CacheKey key = SamplerCache::CreateCacheKey(createInfo);
     Sampler cached = SamplerCache::Find(key);
@@ -5532,13 +5842,52 @@ Sampler DeviceInternal::CreateSampler(View<SamplerTag>& resources, SamplerCreate
     return sampler;
 }
 
-void DeviceInternal::Destroy(View<SamplerTag>& resources, Sampler sampler)
+void DeviceInternal::Destroy(const View<SamplerTag>& resources, Sampler sampler)
 {
     vkDestroySampler(Device::s_State.Device, resources[sampler].Sampler, nullptr);
     resources.Remove(sampler);
 }
 
-Fence DeviceInternal::CreateFence(View<FenceTag>& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue)
+RenderingAttachment DeviceInternal::CreateRenderingAttachment(const View<RenderingAttachmentTag, ImageTag>& resources,
+    RenderingAttachmentCreateInfo&& createInfo, DeletionQueue& deletionQueue)
+{
+    View<ImageTag> imagesView = resources;
+    DeviceResources::RenderingAttachmentResource renderingAttachmentResource = {};
+
+    renderingAttachmentResource.AttachmentInfo = {};
+    renderingAttachmentResource.AttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    renderingAttachmentResource.AttachmentInfo.clearValue = VkClearValue{
+        .color = {
+            .float32 = {
+                createInfo.Description.Clear.Color.F.r,
+                createInfo.Description.Clear.Color.F.g,
+                createInfo.Description.Clear.Color.F.b,
+                createInfo.Description.Clear.Color.F.a
+            }
+        }
+    };
+    renderingAttachmentResource.AttachmentInfo.imageLayout = vulkanImageLayoutFromImageLayout(
+        createInfo.Layout);
+    renderingAttachmentResource.AttachmentInfo.imageView = resources[createInfo.Image].Views.ViewList[
+        GetImageViewHandle(imagesView, createInfo.Image, createInfo.Description.Subresource).m_Index];
+    renderingAttachmentResource.AttachmentInfo.loadOp = vulkanAttachmentLoadFromAttachmentLoad(
+        createInfo.Description.OnLoad);
+    renderingAttachmentResource.AttachmentInfo.storeOp = vulkanAttachmentStoreFromAttachmentStore(
+        createInfo.Description.OnStore);
+    renderingAttachmentResource.AttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+
+    RenderingAttachment renderingAttachment = resources.Add(renderingAttachmentResource);
+    deletionQueue.Enqueue(renderingAttachment);
+
+    return renderingAttachment;
+}
+
+void DeviceInternal::Destroy(const View<RenderingAttachmentTag>& resources, RenderingAttachment renderingAttachment)
+{
+    resources.Remove(renderingAttachment);
+}
+
+Fence DeviceInternal::CreateFence(const View<FenceTag>& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue)
 {
     VkFenceCreateInfo fenceCreateInfo = {};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -5557,30 +5906,30 @@ Fence DeviceInternal::CreateFence(View<FenceTag>& resources, FenceCreateInfo&& c
     return fence;
 }
 
-void DeviceInternal::Destroy(View<FenceTag>& resources, Fence fence)
+void DeviceInternal::Destroy(const View<FenceTag>& resources, Fence fence)
 {
     vkDestroyFence(Device::s_State.Device, resources[fence].Fence, nullptr);
     resources.Remove(fence);
 }
 
-void DeviceInternal::WaitForFence(View<FenceTag>& resources, Fence fence)
+void DeviceInternal::WaitForFence(const View<FenceTag>& resources, Fence fence)
 {
     deviceCheck(vkWaitForFences(Device::s_State.Device, 1, &resources[fence].Fence, true, 10'000'000'000),
         "Error while waiting for fences");
 }
 
-bool DeviceInternal::CheckFence(View<FenceTag>& resources, Fence fence)
+bool DeviceInternal::CheckFence(const View<FenceTag>& resources, Fence fence)
 {
     const VkResult result = vkGetFenceStatus(Device::s_State.Device, resources[fence].Fence);
     return result == VK_SUCCESS;
 }
 
-void DeviceInternal::ResetFence(View<FenceTag>& resources, Fence fence)
+void DeviceInternal::ResetFence(const View<FenceTag>& resources, Fence fence)
 {
     deviceCheck(vkResetFences(Device::s_State.Device, 1, &resources[fence].Fence), "Error while resetting fences");
 }
 
-Semaphore DeviceInternal::CreateSemaphore(View<SemaphoreTag>& resources, DeletionQueue& deletionQueue)
+Semaphore DeviceInternal::CreateSemaphore(const View<SemaphoreTag>& resources, DeletionQueue& deletionQueue)
 {
     VkSemaphoreCreateInfo semaphoreCreateInfo = {};
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -5595,13 +5944,13 @@ Semaphore DeviceInternal::CreateSemaphore(View<SemaphoreTag>& resources, Deletio
     return semaphore;
 }
 
-void DeviceInternal::Destroy(View<SemaphoreTag>& resources, Semaphore semaphore)
+void DeviceInternal::Destroy(const View<SemaphoreTag>& resources, Semaphore semaphore)
 {
     vkDestroySemaphore(Device::s_State.Device, resources[semaphore].Semaphore, nullptr);
     resources.Remove(semaphore);
 }
 
-TimelineSemaphore DeviceInternal::CreateTimelineSemaphore(View<TimelineSemaphoreTag>& resources,
+TimelineSemaphore DeviceInternal::CreateTimelineSemaphore(const View<TimelineSemaphoreTag>& resources,
     TimelineSemaphoreCreateInfo&& createInfo, DeletionQueue& deletionQueue)
 {
     VkSemaphoreTypeCreateInfo timelineCreateInfo = {};
@@ -5623,13 +5972,13 @@ TimelineSemaphore DeviceInternal::CreateTimelineSemaphore(View<TimelineSemaphore
     return semaphore;
 }
 
-void DeviceInternal::Destroy(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore)
+void DeviceInternal::Destroy(const View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore)
 {
     vkDestroySemaphore(Device::s_State.Device, resources[semaphore].Semaphore, nullptr);
     resources.Remove(semaphore);
 }
 
-void DeviceInternal::TimelineSemaphoreWaitCPU(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore,
+void DeviceInternal::TimelineSemaphoreWaitCPU(const View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore,
     u64 value)
 {
     VkSemaphoreWaitInfo waitInfo = {};
@@ -5642,7 +5991,7 @@ void DeviceInternal::TimelineSemaphoreWaitCPU(View<TimelineSemaphoreTag>& resour
         "Failed to wait for timeline semaphore");
 }
 
-void DeviceInternal::TimelineSemaphoreSignalCPU(View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore,
+void DeviceInternal::TimelineSemaphoreSignalCPU(const View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore,
     u64 value)
 {
     VkSemaphoreSignalInfo signalInfo = {};
@@ -5655,8 +6004,7 @@ void DeviceInternal::TimelineSemaphoreSignalCPU(View<TimelineSemaphoreTag>& reso
 
     resources[semaphore].Timeline = value;
 }
-
-DependencyInfo DeviceInternal::CreateDependencyInfo(View<DependencyInfoTag, ImageTag>& resources,
+DependencyInfo DeviceInternal::CreateDependencyInfo(const View<DependencyInfoTag, ImageTag>& resources,
     DependencyInfoCreateInfo&& createInfo, DeletionQueue& deletionQueue)
 {
     DeviceResources::DependencyInfoResource dependencyInfoResource = {};
@@ -5728,12 +6076,12 @@ DependencyInfo DeviceInternal::CreateDependencyInfo(View<DependencyInfoTag, Imag
     return dependencyInfo;
 }
 
-void DeviceInternal::Destroy(View<DependencyInfoTag>& resources, DependencyInfo dependencyInfo)
+void DeviceInternal::Destroy(const View<DependencyInfoTag>& resources, DependencyInfo dependencyInfo)
 {
     resources.Remove(dependencyInfo);
 }
 
-SplitBarrier DeviceInternal::CreateSplitBarrier(View<SplitBarrierTag>& resources, DeletionQueue& deletionQueue)
+SplitBarrier DeviceInternal::CreateSplitBarrier(const View<SplitBarrierTag>& resources, DeletionQueue& deletionQueue)
 {
     VkEventCreateInfo eventCreateInfo = {};
     eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
@@ -5748,13 +6096,13 @@ SplitBarrier DeviceInternal::CreateSplitBarrier(View<SplitBarrierTag>& resources
     return splitBarrier;
 }
 
-void DeviceInternal::Destroy(View<SplitBarrierTag>& resources, SplitBarrier splitBarrier)
+void DeviceInternal::Destroy(const View<SplitBarrierTag>& resources, SplitBarrier splitBarrier)
 {
     vkDestroyEvent(Device::s_State.Device, resources[splitBarrier].Event, nullptr);
     resources.Remove(splitBarrier);
 }
 
-ImmediateSubmitContext DeviceInternal::StartSubmitContext(View<FenceTag>& resources)
+ImmediateSubmitContext DeviceInternal::StartSubmitContext(const View<FenceTag, CommandBufferTag, CommandPoolTag>& resources)
 {
     {
         std::scoped_lock lock(Device::s_State.SubmitContextMutex);
@@ -5763,33 +6111,37 @@ ImmediateSubmitContext DeviceInternal::StartSubmitContext(View<FenceTag>& resour
         {
             ImmediateSubmitContext ctx = Device::s_State.SubmitContexts.back();
             Device::s_State.SubmitContexts.pop_back();
-            Device::BeginCommandBuffer(ctx.CommandBuffer);
+            BeginCommandBuffer(resources, ctx.CommandBuffer);
 
             return ctx;
         }
     }
 
+    View<FenceTag> fencesView = resources;
+    View<CommandPoolTag> commandPoolsTags = resources;
+    
     ImmediateSubmitContext ctx = {};
-    ctx.CommandPool = Device::CreateCommandPool({.QueueKind = QueueKind::Graphics});
-    ctx.CommandBuffer = Device::CreateCommandBuffer({
+    ctx.CommandPool = CreateCommandPool(commandPoolsTags, {.QueueKind = QueueKind::Graphics}, 
+        Device::DummyDeletionQueue());
+    ctx.CommandBuffer = CreateCommandBuffer(resources, {
         .Pool = ctx.CommandPool,
         .Kind = CommandBufferKind::Primary
     });
     ctx.CommandList.SetCommandBuffer(ctx.CommandBuffer);
-    ctx.Fence = CreateFence(resources, {}, Device::DummyDeletionQueue());
+    ctx.Fence = CreateFence(fencesView, {}, Device::DummyDeletionQueue());
     ctx.QueueKind = QueueKind::Graphics;
-    Device::BeginCommandBuffer(ctx.CommandBuffer);
+    BeginCommandBuffer(resources, ctx.CommandBuffer);
 
     return ctx;
 }
 
-void DeviceInternal::EndSubmitContext(View<FenceTag>& resources, const ImmediateSubmitContext& ctx)
+void DeviceInternal::EndSubmitContext(const View<FenceTag, CommandBufferTag, CommandPoolTag>& resources, const ImmediateSubmitContext& ctx)
 {
-    Device::EndCommandBuffer(ctx.CommandBuffer);
+    EndCommandBuffer(resources, ctx.CommandBuffer);
     SubmitCommandBuffer(resources, ctx.CommandBuffer, ctx.QueueKind, ctx.Fence);
     WaitForFence(resources, ctx.Fence);
     ResetFence(resources, ctx.Fence);
-    Device::ResetPool(ctx.CommandPool);
+    ResetPool(resources, ctx.CommandPool);
     
     std::scoped_lock lock(Device::s_State.SubmitContextMutex);
     
@@ -5799,10 +6151,10 @@ void DeviceInternal::EndSubmitContext(View<FenceTag>& resources, const Immediate
 template <typename LockedView, typename Fn>
 void DeviceInternal::ImmediateSubmit(LockedView& resources, Fn&& uploadFunction)
 {
-    View<FenceTag> fencesView = resources;
-    auto ctx = StartSubmitContext(fencesView);
+    View<FenceTag, CommandBufferTag, CommandPoolTag> submitResourcesView = resources;
+    auto ctx = StartSubmitContext(submitResourcesView);
     uploadFunction(ctx.CommandList);
-    EndSubmitContext(fencesView, ctx);
+    EndSubmitContext(submitResourcesView, ctx);
 }
 
 #ifdef DESCRIPTOR_BUFFER
@@ -5840,7 +6192,7 @@ void DeviceInternal::WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo
     vkGetDescriptorEXT(Device::s_State.Device, &descriptorGetInfo, descriptorSizeBytes,
         (u8*)allocatorResource.MappedAddress + offsetBytes);
 }
-void DeviceInternal::BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+void DeviceInternal::BindDescriptors(const View<CommandBufferTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
     u32 firstSet, VkPipelineBindPoint bindPoint)
 {
     const DeviceResources::DescriptorsResource& descriptorsResource = Device::Resources()[descriptors];
@@ -5848,7 +6200,7 @@ void DeviceInternal::BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineL
         Device::Resources()[descriptorsResource.Allocator];
 
     u64 offset = descriptorsResource.Offsets.front();
-    vkCmdSetDescriptorBufferOffsetsEXT(Device::Resources()[cmd].CommandBuffer, bindPoint,
+    vkCmdSetDescriptorBufferOffsetsEXT(resources[cmd].CommandBuffer, bindPoint,
         Device::Resources()[pipelineLayout].Layout, firstSet, 1, &allocatorResource.DescriptorSet, &offset);
 }
 #else
@@ -5886,11 +6238,11 @@ u32 DeviceInternal::GetFreePoolIndexFromAllocator(DescriptorArenaAllocator alloc
     return index;
 }
 
-void DeviceInternal::BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+void DeviceInternal::BindDescriptors(const View<CommandBufferTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
     u32 firstSet, VkPipelineBindPoint bindPoint)
 {
     const DeviceResources::DescriptorsResource& descriptorsResource = Device::Resources()[descriptors];
-    vkCmdBindDescriptorSets(Device::Resources()[cmd].CommandBuffer, bindPoint,
+    vkCmdBindDescriptorSets(resources[cmd].CommandBuffer, bindPoint,
         Device::Resources()[pipelineLayout].Layout, firstSet, 1, &descriptorsResource.DescriptorSet, 0, nullptr);
 }
 #endif
