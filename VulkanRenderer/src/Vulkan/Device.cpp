@@ -1437,6 +1437,8 @@ private:
             return m_RenderingAttachments2;
         else if constexpr(std::is_same_v<Tag, RenderingInfoTag>)
             return m_RenderingInfos2;
+        else if constexpr(std::is_same_v<Tag, PipelineLayoutTag>)
+            return m_PipelineLayouts2;
         else if constexpr(std::is_same_v<Tag, ShaderModuleTag>)
             return m_ShaderModules2;
         else if constexpr(std::is_same_v<Tag, DescriptorsLayoutTag>)
@@ -1468,6 +1470,7 @@ private:
     ResourceContainerWithLock<SamplerResource> m_Samplers2;
     ResourceContainerWithLock<RenderingAttachmentResource> m_RenderingAttachments2;
     ResourceContainerWithLock<RenderingInfoResource> m_RenderingInfos2;
+    ResourceContainerWithLock<PipelineLayoutResource> m_PipelineLayouts2;
     ResourceContainerWithLock<ShaderModuleResource> m_ShaderModules2;
     ResourceContainerWithLock<DescriptorsLayoutResource> m_DescriptorLayouts2;
     ResourceContainerWithLock<FenceResource> m_Fences2;
@@ -1477,7 +1480,6 @@ private:
     ResourceContainerWithLock<SplitBarrierResource> m_SplitBarriers2;
     ResourceContainerType<DescriptorsResource> m_Descriptors;
     ResourceContainerType<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators;
-    ResourceContainerType<PipelineLayoutResource> m_PipelineLayouts;
     ResourceContainerType<PipelineResource> m_Pipelines;
 
     std::vector<std::vector<CommandBuffer>> m_CommandPoolToBuffersMap;
@@ -1597,6 +1599,10 @@ public:
         DeletionQueue& deletionQueue);
     static void Destroy(const View<RenderingInfoTag>& resources, RenderingInfo renderingInfo);
     
+    static PipelineLayout CreatePipelineLayout(const View<PipelineLayoutTag, DescriptorsLayoutTag>& resources, PipelineLayoutCreateInfo&& createInfo,
+        DeletionQueue& deletionQueue);
+    static void Destroy(const View<PipelineLayoutTag>& resources, PipelineLayout pipelineLayout);
+    
     static ShaderModule CreateShaderModule(const View<ShaderModuleTag>& resources, ShaderModuleCreateInfo&& createInfo,
         DeletionQueue& deletionQueue);
     static void Destroy(const View<ShaderModuleTag>& resources, ShaderModule shaderModule);
@@ -1646,7 +1652,7 @@ public:
         Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages);
     static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(const View<TimelineSemaphoreTag>& resources,
         Span<const TimelineSemaphore> semaphores, Span<const u64> waitValues, Span<const PipelineStage> waitStages);
-    static void BindDescriptors(const View<CommandBufferTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+    static void BindDescriptors(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
         u32 firstSet, VkPipelineBindPoint bindPoint);
     
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const ExecuteSecondaryBufferCommand& command);
@@ -1695,13 +1701,13 @@ public:
 
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindPipelineGraphicsCommand& command);
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindPipelineComputeCommand& command);
-    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command);
-    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command);
-    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command);
-    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindDescriptorsComputeCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const BindDescriptorsComputeCommand& command);
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command);
 
-    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const PushConstantsCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const PushConstantsCommand& command);
     
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const DrawCommand& command);
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const DrawIndexedCommand& command);
@@ -1753,8 +1759,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_Descriptors, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, DescriptorArenaAllocatorResource>)
         return AddToResourceList(m_DescriptorArenaAllocators, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, PipelineLayoutResource>)
-        return AddToResourceList(m_PipelineLayouts, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, PipelineResource>)
         return AddToResourceList(m_Pipelines, std::forward<Resource>(resource));
     else
@@ -1773,8 +1777,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_Descriptors.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, DescriptorArenaAllocatorTag>)
         m_DescriptorArenaAllocators.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, PipelineLayoutTag>)
-        m_PipelineLayouts.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, PipelineTag>)
         m_Pipelines.Erase(handle);
     else
@@ -1796,8 +1798,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_Descriptors[type];
     else if constexpr (std::is_same_v<Decayed, DescriptorArenaAllocator>)
         return m_DescriptorArenaAllocators[type];
-    else if constexpr (std::is_same_v<Decayed, PipelineLayout>)
-        return m_PipelineLayouts[type];
     else if constexpr (std::is_same_v<Decayed, Pipeline>)
         return m_Pipelines[type];
     else
@@ -2284,51 +2284,21 @@ void Device::Destroy(RenderingInfo renderingInfo)
 
 PipelineLayout Device::CreatePipelineLayout(PipelineLayoutCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<DescriptorsLayoutTag>();
-    std::vector<VkPushConstantRange> pushConstantRanges;
-    pushConstantRanges.reserve(createInfo.PushConstants.size());
-    std::vector<VkDescriptorSetLayout> descriptorsLayouts;
-    descriptorsLayouts.reserve(createInfo.DescriptorsLayouts.size());
-    for (auto& pushConstant : createInfo.PushConstants)
-    {
-        VkPushConstantRange pushConstantRange = {};
-        pushConstantRange.size = pushConstant.SizeBytes;
-        pushConstantRange.offset = pushConstant.Offset;
-        pushConstantRange.stageFlags = vulkanShaderStageFromShaderStage(pushConstant.StageFlags);
-
-        pushConstantRanges.push_back(pushConstantRange);
-    }
-    for (auto& descriptorLayout : createInfo.DescriptorsLayouts)
-        descriptorsLayouts.push_back(view[descriptorLayout].Layout);
-
-    VkPipelineLayoutCreateInfo layoutCreateInfo = {};
-    layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layoutCreateInfo.pushConstantRangeCount = (u32)pushConstantRanges.size();
-    layoutCreateInfo.pPushConstantRanges = pushConstantRanges.data();
-    layoutCreateInfo.setLayoutCount = (u32)descriptorsLayouts.size();
-    layoutCreateInfo.pSetLayouts = descriptorsLayouts.data();
-
-    DeviceResources::PipelineLayoutResource pipelineLayoutResource = {};
-    pipelineLayoutResource.PushConstants = pushConstantRanges;
-    deviceCheck(vkCreatePipelineLayout(s_State.Device, &layoutCreateInfo, nullptr, &pipelineLayoutResource.Layout),
-        "Failed to create pipeline layout");
-
-    PipelineLayout layout = Resources().AddResource(pipelineLayoutResource);
-    deletionQueue.Enqueue(layout);
-
-    return layout;
+    auto view = Resources().GetLockedView<PipelineLayoutTag, DescriptorsLayoutTag>();
+    
+    return DeviceInternal::CreatePipelineLayout(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(PipelineLayout pipelineLayout)
 {
-    vkDestroyPipelineLayout(s_State.Device, Resources().m_PipelineLayouts[pipelineLayout.m_Id].Layout, nullptr);
-    Resources().RemoveResource(pipelineLayout);
+    auto view = Resources().GetLockedView<PipelineLayoutTag>();
+    DeviceInternal::Destroy(view, pipelineLayout);
 }
 
 Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<ShaderModuleTag>();
-    VkPipelineLayout layout = Resources()[createInfo.PipelineLayout].Layout;
+    auto view = Resources().GetLockedView<PipelineLayoutTag, ShaderModuleTag>();
+    VkPipelineLayout layout = view[createInfo.PipelineLayout].Layout;
     std::vector<VkPipelineShaderStageCreateInfo> shaders;
     shaders.reserve(createInfo.Shaders.size());
     for (auto&& [i, shader] : std::views::enumerate(createInfo.Shaders))
@@ -4207,31 +4177,31 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, Com
         VK_PIPELINE_BIND_POINT_COMPUTE, Device::Resources()[command.PipelineLayout].Layout, command.Set);
 }
 #else // DESCRIPTOR_BUFFER
-void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd,
     const BindImmutableSamplersGraphicsCommand& command)
 {
     vkCmdBindDescriptorSets(resources[cmd].CommandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS, Device::Resources()[command.PipelineLayout].Layout, command.Set, 1,
+        VK_PIPELINE_BIND_POINT_GRAPHICS, resources[command.PipelineLayout].Layout, command.Set, 1,
         &Device::Resources()[command.Descriptors].DescriptorSet, 0, nullptr);
 }
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd,
     const BindImmutableSamplersComputeCommand& command)
 {
     vkCmdBindDescriptorSets(resources[cmd].CommandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE, Device::Resources()[command.PipelineLayout].Layout, command.Set, 1,
+        VK_PIPELINE_BIND_POINT_COMPUTE, resources[command.PipelineLayout].Layout, command.Set, 1,
         &Device::Resources()[command.Descriptors].DescriptorSet, 0, nullptr);
 } 
 #endif // DESCRIPTOR_BUFFER
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd,
     const BindDescriptorsGraphicsCommand& command)
 {
     BindDescriptors(resources, cmd, command.PipelineLayout, command.Descriptors, command.Set,
         VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd,
     const BindDescriptorsComputeCommand& command)
 {
     BindDescriptors(resources, cmd, command.PipelineLayout, command.Descriptors, command.Set,
@@ -4268,10 +4238,10 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag>&, CommandBuffer
 }
 #endif // DESCRIPTOR_BUFFER
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd,
     const PushConstantsCommand& command)
 {
-    const DeviceResources::PipelineLayoutResource& layout = Device::Resources()[command.PipelineLayout];
+    const DeviceResources::PipelineLayoutResource& layout = resources[command.PipelineLayout];
     const VkPushConstantRange& pushConstantRange = layout.PushConstants.front();
     vkCmdPushConstants(resources[cmd].CommandBuffer, layout.Layout,
         pushConstantRange.stageFlags, 0, pushConstantRange.size, command.Data.data());
@@ -4577,25 +4547,25 @@ void Device::CompileCommand(CommandBuffer cmd, const BindPipelineComputeCommand&
 
 void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsComputeCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
@@ -4607,7 +4577,7 @@ void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorArenaAllocato
 
 void Device::CompileCommand(CommandBuffer cmd, const PushConstantsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
@@ -5862,6 +5832,49 @@ void DeviceInternal::Destroy(const View<RenderingAttachmentTag>& resources, Rend
     resources.Remove(renderingAttachment);
 }
 
+PipelineLayout DeviceInternal::CreatePipelineLayout(const View<PipelineLayoutTag, DescriptorsLayoutTag>& resources,
+    PipelineLayoutCreateInfo&& createInfo, DeletionQueue& deletionQueue)
+{
+    std::vector<VkPushConstantRange> pushConstantRanges;
+    pushConstantRanges.reserve(createInfo.PushConstants.size());
+    std::vector<VkDescriptorSetLayout> descriptorsLayouts;
+    descriptorsLayouts.reserve(createInfo.DescriptorsLayouts.size());
+    for (auto& pushConstant : createInfo.PushConstants)
+    {
+        VkPushConstantRange pushConstantRange = {};
+        pushConstantRange.size = pushConstant.SizeBytes;
+        pushConstantRange.offset = pushConstant.Offset;
+        pushConstantRange.stageFlags = vulkanShaderStageFromShaderStage(pushConstant.StageFlags);
+
+        pushConstantRanges.push_back(pushConstantRange);
+    }
+    for (auto& descriptorLayout : createInfo.DescriptorsLayouts)
+        descriptorsLayouts.push_back(resources[descriptorLayout].Layout);
+
+    VkPipelineLayoutCreateInfo layoutCreateInfo = {};
+    layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layoutCreateInfo.pushConstantRangeCount = (u32)pushConstantRanges.size();
+    layoutCreateInfo.pPushConstantRanges = pushConstantRanges.data();
+    layoutCreateInfo.setLayoutCount = (u32)descriptorsLayouts.size();
+    layoutCreateInfo.pSetLayouts = descriptorsLayouts.data();
+
+    DeviceResources::PipelineLayoutResource pipelineLayoutResource = {};
+    pipelineLayoutResource.PushConstants = pushConstantRanges;
+    deviceCheck(vkCreatePipelineLayout(Device::s_State.Device, &layoutCreateInfo, nullptr,
+        &pipelineLayoutResource.Layout), "Failed to create pipeline layout");
+
+    PipelineLayout layout = resources.Add(pipelineLayoutResource);
+    deletionQueue.Enqueue(layout);
+
+    return layout;
+}
+
+void DeviceInternal::Destroy(const View<PipelineLayoutTag>& resources, PipelineLayout pipelineLayout)
+{
+    vkDestroyPipelineLayout(Device::s_State.Device, resources[pipelineLayout].Layout, nullptr);
+    resources.Remove(pipelineLayout);
+}
+
 ShaderModule DeviceInternal::CreateShaderModule(const View<ShaderModuleTag>& resources,
     ShaderModuleCreateInfo&& createInfo, DeletionQueue& deletionQueue)
 {
@@ -6335,12 +6348,12 @@ u32 DeviceInternal::GetFreePoolIndexFromAllocator(DescriptorArenaAllocator alloc
     return index;
 }
 
-void DeviceInternal::BindDescriptors(const View<CommandBufferTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+void DeviceInternal::BindDescriptors(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
     u32 firstSet, VkPipelineBindPoint bindPoint)
 {
     const DeviceResources::DescriptorsResource& descriptorsResource = Device::Resources()[descriptors];
     vkCmdBindDescriptorSets(resources[cmd].CommandBuffer, bindPoint,
-        Device::Resources()[pipelineLayout].Layout, firstSet, 1, &descriptorsResource.DescriptorSet, 0, nullptr);
+        resources[pipelineLayout].Layout, firstSet, 1, &descriptorsResource.DescriptorSet, 0, nullptr);
 }
 #endif
 
