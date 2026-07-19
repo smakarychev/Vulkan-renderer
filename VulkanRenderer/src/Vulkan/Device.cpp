@@ -1437,6 +1437,8 @@ private:
             return m_RenderingAttachments2;
         else if constexpr(std::is_same_v<Tag, RenderingInfoTag>)
             return m_RenderingInfos2;
+        else if constexpr(std::is_same_v<Tag, DescriptorsLayoutTag>)
+            return m_DescriptorLayouts2;
         else if constexpr(std::is_same_v<Tag, FenceTag>)
             return m_Fences2;
         else if constexpr(std::is_same_v<Tag, SemaphoreTag>)
@@ -1464,12 +1466,12 @@ private:
     ResourceContainerWithLock<SamplerResource> m_Samplers2;
     ResourceContainerWithLock<RenderingAttachmentResource> m_RenderingAttachments2;
     ResourceContainerWithLock<RenderingInfoResource> m_RenderingInfos2;
+    ResourceContainerWithLock<DescriptorsLayoutResource> m_DescriptorLayouts2;
     ResourceContainerWithLock<FenceResource> m_Fences2;
     ResourceContainerWithLock<SemaphoreResource> m_Semaphores2;
     ResourceContainerWithLock<TimelineSemaphoreResource> m_TimelineSemaphores2;
     ResourceContainerWithLock<DependencyInfoResource> m_DependencyInfos2;
     ResourceContainerWithLock<SplitBarrierResource> m_SplitBarriers2;
-    ResourceContainerType<DescriptorsLayoutResource> m_DescriptorLayouts;
     ResourceContainerType<DescriptorsResource> m_Descriptors;
     ResourceContainerType<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators;
     ResourceContainerType<PipelineLayoutResource> m_PipelineLayouts;
@@ -1592,6 +1594,10 @@ public:
     static RenderingInfo CreateRenderingInfo(const View<RenderingInfoTag, RenderingAttachmentTag>& resources, RenderingInfoCreateInfo&& createInfo,
         DeletionQueue& deletionQueue);
     static void Destroy(const View<RenderingInfoTag>& resources, RenderingInfo renderingInfo);
+    
+    static DescriptorsLayout CreateDescriptorsLayout(const View<DescriptorsLayoutTag, SamplerTag>& resources, DescriptorsLayoutCreateInfo&& createInfo);
+    static DescriptorsLayout GetEmptyDescriptorsLayout(const View<DescriptorsLayoutTag, SamplerTag>& resources);
+    static void Destroy(const View<DescriptorsLayoutTag>& resources, DescriptorsLayout layout);
     
     static Fence CreateFence(const View<FenceTag>& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue);
     static void Destroy(const View<FenceTag>& resources, Fence fence);
@@ -1737,9 +1743,7 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
 
     using Decayed = std::decay_t<Resource>;
 
-    if constexpr (std::is_same_v<Decayed, DescriptorsLayoutResource>)
-        return AddToResourceList(m_DescriptorLayouts, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, DescriptorsResource>)
+    if constexpr (std::is_same_v<Decayed, DescriptorsResource>)
         return AddToResourceList(m_Descriptors, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, DescriptorArenaAllocatorResource>)
         return AddToResourceList(m_DescriptorArenaAllocators, std::forward<Resource>(resource));
@@ -1761,9 +1765,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
 
     using Decayed = std::decay_t<Type>;
 
-    if constexpr (std::is_same_v<Decayed, DescriptorsLayoutTag>)
-        m_DescriptorLayouts.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, DescriptorsTag>)
+    if constexpr (std::is_same_v<Decayed, DescriptorsTag>)
         m_Descriptors.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, DescriptorArenaAllocatorTag>)
         m_DescriptorArenaAllocators.Erase(handle);
@@ -1788,9 +1790,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
 {
     using Decayed = std::decay_t<Type>;
 
-    if constexpr (std::is_same_v<Decayed, DescriptorsLayout>)
-        return m_DescriptorLayouts[type];
-    else if constexpr (std::is_same_v<Decayed, Descriptors>)
+    if constexpr (std::is_same_v<Decayed, Descriptors>)
         return m_Descriptors[type];
     else if constexpr (std::is_same_v<Decayed, DescriptorArenaAllocator>)
         return m_DescriptorArenaAllocators[type];
@@ -2284,6 +2284,7 @@ void Device::Destroy(RenderingInfo renderingInfo)
 
 PipelineLayout Device::CreatePipelineLayout(PipelineLayoutCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
+    auto view = Resources().GetLockedView<DescriptorsLayoutTag>();
     std::vector<VkPushConstantRange> pushConstantRanges;
     pushConstantRanges.reserve(createInfo.PushConstants.size());
     std::vector<VkDescriptorSetLayout> descriptorsLayouts;
@@ -2298,7 +2299,7 @@ PipelineLayout Device::CreatePipelineLayout(PipelineLayoutCreateInfo&& createInf
         pushConstantRanges.push_back(pushConstantRange);
     }
     for (auto& descriptorLayout : createInfo.DescriptorsLayouts)
-        descriptorsLayouts.push_back(Resources()[descriptorLayout].Layout);
+        descriptorsLayouts.push_back(view[descriptorLayout].Layout);
 
     VkPipelineLayoutCreateInfo layoutCreateInfo = {};
     layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -2565,101 +2566,22 @@ void Device::Destroy(ShaderModule shaderModule)
 
 DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& createInfo)
 {
-    auto view = Resources().GetLockedView<SamplerTag>();
+    auto view = Resources().GetLockedView<DescriptorsLayoutTag, SamplerTag>();
     
-    const DescriptorLayoutCache::CacheKey key = DescriptorLayoutCache::CreateCacheKey(createInfo);
-    DescriptorsLayout cached = DescriptorLayoutCache::Find(key);
-    if (cached.HasValue())
-        return cached;
-
-    std::vector<VkDescriptorBindingFlags> bindingFlags;
-    bindingFlags.reserve(createInfo.Bindings.size());
-
-#ifdef DESCRIPTOR_BUFFER
-    for (auto binding : createInfo.Bindings)
-        bindingFlags.push_back(vulkanDescriptorBindingFlagsFromDescriptorFlags(binding.Flags));
-#else
-    for (auto binding : createInfo.Bindings)
-    {
-        DescriptorFlags flags = binding.Flags;
-        if (enumHasAny(flags, DescriptorFlags::VariableCount))
-            flags |= DescriptorFlags::UpdateAfterBind |
-                DescriptorFlags::UpdateUnusedPending;
-        bindingFlags.push_back(vulkanDescriptorBindingFlagsFromDescriptorFlags(
-            flags | DescriptorFlags::PartiallyBound));
-    }
-#endif
-
-    std::vector<VkDescriptorSetLayoutBinding> bindings;
-    bindings.reserve(createInfo.Bindings.size());
-    DescriptorLayoutFlags layoutFlags = createInfo.Flags;
-
-    bool layoutHasImmutableSamplers = false;
-    for (auto& binding : createInfo.Bindings)
-    {
-        bindings.push_back({
-            .binding = binding.Binding,
-            .descriptorType = vulkanDescriptorTypeFromDescriptorType(binding.Type),
-            .descriptorCount = binding.Count,
-            .stageFlags = vulkanShaderStageFromShaderStage(binding.Shaders),
-            .pImmutableSamplers = nullptr
-        });
-
-        layoutHasImmutableSamplers |= binding.ImmutableSampler.HasValue();
-        if (binding.ImmutableSampler.HasValue())
-            bindings.back().pImmutableSamplers = &view[binding.ImmutableSampler].Sampler;
-    }
-
-    VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo = {};
-    bindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-    bindingFlagsCreateInfo.bindingCount = (u32)bindingFlags.size();
-    bindingFlagsCreateInfo.pBindingFlags = bindingFlags.data();
-
-#ifdef DESCRIPTOR_BUFFER
-    layoutFlags |= DescriptorLayoutFlags::DescriptorBuffer;
-    if (layoutHasImmutableSamplers)
-        layoutFlags |= DescriptorLayoutFlags::EmbeddedImmutableSamplers;
-    layoutFlags &= ~DescriptorLayoutFlags::UpdateAfterBind;
-#else
-    (void)layoutHasImmutableSamplers;
-#endif
-
-    VkDescriptorSetLayoutCreateInfo layoutCreateInfo = {};
-    layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutCreateInfo.bindingCount = (u32)bindings.size();
-    layoutCreateInfo.pBindings = bindings.data();
-    layoutCreateInfo.flags = vulkanDescriptorsLayoutFlagsFromDescriptorsLayoutFlags(layoutFlags);
-    layoutCreateInfo.pNext = &bindingFlagsCreateInfo;
-
-    DeviceResources::DescriptorsLayoutResource descriptorSetLayoutResource = {};
-    deviceCheck(vkCreateDescriptorSetLayout(s_State.Device, &layoutCreateInfo, nullptr,
-        &descriptorSetLayoutResource.Layout), "Failed to create descriptor set layout");
-
-    DescriptorsLayout layout = Resources().AddResource(descriptorSetLayoutResource);
-    DeletionQueue().Enqueue(layout);
-
-    DescriptorLayoutCache::Emplace(key, layout);
-
-    return layout;
+    return DeviceInternal::CreateDescriptorsLayout(view, std::move(createInfo));
 }
 
 DescriptorsLayout Device::GetEmptyDescriptorsLayout()
 {
-#ifdef DESCRIPTOR_BUFFER
-    static const DescriptorsLayout EMPTY_LAYOUT =
-        CreateDescriptorsLayout({.Flags = DescriptorLayoutFlags::DescriptorBuffer});
-#else
-    static const DescriptorsLayout EMPTY_LAYOUT =
-        CreateDescriptorsLayout({});
-#endif
-
-    return EMPTY_LAYOUT;
+    auto view = Resources().GetLockedView<DescriptorsLayoutTag, SamplerTag>();
+    
+    return DeviceInternal::GetEmptyDescriptorsLayout(view);
 }
 
 void Device::Destroy(DescriptorsLayout layout)
 {
-    vkDestroyDescriptorSetLayout(s_State.Device, Resources().m_DescriptorLayouts[layout.m_Id].Layout, nullptr);
-    Resources().RemoveResource(layout);
+    auto view = Resources().GetLockedView<DescriptorsLayoutTag>();
+    DeviceInternal::Destroy(view, layout);
 }
 
 #ifdef DESCRIPTOR_BUFFER
@@ -2873,6 +2795,7 @@ void Device::Destroy(DescriptorArenaAllocator allocator)
 std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator allocator, DescriptorsLayout layout,
     DescriptorAllocatorAllocationBindings&& bindings)
 {
+    auto view = Resources().GetLockedView<DescriptorsLayoutTag>();
     const bool hasBindless = bindings.BindlessCount > 0;
     const DescriptorPoolFlags poolFlags = hasBindless ?
                                               DescriptorPoolFlags::UpdateAfterBind :
@@ -2891,7 +2814,7 @@ std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator 
     allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocateInfo.descriptorPool = pool;
     allocateInfo.descriptorSetCount = 1;
-    allocateInfo.pSetLayouts = &Resources()[layout].Layout;
+    allocateInfo.pSetLayouts = &view[layout].Layout;
     allocateInfo.pNext = &vulkanVariableBindingCounts;
 
     DeviceResources::DescriptorsResource descriptorSetResource = {};
@@ -2906,7 +2829,7 @@ std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator 
         poolIndex = DeviceInternal::GetFreePoolIndexFromAllocator(allocator, poolFlags);
         pool = allocatorResource.FreePools[poolIndex].Pool;
         allocateInfo.descriptorPool = pool;
-        allocateInfo.pSetLayouts = &Resources()[descriptorSetResource.Layout].Layout;
+        allocateInfo.pSetLayouts = &view[descriptorSetResource.Layout].Layout;
         vkAllocateDescriptorSets(s_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet);
         if (descriptorSetResource.DescriptorSet == VK_NULL_HANDLE)
             return std::nullopt;
@@ -5946,6 +5869,104 @@ RenderingAttachment DeviceInternal::CreateRenderingAttachment(const View<Renderi
 void DeviceInternal::Destroy(const View<RenderingAttachmentTag>& resources, RenderingAttachment renderingAttachment)
 {
     resources.Remove(renderingAttachment);
+}
+
+DescriptorsLayout DeviceInternal::CreateDescriptorsLayout(const View<DescriptorsLayoutTag, SamplerTag>& resources,
+    DescriptorsLayoutCreateInfo&& createInfo)
+{
+    const DescriptorLayoutCache::CacheKey key = DescriptorLayoutCache::CreateCacheKey(createInfo);
+    DescriptorsLayout cached = DescriptorLayoutCache::Find(key);
+    if (cached.HasValue())
+        return cached;
+
+    std::vector<VkDescriptorBindingFlags> bindingFlags;
+    bindingFlags.reserve(createInfo.Bindings.size());
+
+#ifdef DESCRIPTOR_BUFFER
+    for (auto binding : createInfo.Bindings)
+        bindingFlags.push_back(vulkanDescriptorBindingFlagsFromDescriptorFlags(binding.Flags));
+#else
+    for (auto binding : createInfo.Bindings)
+    {
+        DescriptorFlags flags = binding.Flags;
+        if (enumHasAny(flags, DescriptorFlags::VariableCount))
+            flags |= DescriptorFlags::UpdateAfterBind |
+                DescriptorFlags::UpdateUnusedPending;
+        bindingFlags.push_back(vulkanDescriptorBindingFlagsFromDescriptorFlags(
+            flags | DescriptorFlags::PartiallyBound));
+    }
+#endif
+
+    std::vector<VkDescriptorSetLayoutBinding> bindings;
+    bindings.reserve(createInfo.Bindings.size());
+    DescriptorLayoutFlags layoutFlags = createInfo.Flags;
+
+    bool layoutHasImmutableSamplers = false;
+    for (auto& binding : createInfo.Bindings)
+    {
+        bindings.push_back({
+            .binding = binding.Binding,
+            .descriptorType = vulkanDescriptorTypeFromDescriptorType(binding.Type),
+            .descriptorCount = binding.Count,
+            .stageFlags = vulkanShaderStageFromShaderStage(binding.Shaders),
+            .pImmutableSamplers = nullptr
+        });
+
+        layoutHasImmutableSamplers |= binding.ImmutableSampler.HasValue();
+        if (binding.ImmutableSampler.HasValue())
+            bindings.back().pImmutableSamplers = &resources[binding.ImmutableSampler].Sampler;
+    }
+
+    VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo = {};
+    bindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+    bindingFlagsCreateInfo.bindingCount = (u32)bindingFlags.size();
+    bindingFlagsCreateInfo.pBindingFlags = bindingFlags.data();
+
+#ifdef DESCRIPTOR_BUFFER
+    layoutFlags |= DescriptorLayoutFlags::DescriptorBuffer;
+    if (layoutHasImmutableSamplers)
+        layoutFlags |= DescriptorLayoutFlags::EmbeddedImmutableSamplers;
+    layoutFlags &= ~DescriptorLayoutFlags::UpdateAfterBind;
+#else
+    (void)layoutHasImmutableSamplers;
+#endif
+
+    VkDescriptorSetLayoutCreateInfo layoutCreateInfo = {};
+    layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutCreateInfo.bindingCount = (u32)bindings.size();
+    layoutCreateInfo.pBindings = bindings.data();
+    layoutCreateInfo.flags = vulkanDescriptorsLayoutFlagsFromDescriptorsLayoutFlags(layoutFlags);
+    layoutCreateInfo.pNext = &bindingFlagsCreateInfo;
+
+    DeviceResources::DescriptorsLayoutResource descriptorSetLayoutResource = {};
+    deviceCheck(vkCreateDescriptorSetLayout(Device::s_State.Device, &layoutCreateInfo, nullptr,
+        &descriptorSetLayoutResource.Layout), "Failed to create descriptor set layout");
+
+    DescriptorsLayout layout = resources.Add(descriptorSetLayoutResource);
+    Device::DeletionQueue().Enqueue(layout);
+
+    DescriptorLayoutCache::Emplace(key, layout);
+
+    return layout;
+}
+
+DescriptorsLayout DeviceInternal::GetEmptyDescriptorsLayout(const View<DescriptorsLayoutTag, SamplerTag>& resources)
+{
+#ifdef DESCRIPTOR_BUFFER
+    static const DescriptorsLayout EMPTY_LAYOUT =
+        CreateDescriptorsLayout(resources, {.Flags = DescriptorLayoutFlags::DescriptorBuffer});
+#else
+    static const DescriptorsLayout EMPTY_LAYOUT =
+        CreateDescriptorsLayout(resources, {});
+#endif
+
+    return EMPTY_LAYOUT;
+}
+
+void DeviceInternal::Destroy(const View<DescriptorsLayoutTag>& resources, DescriptorsLayout layout)
+{
+    vkDestroyDescriptorSetLayout(Device::s_State.Device, resources[layout].Layout, nullptr);
+    resources.Remove(layout);
 }
 
 Fence DeviceInternal::CreateFence(const View<FenceTag>& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue)
