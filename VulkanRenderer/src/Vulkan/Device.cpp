@@ -1391,17 +1391,6 @@ class DeviceResources
     };
 
 private:
-    template <typename ResourceList, typename Resource>
-    constexpr auto AddToResourceList(ResourceList& list, Resource&& value);
-    template <typename Resource>
-    constexpr auto AddResource(Resource&& resource);
-    template <typename Type>
-    constexpr void RemoveResource(ResourceHandleType<Type> handle);
-    template <typename Type>
-    constexpr const auto& operator[](const Type& type) const;
-    template <typename Type>
-    constexpr auto& operator[](const Type& type);
-
     void MapCmdToPool(CommandBuffer cmd, CommandPool pool);
     void DestroyCmdsOfPool(CommandPool pool);
 
@@ -1922,49 +1911,6 @@ RenderingInfo DeviceInternal::CreateRenderingInfo(const View<RenderingInfoTag, R
 void DeviceInternal::Destroy(const View<RenderingInfoTag>& resources, RenderingInfo renderingInfo)
 {
     resources.Remove(renderingInfo);
-}
-
-template <typename ResourceList, typename Resource>
-constexpr auto DeviceResources::AddToResourceList(ResourceList& list, Resource&& value)
-{
-    static_assert(std::is_same_v<std::decay_t<Resource>, typename ResourceList::ValueType>);
-    return list.Insert(std::forward<typename ResourceList::ValueType>(value));
-}
-
-template <typename Resource>
-constexpr auto DeviceResources::AddResource(Resource&& resource)
-{
-    m_AllocatedCount++;
-
-    using Decayed = std::decay_t<Resource>;
-
-    static_assert(!sizeof(Resource), "No match for resource");
-    std::unreachable();
-}
-
-template <typename Type>
-constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
-{
-    m_DeallocatedCount++;
-
-    using Decayed = std::decay_t<Type>;
-
-    static_assert(!sizeof(Type), "No match for type");
-}
-
-template <typename Type>
-constexpr const auto& DeviceResources::operator[](const Type& type) const
-{
-    return const_cast<DeviceResources&>(*this)[type];
-}
-
-template <typename Type>
-constexpr auto& DeviceResources::operator[](const Type& type)
-{
-    using Decayed = std::decay_t<Type>;
-
-    static_assert(!sizeof(Type), "No match for type");
-    std::unreachable();
 }
 
 DeviceCreateInfo DeviceCreateInfo::Default(lux::Window* window, bool asyncCompute)
