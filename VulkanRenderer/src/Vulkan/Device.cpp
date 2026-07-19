@@ -1445,6 +1445,8 @@ private:
             return m_ShaderModules2;
         else if constexpr(std::is_same_v<Tag, DescriptorsLayoutTag>)
             return m_DescriptorLayouts2;
+        else if constexpr(std::is_same_v<Tag, DescriptorArenaAllocatorTag>)
+            return m_DescriptorArenaAllocators2;
         else if constexpr(std::is_same_v<Tag, FenceTag>)
             return m_Fences2;
         else if constexpr(std::is_same_v<Tag, SemaphoreTag>)
@@ -1476,13 +1478,13 @@ private:
     ResourceContainerWithLock<PipelineResource> m_Pipelines2;
     ResourceContainerWithLock<ShaderModuleResource> m_ShaderModules2;
     ResourceContainerWithLock<DescriptorsLayoutResource> m_DescriptorLayouts2;
+    ResourceContainerWithLock<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators2;
     ResourceContainerWithLock<FenceResource> m_Fences2;
     ResourceContainerWithLock<SemaphoreResource> m_Semaphores2;
     ResourceContainerWithLock<TimelineSemaphoreResource> m_TimelineSemaphores2;
     ResourceContainerWithLock<DependencyInfoResource> m_DependencyInfos2;
     ResourceContainerWithLock<SplitBarrierResource> m_SplitBarriers2;
     ResourceContainerType<DescriptorsResource> m_Descriptors;
-    ResourceContainerType<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators;
 
     std::vector<std::vector<CommandBuffer>> m_CommandPoolToBuffersMap;
 };
@@ -1616,6 +1618,15 @@ public:
     static DescriptorsLayout GetEmptyDescriptorsLayout(const View<DescriptorsLayoutTag, SamplerTag>& resources);
     static void Destroy(const View<DescriptorsLayoutTag>& resources, DescriptorsLayout layout);
     
+    static DescriptorArenaAllocator CreateDescriptorArenaAllocator(
+        const View<DescriptorArenaAllocatorTag, BufferTag>& resources, DescriptorArenaAllocatorCreateInfo&& createInfo,
+        DeletionQueue& deletionQueue);
+    static void Destroy(const View<DescriptorArenaAllocatorTag, BufferTag>& resources, DescriptorArenaAllocator allocator);
+    static std::optional<Descriptors> AllocateDescriptors(
+        const View<DescriptorArenaAllocatorTag, DescriptorsLayoutTag>& resources, DescriptorArenaAllocator allocator,
+        DescriptorsLayout layout, DescriptorAllocatorAllocationBindings&& bindings);
+    static void ResetDescriptorArenaAllocator(const View<DescriptorArenaAllocatorTag>& resources, DescriptorArenaAllocator allocator);
+    
     static Fence CreateFence(const View<FenceTag>& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue);
     static void Destroy(const View<FenceTag>& resources, Fence fence);
     static void WaitForFence(const View<FenceTag>& resources, Fence fence);
@@ -1649,7 +1660,7 @@ public:
     static void WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo slotInfo, u32 index,
         VkDescriptorGetInfoEXT& descriptorGetInfo);
 #else
-    static u32 GetFreePoolIndexFromAllocator(DescriptorArenaAllocator allocator, DescriptorPoolFlags poolFlags);
+    static u32 GetFreePoolIndexFromAllocator(const View<DescriptorArenaAllocatorTag>& resources, DescriptorArenaAllocator allocator, DescriptorPoolFlags poolFlags);
 #endif
     static VmaAllocator& Allocator();
 
@@ -1723,7 +1734,6 @@ public:
     static void CompileCommand(const View<CommandBufferTag, BufferTag>& resources, CommandBuffer cmd, const DispatchIndirectCommand& command);
 };
 
-
 RenderingInfo DeviceInternal::CreateRenderingInfo(const View<RenderingInfoTag, RenderingAttachmentTag>& resources,
     RenderingInfoCreateInfo&& createInfo, DeletionQueue& deletionQueue)
 {
@@ -1763,8 +1773,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
 
     if constexpr (std::is_same_v<Decayed, DescriptorsResource>)
         return AddToResourceList(m_Descriptors, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, DescriptorArenaAllocatorResource>)
-        return AddToResourceList(m_DescriptorArenaAllocators, std::forward<Resource>(resource));
     else
         static_assert(!sizeof(Resource), "No match for resource");
     std::unreachable();
@@ -1779,8 +1787,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
 
     if constexpr (std::is_same_v<Decayed, DescriptorsTag>)
         m_Descriptors.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, DescriptorArenaAllocatorTag>)
-        m_DescriptorArenaAllocators.Erase(handle);
     else
         static_assert(!sizeof(Type), "No match for type");
 }
@@ -1798,8 +1804,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
 
     if constexpr (std::is_same_v<Decayed, Descriptors>)
         return m_Descriptors[type];
-    else if constexpr (std::is_same_v<Decayed, DescriptorArenaAllocator>)
-        return m_DescriptorArenaAllocators[type];
     else
         static_assert(!sizeof(Type), "No match for type");
     std::unreachable();
@@ -2342,124 +2346,6 @@ void Device::Destroy(DescriptorsLayout layout)
 }
 
 #ifdef DESCRIPTOR_BUFFER
-DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo,
-    ::DeletionQueue& deletionQueue)
-{
-    ASSERT(!createInfo.UsedTypes.empty(), "At least one descriptor type is necessary")
-    ASSERT(createInfo.Residence == DescriptorAllocatorResidence::CPU, "GPU residence is not supported")
-
-    VkBufferUsageFlags descriptorBufferUsage = 0;
-    for (auto type : createInfo.UsedTypes)
-    {
-        if (type == DescriptorType::Sampler)
-            descriptorBufferUsage |= VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
-        else
-            descriptorBufferUsage |= VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
-    }
-
-    u32 maxDescriptorSize = 0;
-    for (auto type : createInfo.UsedTypes)
-        maxDescriptorSize = std::max(maxDescriptorSize, DeviceInternal::GetDescriptorSizeBytes(type));
-
-    const u64 arenaSizeBytes = (u64)maxDescriptorSize * createInfo.DescriptorCount;
-
-    VkBufferUsageFlags usageFlags = descriptorBufferUsage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    VmaAllocationCreateFlags allocationFlags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-    if (createInfo.Residence == DescriptorAllocatorResidence::GPU)
-        usageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    else
-        allocationFlags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
-    DeviceResources::DescriptorArenaAllocatorResource allocatorResource = {};
-    allocatorResource.DescriptorSet = createInfo.DescriptorSet;
-    allocatorResource.DescriptorBufferUsage = descriptorBufferUsage;
-    allocatorResource.Residence = createInfo.Residence;
-    allocatorResource.SizeBytes = arenaSizeBytes;
-    allocatorResource.Descriptors.reserve(createInfo.DescriptorCount);
-    const BufferCreateInfo arenaCreateInfo = {.SizeBytes = arenaSizeBytes, .PersistentMapping = true};
-    allocatorResource.Arena = DeviceInternal::AllocateBuffer(arenaCreateInfo, usageFlags, allocationFlags);
-    allocatorResource.DeviceAddress = GetDeviceAddress(allocatorResource.Arena);
-    allocatorResource.MappedAddress = GetBufferMappedAddress(allocatorResource.Arena);
-
-    DescriptorArenaAllocator allocator = Resources().AddResource(allocatorResource);
-    deletionQueue.Enqueue(allocator);
-
-    return allocator;
-}
-
-void Device::Destroy(DescriptorArenaAllocator allocator)
-{
-    ResetDescriptorArenaAllocator(allocator);
-    Destroy(Resources()[allocator].Arena);
-    Resources().RemoveResource(allocator);
-}
-
-std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator allocator,
-    DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings)
-{
-    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[allocator];
-    auto& descriptorBufferProps = s_State.GPUDescriptorBufferProperties;
-
-    /* if we have bindless binding, we have to calculate layout size as a sum of bindings sizes */
-    u64 layoutSizeBytes = 0;
-    if (bindings.BindlessCount == 0)
-    {
-        vkGetDescriptorSetLayoutSizeEXT(s_State.Device, Resources()[layout].Layout, &layoutSizeBytes);
-    }
-    else
-    {
-        for (u32 bindingIndex = 0; bindingIndex < bindings.Bindings.size(); bindingIndex++)
-        {
-            auto& binding = bindings.Bindings[bindingIndex];
-            bool isBindless = enumHasAny(binding.Flags, DescriptorFlags::VariableCount);
-            ASSERT(
-                (bindingIndex == (u32)bindings.Bindings.size() - 1 && isBindless) ||
-                (bindingIndex != (u32)bindings.Bindings.size() - 1 && !isBindless),
-                "Only one binding can be declared as 'bindless' for any particular set, and it has to be the last one")
-
-            layoutSizeBytes += isBindless ?
-                                   bindings.BindlessCount * DeviceInternal::GetDescriptorSizeBytes(binding.Type) :
-                                   DeviceInternal::GetDescriptorSizeBytes(binding.Type);
-        }
-    }
-
-    layoutSizeBytes =
-        lux::mem::alignAddressPow2(layoutSizeBytes, descriptorBufferProps.descriptorBufferOffsetAlignment);
-    if (layoutSizeBytes + allocatorResource.CurrentOffset > allocatorResource.SizeBytes)
-        return {};
-
-    std::vector<u64> bindingOffsets(bindings.Bindings.size());
-    for (u32 offsetIndex = 0; offsetIndex < bindingOffsets.size(); offsetIndex++)
-    {
-        auto& binding = bindings.Bindings[offsetIndex];
-        vkGetDescriptorSetLayoutBindingOffsetEXT(s_State.Device, Resources()[layout].Layout, binding.Binding,
-            &bindingOffsets[offsetIndex]);
-        bindingOffsets[offsetIndex] += allocatorResource.CurrentOffset;
-    }
-
-    DeviceResources::DescriptorsResource descriptorsResource = {};
-    descriptorsResource.Offsets = bindingOffsets;
-    descriptorsResource.SizeBytes = layoutSizeBytes;
-    descriptorsResource.Allocator = allocator;
-
-    Descriptors descriptors = Resources().AddResource(descriptorsResource);
-    allocatorResource.Descriptors.push_back(descriptors);
-
-    allocatorResource.CurrentOffset += layoutSizeBytes;
-
-    return descriptors;
-}
-
-void Device::ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator)
-{
-    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[allocator];
-    for (Descriptors descriptors : allocatorResource.Descriptors)
-        Resources().RemoveResource(descriptors);
-    allocatorResource.Descriptors.clear();
-
-    allocatorResource.CurrentOffset = 0;
-}
-
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
     const BufferSubresource& buffer, u32 index)
 {
@@ -2526,94 +2412,29 @@ void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotI
 DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo,
     ::DeletionQueue& deletionQueue)
 {
-    DeviceResources::DescriptorArenaAllocatorResource descriptorAllocatorResource = {};
-    descriptorAllocatorResource.MaxSetsPerPool = createInfo.DescriptorCount;
-    descriptorAllocatorResource.Descriptors.reserve(createInfo.DescriptorCount);
-
-    DescriptorArenaAllocator allocator = Resources().AddResource(descriptorAllocatorResource);
-    deletionQueue.Enqueue(allocator);
-
-    return allocator;
+    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag, BufferTag>();
+    
+    return DeviceInternal::CreateDescriptorArenaAllocator(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(DescriptorArenaAllocator allocator)
 {
-    ResetDescriptorArenaAllocator(allocator);
-
-    const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[allocator];
-    for (auto& pool : allocatorResource.FreePools)
-        vkDestroyDescriptorPool(s_State.Device, pool.Pool, nullptr);
-    for (auto& pool : allocatorResource.UsedPools)
-        vkDestroyDescriptorPool(s_State.Device, pool.Pool, nullptr);
-
-    Resources().RemoveResource(allocator);
+    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag, BufferTag>();
+    DeviceInternal::Destroy(view, allocator);
 }
 
 std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator allocator, DescriptorsLayout layout,
     DescriptorAllocatorAllocationBindings&& bindings)
 {
-    auto view = Resources().GetLockedView<DescriptorsLayoutTag>();
-    const bool hasBindless = bindings.BindlessCount > 0;
-    const DescriptorPoolFlags poolFlags = hasBindless ?
-                                              DescriptorPoolFlags::UpdateAfterBind :
-                                              DescriptorPoolFlags::None;
-
-    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[allocator];
-    u32 poolIndex = DeviceInternal::GetFreePoolIndexFromAllocator(allocator, poolFlags);
-    VkDescriptorPool pool = allocatorResource.FreePools[poolIndex].Pool;
-
-    VkDescriptorSetVariableDescriptorCountAllocateInfo vulkanVariableBindingCounts = {};
-    vulkanVariableBindingCounts.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
-    vulkanVariableBindingCounts.descriptorSetCount = (u32)hasBindless;
-    vulkanVariableBindingCounts.pDescriptorCounts = &bindings.BindlessCount;
-
-    VkDescriptorSetAllocateInfo allocateInfo = {};
-    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocateInfo.descriptorPool = pool;
-    allocateInfo.descriptorSetCount = 1;
-    allocateInfo.pSetLayouts = &view[layout].Layout;
-    allocateInfo.pNext = &vulkanVariableBindingCounts;
-
-    DeviceResources::DescriptorsResource descriptorSetResource = {};
-    vkAllocateDescriptorSets(s_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet);
-    descriptorSetResource.Pool = pool;
-
-    if (descriptorSetResource.DescriptorSet == VK_NULL_HANDLE)
-    {
-        allocatorResource.UsedPools.push_back(allocatorResource.FreePools[poolIndex]);
-        allocatorResource.FreePools.erase(allocatorResource.FreePools.begin() + poolIndex);
-
-        poolIndex = DeviceInternal::GetFreePoolIndexFromAllocator(allocator, poolFlags);
-        pool = allocatorResource.FreePools[poolIndex].Pool;
-        allocateInfo.descriptorPool = pool;
-        allocateInfo.pSetLayouts = &view[descriptorSetResource.Layout].Layout;
-        vkAllocateDescriptorSets(s_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet);
-        if (descriptorSetResource.DescriptorSet == VK_NULL_HANDLE)
-            return std::nullopt;
-
-        descriptorSetResource.Pool = pool;
-    }
-
-    const Descriptors set = Resources().AddResource(descriptorSetResource);
-    allocatorResource.Descriptors.push_back(set);
-
-    return set;
+    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsLayoutTag>();
+    
+    return DeviceInternal::AllocateDescriptors(view, allocator, layout, std::move(bindings));
 }
 
 void Device::ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator)
 {
-    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[allocator];
-    for (auto& pool : allocatorResource.FreePools)
-        vkResetDescriptorPool(s_State.Device, pool.Pool, 0);
-    for (auto pool : allocatorResource.UsedPools)
-    {
-        vkResetDescriptorPool(s_State.Device, pool.Pool, 0);
-        allocatorResource.FreePools.push_back(pool);
-    }
-    allocatorResource.UsedPools.clear();
-    for (Descriptors set : allocatorResource.Descriptors)
-        Resources().RemoveResource(set);
-    allocatorResource.Descriptors.clear();
+    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag>();
+    DeviceInternal::ResetDescriptorArenaAllocator(view, allocator);
 }
 
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
@@ -6011,6 +5832,230 @@ void DeviceInternal::Destroy(const View<DescriptorsLayoutTag>& resources, Descri
     resources.Remove(layout);
 }
 
+
+#ifdef DESCRIPTOR_BUFFER
+DescriptorArenaAllocator DeviceInternal::CreateDescriptorArenaAllocator(
+    const View<DescriptorArenaAllocatorTag, BufferTag>& resources, DescriptorArenaAllocatorCreateInfo&& createInfo,
+    DeletionQueue& deletionQueue)
+{
+    ASSERT(!createInfo.UsedTypes.empty(), "At least one descriptor type is necessary")
+    ASSERT(createInfo.Residence == DescriptorAllocatorResidence::CPU, "GPU residence is not supported")
+
+    VkBufferUsageFlags descriptorBufferUsage = 0;
+    for (auto type : createInfo.UsedTypes)
+    {
+        if (type == DescriptorType::Sampler)
+            descriptorBufferUsage |= VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
+        else
+            descriptorBufferUsage |= VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
+    }
+
+    u32 maxDescriptorSize = 0;
+    for (auto type : createInfo.UsedTypes)
+        maxDescriptorSize = std::max(maxDescriptorSize, DeviceInternal::GetDescriptorSizeBytes(type));
+
+    const u64 arenaSizeBytes = (u64)maxDescriptorSize * createInfo.DescriptorCount;
+
+    VkBufferUsageFlags usageFlags = descriptorBufferUsage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    VmaAllocationCreateFlags allocationFlags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    if (createInfo.Residence == DescriptorAllocatorResidence::GPU)
+        usageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    else
+        allocationFlags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+    DeviceResources::DescriptorArenaAllocatorResource allocatorResource = {};
+    allocatorResource.DescriptorSet = createInfo.DescriptorSet;
+    allocatorResource.DescriptorBufferUsage = descriptorBufferUsage;
+    allocatorResource.Residence = createInfo.Residence;
+    allocatorResource.SizeBytes = arenaSizeBytes;
+    allocatorResource.Descriptors.reserve(createInfo.DescriptorCount);
+    const BufferCreateInfo arenaCreateInfo = {.SizeBytes = arenaSizeBytes, .PersistentMapping = true};
+    allocatorResource.Arena = AllocateBuffer(resources, arenaCreateInfo, usageFlags, allocationFlags);
+    allocatorResource.DeviceAddress = GetDeviceAddress(resources, allocatorResource.Arena);
+    allocatorResource.MappedAddress = GetBufferMappedAddress(resources, allocatorResource.Arena);
+
+    DescriptorArenaAllocator allocator = resources.Add(allocatorResource);
+    deletionQueue.Enqueue(allocator);
+
+    return allocator;
+}
+
+void DeviceInternal::Destroy(const View<DescriptorArenaAllocatorTag, BufferTag>& resources,
+    DescriptorArenaAllocator allocator)
+{
+    ResetDescriptorArenaAllocator(resources, allocator);
+    Destroy(resources[allocator].Arena);
+    resources.Remove(allocator);
+}
+
+std::optional<Descriptors> DeviceInternal::AllocateDescriptors(
+    const View<DescriptorArenaAllocatorTag, DescriptorsLayoutTag>& resources, DescriptorArenaAllocator allocator,
+    DescriptorsLayout layout, DescriptorAllocatorAllocationBindings&& bindings)
+{
+    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
+    auto& descriptorBufferProps = Device::s_State.GPUDescriptorBufferProperties;
+
+    /* if we have bindless binding, we have to calculate layout size as a sum of bindings sizes */
+    u64 layoutSizeBytes = 0;
+    if (bindings.BindlessCount == 0)
+    {
+        vkGetDescriptorSetLayoutSizeEXT(Device::s_State.Device, resources[layout].Layout, &layoutSizeBytes);
+    }
+    else
+    {
+        for (u32 bindingIndex = 0; bindingIndex < bindings.Bindings.size(); bindingIndex++)
+        {
+            auto& binding = bindings.Bindings[bindingIndex];
+            bool isBindless = enumHasAny(binding.Flags, DescriptorFlags::VariableCount);
+            ASSERT(
+                (bindingIndex == (u32)bindings.Bindings.size() - 1 && isBindless) ||
+                (bindingIndex != (u32)bindings.Bindings.size() - 1 && !isBindless),
+                "Only one binding can be declared as 'bindless' for any particular set, and it has to be the last one")
+
+            layoutSizeBytes += isBindless ?
+                bindings.BindlessCount * DeviceInternal::GetDescriptorSizeBytes(binding.Type) :
+                DeviceInternal::GetDescriptorSizeBytes(binding.Type);
+        }
+    }
+
+    layoutSizeBytes =
+        lux::mem::alignAddressPow2(layoutSizeBytes, descriptorBufferProps.descriptorBufferOffsetAlignment);
+    if (layoutSizeBytes + allocatorResource.CurrentOffset > allocatorResource.SizeBytes)
+        return {};
+
+    std::vector<u64> bindingOffsets(bindings.Bindings.size());
+    for (u32 offsetIndex = 0; offsetIndex < bindingOffsets.size(); offsetIndex++)
+    {
+        auto& binding = bindings.Bindings[offsetIndex];
+        vkGetDescriptorSetLayoutBindingOffsetEXT(Device::s_State.Device, resources[layout].Layout, binding.Binding,
+            &bindingOffsets[offsetIndex]);
+        bindingOffsets[offsetIndex] += allocatorResource.CurrentOffset;
+    }
+
+    DeviceResources::DescriptorsResource descriptorsResource = {};
+    descriptorsResource.Offsets = bindingOffsets;
+    descriptorsResource.SizeBytes = layoutSizeBytes;
+    descriptorsResource.Allocator = allocator;
+    
+    // todo: mt:
+    Descriptors descriptors = Device::Resources().AddResource(descriptorsResource);
+    allocatorResource.Descriptors.push_back(descriptors);
+
+    allocatorResource.CurrentOffset += layoutSizeBytes;
+
+    return descriptors;
+}
+
+void DeviceInternal::ResetDescriptorArenaAllocator(const View<DescriptorArenaAllocatorTag>& resources,
+    DescriptorArenaAllocator allocator)
+{    
+    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
+    // todo: mt:
+    for (Descriptors descriptors : allocatorResource.Descriptors)
+        Device::Resources().RemoveResource(descriptors);
+    allocatorResource.Descriptors.clear();
+
+    allocatorResource.CurrentOffset = 0;
+}
+#else // DESCRIPTOR_BUFFER
+DescriptorArenaAllocator DeviceInternal::CreateDescriptorArenaAllocator(
+    const View<DescriptorArenaAllocatorTag, BufferTag>& resources, DescriptorArenaAllocatorCreateInfo&& createInfo,
+    DeletionQueue& deletionQueue)
+{
+    DeviceResources::DescriptorArenaAllocatorResource descriptorAllocatorResource = {};
+    descriptorAllocatorResource.MaxSetsPerPool = createInfo.DescriptorCount;
+    descriptorAllocatorResource.Descriptors.reserve(createInfo.DescriptorCount);
+
+    const DescriptorArenaAllocator allocator = resources.Add(descriptorAllocatorResource);
+    deletionQueue.Enqueue(allocator);
+
+    return allocator;
+}
+
+void DeviceInternal::Destroy(const View<DescriptorArenaAllocatorTag, BufferTag>& resources,
+    DescriptorArenaAllocator allocator)
+{    
+    ResetDescriptorArenaAllocator(resources, allocator);
+
+    const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
+    for (auto& pool : allocatorResource.FreePools)
+        vkDestroyDescriptorPool(Device::s_State.Device, pool.Pool, nullptr);
+    for (auto& pool : allocatorResource.UsedPools)
+        vkDestroyDescriptorPool(Device::s_State.Device, pool.Pool, nullptr);
+
+    resources.Remove(allocator);
+}
+
+std::optional<Descriptors> DeviceInternal::AllocateDescriptors(
+    const View<DescriptorArenaAllocatorTag, DescriptorsLayoutTag>& resources, DescriptorArenaAllocator allocator,
+    DescriptorsLayout layout, DescriptorAllocatorAllocationBindings&& bindings)
+{
+    const bool hasBindless = bindings.BindlessCount > 0;
+    const DescriptorPoolFlags poolFlags = hasBindless ?
+        DescriptorPoolFlags::UpdateAfterBind :
+        DescriptorPoolFlags::None;
+
+    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
+    u32 poolIndex = GetFreePoolIndexFromAllocator(resources, allocator, poolFlags);
+    VkDescriptorPool pool = allocatorResource.FreePools[poolIndex].Pool;
+
+    VkDescriptorSetVariableDescriptorCountAllocateInfo vulkanVariableBindingCounts = {};
+    vulkanVariableBindingCounts.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+    vulkanVariableBindingCounts.descriptorSetCount = (u32)hasBindless;
+    vulkanVariableBindingCounts.pDescriptorCounts = &bindings.BindlessCount;
+
+    VkDescriptorSetAllocateInfo allocateInfo = {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocateInfo.descriptorPool = pool;
+    allocateInfo.descriptorSetCount = 1;
+    allocateInfo.pSetLayouts = &resources[layout].Layout;
+    allocateInfo.pNext = &vulkanVariableBindingCounts;
+
+    DeviceResources::DescriptorsResource descriptorSetResource = {};
+    vkAllocateDescriptorSets(Device::s_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet);
+    descriptorSetResource.Pool = pool;
+
+    if (descriptorSetResource.DescriptorSet == VK_NULL_HANDLE)
+    {
+        allocatorResource.UsedPools.push_back(allocatorResource.FreePools[poolIndex]);
+        allocatorResource.FreePools.erase(allocatorResource.FreePools.begin() + poolIndex);
+
+        poolIndex = GetFreePoolIndexFromAllocator(resources, allocator, poolFlags);
+        pool = allocatorResource.FreePools[poolIndex].Pool;
+        allocateInfo.descriptorPool = pool;
+        allocateInfo.pSetLayouts = &resources[descriptorSetResource.Layout].Layout;
+        vkAllocateDescriptorSets(Device::s_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet);
+        if (descriptorSetResource.DescriptorSet == VK_NULL_HANDLE)
+            return std::nullopt;
+
+        descriptorSetResource.Pool = pool;
+    }
+
+    const Descriptors set = Device::Resources().AddResource(descriptorSetResource);
+    allocatorResource.Descriptors.push_back(set);
+
+    return set;
+}
+
+void DeviceInternal::ResetDescriptorArenaAllocator(const View<DescriptorArenaAllocatorTag>& resources,
+    DescriptorArenaAllocator allocator)
+{
+    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
+    for (auto& pool : allocatorResource.FreePools)
+        vkResetDescriptorPool(Device::s_State.Device, pool.Pool, 0);
+    for (auto pool : allocatorResource.UsedPools)
+    {
+        vkResetDescriptorPool(Device::s_State.Device, pool.Pool, 0);
+        allocatorResource.FreePools.push_back(pool);
+    }
+    allocatorResource.UsedPools.clear();
+    for (Descriptors set : allocatorResource.Descriptors)
+        Device::Resources().RemoveResource(set);
+    allocatorResource.Descriptors.clear();
+}
+#endif // DESCRIPTOR_BUFFER
+
+
 Fence DeviceInternal::CreateFence(const View<FenceTag>& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue)
 {
     VkFenceCreateInfo fenceCreateInfo = {};
@@ -6329,9 +6374,9 @@ void DeviceInternal::BindDescriptors(const View<CommandBufferTag>& resources, Co
 }
 #else
 
-u32 DeviceInternal::GetFreePoolIndexFromAllocator(DescriptorArenaAllocator allocator, DescriptorPoolFlags poolFlags)
+u32 DeviceInternal::GetFreePoolIndexFromAllocator(const View<DescriptorArenaAllocatorTag>& resources, DescriptorArenaAllocator allocator, DescriptorPoolFlags poolFlags)
 {
-    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Device::Resources()[allocator];
+    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
     for (u32 i = 0; i < allocatorResource.FreePools.size(); i++)
         if (allocatorResource.FreePools[i].Flags == poolFlags)
             return i;
