@@ -276,12 +276,8 @@ public:
     static void CompileCommand(CommandBuffer cmd, const DispatchCommand& command);
     static void CompileCommand(CommandBuffer cmd, const DispatchIndirectCommand& command);
 private:
-    static DeviceResources& Resources();
-    static void ShutdownResources();
-
     static void InitImGuiUI();
     static void ShutdownImGuiUI();
-
 
     static void CreateInstance(const DeviceCreateInfo& createInfo);
     static void CreateSurface(const DeviceCreateInfo& createInfo);
@@ -290,10 +286,6 @@ private:
     static void RetrieveDeviceQueues();
     static void CreateDebugUtilsMessenger();
     static void DestroyDebugUtilsMessenger();
-private:
-    struct State;
-    // todo: just make global
-    static State s_State;
 };
 
 template <typename T>

@@ -27,7 +27,8 @@
 #include <AssetLib/Images/ImageAsset.h>
 #include <CoreLib/core.h>
 #include <CoreLib/Utils/ContainterUtils.h>
-#include <CoreLib/Utils/MemoryUtils.h>
+
+struct DeviceState;
 
 namespace
 {
@@ -1375,10 +1376,13 @@ struct TagTraits<SplitBarrierTag>
     using ResourceType = SplitBarrierResource;
 };
 
+DeviceResources& deviceResources();
+
 class DeviceResources
 {
     FRIEND_INTERNAL
     friend class DeviceInternal;
+    friend struct DeviceState;
 
     template <typename T>
     using ResourceContainerType = DeviceSparseSet<T>;
@@ -1405,12 +1409,14 @@ private:
         constexpr auto Add(Resource&& resource) const
         {
             using Decayed = std::decay_t<Resource>;
+            deviceResources().m_AllocatedCount += 1;
             return GetContainer<typename Decayed::ObjectType>().Insert(std::forward<Resource>(resource));
         }
 
         template <typename Tag>
         constexpr void Remove(ResourceHandleType<Tag> handle) const
         {
+            deviceResources().m_DeallocatedCount += 1;
             GetContainer<Tag>().Erase(handle);
         }
 
@@ -1549,8 +1555,8 @@ private:
         std::unreachable();
     }
 
-    u64 m_AllocatedCount{0};
-    u64 m_DeallocatedCount{0};
+    std::atomic<u64> m_AllocatedCount{0};
+    std::atomic<u64> m_DeallocatedCount{0};
 
     ResourceContainerWithLock<SwapchainResource> m_Swapchains;
     ResourceContainerWithLock<CommandPoolResource> m_CommandPools;
@@ -1974,47 +1980,17 @@ struct QueueInfo
     u32 Family{UNSET_FAMILY};
 };
 
-struct Device::State
+struct DeviceState
 {
     struct DeviceQueues
     {
-        bool IsComplete() const
-        {
-            return
-                Graphics.Family != QueueInfo::UNSET_FAMILY &&
-                (Presentation.Family != QueueInfo::UNSET_FAMILY || s_State.Surface == VK_NULL_HANDLE) &&
-                Compute.Family != QueueInfo::UNSET_FAMILY;
-        }
+        bool IsComplete() const;
 
-        std::vector<u32> AsFamilySet() const
-        {
-            std::vector<u32> familySet{Graphics.Family};
-            if (Presentation.Family != Graphics.Family)
-                familySet.push_back(Presentation.Family);
-            if (Compute.Family != Graphics.Family && Compute.Family != Presentation.Family)
-                familySet.push_back(Compute.Family);
+        std::vector<u32> AsFamilySet() const;
 
-            return familySet;
-        }
+        QueueInfo GetQueueByKind(QueueKind queueKind) const;
 
-        QueueInfo GetQueueByKind(QueueKind queueKind) const
-        {
-            switch (queueKind)
-            {
-            case QueueKind::Graphics: return Graphics;
-            case QueueKind::Presentation: return Presentation;
-            case QueueKind::Compute: return Compute;
-            default:
-                ASSERT(false, "Unrecognized queue kind")
-                break;
-            }
-            std::unreachable();
-        }
-
-        u32 GetFamilyByKind(QueueKind queueKind) const
-        {
-            return GetQueueByKind(queueKind).Family;
-        }
+        u32 GetFamilyByKind(QueueKind queueKind) const;
 
     public:
         QueueInfo Graphics;
@@ -2022,7 +1998,9 @@ struct Device::State
         QueueInfo Compute;
     };
 
-    lux::VulkanWindowSurface& GetWindowSurface() { return (lux::VulkanWindowSurface&)*WindowSurface; }
+    lux::VulkanWindowSurface& GetWindowSurface();
+    
+    void Shutdown();
 
     VkDevice Device{VK_NULL_HANDLE};
     DeviceResources Resources;
@@ -2050,267 +2028,329 @@ struct Device::State
     VkPhysicalDeviceDescriptorBufferPropertiesEXT GPUDescriptorBufferProperties;
     VkDebugUtilsMessengerEXT DebugUtilsMessenger;
 };
+namespace
+{
+DeviceState g_State = DeviceState{};
+}
 
-Device::State Device::s_State = State{};
+bool DeviceState::DeviceQueues::IsComplete() const
+{
+    return
+        Graphics.Family != QueueInfo::UNSET_FAMILY &&
+        (Presentation.Family != QueueInfo::UNSET_FAMILY || g_State.Surface == VK_NULL_HANDLE) &&
+        Compute.Family != QueueInfo::UNSET_FAMILY;
+}
+
+std::vector<u32> DeviceState::DeviceQueues::AsFamilySet() const
+{
+    std::vector familySet{Graphics.Family};
+    if (Presentation.Family != Graphics.Family)
+        familySet.push_back(Presentation.Family);
+    if (Compute.Family != Graphics.Family && Compute.Family != Presentation.Family)
+        familySet.push_back(Compute.Family);
+
+    return familySet;
+}
+
+QueueInfo DeviceState::DeviceQueues::GetQueueByKind(QueueKind queueKind) const
+{
+    switch (queueKind)
+    {
+    case QueueKind::Graphics: return Graphics;
+    case QueueKind::Presentation: return Presentation;
+    case QueueKind::Compute: return Compute;
+    default:
+        ASSERT(false, "Unrecognized queue kind")
+        break;
+    }
+    std::unreachable();
+}
+
+u32 DeviceState::DeviceQueues::GetFamilyByKind(QueueKind queueKind) const
+{
+    return GetQueueByKind(queueKind).Family;
+}
+
+lux::VulkanWindowSurface& DeviceState::GetWindowSurface()
+{
+    return (lux::VulkanWindowSurface&)*WindowSurface;
+}
+
+void DeviceState::Shutdown()
+{
+    DeletionQueue.Flush();
+    vmaDestroyAllocator(g_State.Allocator);
+    for (auto& ctx : g_State.SubmitContexts)
+    {
+        Device::Destroy(ctx.CommandPool);
+        Device::Destroy(ctx.Fence);
+    }
+    ASSERT(Resources.m_AllocatedCount == Resources.m_DeallocatedCount, "Not all driver resources are destroyed")
+}
+
+DeviceResources& deviceResources()
+{
+    return g_State.Resources;
+}
 
 void Device::BeginFrame(FrameContext& ctx)
 {
-    s_State.FrameDeletionQueue = &ctx.DeletionQueue;
+    g_State.FrameDeletionQueue = &ctx.DeletionQueue;
 }
 
 Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<SwapchainTag, ImageTag, SemaphoreTag>();
+    auto view = deviceResources().GetLockedView<SwapchainTag, ImageTag, SemaphoreTag>();
 
     return DeviceInternal::CreateSwapchain(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(Swapchain swapchain)
 {
-    auto view = Resources().GetLockedView<SwapchainTag, ImageTag, SemaphoreTag>();
+    auto view = deviceResources().GetLockedView<SwapchainTag, ImageTag, SemaphoreTag>();
 
     return DeviceInternal::Destroy(view, swapchain);
 }
 
 u32 Device::AcquireNextImage(Swapchain swapchain, Fence renderFence, Semaphore presentSemaphore)
 {
-    auto view = Resources().GetLockedView<SwapchainTag, FenceTag, SemaphoreTag>();
+    auto view = deviceResources().GetLockedView<SwapchainTag, FenceTag, SemaphoreTag>();
 
     return DeviceInternal::AcquireNextImage(view, swapchain, renderFence, presentSemaphore);
 }
 
 bool Device::Present(Swapchain swapchain, QueueKind queueKind, u32 imageIndex)
 {
-    auto view = Resources().GetLockedView<SwapchainTag, SemaphoreTag>();
+    auto view = deviceResources().GetLockedView<SwapchainTag, SemaphoreTag>();
 
     return DeviceInternal::Present(view, swapchain, queueKind, imageIndex);
 }
 
 SwapchainDescription& Device::GetSwapchainDescription(Swapchain swapchain)
 {
-    auto view = Resources().GetLockedView<SwapchainTag>();
+    auto view = deviceResources().GetLockedView<SwapchainTag>();
 
     return DeviceInternal::GetSwapchainDescription(view, swapchain);
 }
 
 Semaphore Device::GetSwapchainRenderSemaphore(Swapchain swapchain, u32 imageIndex)
 {
-    auto view = Resources().GetLockedView<SwapchainTag>();
+    auto view = deviceResources().GetLockedView<SwapchainTag>();
 
     return DeviceInternal::GetSwapchainRenderSemaphore(view, swapchain, imageIndex);
 }
 
 CommandPool Device::CreateCommandPool(CommandPoolCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<CommandPoolTag>();
+    auto view = deviceResources().GetLockedView<CommandPoolTag>();
 
     return DeviceInternal::CreateCommandPool(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(CommandPool pool)
 {
-    auto view = Resources().GetLockedView<CommandPoolTag, CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandPoolTag, CommandBufferTag>();
     DeviceInternal::Destroy(view, pool);
 }
 
 void Device::ResetPool(CommandPool pool)
 {
-    auto view = Resources().GetLockedView<CommandPoolTag>();
+    auto view = deviceResources().GetLockedView<CommandPoolTag>();
     DeviceInternal::ResetPool(view, pool);
 }
 
 CommandBuffer Device::CreateCommandBuffer(CommandBufferCreateInfo&& createInfo)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, CommandPoolTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, CommandPoolTag>();
 
     return DeviceInternal::CreateCommandBuffer(view, std::move(createInfo));
 }
 
 void Device::ResetCommandBuffer(CommandBuffer cmd)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::ResetCommandBuffer(view, cmd);
 }
 
 void Device::BeginCommandBuffer(CommandBuffer cmd)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::BeginCommandBuffer(view, cmd);
 }
 
 void Device::BeginCommandBuffer(CommandBuffer cmd, CommandBufferUsage usage)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::BeginCommandBuffer(view, cmd, usage);
 }
 
 void Device::EndCommandBuffer(CommandBuffer cmd)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::EndCommandBuffer(view, cmd);
 }
 
 void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, const BufferSubmitSyncInfo& submitSync)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, FenceTag, SemaphoreTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, FenceTag, SemaphoreTag>();
     DeviceInternal::SubmitCommandBuffer(view, cmd, queueKind, submitSync);
 }
 
 void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind,
     const BufferSubmitTimelineSyncInfo& submitSync)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, FenceTag, TimelineSemaphoreTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, FenceTag, TimelineSemaphoreTag>();
     DeviceInternal::SubmitCommandBuffer(view, cmd, queueKind, submitSync);
 }
 
 void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, Fence fence)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, FenceTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, FenceTag>();
     DeviceInternal::SubmitCommandBuffer(view, cmd, queueKind, fence);
 }
 
 void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
     const BufferSubmitSyncInfo& submitSync)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, FenceTag, SemaphoreTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, FenceTag, SemaphoreTag>();
     DeviceInternal::SubmitCommandBuffers(view, cmds, queueKind, submitSync);
 }
 
 void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
     const BufferSubmitTimelineSyncInfo& submitSync)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, FenceTag, TimelineSemaphoreTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, FenceTag, TimelineSemaphoreTag>();
     DeviceInternal::SubmitCommandBuffers(view, cmds, queueKind, submitSync);
 }
 
 Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag>();
 
     return DeviceInternal::CreateBuffer(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(Buffer buffer)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag>();
     DeviceInternal::Destroy(view, buffer);
 }
 
 Buffer Device::CreateStagingBuffer(u64 sizeBytes)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag>();
 
     return DeviceInternal::CreateStagingBuffer(view, sizeBytes);
 }
 
 void Device::ResizeBuffer(Buffer buffer, u64 newSize, CommandBuffer cmd, bool copyData)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
     DeviceInternal::ResizeBuffer(view, buffer, newSize, cmd, copyData);
 }
 
 void* Device::MapBuffer(Buffer buffer)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag>();
 
     return DeviceInternal::MapBuffer(view, buffer);
 }
 
 void Device::UnmapBuffer(Buffer buffer)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag>();
     DeviceInternal::UnmapBuffer(view, buffer);
 }
 
 void Device::SetBufferData(Buffer buffer, Span<const std::byte> data, u64 offsetBytes)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag>();
     DeviceInternal::SetBufferData(view, buffer, data, offsetBytes);
 }
 
 void Device::SetBufferData(void* mappedAddress, Span<const std::byte> data, u64 offsetBytes)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag>();
     DeviceInternal::SetBufferData(view, mappedAddress, data, offsetBytes);
 }
 
 void* Device::GetBufferMappedAddress(Buffer buffer)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag>();
 
     return DeviceInternal::GetBufferMappedAddress(view, buffer);
 }
 
 usize Device::GetBufferSizeBytes(Buffer buffer)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag>();
 
     return DeviceInternal::GetBufferSizeBytes(view, buffer);
 }
 
 const BufferDescription& Device::GetBufferDescription(Buffer buffer)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag>();
 
     return DeviceInternal::GetBufferDescription(view, buffer);
 }
 
 u64 Device::GetDeviceAddress(Buffer buffer)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag>();
 
     return DeviceInternal::GetDeviceAddress(view, buffer);
 }
 
 BufferArena Device::CreateBufferArena(BufferArenaCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<BufferArenaTag>();
+    auto view = deviceResources().GetLockedView<BufferArenaTag>();
 
     return DeviceInternal::CreateBufferArena(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(BufferArena bufferArena)
 {
-    auto view = Resources().GetLockedView<BufferArenaTag>();
+    auto view = deviceResources().GetLockedView<BufferArenaTag>();
     DeviceInternal::Destroy(view, bufferArena);
 }
 
 void Device::ResizeBufferArenaPhysical(BufferArena arena, u64 newSize, CommandBuffer cmd, bool copyData)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, BufferArenaTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferArenaTag, BufferTag>();
     DeviceInternal::ResizeBufferArenaPhysical(view, arena, newSize, cmd, copyData);
 }
 
 Buffer Device::GetBufferArenaUnderlyingBuffer(BufferArena arena)
 {
-    auto view = Resources().GetLockedView<BufferArenaTag>();
+    auto view = deviceResources().GetLockedView<BufferArenaTag>();
 
     return DeviceInternal::GetBufferArenaUnderlyingBuffer(view, arena);
 }
 
 u64 Device::GetBufferArenaSizeBytesPhysical(BufferArena arena)
 {
-    auto view = Resources().GetLockedView<BufferArenaTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferArenaTag, BufferTag>();
 
     return DeviceInternal::GetBufferArenaSizeBytesPhysical(view, arena);
 }
 
 BufferSuballocationResult Device::BufferArenaSuballocate(BufferArena arena, u64 sizeBytes, u32 alignment)
 {
-    auto view = Resources().GetLockedView<BufferArenaTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferArenaTag, BufferTag>();
 
     return DeviceInternal::BufferArenaSuballocate(view, arena, sizeBytes, alignment);
 }
 
 void Device::BufferArenaFree(BufferArena arena, BufferSuballocationHandle suballocation)
 {
-    auto view = Resources().GetLockedView<BufferArenaTag>();
+    auto view = deviceResources().GetLockedView<BufferArenaTag>();
     DeviceInternal::BufferArenaFree(view, arena, suballocation);
 }
 
 Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<ImageTag, BufferTag, DependencyInfoTag, FenceTag, CommandBufferTag,
+    auto view = deviceResources().GetLockedView<ImageTag, BufferTag, DependencyInfoTag, FenceTag, CommandBufferTag,
                                           CommandPoolTag>();
 
     return DeviceInternal::CreateImage(view, std::move(createInfo), deletionQueue);
@@ -2318,47 +2358,47 @@ Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletio
 
 Span<const ImageSubresourceDescription> Device::GetAdditionalImageViews(Image image)
 {
-    auto view = Resources().GetLockedView<ImageTag>();
+    auto view = deviceResources().GetLockedView<ImageTag>();
 
     return DeviceInternal::GetAdditionalImageViews(view, image);
 }
 
 void Device::Destroy(Image image)
 {
-    auto view = Resources().GetLockedView<ImageTag>();
+    auto view = deviceResources().GetLockedView<ImageTag>();
     DeviceInternal::Destroy(view, image);
 }
 
 void Device::CreateViews(const ImageSubresource& image, const std::vector<ImageSubresourceDescription>& additionalViews)
 {
-    auto view = Resources().GetLockedView<ImageTag>();
+    auto view = deviceResources().GetLockedView<ImageTag>();
     DeviceInternal::CreateViews(view, image, additionalViews);
 }
 
 ImageViewHandle Device::GetImageViewHandle(Image image, ImageSubresourceDescription subresourceDescription)
 {
-    auto view = Resources().GetLockedView<ImageTag>();
+    auto view = deviceResources().GetLockedView<ImageTag>();
 
     return DeviceInternal::GetImageViewHandle(view, image, subresourceDescription);
 }
 
 const ImageDescription& Device::GetImageDescription(Image image)
 {
-    auto view = Resources().GetLockedView<ImageTag>();
+    auto view = deviceResources().GetLockedView<ImageTag>();
 
     return DeviceInternal::GetImageDescription(view, image);
 }
 
 Sampler Device::CreateSampler(SamplerCreateInfo&& createInfo)
 {
-    auto view = Resources().GetLockedView<SamplerTag>();
+    auto view = deviceResources().GetLockedView<SamplerTag>();
 
     return DeviceInternal::CreateSampler(view, std::move(createInfo));
 }
 
 void Device::Destroy(Sampler sampler)
 {
-    auto view = Resources().GetLockedView<SamplerTag>();
+    auto view = deviceResources().GetLockedView<SamplerTag>();
 
     DeviceInternal::Destroy(view, sampler);
 }
@@ -2366,231 +2406,231 @@ void Device::Destroy(Sampler sampler)
 RenderingAttachment Device::CreateRenderingAttachment(RenderingAttachmentCreateInfo&& createInfo,
     ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<RenderingAttachmentTag, ImageTag>();
+    auto view = deviceResources().GetLockedView<RenderingAttachmentTag, ImageTag>();
 
     return DeviceInternal::CreateRenderingAttachment(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(RenderingAttachment renderingAttachment)
 {
-    auto view = Resources().GetLockedView<RenderingAttachmentTag>();
+    auto view = deviceResources().GetLockedView<RenderingAttachmentTag>();
     DeviceInternal::Destroy(view, renderingAttachment);
 }
 
 RenderingInfo Device::CreateRenderingInfo(RenderingInfoCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<RenderingInfoTag, RenderingAttachmentTag>();
+    auto view = deviceResources().GetLockedView<RenderingInfoTag, RenderingAttachmentTag>();
 
     return DeviceInternal::CreateRenderingInfo(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(RenderingInfo renderingInfo)
 {
-    auto view = Resources().GetLockedView<RenderingInfoTag>();
+    auto view = deviceResources().GetLockedView<RenderingInfoTag>();
     DeviceInternal::Destroy(view, renderingInfo);
 }
 
 PipelineLayout Device::CreatePipelineLayout(PipelineLayoutCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<PipelineLayoutTag, DescriptorsLayoutTag>();
+    auto view = deviceResources().GetLockedView<PipelineLayoutTag, DescriptorsLayoutTag>();
 
     return DeviceInternal::CreatePipelineLayout(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(PipelineLayout pipelineLayout)
 {
-    auto view = Resources().GetLockedView<PipelineLayoutTag>();
+    auto view = deviceResources().GetLockedView<PipelineLayoutTag>();
     DeviceInternal::Destroy(view, pipelineLayout);
 }
 
 Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<PipelineTag, PipelineLayoutTag, ShaderModuleTag>();
+    auto view = deviceResources().GetLockedView<PipelineTag, PipelineLayoutTag, ShaderModuleTag>();
 
     return DeviceInternal::CreatePipeline(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(Pipeline pipeline)
 {
-    auto view = Resources().GetLockedView<PipelineTag>();
+    auto view = deviceResources().GetLockedView<PipelineTag>();
     DeviceInternal::Destroy(view, pipeline);
 }
 
 ShaderModule Device::CreateShaderModule(ShaderModuleCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<ShaderModuleTag>();
+    auto view = deviceResources().GetLockedView<ShaderModuleTag>();
 
     return DeviceInternal::CreateShaderModule(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(ShaderModule shaderModule)
 {
-    auto view = Resources().GetLockedView<ShaderModuleTag>();
+    auto view = deviceResources().GetLockedView<ShaderModuleTag>();
     DeviceInternal::Destroy(view, shaderModule);
 }
 
 DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& createInfo)
 {
-    auto view = Resources().GetLockedView<DescriptorsLayoutTag, SamplerTag>();
+    auto view = deviceResources().GetLockedView<DescriptorsLayoutTag, SamplerTag>();
 
     return DeviceInternal::CreateDescriptorsLayout(view, std::move(createInfo));
 }
 
 DescriptorsLayout Device::GetEmptyDescriptorsLayout()
 {
-    auto view = Resources().GetLockedView<DescriptorsLayoutTag, SamplerTag>();
+    auto view = deviceResources().GetLockedView<DescriptorsLayoutTag, SamplerTag>();
 
     return DeviceInternal::GetEmptyDescriptorsLayout(view);
 }
 
 void Device::Destroy(DescriptorsLayout layout)
 {
-    auto view = Resources().GetLockedView<DescriptorsLayoutTag>();
+    auto view = deviceResources().GetLockedView<DescriptorsLayoutTag>();
     DeviceInternal::Destroy(view, layout);
 }
 
 DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo,
     ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<DescriptorArenaAllocatorTag, BufferTag>();
 
     return DeviceInternal::CreateDescriptorArenaAllocator(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(DescriptorArenaAllocator allocator)
 {
-    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsTag, BufferTag>();
     DeviceInternal::Destroy(view, allocator);
 }
 
 std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator allocator, DescriptorsLayout layout,
     DescriptorAllocatorAllocationBindings&& bindings)
 {
-    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsLayoutTag, DescriptorsTag>();
+    auto view = deviceResources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsLayoutTag, DescriptorsTag>();
 
     return DeviceInternal::AllocateDescriptors(view, allocator, layout, std::move(bindings));
 }
 
 void Device::ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator)
 {
-    auto view = Resources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsTag>();
+    auto view = deviceResources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsTag>();
     DeviceInternal::ResetDescriptorArenaAllocator(view, allocator);
 }
 
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
     const BufferSubresource& buffer, u32 index)
 {
-    auto view = Resources().GetLockedView<DescriptorsTag, DescriptorArenaAllocatorTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<DescriptorsTag, DescriptorArenaAllocatorTag, BufferTag>();
     DeviceInternal::UpdateDescriptors(view, descriptors, slotInfo, buffer, index);
 }
 
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo, Sampler sampler)
 {
-    auto view = Resources().GetLockedView<DescriptorsTag, DescriptorArenaAllocatorTag, SamplerTag>();
+    auto view = deviceResources().GetLockedView<DescriptorsTag, DescriptorArenaAllocatorTag, SamplerTag>();
     DeviceInternal::UpdateDescriptors(view, descriptors, slotInfo, sampler);
 }
 
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
     const ImageSubresource& image, ImageLayout layout, u32 index)
 {
-    auto view = Resources().GetLockedView<DescriptorsTag, DescriptorArenaAllocatorTag, ImageTag>();
+    auto view = deviceResources().GetLockedView<DescriptorsTag, DescriptorArenaAllocatorTag, ImageTag>();
     DeviceInternal::UpdateDescriptors(view, descriptors, slotInfo, image, layout, index);
 }
 
 Fence Device::CreateFence(FenceCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<FenceTag>();
+    auto view = deviceResources().GetLockedView<FenceTag>();
 
     return DeviceInternal::CreateFence(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(Fence fence)
 {
-    auto view = Resources().GetLockedView<FenceTag>();
+    auto view = deviceResources().GetLockedView<FenceTag>();
     DeviceInternal::Destroy(view, fence);
 }
 
 void Device::WaitForFence(Fence fence)
 {
-    auto view = Resources().GetLockedView<FenceTag>();
+    auto view = deviceResources().GetLockedView<FenceTag>();
     DeviceInternal::WaitForFence(view, fence);
 }
 
 bool Device::CheckFence(Fence fence)
 {
-    auto view = Resources().GetLockedView<FenceTag>();
+    auto view = deviceResources().GetLockedView<FenceTag>();
 
     return DeviceInternal::CheckFence(view, fence);
 }
 
 void Device::ResetFence(Fence fence)
 {
-    auto view = Resources().GetLockedView<FenceTag>();
+    auto view = deviceResources().GetLockedView<FenceTag>();
     DeviceInternal::ResetFence(view, fence);
 }
 
 Semaphore Device::CreateSemaphore(::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<SemaphoreTag>();
+    auto view = deviceResources().GetLockedView<SemaphoreTag>();
 
     return DeviceInternal::CreateSemaphore(view, deletionQueue);
 }
 
 void Device::Destroy(Semaphore semaphore)
 {
-    auto view = Resources().GetLockedView<SemaphoreTag>();
+    auto view = deviceResources().GetLockedView<SemaphoreTag>();
     DeviceInternal::Destroy(view, semaphore);
 }
 
 TimelineSemaphore Device::CreateTimelineSemaphore(TimelineSemaphoreCreateInfo&& createInfo,
     ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<TimelineSemaphoreTag>();
+    auto view = deviceResources().GetLockedView<TimelineSemaphoreTag>();
 
     return DeviceInternal::CreateTimelineSemaphore(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(TimelineSemaphore semaphore)
 {
-    auto view = Resources().GetLockedView<TimelineSemaphoreTag>();
+    auto view = deviceResources().GetLockedView<TimelineSemaphoreTag>();
     DeviceInternal::Destroy(view, semaphore);
 }
 
 void Device::TimelineSemaphoreWaitCPU(TimelineSemaphore semaphore, u64 value)
 {
-    auto view = Resources().GetLockedView<TimelineSemaphoreTag>();
+    auto view = deviceResources().GetLockedView<TimelineSemaphoreTag>();
     DeviceInternal::TimelineSemaphoreWaitCPU(view, semaphore, value);
 }
 
 void Device::TimelineSemaphoreSignalCPU(TimelineSemaphore semaphore, u64 value)
 {
-    auto view = Resources().GetLockedView<TimelineSemaphoreTag>();
+    auto view = deviceResources().GetLockedView<TimelineSemaphoreTag>();
     DeviceInternal::TimelineSemaphoreSignalCPU(view, semaphore, value);
 }
 
 DependencyInfo Device::CreateDependencyInfo(DependencyInfoCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<DependencyInfoTag, ImageTag>();
+    auto view = deviceResources().GetLockedView<DependencyInfoTag, ImageTag>();
 
     return DeviceInternal::CreateDependencyInfo(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(DependencyInfo dependencyInfo)
 {
-    auto view = Resources().GetLockedView<DependencyInfoTag>();
+    auto view = deviceResources().GetLockedView<DependencyInfoTag>();
     DeviceInternal::Destroy(view, dependencyInfo);
 }
 
 SplitBarrier Device::CreateSplitBarrier(::DeletionQueue& deletionQueue)
 {
-    auto view = Resources().GetLockedView<SplitBarrierTag>();
+    auto view = deviceResources().GetLockedView<SplitBarrierTag>();
 
     return DeviceInternal::CreateSplitBarrier(view, deletionQueue);
 }
 
 void Device::Destroy(SplitBarrier splitBarrier)
 {
-    auto view = Resources().GetLockedView<SplitBarrierTag>();
+    auto view = deviceResources().GetLockedView<SplitBarrierTag>();
     DeviceInternal::Destroy(view, splitBarrier);
 }
 
@@ -2648,10 +2688,10 @@ void Device::CreateInstance(const DeviceCreateInfo& createInfo)
 #endif
     ASSERT(isEveryExtensionSupported && isEveryValidationLayerSupported,
         "Failed to create instance")
-    deviceCheck(vkCreateInstance(&instanceCreateInfo, nullptr, &s_State.Instance),
+    deviceCheck(vkCreateInstance(&instanceCreateInfo, nullptr, &g_State.Instance),
         "Failed to create instance\n");
 
-    volkLoadInstance(s_State.Instance);
+    volkLoadInstance(g_State.Instance);
 }
 
 void Device::CreateSurface(const DeviceCreateInfo& createInfo)
@@ -2662,11 +2702,11 @@ void Device::CreateSurface(const DeviceCreateInfo& createInfo)
         return;
     }
 
-    s_State.Window = createInfo.Window;
-    s_State.WindowSurface = createInfo.Window->CreateSurfaceFor(lux::WindowSurfaceBackend::Vulkan);
-    void* opaqueSurface = s_State.Surface;
-    ASSERT(s_State.GetWindowSurface().Init(s_State.Instance, &opaqueSurface), "Failed to create surface\n")
-    s_State.Surface = (VkSurfaceKHR)opaqueSurface;
+    g_State.Window = createInfo.Window;
+    g_State.WindowSurface = createInfo.Window->CreateSurfaceFor(lux::WindowSurfaceBackend::Vulkan);
+    void* opaqueSurface = g_State.Surface;
+    ASSERT(g_State.GetWindowSurface().Init(g_State.Instance, &opaqueSurface), "Failed to create surface\n")
+    g_State.Surface = (VkSurfaceKHR)opaqueSurface;
 }
 
 void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
@@ -2678,7 +2718,7 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(gpu, &queueFamilyCount, queueFamilies.data());
 
-        State::DeviceQueues queues = {};
+        DeviceState::DeviceQueues queues = {};
 
         for (u32 i = 0; i < queueFamilyCount; i++)
         {
@@ -2692,10 +2732,10 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
                 if (!dedicatedCompute || !(queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT))
                     queues.Compute.Family = i;
 
-            if (s_State.Surface != VK_NULL_HANDLE)
+            if (g_State.Surface != VK_NULL_HANDLE)
             {
                 VkBool32 isPresentationSupported = VK_FALSE;
-                vkGetPhysicalDeviceSurfaceSupportKHR(gpu, i, s_State.Surface, &isPresentationSupported);
+                vkGetPhysicalDeviceSurfaceSupportKHR(gpu, i, g_State.Surface, &isPresentationSupported);
                 if (isPresentationSupported && queues.Presentation.Family == QueueInfo::UNSET_FAMILY)
                     queues.Presentation.Family = i;
             }
@@ -2808,7 +2848,7 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
             return suitable;
         };
 
-        State::DeviceQueues deviceQueues = findQueueFamilies(gpu, createInfo.AsyncCompute);
+        DeviceState::DeviceQueues deviceQueues = findQueueFamilies(gpu, createInfo.AsyncCompute);
         if (!deviceQueues.IsComplete())
             return false;
 
@@ -2816,9 +2856,9 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
         if (!isEveryExtensionSupported)
             return false;
 
-        if (s_State.Surface != VK_NULL_HANDLE)
+        if (g_State.Surface != VK_NULL_HANDLE)
         {
-            SurfaceDetails surfaceDetails = getSurfaceDetails(gpu, s_State.Surface);
+            SurfaceDetails surfaceDetails = getSurfaceDetails(gpu, g_State.Surface);
             if (!surfaceDetails.IsSufficient())
                 return false;
         }
@@ -2831,42 +2871,42 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
     };
 
     u32 availableGPUCount = 0;
-    vkEnumeratePhysicalDevices(s_State.Instance, &availableGPUCount, nullptr);
+    vkEnumeratePhysicalDevices(g_State.Instance, &availableGPUCount, nullptr);
     std::vector<VkPhysicalDevice> availableGPUs(availableGPUCount);
-    vkEnumeratePhysicalDevices(s_State.Instance, &availableGPUCount, availableGPUs.data());
+    vkEnumeratePhysicalDevices(g_State.Instance, &availableGPUCount, availableGPUs.data());
 
     for (auto candidate : availableGPUs)
     {
         if (isGPUSuitable(candidate, createInfo))
         {
-            s_State.GPU = candidate;
-            s_State.Queues = findQueueFamilies(candidate, createInfo.AsyncCompute);
+            g_State.GPU = candidate;
+            g_State.Queues = findQueueFamilies(candidate, createInfo.AsyncCompute);
             break;
         }
     }
 
-    ASSERT(s_State.GPU != VK_NULL_HANDLE, "Failed to find suitable gpu device")
+    ASSERT(g_State.GPU != VK_NULL_HANDLE, "Failed to find suitable gpu device")
 
-    s_State.GPUDescriptorIndexingProperties.sType =
+    g_State.GPUDescriptorIndexingProperties.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
 
-    s_State.GPUSubgroupProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
-    s_State.GPUSubgroupProperties.pNext = &s_State.GPUDescriptorIndexingProperties;
+    g_State.GPUSubgroupProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
+    g_State.GPUSubgroupProperties.pNext = &g_State.GPUDescriptorIndexingProperties;
 
-    s_State.GPUDescriptorBufferProperties.sType =
+    g_State.GPUDescriptorBufferProperties.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT;
-    s_State.GPUDescriptorBufferProperties.pNext = &s_State.GPUSubgroupProperties;
+    g_State.GPUDescriptorBufferProperties.pNext = &g_State.GPUSubgroupProperties;
 
     VkPhysicalDeviceProperties2 deviceProperties2 = {};
     deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-    deviceProperties2.pNext = &s_State.GPUDescriptorBufferProperties;
-    vkGetPhysicalDeviceProperties2(s_State.GPU, &deviceProperties2);
-    s_State.GPUProperties = deviceProperties2.properties;
+    deviceProperties2.pNext = &g_State.GPUDescriptorBufferProperties;
+    vkGetPhysicalDeviceProperties2(g_State.GPU, &deviceProperties2);
+    g_State.GPUProperties = deviceProperties2.properties;
 }
 
 void Device::CreateDevice(const DeviceCreateInfo& createInfo)
 {
-    std::vector<u32> queueFamilies = s_State.Queues.AsFamilySet();
+    std::vector<u32> queueFamilies = g_State.Queues.AsFamilySet();
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
     queueCreateInfos.reserve(queueFamilies.size());
     f32 queuePriority = 1.0f;
@@ -2954,22 +2994,22 @@ void Device::CreateDevice(const DeviceCreateInfo& createInfo)
     deviceCreateInfo.ppEnabledExtensionNames = createInfo.DeviceExtensions.data();
     deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
-    deviceCheck(vkCreateDevice(s_State.GPU, &deviceCreateInfo, nullptr, &s_State.Device),
+    deviceCheck(vkCreateDevice(g_State.GPU, &deviceCreateInfo, nullptr, &g_State.Device),
         "Failed to create device\n");
 
-    volkLoadDevice(s_State.Device);
+    volkLoadDevice(g_State.Device);
 }
 
 void Device::RetrieveDeviceQueues()
 {
-    s_State.Queues.Graphics.Queue = {};
-    s_State.Queues.Presentation.Queue = {};
-    s_State.Queues.Compute.Queue = {};
+    g_State.Queues.Graphics.Queue = {};
+    g_State.Queues.Presentation.Queue = {};
+    g_State.Queues.Compute.Queue = {};
 
-    vkGetDeviceQueue(s_State.Device, s_State.Queues.Graphics.Family, 0, &s_State.Queues.Graphics.Queue);
-    if (s_State.Surface != VK_NULL_HANDLE)
-        vkGetDeviceQueue(s_State.Device, s_State.Queues.Presentation.Family, 0, &s_State.Queues.Presentation.Queue);
-    vkGetDeviceQueue(s_State.Device, s_State.Queues.Compute.Family, 0, &s_State.Queues.Compute.Queue);
+    vkGetDeviceQueue(g_State.Device, g_State.Queues.Graphics.Family, 0, &g_State.Queues.Graphics.Queue);
+    if (g_State.Surface != VK_NULL_HANDLE)
+        vkGetDeviceQueue(g_State.Device, g_State.Queues.Presentation.Family, 0, &g_State.Queues.Presentation.Queue);
+    vkGetDeviceQueue(g_State.Device, g_State.Queues.Compute.Family, 0, &g_State.Queues.Compute.Queue);
 }
 
 namespace
@@ -2993,17 +3033,17 @@ void Device::CreateDebugUtilsMessenger()
         VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     debugUtilsMessengerCreateInfo.pfnUserCallback = debugCallback;
     vkCreateDebugUtilsMessengerEXT(
-        s_State.Instance, &debugUtilsMessengerCreateInfo, nullptr, &s_State.DebugUtilsMessenger);
+        g_State.Instance, &debugUtilsMessengerCreateInfo, nullptr, &g_State.DebugUtilsMessenger);
 }
 
 void Device::DestroyDebugUtilsMessenger()
 {
-    vkDestroyDebugUtilsMessengerEXT(s_State.Instance, s_State.DebugUtilsMessenger, nullptr);
+    vkDestroyDebugUtilsMessengerEXT(g_State.Instance, g_State.DebugUtilsMessenger, nullptr);
 }
 
 void Device::WaitIdle()
 {
-    vkDeviceWaitIdle(s_State.Device);
+    vkDeviceWaitIdle(g_State.Device);
 }
 
 void Device::Init(DeviceCreateInfo&& createInfo)
@@ -3047,90 +3087,89 @@ void Device::Init(DeviceCreateInfo&& createInfo)
     vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
 
     VmaAllocatorCreateInfo vmaCreateInfo = {};
-    vmaCreateInfo.instance = s_State.Instance;
-    vmaCreateInfo.physicalDevice = s_State.GPU;
-    vmaCreateInfo.device = s_State.Device;
+    vmaCreateInfo.instance = g_State.Instance;
+    vmaCreateInfo.physicalDevice = g_State.GPU;
+    vmaCreateInfo.device = g_State.Device;
     vmaCreateInfo.pVulkanFunctions = (const VmaVulkanFunctions*)&vulkanFunctions;
     vmaCreateInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 
-    vmaCreateAllocator(&vmaCreateInfo, &s_State.Allocator);
+    vmaCreateAllocator(&vmaCreateInfo, &g_State.Allocator);
 
-    s_State.DummyDeletionQueue.m_IsDummy = true;
+    g_State.DummyDeletionQueue.m_IsDummy = true;
 
-    if (s_State.Surface != VK_NULL_HANDLE)
+    if (g_State.Surface != VK_NULL_HANDLE)
         InitImGuiUI();
 }
 
 void Device::Shutdown()
 {
-    vkDeviceWaitIdle(s_State.Device);
+    vkDeviceWaitIdle(g_State.Device);
 
     ShutdownImGuiUI();
-    s_State.DeletionQueue.Flush();
-    ShutdownResources();
-
+    g_State.Shutdown();
+    
 #ifdef VULKAN_VAL_LAYERS
     DestroyDebugUtilsMessenger();
 #endif
 
-    vkDestroyDevice(s_State.Device, nullptr);
-    vkDestroySurfaceKHR(s_State.Instance, s_State.Surface, nullptr);
-    vkDestroyInstance(s_State.Instance, nullptr);
+    vkDestroyDevice(g_State.Device, nullptr);
+    vkDestroySurfaceKHR(g_State.Instance, g_State.Surface, nullptr);
+    vkDestroyInstance(g_State.Instance, nullptr);
 }
 
 DeletionQueue& Device::DeletionQueue()
 {
-    return s_State.DeletionQueue;
+    return g_State.DeletionQueue;
 }
 
 DeletionQueue& Device::DummyDeletionQueue()
 {
-    return s_State.DummyDeletionQueue;
+    return g_State.DummyDeletionQueue;
 }
 
 u64 Device::GetUniformBufferAlignment()
 {
-    return s_State.GPUProperties.limits.minUniformBufferOffsetAlignment;
+    return g_State.GPUProperties.limits.minUniformBufferOffsetAlignment;
 }
 
 f32 Device::GetAnisotropyLevel()
 {
-    return s_State.GPUProperties.limits.maxSamplerAnisotropy;
+    return g_State.GPUProperties.limits.maxSamplerAnisotropy;
 }
 
 u32 Device::GetMaxIndexingImages()
 {
-    return s_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindSampledImages;
+    return g_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindSampledImages;
 }
 
 u32 Device::GetMaxIndexingUniformBuffers()
 {
-    return s_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindUniformBuffers;
+    return g_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindUniformBuffers;
 }
 
 u32 Device::GetMaxIndexingUniformBuffersDynamic()
 {
-    return s_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindUniformBuffers;
+    return g_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindUniformBuffers;
 }
 
 u32 Device::GetMaxIndexingStorageBuffers()
 {
-    return s_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindStorageBuffersDynamic;
+    return g_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindStorageBuffersDynamic;
 }
 
 u32 Device::GetMaxIndexingStorageBuffersDynamic()
 {
-    return s_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindStorageBuffersDynamic;
+    return g_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindStorageBuffersDynamic;
 }
 
 u32 Device::GetSubgroupSize()
 {
-    return s_State.GPUSubgroupProperties.subgroupSize;
+    return g_State.GPUSubgroupProperties.subgroupSize;
 }
 
 ImmediateSubmitContext Device::StartSubmitContext()
 {
-    auto view = Resources().GetLockedView<FenceTag, CommandBufferTag, CommandPoolTag>();
+    auto view = deviceResources().GetLockedView<FenceTag, CommandBufferTag, CommandPoolTag>();
     auto ctx = DeviceInternal::StartSubmitContext(view);
 
     return ctx;
@@ -3138,21 +3177,8 @@ ImmediateSubmitContext Device::StartSubmitContext()
 
 void Device::EndSubmitContext(const ImmediateSubmitContext& ctx)
 {
-    auto view = Resources().GetLockedView<FenceTag, CommandBufferTag, CommandPoolTag>();
+    auto view = deviceResources().GetLockedView<FenceTag, CommandBufferTag, CommandPoolTag>();
     DeviceInternal::EndSubmitContext(view, ctx);
-}
-
-DeviceResources& Device::Resources()
-{
-    return s_State.Resources;
-}
-
-void Device::ShutdownResources()
-{
-    vmaDestroyAllocator(s_State.Allocator);
-
-    ASSERT(Resources().m_AllocatedCount == Resources().m_DeallocatedCount,
-        "Not all driver resources are destroyed")
 }
 
 void Device::InitImGuiUI()
@@ -3178,22 +3204,22 @@ void Device::InitImGuiUI()
     poolCreateInfo.poolSizeCount = (u32)poolSizes.size();
     poolCreateInfo.pPoolSizes = poolSizes.data();
 
-    vkCreateDescriptorPool(s_State.Device, &poolCreateInfo, nullptr, &s_State.ImGuiPool);
+    vkCreateDescriptorPool(g_State.Device, &poolCreateInfo, nullptr, &g_State.ImGuiPool);
 
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-    s_State.Window->InitForImGui();
+    g_State.Window->InitForImGui();
 
     ImGui_ImplVulkan_InitInfo imguiInitInfo = {};
-    imguiInitInfo.Instance = s_State.Instance;
-    imguiInitInfo.PhysicalDevice = s_State.GPU;
-    imguiInitInfo.Device = s_State.Device;
-    imguiInitInfo.QueueFamily = s_State.Queues.Graphics.Family;
-    imguiInitInfo.Queue = s_State.Queues.Graphics.Queue;
-    imguiInitInfo.DescriptorPool = s_State.ImGuiPool;
+    imguiInitInfo.Instance = g_State.Instance;
+    imguiInitInfo.PhysicalDevice = g_State.GPU;
+    imguiInitInfo.Device = g_State.Device;
+    imguiInitInfo.QueueFamily = g_State.Queues.Graphics.Family;
+    imguiInitInfo.Queue = g_State.Queues.Graphics.Queue;
+    imguiInitInfo.DescriptorPool = g_State.ImGuiPool;
     imguiInitInfo.MinImageCount = 3;
     imguiInitInfo.ImageCount = 3;
     imguiInitInfo.UseDynamicRendering = true;
@@ -3205,7 +3231,7 @@ void Device::InitImGuiUI()
     ImGui_ImplVulkan_LoadFunctions([](const char* functionName, void* instance)
     {
         return vkGetInstanceProcAddr((VkInstance)instance, functionName);
-    }, s_State.Instance);
+    }, g_State.Instance);
     ImGui_ImplVulkan_Init(&imguiInitInfo);
     ImGui_ImplVulkan_CreateFontsTexture();
 }
@@ -3216,14 +3242,14 @@ void Device::ShutdownImGuiUI()
         ImGuiUI::ClearFrameResources(i);
 
     ImGui_ImplVulkan_Shutdown();
-    s_State.Window->ShutdownImGui();
+    g_State.Window->ShutdownImGui();
     ImGui::DestroyContext();
-    vkDestroyDescriptorPool(s_State.Device, s_State.ImGuiPool, nullptr);
+    vkDestroyDescriptorPool(g_State.Device, g_State.ImGuiPool, nullptr);
 }
 
 ProfilerContext::Ctx Device::CreateTracyGraphicsContext(CommandBuffer cmd)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
 
     return DeviceInternal::CreateTracyGraphicsContext(view, cmd);
 }
@@ -3253,7 +3279,7 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag, SwapchainTag, D
         .Image = swapchainResource.Description.ColorImages[command.ImageIndex],
         .Description = {.Mipmaps = 1, .Layers = 1}
     };
-    ::DeletionQueue& deletionQueue = *Device::s_State.FrameDeletionQueue;
+    ::DeletionQueue& deletionQueue = *g_State.FrameDeletionQueue;
 
     LayoutTransitionInfo presentToDestinationTransitionInfo = {
         .ImageSubresource = presentSubresource,
@@ -3563,7 +3589,7 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag, DependencyInfoT
     i32 depth = (i32)imageResource.Description.GetDepth();
     i8 layers = imageResource.Description.GetLayers();
 
-    ::DeletionQueue& deletionQueue = *Device::s_State.FrameDeletionQueue;
+    ::DeletionQueue& deletionQueue = *g_State.FrameDeletionQueue;
 
     ImageSubresource imageSubresource = {
         .Image = command.Image,
@@ -3923,7 +3949,7 @@ void Device::CreateGpuProfileFrame(ProfilerScopedZoneGpu& zoneGpu, const SourceL
 {
     static_assert(sizeof(zoneGpu.Impl) >= sizeof(tracy::VkCtxScope));
 
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
 
     new(&zoneGpu.Impl) tracy::VkCtxScope(
         (TracyVkCtx)ProfilerContext::Get()->GraphicsContext(),
@@ -3938,7 +3964,7 @@ void Device::DestroyGpuProfileFrame(ProfilerScopedZoneGpu& zoneGpu)
 
 void Device::CollectGpuProfileFrames()
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
 
     TracyVkCollect(
         ((TracyVkCtx)ProfilerContext::Get()->GraphicsContext()),
@@ -3947,7 +3973,7 @@ void Device::CollectGpuProfileFrames()
 
 ImTextureID Device::CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout)
 {
-    auto view = Resources().GetLockedView<ImageTag, SamplerTag>();
+    auto view = deviceResources().GetLockedView<ImageTag, SamplerTag>();
 
     return DeviceInternal::CreateImGuiImage(view, texture, sampler, layout);
 }
@@ -3961,23 +3987,23 @@ void Device::DumpMemoryStats(const std::filesystem::path& path)
 {
     static constexpr VkBool32 DETAILED_MAP = true;
     char* statsString = nullptr;
-    vmaBuildStatsString(s_State.Allocator, &statsString, DETAILED_MAP);
+    vmaBuildStatsString(g_State.Allocator, &statsString, DETAILED_MAP);
     if (!exists(path.parent_path()))
         create_directories(path.parent_path());
     std::ofstream out(path);
     std::print(out, "{}", statsString);
-    vmaFreeStatsString(s_State.Allocator, statsString);
+    vmaFreeStatsString(g_State.Allocator, statsString);
 }
 
 void Device::BeginCommandBufferLabel(CommandBuffer cmd, std::string_view label)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::BeginCommandBufferLabel(view, cmd, label);
 }
 
 void Device::EndCommandBufferLabel(CommandBuffer cmd)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::EndCommandBufferLabel(view, cmd);
 }
 
@@ -3998,264 +4024,264 @@ void nameVulkanHandle(VkDevice device, u64 handle, VkObjectType type, std::strin
 
 void Device::NameBuffer(Buffer buffer, std::string_view name)
 {
-    auto view = Resources().GetLockedView<BufferTag>();
-    nameVulkanHandle(s_State.Device, (u64)view[buffer].Buffer, VK_OBJECT_TYPE_BUFFER, name);
+    auto view = deviceResources().GetLockedView<BufferTag>();
+    nameVulkanHandle(g_State.Device, (u64)view[buffer].Buffer, VK_OBJECT_TYPE_BUFFER, name);
 }
 
 void Device::NameImage(Image image, std::string_view name)
 {
-    auto view = Resources().GetLockedView<ImageTag>();
-    nameVulkanHandle(s_State.Device, (u64)view[image].Image, VK_OBJECT_TYPE_IMAGE, name);
+    auto view = deviceResources().GetLockedView<ImageTag>();
+    nameVulkanHandle(g_State.Device, (u64)view[image].Image, VK_OBJECT_TYPE_IMAGE, name);
 }
 
 void Device::NamePipeline(Pipeline pipeline, std::string_view name)
 {
-    auto view = Resources().GetLockedView<PipelineTag>();
-    nameVulkanHandle(s_State.Device, (u64)view[pipeline].Pipeline, VK_OBJECT_TYPE_PIPELINE, name);
+    auto view = deviceResources().GetLockedView<PipelineTag>();
+    nameVulkanHandle(g_State.Device, (u64)view[pipeline].Pipeline, VK_OBJECT_TYPE_PIPELINE, name);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const ExecuteSecondaryBufferCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const PrepareSwapchainPresentCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, SwapchainTag, DependencyInfoTag, ImageTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, SwapchainTag, DependencyInfoTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BeginRenderingCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, RenderingInfoTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, RenderingInfoTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const EndRenderingCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const ImGuiBeginCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const ImGuiEndCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, RenderingInfoTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, RenderingInfoTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BeginConditionalRenderingCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const EndConditionalRenderingCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const SetViewportCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const SetScissorsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const SetDepthBiasCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const CopyBufferCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const CopyBufferToImageCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag, ImageTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const CopyImageCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, ImageTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BlitImageCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, ImageTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const MipmapImageCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, ImageTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, DependencyInfoTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const WaitOnFullPipelineBarrierCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, ImageTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, DependencyInfoTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const WaitOnBarrierCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, DependencyInfoTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const SignalSplitBarrierCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const WaitOnSplitBarrierCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const ResetSplitBarrierCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindVertexBuffersCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindIndexU32BufferCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindIndexU16BufferCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindIndexU8BufferCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindPipelineGraphicsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindPipelineComputeCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag,
+    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag,
                                           DescriptorsTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag,
+    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag,
                                           DescriptorsTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag,
+    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag,
                                           DescriptorsTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsComputeCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag,
+    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag,
                                           DescriptorsTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, DescriptorArenaAllocatorTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, DescriptorArenaAllocatorTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const PushConstantsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineLayoutTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const DrawCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const DrawIndexedCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const DrawIndexedIndirectCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const DrawIndexedIndirectCountCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const DispatchCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const DispatchIndirectCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 Swapchain DeviceInternal::CreateSwapchain(const View<SwapchainTag, ImageTag, SemaphoreTag>& resources,
     SwapchainCreateInfo&& createInfo, DeletionQueue& deletionQueue)
 {
-    if (Device::s_State.Surface == VK_NULL_HANDLE)
+    if (g_State.Surface == VK_NULL_HANDLE)
         return {};
 
     static std::vector<VkSurfaceFormatKHR> desiredFormats = {
@@ -4272,7 +4298,7 @@ Swapchain DeviceInternal::CreateSwapchain(const View<SwapchainTag, ImageTag, Sem
         }
     };
 
-    SurfaceDetails surfaceDetails = getSurfaceDetails(Device::s_State.GPU, Device::s_State.Surface);
+    SurfaceDetails surfaceDetails = getSurfaceDetails(g_State.GPU, g_State.Surface);
     VkSurfaceCapabilitiesKHR capabilities = surfaceDetails.Capabilities;
     VkSurfaceFormatKHR colorFormat = utils::getIntersectionOrDefault(
         desiredFormats, surfaceDetails.Formats,
@@ -4316,23 +4342,23 @@ Swapchain DeviceInternal::CreateSwapchain(const View<SwapchainTag, ImageTag, Sem
 
     VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
     swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    swapchainCreateInfo.surface = Device::s_State.Surface;
+    swapchainCreateInfo.surface = g_State.Surface;
     swapchainCreateInfo.imageColorSpace = colorFormat.colorSpace;
     swapchainCreateInfo.imageFormat = colorFormat.format;
-    VkExtent2D extent = chooseExtent(*Device::s_State.Window, capabilities);
+    VkExtent2D extent = chooseExtent(*g_State.Window, capabilities);
     swapchainCreateInfo.imageExtent = extent;
     swapchainCreateInfo.imageArrayLayers = 1;
     swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     swapchainCreateInfo.minImageCount = imageCount;
     swapchainCreateInfo.presentMode = presentMode;
 
-    if (Device::s_State.Queues.Graphics.Family == Device::s_State.Queues.Presentation.Family)
+    if (g_State.Queues.Graphics.Family == g_State.Queues.Presentation.Family)
     {
         swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     }
     else
     {
-        std::vector<u32> queueFamilies = Device::s_State.Queues.AsFamilySet();
+        std::vector<u32> queueFamilies = g_State.Queues.AsFamilySet();
         swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
         swapchainCreateInfo.queueFamilyIndexCount = (u32)queueFamilies.size();
         swapchainCreateInfo.pQueueFamilyIndices = queueFamilies.data();
@@ -4344,7 +4370,7 @@ Swapchain DeviceInternal::CreateSwapchain(const View<SwapchainTag, ImageTag, Sem
 
     SwapchainResource swapchainResource = {};
     swapchainResource.ColorFormat = colorFormat.format;
-    deviceCheck(vkCreateSwapchainKHR(Device::s_State.Device, &swapchainCreateInfo, nullptr,
+    deviceCheck(vkCreateSwapchainKHR(g_State.Device, &swapchainCreateInfo, nullptr,
         &swapchainResource.Swapchain), "Failed to create swapchain");
 
     const glm::uvec2 swapchainResolution = glm::uvec2{extent.width, extent.height};
@@ -4390,7 +4416,7 @@ Swapchain DeviceInternal::CreateSwapchain(const View<SwapchainTag, ImageTag, Sem
 void DeviceInternal::Destroy(const View<SwapchainTag, ImageTag, SemaphoreTag>& resources, Swapchain swapchain)
 {
     DestroySwapchainImages(resources, swapchain);
-    vkDestroySwapchainKHR(Device::s_State.Device, resources[swapchain].Swapchain, nullptr);
+    vkDestroySwapchainKHR(g_State.Device, resources[swapchain].Swapchain, nullptr);
     for (Semaphore semaphore : resources[swapchain].RenderSemaphores)
         Destroy(resources, semaphore);
     resources.Remove(swapchain);
@@ -4400,9 +4426,9 @@ void DeviceInternal::CreateSwapchainImages(const View<SwapchainTag, ImageTag>& r
 {
     SwapchainResource& swapchainResource = resources[swapchain];
     u32 imageCount = 0;
-    vkGetSwapchainImagesKHR(Device::s_State.Device, swapchainResource.Swapchain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(g_State.Device, swapchainResource.Swapchain, &imageCount, nullptr);
     std::vector<VkImage> images(imageCount);
-    vkGetSwapchainImagesKHR(Device::s_State.Device, swapchainResource.Swapchain, &imageCount, images.data());
+    vkGetSwapchainImagesKHR(g_State.Device, swapchainResource.Swapchain, &imageCount, images.data());
 
     ImageDescription description = {
         .Width = swapchainResource.Description.SwapchainResolution.x,
@@ -4433,7 +4459,7 @@ void DeviceInternal::DestroySwapchainImages(const View<SwapchainTag, ImageTag>& 
     SwapchainResource& swapchainResource = resources[swapchain];
     for (const auto& colorImage : swapchainResource.Description.ColorImages)
     {
-        vkDestroyImageView(Device::s_State.Device, *resources[colorImage].Views.ViewList, nullptr);
+        vkDestroyImageView(g_State.Device, *resources[colorImage].Views.ViewList, nullptr);
         resources.Remove(colorImage);
     }
     Destroy(resources, swapchainResource.Description.DrawImage);
@@ -4446,7 +4472,7 @@ u32 DeviceInternal::AcquireNextImage(const View<SwapchainTag, FenceTag, Semaphor
     WaitForFence(resources, renderFence);
 
     u32 imageIndex;
-    const VkResult res = vkAcquireNextImageKHR(Device::s_State.Device, resources[swapchain].Swapchain,
+    const VkResult res = vkAcquireNextImageKHR(g_State.Device, resources[swapchain].Swapchain,
         10'000'000'000, resources[presentSemaphore].Semaphore, VK_NULL_HANDLE,
         &imageIndex);
     if (res == VK_ERROR_OUT_OF_DATE_KHR)
@@ -4472,7 +4498,7 @@ bool DeviceInternal::Present(const View<SwapchainTag, SemaphoreTag>& resources, 
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = &resources[swapchainResource.RenderSemaphores[imageIndex]].Semaphore;
 
-    VkResult result = vkQueuePresentKHR(Device::s_State.Queues.GetQueueByKind(queueKind).Queue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(g_State.Queues.GetQueueByKind(queueKind).Queue, &presentInfo);
 
     ASSERT(result == VK_SUCCESS || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR,
         "Failed to present image")
@@ -4501,15 +4527,15 @@ CommandPool DeviceInternal::CreateCommandPool(const View<CommandPoolTag>& resour
     VkCommandPoolCreateInfo poolCreateInfo = {};
     poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolCreateInfo.flags = flags;
-    poolCreateInfo.queueFamilyIndex = Device::s_State.Queues.GetFamilyByKind(createInfo.QueueKind);
+    poolCreateInfo.queueFamilyIndex = g_State.Queues.GetFamilyByKind(createInfo.QueueKind);
 
     CommandPoolResource commandPoolResource = {};
-    deviceCheck(vkCreateCommandPool(Device::s_State.Device, &poolCreateInfo, nullptr, &commandPoolResource.CommandPool),
+    deviceCheck(vkCreateCommandPool(g_State.Device, &poolCreateInfo, nullptr, &commandPoolResource.CommandPool),
         "Failed to create command pool");
 
     const CommandPool commandPool = resources.Add(commandPoolResource);
-    if (commandPool.m_Id >= Device::Resources().m_CommandPoolToBuffersMap.size())
-        Device::Resources().m_CommandPoolToBuffersMap.resize(commandPool.m_Id + 1);
+    if (commandPool.m_Id >= deviceResources().m_CommandPoolToBuffersMap.size())
+        deviceResources().m_CommandPoolToBuffersMap.resize(commandPool.m_Id + 1);
     deletionQueue.Enqueue(commandPool);
 
     return commandPool;
@@ -4517,15 +4543,14 @@ CommandPool DeviceInternal::CreateCommandPool(const View<CommandPoolTag>& resour
 
 void DeviceInternal::Destroy(const View<CommandPoolTag, CommandBufferTag>& resources, CommandPool commandPool)
 {
-    vkDestroyCommandPool(Device::s_State.Device, resources[commandPool].CommandPool, nullptr);
-    // todo: mt:
-    Device::Resources().DestroyCmdsOfPool(commandPool);
+    vkDestroyCommandPool(g_State.Device, resources[commandPool].CommandPool, nullptr);
+    deviceResources().DestroyCmdsOfPool(commandPool);
     resources.Remove(commandPool);
 }
 
 void DeviceInternal::ResetPool(const View<CommandPoolTag>& resources, CommandPool pool)
 {
-    deviceCheck(vkResetCommandPool(Device::s_State.Device, resources[pool].CommandPool, 0),
+    deviceCheck(vkResetCommandPool(g_State.Device, resources[pool].CommandPool, 0),
         "Error while resetting command pool");
 }
 
@@ -4540,11 +4565,11 @@ CommandBuffer DeviceInternal::CreateCommandBuffer(const View<CommandBufferTag, C
 
     CommandBufferResource commandBufferResource = {};
     commandBufferResource.Kind = createInfo.Kind;
-    deviceCheck(vkAllocateCommandBuffers(Device::s_State.Device, &allocateInfo, &commandBufferResource.CommandBuffer),
+    deviceCheck(vkAllocateCommandBuffers(g_State.Device, &allocateInfo, &commandBufferResource.CommandBuffer),
         "Failed to allocate command buffer");
 
     CommandBuffer cmd = resources.Add(commandBufferResource);
-    Device::Resources().MapCmdToPool(cmd, createInfo.Pool);
+    deviceResources().MapCmdToPool(cmd, createInfo.Pool);
 
     return cmd;
 }
@@ -4605,7 +4630,7 @@ void DeviceInternal::SubmitCommandBuffer(const View<CommandBufferTag, FenceTag>&
     submitInfo.commandBufferInfoCount = 1;
     submitInfo.pCommandBufferInfos = &commandBufferSubmitInfo;
 
-    deviceCheck(vkQueueSubmit2(Device::s_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
+    deviceCheck(vkQueueSubmit2(g_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
             fence.HasValue() ? resources[fence].Fence : VK_NULL_HANDLE),
         "Error while submitting command buffer");
 }
@@ -4639,7 +4664,7 @@ void DeviceInternal::SubmitCommandBuffers(const View<CommandBufferTag, FenceTag,
     submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
     submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
 
-    deviceCheck(vkQueueSubmit2(Device::s_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
+    deviceCheck(vkQueueSubmit2(g_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
             submitSync.Fence.HasValue() ? resources[submitSync.Fence].Fence : VK_NULL_HANDLE),
         "Error while submitting command buffers");
 }
@@ -4677,7 +4702,7 @@ void DeviceInternal::SubmitCommandBuffers(const View<CommandBufferTag, FenceTag,
     submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
     submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
 
-    deviceCheck(vkQueueSubmit2(Device::s_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
+    deviceCheck(vkQueueSubmit2(g_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
             submitSync.Fence.HasValue() ? resources[submitSync.Fence].Fence : VK_NULL_HANDLE),
         "Error while submitting command buffers");
 }
@@ -4703,8 +4728,8 @@ void DeviceInternal::EndCommandBufferLabel(const View<CommandBufferTag>& resourc
 ProfilerContext::Ctx DeviceInternal::CreateTracyGraphicsContext(const View<CommandBufferTag>& resources,
     CommandBuffer cmd)
 {
-    const TracyVkCtx context = TracyVkContext(Device::s_State.GPU, Device::s_State.Device,
-        Device::s_State.Queues.Graphics.Queue, resources[cmd].CommandBuffer)
+    const TracyVkCtx context = TracyVkContext(g_State.GPU, g_State.Device,
+        g_State.Queues.Graphics.Queue, resources[cmd].CommandBuffer)
 
     return context;
 }
@@ -4793,7 +4818,7 @@ void DeviceInternal::ResizeBuffer(const View<CommandBufferTag, BufferTag>& resou
             },
             .PersistentMapping = resource.HostAddress != nullptr
         },
-        *Device::s_State.FrameDeletionQueue);
+        *g_State.FrameDeletionQueue);
 
     /* seems very questionable
      * after this line new Buffer will inherit lifetime of old buffer,
@@ -4860,7 +4885,7 @@ u64 DeviceInternal::GetDeviceAddress(const View<BufferTag>& resources, Buffer bu
     deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
     deviceAddressInfo.buffer = resources[buffer].Buffer;
 
-    return vkGetBufferDeviceAddress(Device::s_State.Device, &deviceAddressInfo);
+    return vkGetBufferDeviceAddress(g_State.Device, &deviceAddressInfo);
 }
 
 Buffer DeviceInternal::AllocateBuffer(const View<BufferTag>& resources, const BufferCreateInfo& createInfo,
@@ -5035,7 +5060,7 @@ Image DeviceInternal::CreateImageFromAssetFile(
             .Description = {.Mipmaps = (i8)asset->Header.Mipmaps, .Layers = (i8)asset->Header.Layers}
         };
 
-        ::DeletionQueue& deletionQueue = *Device::s_State.FrameDeletionQueue;
+        ::DeletionQueue& deletionQueue = *g_State.FrameDeletionQueue;
 
         CompileCommand(resources, cmdList.m_Cmd, WaitOnBarrierCommand{
             .DependencyInfo = CreateDependencyInfo(resources, {
@@ -5154,7 +5179,7 @@ Image DeviceInternal::CreateImageFromBuffer(
 
         ImageSubresource imageSubresource = {.Image = image, .Description = {.Mipmaps = 1, .Layers = 1}};
 
-        ::DeletionQueue& deletionQueue = *Device::s_State.FrameDeletionQueue;
+        ::DeletionQueue& deletionQueue = *g_State.FrameDeletionQueue;
 
         CompileCommand(resources, cmdList.m_Cmd, WaitOnBarrierCommand{
             .DependencyInfo = CreateDependencyInfo(resources, {
@@ -5278,12 +5303,12 @@ void DeviceInternal::Destroy(const View<ImageTag>& resources, Image image)
     const ImageResource& imageResource = resources[image];
     if (imageResource.Views.ViewList == &imageResource.Views.ViewType.View)
     {
-        vkDestroyImageView(Device::s_State.Device, imageResource.Views.ViewType.View, nullptr);
+        vkDestroyImageView(g_State.Device, imageResource.Views.ViewType.View, nullptr);
     }
     else
     {
         for (u32 viewIndex = 0; viewIndex < imageResource.Views.ViewType.ViewCount; viewIndex++)
-            vkDestroyImageView(Device::s_State.Device, imageResource.Views.ViewList[viewIndex], nullptr);
+            vkDestroyImageView(g_State.Device, imageResource.Views.ViewList[viewIndex], nullptr);
         delete[] imageResource.Views.ViewList;
     }
     vmaDestroyImage(Allocator(), imageResource.Image, imageResource.Allocation);
@@ -5334,7 +5359,7 @@ VkImageView DeviceInternal::CreateVulkanImageView(const View<ImageTag>& resource
 
     VkImageView imageView;
 
-    deviceCheck(vkCreateImageView(Device::s_State.Device, &createInfo, nullptr, &imageView),
+    deviceCheck(vkCreateImageView(g_State.Device, &createInfo, nullptr, &imageView),
         "Failed to create image view");
 
     return imageView;
@@ -5421,7 +5446,7 @@ Sampler DeviceInternal::CreateSampler(const View<SamplerTag>& resources, Sampler
     }
 
     SamplerResource samplerResource = {};
-    deviceCheck(vkCreateSampler(Device::s_State.Device, &samplerCreateInfo, nullptr, &samplerResource.Sampler),
+    deviceCheck(vkCreateSampler(g_State.Device, &samplerCreateInfo, nullptr, &samplerResource.Sampler),
         "Failed to create depth pyramid sampler");
 
     const Sampler sampler = resources.Add(samplerResource);
@@ -5434,7 +5459,7 @@ Sampler DeviceInternal::CreateSampler(const View<SamplerTag>& resources, Sampler
 
 void DeviceInternal::Destroy(const View<SamplerTag>& resources, Sampler sampler)
 {
-    vkDestroySampler(Device::s_State.Device, resources[sampler].Sampler, nullptr);
+    vkDestroySampler(g_State.Device, resources[sampler].Sampler, nullptr);
     resources.Remove(sampler);
 }
 
@@ -5505,7 +5530,7 @@ PipelineLayout DeviceInternal::CreatePipelineLayout(const View<PipelineLayoutTag
 
     PipelineLayoutResource pipelineLayoutResource = {};
     pipelineLayoutResource.PushConstants = pushConstantRanges;
-    deviceCheck(vkCreatePipelineLayout(Device::s_State.Device, &layoutCreateInfo, nullptr,
+    deviceCheck(vkCreatePipelineLayout(g_State.Device, &layoutCreateInfo, nullptr,
         &pipelineLayoutResource.Layout), "Failed to create pipeline layout");
 
     PipelineLayout layout = resources.Add(pipelineLayoutResource);
@@ -5516,7 +5541,7 @@ PipelineLayout DeviceInternal::CreatePipelineLayout(const View<PipelineLayoutTag
 
 void DeviceInternal::Destroy(const View<PipelineLayoutTag>& resources, PipelineLayout pipelineLayout)
 {
-    vkDestroyPipelineLayout(Device::s_State.Device, resources[pipelineLayout].Layout, nullptr);
+    vkDestroyPipelineLayout(g_State.Device, resources[pipelineLayout].Layout, nullptr);
     resources.Remove(pipelineLayout);
 }
 
@@ -5577,7 +5602,7 @@ Pipeline DeviceInternal::CreatePipeline(const View<PipelineTag, PipelineLayoutTa
 #endif
 
         PipelineResource pipelineResource = {};
-        deviceCheck(vkCreateComputePipelines(Device::s_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
+        deviceCheck(vkCreateComputePipelines(g_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
             &pipelineResource.Pipeline), "Failed to create compute pipeline");
         pipeline = resources.Add(pipelineResource);
     }
@@ -5722,7 +5747,7 @@ Pipeline DeviceInternal::CreatePipeline(const View<PipelineTag, PipelineLayoutTa
 #endif
 
         PipelineResource pipelineResource = {};
-        deviceCheck(vkCreateGraphicsPipelines(Device::s_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
+        deviceCheck(vkCreateGraphicsPipelines(g_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
             &pipelineResource.Pipeline), "Failed to create graphics pipeline");
         pipeline = resources.Add(pipelineResource);
     }
@@ -5733,7 +5758,7 @@ Pipeline DeviceInternal::CreatePipeline(const View<PipelineTag, PipelineLayoutTa
 
 void DeviceInternal::Destroy(const View<PipelineTag>& resources, Pipeline pipeline)
 {
-    vkDestroyPipeline(Device::s_State.Device, resources[pipeline].Pipeline, nullptr);
+    vkDestroyPipeline(g_State.Device, resources[pipeline].Pipeline, nullptr);
     resources.Remove(pipeline);
 }
 
@@ -5746,7 +5771,7 @@ ShaderModule DeviceInternal::CreateShaderModule(const View<ShaderModuleTag>& res
     moduleCreateInfo.pCode = reinterpret_cast<const u32*>(createInfo.Source.data());
 
     ShaderModuleResource shaderModuleResource = {};
-    deviceCheck(vkCreateShaderModule(Device::s_State.Device, &moduleCreateInfo, nullptr, &shaderModuleResource.Module),
+    deviceCheck(vkCreateShaderModule(g_State.Device, &moduleCreateInfo, nullptr, &shaderModuleResource.Module),
         "Failed to create shader module");
 
     ShaderModule module = resources.Add(shaderModuleResource);
@@ -5757,7 +5782,7 @@ ShaderModule DeviceInternal::CreateShaderModule(const View<ShaderModuleTag>& res
 
 void DeviceInternal::Destroy(const View<ShaderModuleTag>& resources, ShaderModule shaderModule)
 {
-    vkDestroyShaderModule(Device::s_State.Device, resources[shaderModule].Module, nullptr);
+    vkDestroyShaderModule(g_State.Device, resources[shaderModule].Module, nullptr);
     resources.Remove(shaderModule);
 }
 
@@ -5829,7 +5854,7 @@ DescriptorsLayout DeviceInternal::CreateDescriptorsLayout(const View<Descriptors
     layoutCreateInfo.pNext = &bindingFlagsCreateInfo;
 
     DescriptorsLayoutResource descriptorSetLayoutResource = {};
-    deviceCheck(vkCreateDescriptorSetLayout(Device::s_State.Device, &layoutCreateInfo, nullptr,
+    deviceCheck(vkCreateDescriptorSetLayout(g_State.Device, &layoutCreateInfo, nullptr,
         &descriptorSetLayoutResource.Layout), "Failed to create descriptor set layout");
 
     DescriptorsLayout layout = resources.Add(descriptorSetLayoutResource);
@@ -5855,7 +5880,7 @@ DescriptorsLayout DeviceInternal::GetEmptyDescriptorsLayout(const View<Descripto
 
 void DeviceInternal::Destroy(const View<DescriptorsLayoutTag>& resources, DescriptorsLayout layout)
 {
-    vkDestroyDescriptorSetLayout(Device::s_State.Device, resources[layout].Layout, nullptr);
+    vkDestroyDescriptorSetLayout(g_State.Device, resources[layout].Layout, nullptr);
     resources.Remove(layout);
 }
 
@@ -5921,13 +5946,13 @@ std::optional<Descriptors> DeviceInternal::AllocateDescriptors(
     DescriptorsLayout layout, DescriptorAllocatorAllocationBindings&& bindings)
 {
     DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
-    auto& descriptorBufferProps = Device::s_State.GPUDescriptorBufferProperties;
+    auto& descriptorBufferProps = g_State.GPUDescriptorBufferProperties;
 
     /* if we have bindless binding, we have to calculate layout size as a sum of bindings sizes */
     u64 layoutSizeBytes = 0;
     if (bindings.BindlessCount == 0)
     {
-        vkGetDescriptorSetLayoutSizeEXT(Device::s_State.Device, resources[layout].Layout, &layoutSizeBytes);
+        vkGetDescriptorSetLayoutSizeEXT(g_State.Device, resources[layout].Layout, &layoutSizeBytes);
     }
     else
     {
@@ -5955,7 +5980,7 @@ std::optional<Descriptors> DeviceInternal::AllocateDescriptors(
     for (u32 offsetIndex = 0; offsetIndex < bindingOffsets.size(); offsetIndex++)
     {
         auto& binding = bindings.Bindings[offsetIndex];
-        vkGetDescriptorSetLayoutBindingOffsetEXT(Device::s_State.Device, resources[layout].Layout, binding.Binding,
+        vkGetDescriptorSetLayoutBindingOffsetEXT(g_State.Device, resources[layout].Layout, binding.Binding,
             &bindingOffsets[offsetIndex]);
         bindingOffsets[offsetIndex] += allocatorResource.CurrentOffset;
     }
@@ -5997,7 +6022,7 @@ void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorAren
     VkBufferDeviceAddressInfo deviceAddressInfo = {};
     deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
     deviceAddressInfo.buffer = bufferResource.Buffer;
-    u64 deviceAddress = vkGetBufferDeviceAddress(Device::s_State.Device, &deviceAddressInfo);
+    u64 deviceAddress = vkGetBufferDeviceAddress(g_State.Device, &deviceAddressInfo);
 
     VkDescriptorAddressInfoEXT descriptorAddressInfo = {};
     descriptorAddressInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
@@ -6070,9 +6095,9 @@ void DeviceInternal::Destroy(const View<DescriptorArenaAllocatorTag, Descriptors
 
     const DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
     for (auto& pool : allocatorResource.FreePools)
-        vkDestroyDescriptorPool(Device::s_State.Device, pool.Pool, nullptr);
+        vkDestroyDescriptorPool(g_State.Device, pool.Pool, nullptr);
     for (auto& pool : allocatorResource.UsedPools)
-        vkDestroyDescriptorPool(Device::s_State.Device, pool.Pool, nullptr);
+        vkDestroyDescriptorPool(g_State.Device, pool.Pool, nullptr);
 
     resources.Remove(allocator);
 }
@@ -6104,7 +6129,7 @@ std::optional<Descriptors> DeviceInternal::AllocateDescriptors(
     allocateInfo.pNext = &vulkanVariableBindingCounts;
 
     DescriptorsResource descriptorSetResource = {};
-    vkAllocateDescriptorSets(Device::s_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet);
+    vkAllocateDescriptorSets(g_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet);
     descriptorSetResource.Pool = pool;
 
     if (descriptorSetResource.DescriptorSet == VK_NULL_HANDLE)
@@ -6116,7 +6141,7 @@ std::optional<Descriptors> DeviceInternal::AllocateDescriptors(
         pool = allocatorResource.FreePools[poolIndex].Pool;
         allocateInfo.descriptorPool = pool;
         allocateInfo.pSetLayouts = &resources[descriptorSetResource.Layout].Layout;
-        vkAllocateDescriptorSets(Device::s_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet);
+        vkAllocateDescriptorSets(g_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet);
         if (descriptorSetResource.DescriptorSet == VK_NULL_HANDLE)
             return std::nullopt;
 
@@ -6134,10 +6159,10 @@ void DeviceInternal::ResetDescriptorArenaAllocator(const View<DescriptorArenaAll
 {
     DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
     for (auto& pool : allocatorResource.FreePools)
-        vkResetDescriptorPool(Device::s_State.Device, pool.Pool, 0);
+        vkResetDescriptorPool(g_State.Device, pool.Pool, 0);
     for (auto pool : allocatorResource.UsedPools)
     {
-        vkResetDescriptorPool(Device::s_State.Device, pool.Pool, 0);
+        vkResetDescriptorPool(g_State.Device, pool.Pool, 0);
         allocatorResource.FreePools.push_back(pool);
     }
     allocatorResource.UsedPools.clear();
@@ -6164,7 +6189,7 @@ void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorAren
     write.pBufferInfo = &descriptorBufferInfo;
     write.dstArrayElement = index;
 
-    vkUpdateDescriptorSets(Device::s_State.Device, 1, &write, 0, nullptr);
+    vkUpdateDescriptorSets(g_State.Device, 1, &write, 0, nullptr);
 }
 
 void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorArenaAllocatorTag, SamplerTag>& resources,
@@ -6182,7 +6207,7 @@ void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorAren
     write.dstBinding = slot;
     write.pImageInfo = &descriptorTextureInfo;
 
-    vkUpdateDescriptorSets(Device::s_State.Device, 1, &write, 0, nullptr);
+    vkUpdateDescriptorSets(g_State.Device, 1, &write, 0, nullptr);
 }
 
 void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorArenaAllocatorTag, ImageTag>& resources,
@@ -6203,7 +6228,7 @@ void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorAren
     write.pImageInfo = &descriptorTextureInfo;
     write.dstArrayElement = index;
 
-    vkUpdateDescriptorSets(Device::s_State.Device, 1, &write, 0, nullptr);
+    vkUpdateDescriptorSets(g_State.Device, 1, &write, 0, nullptr);
 }
 #endif // DESCRIPTOR_BUFFER
 
@@ -6218,7 +6243,7 @@ Fence DeviceInternal::CreateFence(const View<FenceTag>& resources, FenceCreateIn
         fenceCreateInfo.flags &= ~VK_FENCE_CREATE_SIGNALED_BIT;
 
     FenceResource fenceResource = {};
-    deviceCheck(vkCreateFence(Device::s_State.Device, &fenceCreateInfo, nullptr, &fenceResource.Fence),
+    deviceCheck(vkCreateFence(g_State.Device, &fenceCreateInfo, nullptr, &fenceResource.Fence),
         "Failed to create fence");
 
     const Fence fence = resources.Add(fenceResource);
@@ -6229,25 +6254,25 @@ Fence DeviceInternal::CreateFence(const View<FenceTag>& resources, FenceCreateIn
 
 void DeviceInternal::Destroy(const View<FenceTag>& resources, Fence fence)
 {
-    vkDestroyFence(Device::s_State.Device, resources[fence].Fence, nullptr);
+    vkDestroyFence(g_State.Device, resources[fence].Fence, nullptr);
     resources.Remove(fence);
 }
 
 void DeviceInternal::WaitForFence(const View<FenceTag>& resources, Fence fence)
 {
-    deviceCheck(vkWaitForFences(Device::s_State.Device, 1, &resources[fence].Fence, true, 10'000'000'000),
+    deviceCheck(vkWaitForFences(g_State.Device, 1, &resources[fence].Fence, true, 10'000'000'000),
         "Error while waiting for fences");
 }
 
 bool DeviceInternal::CheckFence(const View<FenceTag>& resources, Fence fence)
 {
-    const VkResult result = vkGetFenceStatus(Device::s_State.Device, resources[fence].Fence);
+    const VkResult result = vkGetFenceStatus(g_State.Device, resources[fence].Fence);
     return result == VK_SUCCESS;
 }
 
 void DeviceInternal::ResetFence(const View<FenceTag>& resources, Fence fence)
 {
-    deviceCheck(vkResetFences(Device::s_State.Device, 1, &resources[fence].Fence), "Error while resetting fences");
+    deviceCheck(vkResetFences(g_State.Device, 1, &resources[fence].Fence), "Error while resetting fences");
 }
 
 Semaphore DeviceInternal::CreateSemaphore(const View<SemaphoreTag>& resources, DeletionQueue& deletionQueue)
@@ -6256,7 +6281,7 @@ Semaphore DeviceInternal::CreateSemaphore(const View<SemaphoreTag>& resources, D
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
     SemaphoreResource semaphoreResource = {};
-    deviceCheck(vkCreateSemaphore(Device::s_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore),
+    deviceCheck(vkCreateSemaphore(g_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore),
         "Failed to create semaphore");
 
     const Semaphore semaphore = resources.Add(semaphoreResource);
@@ -6267,7 +6292,7 @@ Semaphore DeviceInternal::CreateSemaphore(const View<SemaphoreTag>& resources, D
 
 void DeviceInternal::Destroy(const View<SemaphoreTag>& resources, Semaphore semaphore)
 {
-    vkDestroySemaphore(Device::s_State.Device, resources[semaphore].Semaphore, nullptr);
+    vkDestroySemaphore(g_State.Device, resources[semaphore].Semaphore, nullptr);
     resources.Remove(semaphore);
 }
 
@@ -6284,7 +6309,7 @@ TimelineSemaphore DeviceInternal::CreateTimelineSemaphore(const View<TimelineSem
     semaphoreCreateInfo.pNext = &timelineCreateInfo;
 
     TimelineSemaphoreResource semaphoreResource = {};
-    vkCreateSemaphore(Device::s_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore);
+    vkCreateSemaphore(g_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore);
     semaphoreResource.Timeline = createInfo.InitialValue;
 
     TimelineSemaphore semaphore = resources.Add(semaphoreResource);
@@ -6295,7 +6320,7 @@ TimelineSemaphore DeviceInternal::CreateTimelineSemaphore(const View<TimelineSem
 
 void DeviceInternal::Destroy(const View<TimelineSemaphoreTag>& resources, TimelineSemaphore semaphore)
 {
-    vkDestroySemaphore(Device::s_State.Device, resources[semaphore].Semaphore, nullptr);
+    vkDestroySemaphore(g_State.Device, resources[semaphore].Semaphore, nullptr);
     resources.Remove(semaphore);
 }
 
@@ -6308,7 +6333,7 @@ void DeviceInternal::TimelineSemaphoreWaitCPU(const View<TimelineSemaphoreTag>& 
     waitInfo.pSemaphores = &resources[semaphore].Semaphore;
     waitInfo.pValues = &value;
 
-    deviceCheck(vkWaitSemaphores(Device::s_State.Device, &waitInfo, UINT64_MAX),
+    deviceCheck(vkWaitSemaphores(g_State.Device, &waitInfo, UINT64_MAX),
         "Failed to wait for timeline semaphore");
 }
 
@@ -6321,7 +6346,7 @@ void DeviceInternal::TimelineSemaphoreSignalCPU(const View<TimelineSemaphoreTag>
     signalInfo.semaphore = resources[semaphore].Semaphore;
     signalInfo.value = value;
 
-    deviceCheck(vkSignalSemaphore(Device::s_State.Device, &signalInfo),
+    deviceCheck(vkSignalSemaphore(g_State.Device, &signalInfo),
         "Failed to signal semaphore");
 
     resources[semaphore].Timeline = value;
@@ -6410,7 +6435,7 @@ SplitBarrier DeviceInternal::CreateSplitBarrier(const View<SplitBarrierTag>& res
     eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
 
     SplitBarrierResource splitBarrierResource = {};
-    deviceCheck(vkCreateEvent(Device::s_State.Device, &eventCreateInfo, nullptr, &splitBarrierResource.Event),
+    deviceCheck(vkCreateEvent(g_State.Device, &eventCreateInfo, nullptr, &splitBarrierResource.Event),
         "Failed to create split barrier");
 
     SplitBarrier splitBarrier = resources.Add(splitBarrierResource);
@@ -6421,7 +6446,7 @@ SplitBarrier DeviceInternal::CreateSplitBarrier(const View<SplitBarrierTag>& res
 
 void DeviceInternal::Destroy(const View<SplitBarrierTag>& resources, SplitBarrier splitBarrier)
 {
-    vkDestroyEvent(Device::s_State.Device, resources[splitBarrier].Event, nullptr);
+    vkDestroyEvent(g_State.Device, resources[splitBarrier].Event, nullptr);
     resources.Remove(splitBarrier);
 }
 
@@ -6429,12 +6454,12 @@ ImmediateSubmitContext DeviceInternal::StartSubmitContext(
     const View<FenceTag, CommandBufferTag, CommandPoolTag>& resources)
 {
     {
-        std::scoped_lock lock(Device::s_State.SubmitContextMutex);
+        std::scoped_lock lock(g_State.SubmitContextMutex);
 
-        if (!Device::s_State.SubmitContexts.empty())
+        if (!g_State.SubmitContexts.empty())
         {
-            ImmediateSubmitContext ctx = Device::s_State.SubmitContexts.back();
-            Device::s_State.SubmitContexts.pop_back();
+            ImmediateSubmitContext ctx = g_State.SubmitContexts.back();
+            g_State.SubmitContexts.pop_back();
             BeginCommandBuffer(resources, ctx.CommandBuffer);
 
             return ctx;
@@ -6468,9 +6493,9 @@ void DeviceInternal::EndSubmitContext(const View<FenceTag, CommandBufferTag, Com
     ResetFence(resources, ctx.Fence);
     ResetPool(resources, ctx.CommandPool);
 
-    std::scoped_lock lock(Device::s_State.SubmitContextMutex);
+    std::scoped_lock lock(g_State.SubmitContextMutex);
 
-    Device::s_State.SubmitContexts.push_back(ctx);
+    g_State.SubmitContexts.push_back(ctx);
 }
 
 template <typename LockedView, typename Fn>
@@ -6485,7 +6510,7 @@ void DeviceInternal::ImmediateSubmit(LockedView& resources, Fn&& uploadFunction)
 #ifdef DESCRIPTOR_BUFFER
 u32 DeviceInternal::GetDescriptorSizeBytes(DescriptorType type)
 {
-    auto& props = Device::s_State.GPUDescriptorBufferProperties;
+    auto& props = g_State.GPUDescriptorBufferProperties;
     switch (type)
     {
     case DescriptorType::Sampler: return (u32)props.samplerDescriptorSize;
@@ -6515,7 +6540,7 @@ void DeviceInternal::WriteDescriptor(const View<DescriptorsTag, DescriptorArenaA
     const u64 offsetBytes = descriptorsResource.Offsets[slot] + innerOffsetBytes;
     const DescriptorArenaAllocatorResource& allocatorResource =
         resources[descriptorsResource.Allocator];
-    vkGetDescriptorEXT(Device::s_State.Device, &descriptorGetInfo, descriptorSizeBytes,
+    vkGetDescriptorEXT(g_State.Device, &descriptorGetInfo, descriptorSizeBytes,
         (u8*)allocatorResource.MappedAddress + offsetBytes);
 }
 void DeviceInternal::BindDescriptors(
@@ -6559,7 +6584,7 @@ u32 DeviceInternal::GetFreePoolIndexFromAllocator(const View<DescriptorArenaAllo
     poolCreateInfo.pPoolSizes = sizes.data();
     poolCreateInfo.flags = vulkanDescriptorPoolFlagsFromDescriptorPoolFlags(poolFlags);
 
-    deviceCheck(vkCreateDescriptorPool(Device::s_State.Device, &poolCreateInfo, nullptr, &pool),
+    deviceCheck(vkCreateDescriptorPool(g_State.Device, &poolCreateInfo, nullptr, &pool),
         "Failed to create descriptor pool");
 
     allocatorResource.FreePools.push_back({.Pool = pool, .Flags = poolFlags});
@@ -6580,7 +6605,7 @@ void DeviceInternal::BindDescriptors(
 
 VmaAllocator& DeviceInternal::Allocator()
 {
-    return Device::s_State.Allocator;
+    return g_State.Allocator;
 }
 
 std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(const View<SemaphoreTag>& resources,
