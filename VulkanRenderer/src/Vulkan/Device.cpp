@@ -1437,6 +1437,8 @@ private:
             return m_RenderingAttachments2;
         else if constexpr(std::is_same_v<Tag, RenderingInfoTag>)
             return m_RenderingInfos2;
+        else if constexpr(std::is_same_v<Tag, ShaderModuleTag>)
+            return m_ShaderModules2;
         else if constexpr(std::is_same_v<Tag, DescriptorsLayoutTag>)
             return m_DescriptorLayouts2;
         else if constexpr(std::is_same_v<Tag, FenceTag>)
@@ -1466,6 +1468,7 @@ private:
     ResourceContainerWithLock<SamplerResource> m_Samplers2;
     ResourceContainerWithLock<RenderingAttachmentResource> m_RenderingAttachments2;
     ResourceContainerWithLock<RenderingInfoResource> m_RenderingInfos2;
+    ResourceContainerWithLock<ShaderModuleResource> m_ShaderModules2;
     ResourceContainerWithLock<DescriptorsLayoutResource> m_DescriptorLayouts2;
     ResourceContainerWithLock<FenceResource> m_Fences2;
     ResourceContainerWithLock<SemaphoreResource> m_Semaphores2;
@@ -1476,7 +1479,6 @@ private:
     ResourceContainerType<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators;
     ResourceContainerType<PipelineLayoutResource> m_PipelineLayouts;
     ResourceContainerType<PipelineResource> m_Pipelines;
-    ResourceContainerType<ShaderModuleResource> m_ShaderModules;
 
     std::vector<std::vector<CommandBuffer>> m_CommandPoolToBuffersMap;
 };
@@ -1594,6 +1596,10 @@ public:
     static RenderingInfo CreateRenderingInfo(const View<RenderingInfoTag, RenderingAttachmentTag>& resources, RenderingInfoCreateInfo&& createInfo,
         DeletionQueue& deletionQueue);
     static void Destroy(const View<RenderingInfoTag>& resources, RenderingInfo renderingInfo);
+    
+    static ShaderModule CreateShaderModule(const View<ShaderModuleTag>& resources, ShaderModuleCreateInfo&& createInfo,
+        DeletionQueue& deletionQueue);
+    static void Destroy(const View<ShaderModuleTag>& resources, ShaderModule shaderModule);
     
     static DescriptorsLayout CreateDescriptorsLayout(const View<DescriptorsLayoutTag, SamplerTag>& resources, DescriptorsLayoutCreateInfo&& createInfo);
     static DescriptorsLayout GetEmptyDescriptorsLayout(const View<DescriptorsLayoutTag, SamplerTag>& resources);
@@ -1751,8 +1757,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_PipelineLayouts, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, PipelineResource>)
         return AddToResourceList(m_Pipelines, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, ShaderModuleResource>)
-        return AddToResourceList(m_ShaderModules, std::forward<Resource>(resource));
     else
         static_assert(!sizeof(Resource), "No match for resource");
     std::unreachable();
@@ -1773,8 +1777,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_PipelineLayouts.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, PipelineTag>)
         m_Pipelines.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, ShaderModuleTag>)
-        m_ShaderModules.Erase(handle);
     else
         static_assert(!sizeof(Type), "No match for type");
 }
@@ -1798,8 +1800,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_PipelineLayouts[type];
     else if constexpr (std::is_same_v<Decayed, Pipeline>)
         return m_Pipelines[type];
-    else if constexpr (std::is_same_v<Decayed, ShaderModule>)
-        return m_ShaderModules[type];
     else
         static_assert(!sizeof(Type), "No match for type");
     std::unreachable();
@@ -2327,12 +2327,13 @@ void Device::Destroy(PipelineLayout pipelineLayout)
 
 Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
+    auto view = Resources().GetLockedView<ShaderModuleTag>();
     VkPipelineLayout layout = Resources()[createInfo.PipelineLayout].Layout;
     std::vector<VkPipelineShaderStageCreateInfo> shaders;
     shaders.reserve(createInfo.Shaders.size());
     for (auto&& [i, shader] : std::views::enumerate(createInfo.Shaders))
     {
-        auto& module = Resources()[shader];
+        auto& module = view[shader];
 
         VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
         shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -2543,25 +2544,15 @@ void Device::Destroy(Pipeline pipeline)
 
 ShaderModule Device::CreateShaderModule(ShaderModuleCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    VkShaderModuleCreateInfo moduleCreateInfo = {};
-    moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    moduleCreateInfo.codeSize = createInfo.Source.size();
-    moduleCreateInfo.pCode = reinterpret_cast<const u32*>(createInfo.Source.data());
-
-    DeviceResources::ShaderModuleResource shaderModuleResource = {};
-    deviceCheck(vkCreateShaderModule(s_State.Device, &moduleCreateInfo, nullptr, &shaderModuleResource.Module),
-        "Failed to create shader module");
-
-    ShaderModule module = Resources().AddResource(shaderModuleResource);
-    deletionQueue.Enqueue(module);
-
-    return module;
+    auto view = Resources().GetLockedView<ShaderModuleTag>();
+    
+    return DeviceInternal::CreateShaderModule(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(ShaderModule shaderModule)
 {
-    vkDestroyShaderModule(s_State.Device, Resources().m_ShaderModules[shaderModule.m_Id].Module, nullptr);
-    Resources().RemoveResource(shaderModule);
+    auto view = Resources().GetLockedView<ShaderModuleTag>();
+    DeviceInternal::Destroy(view, shaderModule);
 }
 
 DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& createInfo)
@@ -5869,6 +5860,30 @@ RenderingAttachment DeviceInternal::CreateRenderingAttachment(const View<Renderi
 void DeviceInternal::Destroy(const View<RenderingAttachmentTag>& resources, RenderingAttachment renderingAttachment)
 {
     resources.Remove(renderingAttachment);
+}
+
+ShaderModule DeviceInternal::CreateShaderModule(const View<ShaderModuleTag>& resources,
+    ShaderModuleCreateInfo&& createInfo, DeletionQueue& deletionQueue)
+{
+    VkShaderModuleCreateInfo moduleCreateInfo = {};
+    moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    moduleCreateInfo.codeSize = createInfo.Source.size();
+    moduleCreateInfo.pCode = reinterpret_cast<const u32*>(createInfo.Source.data());
+
+    DeviceResources::ShaderModuleResource shaderModuleResource = {};
+    deviceCheck(vkCreateShaderModule(Device::s_State.Device, &moduleCreateInfo, nullptr, &shaderModuleResource.Module),
+        "Failed to create shader module");
+
+    ShaderModule module = resources.Add(shaderModuleResource);
+    deletionQueue.Enqueue(module);
+
+    return module;
+}
+
+void DeviceInternal::Destroy(const View<ShaderModuleTag>& resources, ShaderModule shaderModule)
+{
+    vkDestroyShaderModule(Device::s_State.Device, resources[shaderModule].Module, nullptr);
+    resources.Remove(shaderModule);
 }
 
 DescriptorsLayout DeviceInternal::CreateDescriptorsLayout(const View<DescriptorsLayoutTag, SamplerTag>& resources,
