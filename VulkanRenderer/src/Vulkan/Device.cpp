@@ -1420,45 +1420,45 @@ private:
     ResourceContainerWithLock<typename TagTraits<Tag>::ResourceType>& GetContainer()
     {
         if constexpr(std::is_same_v<Tag, SwapchainTag>)
-            return m_Swapchains2;
+            return m_Swapchains;
         else if constexpr(std::is_same_v<Tag, CommandPoolTag>)
-            return m_CommandPools2;
+            return m_CommandPools;
         else if constexpr(std::is_same_v<Tag, CommandBufferTag>)
-            return m_CommandBuffers2;
+            return m_CommandBuffers;
         else if constexpr(std::is_same_v<Tag, BufferTag>)
-            return m_Buffers2;
+            return m_Buffers;
         else if constexpr(std::is_same_v<Tag, BufferArenaTag>)
-            return m_BufferArenas2;
+            return m_BufferArenas;
         else if constexpr(std::is_same_v<Tag, ImageTag>)
-            return m_Images2;
+            return m_Images;
         else if constexpr(std::is_same_v<Tag, SamplerTag>)
-            return m_Samplers2;
+            return m_Samplers;
         else if constexpr(std::is_same_v<Tag, RenderingAttachmentTag>)
-            return m_RenderingAttachments2;
+            return m_RenderingAttachments;
         else if constexpr(std::is_same_v<Tag, RenderingInfoTag>)
-            return m_RenderingInfos2;
+            return m_RenderingInfos;
         else if constexpr(std::is_same_v<Tag, PipelineLayoutTag>)
-            return m_PipelineLayouts2;
+            return m_PipelineLayouts;
         else if constexpr(std::is_same_v<Tag, PipelineTag>)
-            return m_Pipelines2;
+            return m_Pipelines;
         else if constexpr(std::is_same_v<Tag, ShaderModuleTag>)
-            return m_ShaderModules2;
+            return m_ShaderModules;
         else if constexpr(std::is_same_v<Tag, DescriptorsLayoutTag>)
-            return m_DescriptorLayouts2;
+            return m_DescriptorLayouts;
         else if constexpr(std::is_same_v<Tag, DescriptorArenaAllocatorTag>)
-            return m_DescriptorArenaAllocators2;
+            return m_DescriptorArenaAllocators;
         else if constexpr(std::is_same_v<Tag, DescriptorsTag>)
-            return m_Descriptors2;
+            return m_Descriptors;
         else if constexpr(std::is_same_v<Tag, FenceTag>)
-            return m_Fences2;
+            return m_Fences;
         else if constexpr(std::is_same_v<Tag, SemaphoreTag>)
-            return m_Semaphores2;
+            return m_Semaphores;
         else if constexpr(std::is_same_v<Tag, TimelineSemaphoreTag>)
-            return m_TimelineSemaphores2;
+            return m_TimelineSemaphores;
         else if constexpr(std::is_same_v<Tag, DependencyInfoTag>)
-            return m_DependencyInfos2;
+            return m_DependencyInfos;
         else if constexpr(std::is_same_v<Tag, SplitBarrierTag>)
-            return m_SplitBarriers2;
+            return m_SplitBarriers;
         else 
             static_assert(!sizeof(Tag), "No match for type");
         std::unreachable();
@@ -1467,26 +1467,26 @@ private:
     u64 m_AllocatedCount{0};
     u64 m_DeallocatedCount{0};
 
-    ResourceContainerWithLock<SwapchainResource> m_Swapchains2;
-    ResourceContainerWithLock<CommandPoolResource> m_CommandPools2;
-    ResourceContainerWithLock<CommandBufferResource> m_CommandBuffers2;
-    ResourceContainerWithLock<BufferResource> m_Buffers2;
-    ResourceContainerWithLock<BufferArenaResource> m_BufferArenas2;
-    ResourceContainerWithLock<ImageResource> m_Images2;
-    ResourceContainerWithLock<SamplerResource> m_Samplers2;
-    ResourceContainerWithLock<RenderingAttachmentResource> m_RenderingAttachments2;
-    ResourceContainerWithLock<RenderingInfoResource> m_RenderingInfos2;
-    ResourceContainerWithLock<PipelineLayoutResource> m_PipelineLayouts2;
-    ResourceContainerWithLock<PipelineResource> m_Pipelines2;
-    ResourceContainerWithLock<ShaderModuleResource> m_ShaderModules2;
-    ResourceContainerWithLock<DescriptorsLayoutResource> m_DescriptorLayouts2;
-    ResourceContainerWithLock<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators2;
-    ResourceContainerWithLock<DescriptorsResource> m_Descriptors2;
-    ResourceContainerWithLock<FenceResource> m_Fences2;
-    ResourceContainerWithLock<SemaphoreResource> m_Semaphores2;
-    ResourceContainerWithLock<TimelineSemaphoreResource> m_TimelineSemaphores2;
-    ResourceContainerWithLock<DependencyInfoResource> m_DependencyInfos2;
-    ResourceContainerWithLock<SplitBarrierResource> m_SplitBarriers2;
+    ResourceContainerWithLock<SwapchainResource> m_Swapchains;
+    ResourceContainerWithLock<CommandPoolResource> m_CommandPools;
+    ResourceContainerWithLock<CommandBufferResource> m_CommandBuffers;
+    ResourceContainerWithLock<BufferResource> m_Buffers;
+    ResourceContainerWithLock<BufferArenaResource> m_BufferArenas;
+    ResourceContainerWithLock<ImageResource> m_Images;
+    ResourceContainerWithLock<SamplerResource> m_Samplers;
+    ResourceContainerWithLock<RenderingAttachmentResource> m_RenderingAttachments;
+    ResourceContainerWithLock<RenderingInfoResource> m_RenderingInfos;
+    ResourceContainerWithLock<PipelineLayoutResource> m_PipelineLayouts;
+    ResourceContainerWithLock<PipelineResource> m_Pipelines;
+    ResourceContainerWithLock<ShaderModuleResource> m_ShaderModules;
+    ResourceContainerWithLock<DescriptorsLayoutResource> m_DescriptorLayouts;
+    ResourceContainerWithLock<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators;
+    ResourceContainerWithLock<DescriptorsResource> m_Descriptors;
+    ResourceContainerWithLock<FenceResource> m_Fences;
+    ResourceContainerWithLock<SemaphoreResource> m_Semaphores;
+    ResourceContainerWithLock<TimelineSemaphoreResource> m_TimelineSemaphores;
+    ResourceContainerWithLock<DependencyInfoResource> m_DependencyInfos;
+    ResourceContainerWithLock<SplitBarrierResource> m_SplitBarriers;
 
     std::vector<std::vector<CommandBuffer>> m_CommandPoolToBuffersMap;
 };
@@ -1855,7 +1855,7 @@ void DeviceResources::MapCmdToPool(CommandBuffer cmd, CommandPool pool)
 void DeviceResources::DestroyCmdsOfPool(CommandPool pool)
 {
     for (auto cmd : m_CommandPoolToBuffersMap[pool.m_Id])
-        m_CommandBuffers2.Container.Erase(cmd);
+        m_CommandBuffers.Container.Erase(cmd);
     m_DeallocatedCount += (u32)m_CommandPoolToBuffersMap[pool.m_Id].size();
     m_CommandPoolToBuffersMap[pool.m_Id].clear();
 }
