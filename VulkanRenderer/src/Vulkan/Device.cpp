@@ -1466,7 +1466,6 @@ private:
     ResourceContainerWithLock<TimelineSemaphoreResource> m_TimelineSemaphores2;
     ResourceContainerWithLock<DependencyInfoResource> m_DependencyInfos2;
     ResourceContainerWithLock<SplitBarrierResource> m_SplitBarriers2;
-    ResourceContainerType<SwapchainResource> m_Swapchains;
     ResourceContainerType<DescriptorsLayoutResource> m_DescriptorLayouts;
     ResourceContainerType<DescriptorsResource> m_Descriptors;
     ResourceContainerType<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators;
@@ -1483,10 +1482,20 @@ class DeviceInternal
 public:
     template <typename ... Tags>
     using View = DeviceResources::View<Tags...>;
-    
-    Swapchain CreateSwapchain(const View<SwapchainTag>& resources, SwapchainCreateInfo&& createInfo,
-        DeletionQueue& deletionQueue);    
-    
+
+    static Swapchain CreateSwapchain(const View<SwapchainTag, ImageTag, SemaphoreTag>& resources,
+        SwapchainCreateInfo&& createInfo, DeletionQueue& deletionQueue);
+    static void Destroy(const View<SwapchainTag, ImageTag, SemaphoreTag>& resources, Swapchain swapchain);
+    static void CreateSwapchainImages(const View<SwapchainTag, ImageTag>& resources, Swapchain swapchain);
+    static void DestroySwapchainImages(const View<SwapchainTag, ImageTag>& resources, Swapchain swapchain);
+    static u32 AcquireNextImage(const View<SwapchainTag, FenceTag, SemaphoreTag>& resources, Swapchain swapchain,
+        Fence renderFence, Semaphore presentSemaphore);
+    static bool Present(const View<SwapchainTag, SemaphoreTag>& resources, Swapchain swapchain, QueueKind queueKind,
+        u32 imageIndex);
+    static SwapchainDescription& GetSwapchainDescription(const View<SwapchainTag>& resources, Swapchain swapchain);
+    static Semaphore GetSwapchainRenderSemaphore(const View<SwapchainTag>& resources, Swapchain swapchain,
+        u32 imageIndex);
+
     static CommandPool CreateCommandPool(const View<CommandPoolTag>& resources, CommandPoolCreateInfo&& createInfo,
         DeletionQueue& deletionQueue);
     static void Destroy(const View<CommandPoolTag, CommandBufferTag>& resources, CommandPool commandPool);
@@ -1561,6 +1570,8 @@ public:
     static Image CreateImageFromBuffer(
         const View<ImageTag, BufferTag, DependencyInfoTag, FenceTag, CommandBufferTag, CommandPoolTag>& resources, 
         ImageCreateInfo& createInfo, Buffer buffer);
+    static Image CreateEmptyImage(const View<ImageTag>& resources, ImageCreateInfo&& createInfo, 
+        DeletionQueue& deletionQueue);
     static void PreprocessCreateInfo(ImageCreateInfo& createInfo);
     static Image AllocateImage(const View<ImageTag>& resources,
         ImageCreateInfo& createInfo);
@@ -1622,7 +1633,7 @@ public:
     
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const ExecuteSecondaryBufferCommand& command);
     
-    static void CompileCommand(const View<CommandBufferTag, DependencyInfoTag, ImageTag>& resources, CommandBuffer cmd, const PrepareSwapchainPresentCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, SwapchainTag, DependencyInfoTag, ImageTag>& resources, CommandBuffer cmd, const PrepareSwapchainPresentCommand& command);
 
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BeginRenderingCommand& command);
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const EndRenderingCommand& command);
@@ -1697,9 +1708,7 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
 
     using Decayed = std::decay_t<Resource>;
 
-    if constexpr (std::is_same_v<Decayed, SwapchainResource>)
-        return AddToResourceList(m_Swapchains, std::forward<Resource>(resource));
-    else if constexpr (std::is_same_v<Decayed, DescriptorsLayoutResource>)
+    if constexpr (std::is_same_v<Decayed, DescriptorsLayoutResource>)
         return AddToResourceList(m_DescriptorLayouts, std::forward<Resource>(resource));
     else if constexpr (std::is_same_v<Decayed, DescriptorsResource>)
         return AddToResourceList(m_Descriptors, std::forward<Resource>(resource));
@@ -1725,9 +1734,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
 
     using Decayed = std::decay_t<Type>;
 
-    if constexpr (std::is_same_v<Decayed, SwapchainTag>)
-        m_Swapchains.Erase(handle);
-    else if constexpr (std::is_same_v<Decayed, DescriptorsLayoutTag>)
+    if constexpr (std::is_same_v<Decayed, DescriptorsLayoutTag>)
         m_DescriptorLayouts.Erase(handle);
     else if constexpr (std::is_same_v<Decayed, DescriptorsTag>)
         m_Descriptors.Erase(handle);
@@ -1756,9 +1763,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
 {
     using Decayed = std::decay_t<Type>;
 
-    if constexpr (std::is_same_v<Decayed, Swapchain>)
-        return m_Swapchains[type];
-    else if constexpr (std::is_same_v<Decayed, DescriptorsLayout>)
+    if constexpr (std::is_same_v<Decayed, DescriptorsLayout>)
         return m_DescriptorLayouts[type];
     else if constexpr (std::is_same_v<Decayed, Descriptors>)
         return m_Descriptors[type];
@@ -1924,248 +1929,44 @@ void Device::BeginFrame(FrameContext& ctx)
 
 Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    if (s_State.Surface == VK_NULL_HANDLE)
-        return {};
-
-    static std::vector<VkSurfaceFormatKHR> desiredFormats = {
-        {
-            {
-                .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
-            }
-        }
-    };
-    static std::vector<VkPresentModeKHR> desiredPresentModes = {
-        {
-            //VK_PRESENT_MODE_IMMEDIATE_KHR,
-            VK_PRESENT_MODE_FIFO_RELAXED_KHR
-        }
-    };
-
-    SurfaceDetails surfaceDetails = getSurfaceDetails(s_State.GPU, s_State.Surface);
-    VkSurfaceCapabilitiesKHR capabilities = surfaceDetails.Capabilities;
-    VkSurfaceFormatKHR colorFormat = utils::getIntersectionOrDefault(
-        desiredFormats, surfaceDetails.Formats,
-        [](VkSurfaceFormatKHR des, VkSurfaceFormatKHR avail)
-        {
-            return des.format == avail.format && des.colorSpace == avail.colorSpace;
-        });
-    VkPresentModeKHR presentMode = utils::getIntersectionOrDefault(
-        desiredPresentModes, surfaceDetails.PresentModes,
-        [](VkPresentModeKHR des, VkPresentModeKHR avail)
-        {
-            return des == avail;
-        });
-
-    auto chooseImageCount = [](const VkSurfaceCapabilitiesKHR& capabilities)
-    {
-        if (capabilities.maxImageCount == 0)
-            return capabilities.minImageCount + 1;
-        return std::min(capabilities.minImageCount + 1, capabilities.maxImageCount);
-    };
-
-    auto chooseExtent = [](const lux::Window& window, const VkSurfaceCapabilitiesKHR& capabilities)
-    {
-        VkExtent2D extent = capabilities.currentExtent;
-
-        if (extent.width != std::numeric_limits<u32>::max())
-            return extent;
-
-        // indication that extent might not be same as window size
-        lux::WindowSize size = window.GetWindowSize();
-
-        extent.width = std::clamp(
-            (i32)size.Width, (i32)capabilities.minImageExtent.width, (i32)capabilities.maxImageExtent.width);
-        extent.height = std::clamp(
-            (i32)size.Height, (i32)capabilities.minImageExtent.height, (i32)capabilities.maxImageExtent.height);
-
-        return extent;
-    };
-
-    u32 imageCount = chooseImageCount(capabilities);
-
-    VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
-    swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    swapchainCreateInfo.surface = s_State.Surface;
-    swapchainCreateInfo.imageColorSpace = colorFormat.colorSpace;
-    swapchainCreateInfo.imageFormat = colorFormat.format;
-    VkExtent2D extent = chooseExtent(*s_State.Window, capabilities);
-    swapchainCreateInfo.imageExtent = extent;
-    swapchainCreateInfo.imageArrayLayers = 1;
-    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    swapchainCreateInfo.minImageCount = imageCount;
-    swapchainCreateInfo.presentMode = presentMode;
-
-    if (s_State.Queues.Graphics.Family == s_State.Queues.Presentation.Family)
-    {
-        swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    }
-    else
-    {
-        std::vector<u32> queueFamilies = s_State.Queues.AsFamilySet();
-        swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-        swapchainCreateInfo.queueFamilyIndexCount = (u32)queueFamilies.size();
-        swapchainCreateInfo.pQueueFamilyIndices = queueFamilies.data();
-    }
-    swapchainCreateInfo.preTransform = capabilities.currentTransform;
-    swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    swapchainCreateInfo.clipped = VK_TRUE;
-    swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
-
-    DeviceResources::SwapchainResource swapchainResource = {};
-    swapchainResource.ColorFormat = colorFormat.format;
-    deviceCheck(vkCreateSwapchainKHR(s_State.Device, &swapchainCreateInfo, nullptr, &swapchainResource.Swapchain),
-        "Failed to create swapchain");
-
-    const glm::uvec2 swapchainResolution = glm::uvec2{extent.width, extent.height};
-    const glm::uvec2 drawResolution = createInfo.DrawResolution.x != 0 ?
-        createInfo.DrawResolution :
-        swapchainResolution;
-
-    swapchainResource.Description = {
-        .SwapchainResolution = swapchainResolution,
-        .DrawResolution = drawResolution,
-        .DrawFormat = createInfo.DrawFormat,
-        .DepthFormat = createInfo.DepthStencilFormat,
-        .DrawImage = CreateImage({
-                .Description = ImageDescription{
-                    .Width = drawResolution.x,
-                    .Height = drawResolution.y,
-                    .Format = createInfo.DrawFormat,
-                    .Usage = ImageUsage::Source | ImageUsage::Destination | ImageUsage::Storage | ImageUsage::Color
-                }
-            },
-            DummyDeletionQueue()),
-        .DepthImage = CreateImage({
-                .Description = ImageDescription{
-                    .Width = drawResolution.x,
-                    .Height = drawResolution.y,
-                    .Format = createInfo.DepthStencilFormat,
-                    .Usage = ImageUsage::Depth | ImageUsage::Stencil | ImageUsage::Sampled
-                }
-            },
-            DummyDeletionQueue())
-    };
-
-    swapchainResource.RenderSemaphores.reserve(imageCount);
-    for (u32 i = 0; i < imageCount; i++)
-        swapchainResource.RenderSemaphores.push_back({CreateSemaphore(DummyDeletionQueue())});
-    Swapchain swapchain = Resources().AddResource(swapchainResource);
-    CreateSwapchainImages(swapchain);
-    deletionQueue.Enqueue(swapchain);
-
-    return swapchain;
+    auto view = Resources().GetLockedView<SwapchainTag, ImageTag, SemaphoreTag>();
+    
+    return DeviceInternal::CreateSwapchain(view, std::move(createInfo), deletionQueue);
 }
 
 void Device::Destroy(Swapchain swapchain)
 {
-    DestroySwapchainImages(swapchain);
-    vkDestroySwapchainKHR(s_State.Device, Resources()[swapchain].Swapchain, nullptr);
-    for (Semaphore semaphore : Resources()[swapchain].RenderSemaphores)
-        Destroy(semaphore);
-    Resources().RemoveResource(swapchain);
-}
-
-void Device::CreateSwapchainImages(Swapchain swapchain)
-{
-    auto view = Resources().GetLockedView<ImageTag>();
+    auto view = Resources().GetLockedView<SwapchainTag, ImageTag, SemaphoreTag>();
     
-    DeviceResources::SwapchainResource& swapchainResource = Resources()[swapchain];
-    u32 imageCount = 0;
-    vkGetSwapchainImagesKHR(s_State.Device, swapchainResource.Swapchain, &imageCount, nullptr);
-    std::vector<VkImage> images(imageCount);
-    vkGetSwapchainImagesKHR(s_State.Device, swapchainResource.Swapchain, &imageCount, images.data());
-
-    ImageDescription description = {
-        .Width = swapchainResource.Description.SwapchainResolution.x,
-        .Height = swapchainResource.Description.SwapchainResolution.y,
-        .LayersDepth = 1,
-        .Mipmaps = 1,
-        .Kind = ImageKind::Image2d,
-        .Usage = ImageUsage::Destination
-    };
-    std::vector<Image> colorImages(imageCount);
-
-    std::vector<VkImageView> imageViews(imageCount);
-    for (u32 i = 0; i < imageCount; i++)
-    {
-        DeviceResources::ImageResource imageResource = {.Image = images[i], .Description = description};
-        colorImages[i] = view.Add(imageResource);
-        view[colorImages[i]].Views.ViewType.View = DeviceInternal::CreateVulkanImageView(view,
-            ImageSubresource{.Image = colorImages[i], .Description = {.Mipmaps = 1, .Layers = 1}},
-            swapchainResource.ColorFormat);
-        view[colorImages[i]].Views.ViewList = &view[colorImages[i]].Views.ViewType.View;
-    }
-
-    swapchainResource.Description.ColorImages = colorImages;
-}
-
-void Device::DestroySwapchainImages(Swapchain swapchain)
-{
-    auto view = Resources().GetLockedView<ImageTag>();
-    
-    DeviceResources::SwapchainResource& swapchainResource = Resources()[swapchain];
-    for (const auto& colorImage : swapchainResource.Description.ColorImages)
-    {
-        vkDestroyImageView(s_State.Device, *view[colorImage].Views.ViewList, nullptr);
-        view.Remove(colorImage);
-    }
-    Destroy(swapchainResource.Description.DrawImage);
-    Destroy(swapchainResource.Description.DepthImage);
+    return DeviceInternal::Destroy(view, swapchain);
 }
 
 u32 Device::AcquireNextImage(Swapchain swapchain, Fence renderFence, Semaphore presentSemaphore)
 {
-    WaitForFence(renderFence);
+    auto view = Resources().GetLockedView<SwapchainTag, FenceTag, SemaphoreTag>();
     
-    u32 imageIndex;
-    // todo: WaitForFence above also has view
-    // todo: remove this scope !!! 
-    {
-        auto view = Resources().GetLockedView<SemaphoreTag>();
-
-        VkResult res = vkAcquireNextImageKHR(s_State.Device, Resources()[swapchain].Swapchain,
-            10'000'000'000, view[presentSemaphore].Semaphore, VK_NULL_HANDLE,
-            &imageIndex);
-        if (res == VK_ERROR_OUT_OF_DATE_KHR)
-            return INVALID_SWAPCHAIN_IMAGE;
-
-        ASSERT(res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR, "Failed to acquire swapchain image")
-    }
-
-    ResetFence(renderFence);
-
-    return imageIndex;
+    return DeviceInternal::AcquireNextImage(view, swapchain, renderFence, presentSemaphore);
 }
 
 bool Device::Present(Swapchain swapchain, QueueKind queueKind, u32 imageIndex)
 {
-    auto view = Resources().GetLockedView<SemaphoreTag>();
-    DeviceResources::SwapchainResource& swapchainResource = Resources()[swapchain];
-
-    VkPresentInfoKHR presentInfo = {};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = &Resources()[swapchain].Swapchain;
-    presentInfo.pImageIndices = &imageIndex;
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &view[swapchainResource.RenderSemaphores[imageIndex]].Semaphore;
-
-    VkResult result = vkQueuePresentKHR(s_State.Queues.GetQueueByKind(queueKind).Queue, &presentInfo);
-
-    ASSERT(result == VK_SUCCESS || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR,
-        "Failed to present image")
-
-    return result == VK_SUCCESS;
+    auto view = Resources().GetLockedView<SwapchainTag, SemaphoreTag>();
+    
+    return DeviceInternal::Present(view, swapchain, queueKind, imageIndex);
 }
 
 SwapchainDescription& Device::GetSwapchainDescription(Swapchain swapchain)
 {
-    return Resources()[swapchain].Description;
+    auto view = Resources().GetLockedView<SwapchainTag>();
+    
+    return DeviceInternal::GetSwapchainDescription(view, swapchain);
 }
 
 Semaphore Device::GetSwapchainRenderSemaphore(Swapchain swapchain, u32 imageIndex)
 {
-    return Resources()[swapchain].RenderSemaphores[imageIndex];
+    auto view = Resources().GetLockedView<SwapchainTag>();
+    
+    return DeviceInternal::GetSwapchainRenderSemaphore(view, swapchain, imageIndex);
 }
 
 CommandPool Device::CreateCommandPool(CommandPoolCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
@@ -3930,10 +3731,10 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, Com
     vkCmdExecuteCommands(resources[cmd].CommandBuffer, 1, &resources[command.Cmd].CommandBuffer);
 }
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag, DependencyInfoTag, ImageTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, SwapchainTag, DependencyInfoTag, ImageTag>& resources, CommandBuffer cmd,
     const PrepareSwapchainPresentCommand& command)
 {
-    DeviceResources::SwapchainResource& swapchainResource = Device::Resources()[command.Swapchain];
+    DeviceResources::SwapchainResource& swapchainResource = resources[command.Swapchain];
 
     ImageSubresource drawSubresource = {
         .Image = swapchainResource.Description.DrawImage,
@@ -4693,7 +4494,7 @@ void Device::CompileCommand(CommandBuffer cmd, const ExecuteSecondaryBufferComma
 
 void Device::CompileCommand(CommandBuffer cmd, const PrepareSwapchainPresentCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, DependencyInfoTag, ImageTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, SwapchainTag, DependencyInfoTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
@@ -4919,6 +4720,243 @@ void Device::CompileCommand(CommandBuffer cmd, const DispatchIndirectCommand& co
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
+Swapchain DeviceInternal::CreateSwapchain(const View<SwapchainTag, ImageTag, SemaphoreTag>& resources,
+    SwapchainCreateInfo&& createInfo, DeletionQueue& deletionQueue)
+{
+    if (Device::s_State.Surface == VK_NULL_HANDLE)
+        return {};
+
+    static std::vector<VkSurfaceFormatKHR> desiredFormats = {
+        {
+            {
+                .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+            }
+        }
+    };
+    static std::vector<VkPresentModeKHR> desiredPresentModes = {
+        {
+            //VK_PRESENT_MODE_IMMEDIATE_KHR,
+            VK_PRESENT_MODE_FIFO_RELAXED_KHR
+        }
+    };
+
+    SurfaceDetails surfaceDetails = getSurfaceDetails(Device::s_State.GPU, Device::s_State.Surface);
+    VkSurfaceCapabilitiesKHR capabilities = surfaceDetails.Capabilities;
+    VkSurfaceFormatKHR colorFormat = utils::getIntersectionOrDefault(
+        desiredFormats, surfaceDetails.Formats,
+        [](VkSurfaceFormatKHR des, VkSurfaceFormatKHR avail)
+        {
+            return des.format == avail.format && des.colorSpace == avail.colorSpace;
+        });
+    VkPresentModeKHR presentMode = utils::getIntersectionOrDefault(
+        desiredPresentModes, surfaceDetails.PresentModes,
+        [](VkPresentModeKHR des, VkPresentModeKHR avail)
+        {
+            return des == avail;
+        });
+
+    auto chooseImageCount = [](const VkSurfaceCapabilitiesKHR& capabilities)
+    {
+        if (capabilities.maxImageCount == 0)
+            return capabilities.minImageCount + 1;
+        return std::min(capabilities.minImageCount + 1, capabilities.maxImageCount);
+    };
+
+    auto chooseExtent = [](const lux::Window& window, const VkSurfaceCapabilitiesKHR& capabilities)
+    {
+        VkExtent2D extent = capabilities.currentExtent;
+
+        if (extent.width != std::numeric_limits<u32>::max())
+            return extent;
+
+        // indication that extent might not be same as window size
+        lux::WindowSize size = window.GetWindowSize();
+
+        extent.width = std::clamp(
+            (i32)size.Width, (i32)capabilities.minImageExtent.width, (i32)capabilities.maxImageExtent.width);
+        extent.height = std::clamp(
+            (i32)size.Height, (i32)capabilities.minImageExtent.height, (i32)capabilities.maxImageExtent.height);
+
+        return extent;
+    };
+
+    u32 imageCount = chooseImageCount(capabilities);
+
+    VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
+    swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    swapchainCreateInfo.surface = Device::s_State.Surface;
+    swapchainCreateInfo.imageColorSpace = colorFormat.colorSpace;
+    swapchainCreateInfo.imageFormat = colorFormat.format;
+    VkExtent2D extent = chooseExtent(*Device::s_State.Window, capabilities);
+    swapchainCreateInfo.imageExtent = extent;
+    swapchainCreateInfo.imageArrayLayers = 1;
+    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    swapchainCreateInfo.minImageCount = imageCount;
+    swapchainCreateInfo.presentMode = presentMode;
+
+    if (Device::s_State.Queues.Graphics.Family == Device::s_State.Queues.Presentation.Family)
+    {
+        swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    }
+    else
+    {
+        std::vector<u32> queueFamilies = Device::s_State.Queues.AsFamilySet();
+        swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        swapchainCreateInfo.queueFamilyIndexCount = (u32)queueFamilies.size();
+        swapchainCreateInfo.pQueueFamilyIndices = queueFamilies.data();
+    }
+    swapchainCreateInfo.preTransform = capabilities.currentTransform;
+    swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    swapchainCreateInfo.clipped = VK_TRUE;
+    swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+
+    DeviceResources::SwapchainResource swapchainResource = {};
+    swapchainResource.ColorFormat = colorFormat.format;
+    deviceCheck(vkCreateSwapchainKHR(Device::s_State.Device, &swapchainCreateInfo, nullptr,
+        &swapchainResource.Swapchain), "Failed to create swapchain");
+
+    const glm::uvec2 swapchainResolution = glm::uvec2{extent.width, extent.height};
+    const glm::uvec2 drawResolution = createInfo.DrawResolution.x != 0 ?
+        createInfo.DrawResolution :
+        swapchainResolution;
+
+    swapchainResource.Description = {
+        .SwapchainResolution = swapchainResolution,
+        .DrawResolution = drawResolution,
+        .DrawFormat = createInfo.DrawFormat,
+        .DepthFormat = createInfo.DepthStencilFormat,
+        .DrawImage = CreateEmptyImage(resources, {
+                .Description = ImageDescription{
+                    .Width = drawResolution.x,
+                    .Height = drawResolution.y,
+                    .Format = createInfo.DrawFormat,
+                    .Usage = ImageUsage::Source | ImageUsage::Destination | ImageUsage::Storage | ImageUsage::Color
+                }
+            },
+            Device::DummyDeletionQueue()),
+        .DepthImage = CreateEmptyImage(resources, {
+                .Description = ImageDescription{
+                    .Width = drawResolution.x,
+                    .Height = drawResolution.y,
+                    .Format = createInfo.DepthStencilFormat,
+                    .Usage = ImageUsage::Depth | ImageUsage::Stencil | ImageUsage::Sampled
+                }
+            },
+            Device::DummyDeletionQueue())
+    };
+
+    swapchainResource.RenderSemaphores.reserve(imageCount);
+    for (u32 i = 0; i < imageCount; i++)
+        swapchainResource.RenderSemaphores.push_back({CreateSemaphore(resources, Device::DummyDeletionQueue())});
+    Swapchain swapchain = resources.Add(swapchainResource);
+    CreateSwapchainImages(resources, swapchain);
+    deletionQueue.Enqueue(swapchain);
+
+    return swapchain;
+}
+
+void DeviceInternal::Destroy(const View<SwapchainTag, ImageTag, SemaphoreTag>& resources, Swapchain swapchain)
+{
+    DestroySwapchainImages(resources, swapchain);
+    vkDestroySwapchainKHR(Device::s_State.Device, resources[swapchain].Swapchain, nullptr);
+    for (Semaphore semaphore : resources[swapchain].RenderSemaphores)
+        Destroy(resources, semaphore);
+    resources.Remove(swapchain);
+}
+
+void DeviceInternal::CreateSwapchainImages(const View<SwapchainTag, ImageTag>& resources, Swapchain swapchain)
+{
+    DeviceResources::SwapchainResource& swapchainResource = resources[swapchain];
+    u32 imageCount = 0;
+    vkGetSwapchainImagesKHR(Device::s_State.Device, swapchainResource.Swapchain, &imageCount, nullptr);
+    std::vector<VkImage> images(imageCount);
+    vkGetSwapchainImagesKHR(Device::s_State.Device, swapchainResource.Swapchain, &imageCount, images.data());
+
+    ImageDescription description = {
+        .Width = swapchainResource.Description.SwapchainResolution.x,
+        .Height = swapchainResource.Description.SwapchainResolution.y,
+        .LayersDepth = 1,
+        .Mipmaps = 1,
+        .Kind = ImageKind::Image2d,
+        .Usage = ImageUsage::Destination
+    };
+    std::vector<Image> colorImages(imageCount);
+
+    std::vector<VkImageView> imageViews(imageCount);
+    for (u32 i = 0; i < imageCount; i++)
+    {
+        DeviceResources::ImageResource imageResource = {.Image = images[i], .Description = description};
+        colorImages[i] = resources.Add(imageResource);
+        resources[colorImages[i]].Views.ViewType.View = DeviceInternal::CreateVulkanImageView(resources,
+            ImageSubresource{.Image = colorImages[i], .Description = {.Mipmaps = 1, .Layers = 1}},
+            swapchainResource.ColorFormat);
+        resources[colorImages[i]].Views.ViewList = &resources[colorImages[i]].Views.ViewType.View;
+    }
+
+    swapchainResource.Description.ColorImages = colorImages;
+}
+
+void DeviceInternal::DestroySwapchainImages(const View<SwapchainTag, ImageTag>& resources, Swapchain swapchain)
+{
+    DeviceResources::SwapchainResource& swapchainResource = resources[swapchain];
+    for (const auto& colorImage : swapchainResource.Description.ColorImages)
+    {
+        vkDestroyImageView(Device::s_State.Device, *resources[colorImage].Views.ViewList, nullptr);
+        resources.Remove(colorImage);
+    }
+    Destroy(resources, swapchainResource.Description.DrawImage);
+    Destroy(resources, swapchainResource.Description.DepthImage);
+}
+
+u32 DeviceInternal::AcquireNextImage(const View<SwapchainTag, FenceTag, SemaphoreTag>& resources, Swapchain swapchain,
+    Fence renderFence, Semaphore presentSemaphore)
+{
+    WaitForFence(resources, renderFence);
+
+    u32 imageIndex;
+    const VkResult res = vkAcquireNextImageKHR(Device::s_State.Device, resources[swapchain].Swapchain,
+        10'000'000'000, resources[presentSemaphore].Semaphore, VK_NULL_HANDLE,
+        &imageIndex);
+    if (res == VK_ERROR_OUT_OF_DATE_KHR)
+        return INVALID_SWAPCHAIN_IMAGE;
+
+    ASSERT(res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR, "Failed to acquire swapchain image")
+
+    ResetFence(resources, renderFence);
+
+    return imageIndex;
+}
+
+bool DeviceInternal::Present(const View<SwapchainTag, SemaphoreTag>& resources, Swapchain swapchain,
+    QueueKind queueKind, u32 imageIndex)
+{
+    DeviceResources::SwapchainResource& swapchainResource = resources[swapchain];
+
+    VkPresentInfoKHR presentInfo = {};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = &resources[swapchain].Swapchain;
+    presentInfo.pImageIndices = &imageIndex;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = &resources[swapchainResource.RenderSemaphores[imageIndex]].Semaphore;
+
+    VkResult result = vkQueuePresentKHR(Device::s_State.Queues.GetQueueByKind(queueKind).Queue, &presentInfo);
+
+    ASSERT(result == VK_SUCCESS || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR,
+        "Failed to present image")
+
+    return result == VK_SUCCESS;
+}
+
+SwapchainDescription& DeviceInternal::GetSwapchainDescription(const View<SwapchainTag>& resources, Swapchain swapchain)
+{
+    return resources[swapchain].Description;
+}
+
+Semaphore DeviceInternal::GetSwapchainRenderSemaphore(const View<SwapchainTag>& resources, Swapchain swapchain,
+    u32 imageIndex)
+{
+    return resources[swapchain].RenderSemaphores[imageIndex];
 }
 
 CommandPool DeviceInternal::CreateCommandPool(const View<CommandPoolTag>& resources, CommandPoolCreateInfo&& createInfo,
@@ -5421,8 +5459,7 @@ Image DeviceInternal::CreateImage(const View<ImageTag, BufferTag, DependencyInfo
     else if (std::holds_alternative<Span<const std::byte>>(createInfo.DataSource))
         image = CreateImageFromPixels(resources, createInfo, std::get<Span<const std::byte>>(createInfo.DataSource));
 
-    if (!enumHasAny(createInfo.Description.Usage, ImageUsage::NoDeallocation))
-        deletionQueue.Enqueue(image);
+    deletionQueue.Enqueue(image);
 
     return image;
 }
@@ -5628,6 +5665,17 @@ Image DeviceInternal::CreateImageFromBuffer(
         });
     });
 
+    return image;
+}
+
+Image DeviceInternal::CreateEmptyImage(const View<ImageTag>& resources, ImageCreateInfo&& createInfo,
+    DeletionQueue& deletionQueue)
+{
+    const Image image = AllocateImage(resources, createInfo);
+    CreateViews(resources, ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
+
+    deletionQueue.Enqueue(image);
+    
     return image;
 }
 

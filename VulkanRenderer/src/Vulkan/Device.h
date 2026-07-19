@@ -290,9 +290,6 @@ private:
     static void RetrieveDeviceQueues();
     static void CreateDebugUtilsMessenger();
     static void DestroyDebugUtilsMessenger();
-
-    static void CreateSwapchainImages(Swapchain swapchain);
-    static void DestroySwapchainImages(Swapchain swapchain);
 private:
     struct State;
     // todo: just make global

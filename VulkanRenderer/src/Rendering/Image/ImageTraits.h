@@ -61,8 +61,6 @@ enum class ImageUsage : u16
     Readback = BIT(6),
     Source = BIT(7),
     Destination = BIT(8),
-    
-    NoDeallocation = BIT(9),
 };
 
 CREATE_ENUM_FLAGS_OPERATORS(ImageUsage)

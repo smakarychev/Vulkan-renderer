@@ -59,8 +59,6 @@ namespace ImageTraits
             usageString += usageString.empty() ? "Source" : " | Source";
         if (enumHasAny(usage, ImageUsage::Destination))
             usageString += usageString.empty() ? "Destination" : " | Destination";
-        if (enumHasAny(usage, ImageUsage::NoDeallocation))
-            usageString += usageString.empty() ? "NoDeallocation" : " | NoDeallocation";
 
         return usageString;
     }
