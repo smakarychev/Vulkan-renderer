@@ -1676,7 +1676,7 @@ public:
         Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages);
     static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(const View<TimelineSemaphoreTag>& resources,
         Span<const TimelineSemaphore> semaphores, Span<const u64> waitValues, Span<const PipelineStage> waitStages);
-    static void BindDescriptors(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+    static void BindDescriptors(const View<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
         u32 firstSet, VkPipelineBindPoint bindPoint);
     
     static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const ExecuteSecondaryBufferCommand& command);
@@ -1725,11 +1725,11 @@ public:
 
     static void CompileCommand(const View<CommandBufferTag, PipelineTag>& resources, CommandBuffer cmd, const BindPipelineGraphicsCommand& command);
     static void CompileCommand(const View<CommandBufferTag, PipelineTag>& resources, CommandBuffer cmd, const BindPipelineComputeCommand& command);
-    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command);
-    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command);
-    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command);
-    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd, const BindDescriptorsComputeCommand& command);
-    static void CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>& resources, CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>& resources, CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>& resources, CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>& resources, CommandBuffer cmd, const BindDescriptorsComputeCommand& command);
+    static void CompileCommand(const View<CommandBufferTag, DescriptorArenaAllocatorTag>& resources, CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command);
 
     static void CompileCommand(const View<CommandBufferTag, PipelineLayoutTag>& resources, CommandBuffer cmd, const PushConstantsCommand& command);
     
@@ -3669,21 +3669,21 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineTag>& r
 }
 
 #ifdef DESCRIPTOR_BUFFER
-void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>& resources, CommandBuffer cmd,
     const BindImmutableSamplersGraphicsCommand& command)
 {
     vkCmdBindDescriptorBufferEmbeddedSamplersEXT(resources[cmd].CommandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS, resources[command.PipelineLayout].Layout, command.Set);
 }
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>& resources, CommandBuffer cmd,
     const BindImmutableSamplersComputeCommand& command)
 {
     vkCmdBindDescriptorBufferEmbeddedSamplersEXT(resources[cmd].CommandBuffer,
         VK_PIPELINE_BIND_POINT_COMPUTE, resources[command.PipelineLayout].Layout, command.Set);
 }
 #else // DESCRIPTOR_BUFFER
-void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>& resources, CommandBuffer cmd,
     const BindImmutableSamplersGraphicsCommand& command)
 {
     vkCmdBindDescriptorSets(resources[cmd].CommandBuffer,
@@ -3691,7 +3691,7 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutT
         &resources[command.Descriptors].DescriptorSet, 0, nullptr);
 }
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>& resources, CommandBuffer cmd,
     const BindImmutableSamplersComputeCommand& command)
 {
     vkCmdBindDescriptorSets(resources[cmd].CommandBuffer,
@@ -3700,14 +3700,14 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutT
 } 
 #endif // DESCRIPTOR_BUFFER
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>& resources, CommandBuffer cmd,
     const BindDescriptorsGraphicsCommand& command)
 {
     BindDescriptors(resources, cmd, command.PipelineLayout, command.Descriptors, command.Set,
         VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
-void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>& resources, CommandBuffer cmd,
     const BindDescriptorsComputeCommand& command)
 {
     BindDescriptors(resources, cmd, command.PipelineLayout, command.Descriptors, command.Set,
@@ -3715,15 +3715,15 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag, PipelineLayoutT
 }
 
 #ifdef DESCRIPTOR_BUFFER
-void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, CommandBuffer cmd,
-    const BindDescriptorArenaAllocatorsCommand& command)
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, DescriptorArenaAllocatorTag>& resources,
+    CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command)
 {
     std::vector<VkDescriptorBufferBindingInfoEXT> descriptorBufferBindings;
     descriptorBufferBindings.reserve(command.Allocators->m_TransientAllocators.size());
 
     for (auto& allocator : command.Allocators->m_TransientAllocators)
     {
-        const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Device::Resources()[allocator];
+        const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
         const u64 deviceAddress = allocatorResource.DeviceAddress;
 
         VkDescriptorBufferBindingInfoEXT binding = {};
@@ -3738,7 +3738,7 @@ void DeviceInternal::CompileCommand(const View<CommandBufferTag>& resources, Com
         descriptorBufferBindings.data());
 }
 #else // DESCRIPTOR_BUFFER
-void DeviceInternal::CompileCommand(const View<CommandBufferTag>&, CommandBuffer,
+void DeviceInternal::CompileCommand(const View<CommandBufferTag, DescriptorArenaAllocatorTag>&, CommandBuffer,
     const BindDescriptorArenaAllocatorsCommand&)
 {
 }
@@ -4054,31 +4054,31 @@ void Device::CompileCommand(CommandBuffer cmd, const BindPipelineComputeCommand&
 
 void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsComputeCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command)
 {
-    auto view = Resources().GetLockedView<CommandBufferTag>();
+    auto view = Resources().GetLockedView<CommandBufferTag, DescriptorArenaAllocatorTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
@@ -5758,7 +5758,7 @@ DescriptorArenaAllocator DeviceInternal::CreateDescriptorArenaAllocator(
     allocatorResource.Residence = createInfo.Residence;
     allocatorResource.SizeBytes = arenaSizeBytes;
     allocatorResource.Descriptors.reserve(createInfo.DescriptorCount);
-    const BufferCreateInfo arenaCreateInfo = {.SizeBytes = arenaSizeBytes, .PersistentMapping = true};
+    const BufferCreateInfo arenaCreateInfo = {.Description = {.SizeBytes = arenaSizeBytes}, .PersistentMapping = true};
     allocatorResource.Arena = AllocateBuffer(resources, arenaCreateInfo, usageFlags, allocationFlags);
     allocatorResource.DeviceAddress = GetDeviceAddress(resources, allocatorResource.Arena);
     allocatorResource.MappedAddress = GetBufferMappedAddress(resources, allocatorResource.Arena);
@@ -5773,7 +5773,7 @@ void DeviceInternal::Destroy(const View<DescriptorArenaAllocatorTag, Descriptors
     DescriptorArenaAllocator allocator)
 {
     ResetDescriptorArenaAllocator(resources, allocator);
-    Destroy(resources[allocator].Arena);
+    Destroy(resources, resources[allocator].Arena);
     resources.Remove(allocator);
 }
 
@@ -5802,13 +5802,13 @@ std::optional<Descriptors> DeviceInternal::AllocateDescriptors(
                 "Only one binding can be declared as 'bindless' for any particular set, and it has to be the last one")
 
             layoutSizeBytes += isBindless ?
-                bindings.BindlessCount * DeviceInternal::GetDescriptorSizeBytes(binding.Type) :
-                DeviceInternal::GetDescriptorSizeBytes(binding.Type);
+                bindings.BindlessCount * GetDescriptorSizeBytes(binding.Type) :
+                GetDescriptorSizeBytes(binding.Type);
         }
     }
 
     layoutSizeBytes =
-        lux::mem::alignAddressPow2(layoutSizeBytes, descriptorBufferProps.descriptorBufferOffsetAlignment);
+        lux::mem::alignAddressPow2(layoutSizeBytes, (u16)descriptorBufferProps.descriptorBufferOffsetAlignment);
     if (layoutSizeBytes + allocatorResource.CurrentOffset > allocatorResource.SizeBytes)
         return {};
 
@@ -5834,13 +5834,12 @@ std::optional<Descriptors> DeviceInternal::AllocateDescriptors(
     return descriptors;
 }
 
-void DeviceInternal::ResetDescriptorArenaAllocator(const View<DescriptorArenaAllocatorTag>& resources,
+void DeviceInternal::ResetDescriptorArenaAllocator(const View<DescriptorArenaAllocatorTag, DescriptorsTag>& resources,
     DescriptorArenaAllocator allocator)
 {    
     DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
-    // todo: mt:
     for (Descriptors descriptors : allocatorResource.Descriptors)
-        Device::Resources().RemoveResource(descriptors);
+        resources.Remove(descriptors);
     allocatorResource.Descriptors.clear();
 
     allocatorResource.CurrentOffset = 0;
@@ -5876,7 +5875,7 @@ void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorAren
     // using the fact that 'descriptorGetInfo.data' is union
     descriptorGetInfo.data.pUniformBuffer = &descriptorAddressInfo;
 
-    DeviceInternal::WriteDescriptor(resources, descriptors, slotInfo, index, descriptorGetInfo);
+    WriteDescriptor(resources, descriptors, slotInfo, index, descriptorGetInfo);
 }
 
 void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorArenaAllocatorTag, SamplerTag>& resources, Descriptors descriptors,
@@ -5889,7 +5888,7 @@ void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorAren
     descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
     descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
     descriptorGetInfo.data.pSampler = &resources[sampler].Sampler;
-    DeviceInternal::WriteDescriptor(resources, descriptors, slotInfo, 0, descriptorGetInfo);
+    WriteDescriptor(resources, descriptors, slotInfo, 0, descriptorGetInfo);
 }
 
 void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorArenaAllocatorTag, ImageTag>& resources, Descriptors descriptors,
@@ -5905,7 +5904,7 @@ void DeviceInternal::UpdateDescriptors(const View<DescriptorsTag, DescriptorAren
     descriptorImageInfo.imageLayout = vulkanImageLayoutFromImageLayout(layout);
     descriptorGetInfo.data.pSampledImage = &descriptorImageInfo;
 
-    DeviceInternal::WriteDescriptor(resources, descriptors, slotInfo, index, descriptorGetInfo);
+    WriteDescriptor(resources, descriptors, slotInfo, index, descriptorGetInfo);
 }
 #else // DESCRIPTOR_BUFFER
 DescriptorArenaAllocator DeviceInternal::CreateDescriptorArenaAllocator(
@@ -6370,16 +6369,17 @@ void DeviceInternal::WriteDescriptor(const View<DescriptorsTag, DescriptorArenaA
     vkGetDescriptorEXT(Device::s_State.Device, &descriptorGetInfo, descriptorSizeBytes,
         (u8*)allocatorResource.MappedAddress + offsetBytes);
 }
-void DeviceInternal::BindDescriptors(const View<CommandBufferTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+void DeviceInternal::BindDescriptors(const View<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>& resources, 
+    CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
     u32 firstSet, VkPipelineBindPoint bindPoint)
 {
-    const DeviceResources::DescriptorsResource& descriptorsResource = Device::Resources()[descriptors];
-    const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource =
-        Device::Resources()[descriptorsResource.Allocator];
+    const DeviceResources::DescriptorsResource& descriptorsResource = resources[descriptors];
+    const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = 
+        resources[descriptorsResource.Allocator];
 
     u64 offset = descriptorsResource.Offsets.front();
     vkCmdSetDescriptorBufferOffsetsEXT(resources[cmd].CommandBuffer, bindPoint,
-        Device::Resources()[pipelineLayout].Layout, firstSet, 1, &allocatorResource.DescriptorSet, &offset);
+        resources[pipelineLayout].Layout, firstSet, 1, &allocatorResource.DescriptorSet, &offset);
 }
 #else
 
@@ -6416,7 +6416,7 @@ u32 DeviceInternal::GetFreePoolIndexFromAllocator(const View<DescriptorArenaAllo
     return index;
 }
 
-void DeviceInternal::BindDescriptors(const View<CommandBufferTag, PipelineLayoutTag, DescriptorsTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+void DeviceInternal::BindDescriptors(const View<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag, DescriptorsTag>& resources, CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
     u32 firstSet, VkPipelineBindPoint bindPoint)
 {
     const DeviceResources::DescriptorsResource& descriptorsResource = resources[descriptors];
