@@ -302,7 +302,7 @@ void Renderer::InitRenderGraph()
     m_PrimaryVisibility.Init(m_OpaqueSet);
     
     /* initial submit */
-    Device::ImmediateSubmit([&](RenderCommandList& cmdList)
+    Device::ImmediateSubmit([&](CommandBuffer cmd)
     {
         FrameContext ctx = {
             .CommandBufferIndex = GetFrameContext().CommandBufferIndex,
@@ -311,11 +311,12 @@ void Renderer::InitRenderGraph()
             .FrameNumberTick = GetFrameContext().FrameNumberTick,
             .Dt = GetFrameContext().Dt,
             .Resolution = GetFrameContext().Resolution,
-            .Cmd = GetFrameContext().Cmd,
-            .CommandList = cmdList,
+            .Cmd = cmd,
             .PrimaryCamera = GetFrameContext().PrimaryCamera,
             .ResourceUploader = GetFrameContext().ResourceUploader
         };
+        ctx.CommandList.SetCommandBuffer(cmd);
+        
         m_Scenes.push_back(
             m_SceneAssetManager->LoadResource(
                 {.Path = *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/hotReloadTest/scene.gltf"}));

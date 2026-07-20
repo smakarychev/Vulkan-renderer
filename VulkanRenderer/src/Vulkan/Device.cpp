@@ -2126,7 +2126,7 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
 
 Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag, CommandBufferTag>();
 
     return DeviceInternal::CreateBuffer(view, std::move(createInfo), deletionQueue);
 }
@@ -2139,14 +2139,14 @@ void Device::Destroy(Buffer buffer)
 
 Buffer Device::CreateStagingBuffer(u64 sizeBytes)
 {
-    auto view = deviceResources().GetLockedView<BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag, CommandBufferTag>();
 
     return DeviceInternal::CreateStagingBuffer(view, sizeBytes);
 }
 
 void Device::ResizeBuffer(Buffer buffer, u64 newSize, CommandBuffer cmd, bool copyData)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
+    auto view = deviceResources().GetLockedView<BufferTag, CommandBufferTag>();
     DeviceInternal::ResizeBuffer(view, buffer, newSize, cmd, copyData);
 }
 
@@ -3977,9 +3977,9 @@ Buffer DeviceInternal::CreateBuffer(const auto& resources, BufferCreateInfo&& cr
         {
             const Buffer stagingBuffer = CreateStagingBuffer(resources, createInfo.InitialData.size());
             SetBufferData(resources, stagingBuffer, createInfo.InitialData, 0);
-            Device::ImmediateSubmit([&](RenderCommandList& cmdList)
+            Device::ImmediateSubmit([&](CommandBuffer cmd)
             {
-                cmdList.CopyBuffer({
+                CompileCommand(resources, cmd, CopyBufferCommand{
                     .Source = stagingBuffer,
                     .Destination = buffer,
                     .SizeBytes = createInfo.InitialData.size()
@@ -4235,7 +4235,7 @@ Image DeviceInternal::CreateImageFromAssetFile(const auto& resources, ImageCreat
     Image image = {};
     Buffer imageBuffer = {};
 
-    ImmediateSubmit(resources, [&](RenderCommandList& cmdList)
+    ImmediateSubmit(resources, [&](CommandBuffer cmd)
     {
         u64 totalSizeBytes = 0;
         for (auto& mip : asset->Header.MipmapSizes)
@@ -4261,7 +4261,7 @@ Image DeviceInternal::CreateImageFromAssetFile(const auto& resources, ImageCreat
 
         ::DeletionQueue& deletionQueue = *g_State.FrameDeletionQueue;
 
-        CompileCommand(resources, cmdList.m_Cmd, WaitOnBarrierCommand{
+        CompileCommand(resources, cmd, WaitOnBarrierCommand{
             .DependencyInfo = CreateDependencyInfo(resources, {
                 .LayoutTransitionInfo = LayoutTransitionInfo{
                     .ImageSubresource = imageSubresource,
@@ -4294,7 +4294,7 @@ Image DeviceInternal::CreateImageFromAssetFile(const auto& resources, ImageCreat
                 mipSize += size;
             }
 
-            CompileCommand(resources, cmdList.m_Cmd, {
+            CompileCommand(resources, cmd, {
                 .Buffer = imageBuffer,
                 .Image = image,
                 .SizeBytes = mipSize,
@@ -4310,7 +4310,7 @@ Image DeviceInternal::CreateImageFromAssetFile(const auto& resources, ImageCreat
         ImageLayout currentLayout = ImageLayout::Destination;
         if (createInfo.CalculateMipmaps)
         {
-            CompileCommand(resources, cmdList.m_Cmd, MipmapImageCommand{
+            CompileCommand(resources, cmd, MipmapImageCommand{
                 .Image = image,
                 .Layout = currentLayout
             });
@@ -4318,7 +4318,7 @@ Image DeviceInternal::CreateImageFromAssetFile(const auto& resources, ImageCreat
             imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
         }
 
-        CompileCommand(resources, cmdList.m_Cmd, WaitOnBarrierCommand{
+        CompileCommand(resources, cmd, WaitOnBarrierCommand{
             .DependencyInfo = CreateDependencyInfo(resources, {
                 .LayoutTransitionInfo = LayoutTransitionInfo{
                     .ImageSubresource = imageSubresource,
@@ -4368,7 +4368,7 @@ Image DeviceInternal::CreateImageFromBuffer(const auto& resources, ImageCreateIn
 {
     Image image = {};
 
-    ImmediateSubmit(resources, [&](RenderCommandList& cmdList)
+    ImmediateSubmit(resources, [&](CommandBuffer cmd)
     {
         image = AllocateImage(resources, createInfo);
         CreateViews(resources, ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
@@ -4377,7 +4377,7 @@ Image DeviceInternal::CreateImageFromBuffer(const auto& resources, ImageCreateIn
 
         ::DeletionQueue& deletionQueue = *g_State.FrameDeletionQueue;
 
-        CompileCommand(resources, cmdList.m_Cmd, WaitOnBarrierCommand{
+        CompileCommand(resources, cmd, WaitOnBarrierCommand{
             .DependencyInfo = CreateDependencyInfo(resources, {
                 .LayoutTransitionInfo = LayoutTransitionInfo{
                     .ImageSubresource = imageSubresource,
@@ -4391,7 +4391,7 @@ Image DeviceInternal::CreateImageFromBuffer(const auto& resources, ImageCreateIn
             }, deletionQueue)
         });
 
-        CompileCommand(resources, cmdList.m_Cmd, CopyBufferToImageCommand{
+        CompileCommand(resources, cmd, CopyBufferToImageCommand{
             .Buffer = buffer,
             .Image = image,
             .ImageSubresource = {
@@ -4403,7 +4403,7 @@ Image DeviceInternal::CreateImageFromBuffer(const auto& resources, ImageCreateIn
         ImageLayout currentLayout = ImageLayout::Destination;
         if (createInfo.CalculateMipmaps)
         {
-            CompileCommand(resources, cmdList.m_Cmd, MipmapImageCommand{
+            CompileCommand(resources, cmd, MipmapImageCommand{
                 .Image = image,
                 .Layout = currentLayout
             });
@@ -4411,7 +4411,7 @@ Image DeviceInternal::CreateImageFromBuffer(const auto& resources, ImageCreateIn
             imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
         }
 
-        CompileCommand(resources, cmdList.m_Cmd, WaitOnBarrierCommand{
+        CompileCommand(resources, cmd, WaitOnBarrierCommand{
             .DependencyInfo = CreateDependencyInfo(resources, {
                 .LayoutTransitionInfo = LayoutTransitionInfo{
                     .ImageSubresource = imageSubresource,
@@ -5667,7 +5667,6 @@ ImmediateSubmitContext DeviceInternal::StartSubmitContext(const auto& resources)
         .Pool = ctx.CommandPool,
         .Kind = CommandBufferKind::Primary
     });
-    ctx.CommandList.SetCommandBuffer(ctx.CommandBuffer);
     ctx.Fence = CreateFence(resources, {}, Device::DummyDeletionQueue());
     ctx.QueueKind = QueueKind::Graphics;
     BeginCommandBuffer(resources, ctx.CommandBuffer);
@@ -5693,7 +5692,7 @@ void DeviceInternal::ImmediateSubmit(LockedView& resources, Fn&& uploadFunction)
 {
     View<FenceTag, CommandBufferTag, CommandPoolTag> submitResourcesView = resources;
     auto ctx = StartSubmitContext(submitResourcesView);
-    uploadFunction(ctx.CommandList);
+    uploadFunction(ctx.CommandBuffer);
     EndSubmitContext(submitResourcesView, ctx);
 }
 

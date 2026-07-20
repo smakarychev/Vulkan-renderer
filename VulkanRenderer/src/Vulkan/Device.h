@@ -13,7 +13,7 @@
 #include <functional>
 #include "DeviceSparseSet.h"
 #include "Rendering/Buffer/BufferArena.h"
-#include "Rendering/Commands/RenderCommandList.h"
+#include "Rendering/Commands/RenderCommands.h"
 
 #include <imgui/imgui.h>
 
@@ -45,7 +45,6 @@ struct ImmediateSubmitContext
 {
     CommandPool CommandPool;
     CommandBuffer CommandBuffer;
-    RenderCommandList CommandList;
     Fence Fence;
     QueueKind QueueKind;
 };
@@ -299,6 +298,6 @@ template <typename Fn>
 void Device::ImmediateSubmit(Fn&& uploadFunction)
 {
     auto ctx = StartSubmitContext();
-    uploadFunction(ctx.CommandList);
+    uploadFunction(ctx.CommandBuffer);
     EndSubmitContext(ctx);
 }
