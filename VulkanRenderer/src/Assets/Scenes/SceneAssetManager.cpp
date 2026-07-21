@@ -861,16 +861,16 @@ MaterialGPU SceneAssetManager::LoadMaterial(const SceneGeometryInfo::MaterialInf
         .Metallic = materialAsset.Metallic,
         .Roughness = materialAsset.Roughness,
         .AlbedoTexture = LoadTexture(materialInfo.BaseColorUvIndex, materialAsset.BaseColorTexture,
-            m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::White)),
+            m_TexturesRingBuffer->GetDefaultTexture(images::DefaultKind::White)),
         .NormalTexture = LoadTexture(materialInfo.NormalUvIndex, materialAsset.NormalTexture,
-            m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::NormalMap)),
+            m_TexturesRingBuffer->GetDefaultTexture(images::DefaultKind::NormalMap)),
         .MetallicRoughnessTexture = LoadTexture(
             materialInfo.MetallicRoughnessUvIndex, materialAsset.MetallicRoughnessTexture,
-            m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::White)),
+            m_TexturesRingBuffer->GetDefaultTexture(images::DefaultKind::White)),
         .AmbientOcclusionTexture = LoadTexture(materialInfo.OcclusionUvIndex, materialAsset.OcclusionTexture,
-            m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::White)),
+            m_TexturesRingBuffer->GetDefaultTexture(images::DefaultKind::White)),
         .EmissiveTexture = LoadTexture(materialInfo.EmissiveUvIndex, materialAsset.EmissiveTexture,
-            m_TexturesRingBuffer->GetDefaultTexture(Images::DefaultKind::Black))
+            m_TexturesRingBuffer->GetDefaultTexture(images::DefaultKind::Black))
     }};
 }
 

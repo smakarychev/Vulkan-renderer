@@ -41,7 +41,11 @@ struct CommandPoolCreateInfo
 };
 
 struct CommandPoolTag{};
-using CommandPool = ResourceHandleType<CommandPoolTag>;
+
+struct CommandPool : ResourceHandleType<CommandPoolTag>
+{
+    void Reset() const;
+};
 
 struct CommandBufferCreateInfo
 {
@@ -50,7 +54,16 @@ struct CommandBufferCreateInfo
 };
 
 struct CommandBufferTag{};
-using CommandBuffer = ResourceHandleType<CommandBufferTag>;
+struct CommandBuffer : ResourceHandleType<CommandBufferTag>
+{
+    void Reset() const;
+    void Begin() const;
+    void Begin(CommandBufferUsage usage) const;
+    void End() const;
+    void Submit(QueueKind queueKind, const BufferSubmitSyncInfo& submitSync) const;
+    void Submit(QueueKind queueKind, const BufferSubmitTimelineSyncInfo& submitSync) const;
+    void Submit(QueueKind queueKind, Fence fence) const;
+};
 
 class CommandBufferArray
 {

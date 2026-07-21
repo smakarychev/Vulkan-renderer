@@ -487,9 +487,9 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
         REQUIRE(graph.GetBuffer(persistentBuffer).HasValue());
         REQUIRE(graph.GetImage(persistentImage).HasValue());
         
-        REQUIRE(enumHasAny(Device::GetBufferDescription(graph.GetBuffer(persistentBuffer)).Usage, 
+        REQUIRE(enumHasAny(graph.GetBuffer(persistentBuffer).GetDescription().Usage, 
             BufferUsage::Storage));
-        REQUIRE(enumHasAny(Device::GetImageDescription(graph.GetImage(persistentImage)).Usage,
+        REQUIRE(enumHasAny(graph.GetImage(persistentImage).GetDescription().Usage,
             ImageUsage::Storage));
     }
     SECTION("Persistent images retain layout")

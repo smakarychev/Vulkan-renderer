@@ -49,8 +49,8 @@ Passes::CopyTexture::PassData& Passes::CopyTexture::addToGraph(StringId name, RG
             case ImageSizeType::Relative:
                 dstSubregion = {
                     .Layers = 1,
-                    .Bottom = Images::getPixelCoordinates(dst, info.Offset, ImageSizeType::Relative),
-                    .Top = Images::getPixelCoordinates(dst, info.Offset + info.Size, ImageSizeType::Relative)
+                    .Bottom = images::getPixelCoordinates(dst, info.Offset, ImageSizeType::Relative),
+                    .Top = images::getPixelCoordinates(dst, info.Offset + info.Size, ImageSizeType::Relative)
                 };
                 break;
             }

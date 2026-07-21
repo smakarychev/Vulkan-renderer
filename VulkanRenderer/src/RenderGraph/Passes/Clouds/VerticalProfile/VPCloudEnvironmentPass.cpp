@@ -34,7 +34,7 @@ Passes::Clouds::VP::Environment::PassData& renderPass(StringId name, RG::Graph& 
                     .Width = environmentSize,
                     .Height = environmentSize,
                     .LayersDepth = 6,
-                    .Mipmaps = Images::mipmapCount({environmentSize, environmentSize}),
+                    .Mipmaps = images::mipmapCount({environmentSize, environmentSize}),
                     .Format = Format::RGBA16_FLOAT,
                     .Kind = ImageKind::ImageCubemap
                 });

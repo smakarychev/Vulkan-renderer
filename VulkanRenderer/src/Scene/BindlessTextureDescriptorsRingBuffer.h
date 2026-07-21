@@ -27,7 +27,7 @@ public:
     TextureHandle AddTexture(Texture texture);
     void SetTexture(TextureHandle index, Texture texture);
     Texture GetTexture(TextureHandle index) const;
-    TextureHandle GetDefaultTexture(Images::DefaultKind texture) const;
+    TextureHandle GetDefaultTexture(images::DefaultKind texture) const;
 private:
     u32 GetNextIndex(u32 index) const;
     void UpdateDescriptor(Texture texture, u32 index) const;
@@ -37,6 +37,6 @@ private:
     u32 m_MaxBindlessCount{0};
     Descriptors m_Descriptors{};
 
-    std::array<TextureHandle, (u32)Images::DefaultKind::MaxVal> m_DefaultTextures;
+    std::array<TextureHandle, (u32)images::DefaultKind::MaxVal> m_DefaultTextures;
     std::vector<Texture> m_Textures;
 };

@@ -457,7 +457,7 @@ void Scene::UpdateAnimations(FrameContext& ctx)
                 for (u32 element = 0; element < channels[animation.WeightChannel].ElementCount(); element++)
                 {
                     const u32 blendShapeIndex = element + mesh.FirstBlendShape + blendShapeOffset;
-                    updateBlendShapeWeight(Device::GetBufferArenaUnderlyingBuffer(Geometry().BlendShapes),
+                    updateBlendShapeWeight(Geometry().BlendShapes.GetUnderlyingBuffer(),
                         blendShapeIndex, channels[animation.WeightChannel].GetInterpolated(element).Weight,
                         *ctx.ResourceUploader);
                 }
@@ -483,8 +483,8 @@ void Scene::UpdateTransforms(FrameContext& ctx)
         const glm::mat4 jointMatrix =  
             transforms[joint.Node.Handle] *
             joint.InverseBindMatrix;
-        updateJointMatrix(Device::GetBufferArenaUnderlyingBuffer(Geometry().JointMatrices), 
-            joint.JointMatrixIndex, jointMatrix, *ctx.ResourceUploader);
+        updateJointMatrix(Geometry().JointMatrices.GetUnderlyingBuffer(), joint.JointMatrixIndex, jointMatrix,
+            *ctx.ResourceUploader);
     }
 
     for (auto&& [i, node] : std::views::enumerate(nodes))
@@ -498,7 +498,7 @@ void Scene::UpdateTransforms(FrameContext& ctx)
                 {
                     const u32 globalIndex = mesh.FirstRenderObject + renderObjectIndex;
                     auto& previousTransform = m_RenderObjectPreviousTransforms[globalIndex];
-                    updateRenderObject(Device::GetBufferArenaUnderlyingBuffer(Geometry().RenderObjects), globalIndex,
+                    updateRenderObject(Geometry().RenderObjects.GetUnderlyingBuffer(), globalIndex,
                         previousTransform, transforms[i], *ctx.ResourceUploader);
                     m_RenderObjectPreviousTransforms[globalIndex] = transforms[i];
                 }

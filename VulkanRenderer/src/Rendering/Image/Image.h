@@ -9,13 +9,12 @@
 #include <variant>
 #include <glm/glm.hpp>
 
+struct ImageDescription;
+
 namespace lux::assetlib
 {
 struct ImageAsset;
 }
-
-struct ImageTag{};
-using Image = ResourceHandleType<ImageTag>;
 
 class ImageViewHandle
 {
@@ -40,6 +39,14 @@ struct ImageSubresourceDescription
     i8 Layers{ALL_LAYERS};
 
     auto operator<=>(const ImageSubresourceDescription&) const = default;
+};
+
+struct ImageTag{};
+struct Image : ResourceHandleType<ImageTag>
+{
+    Span<const ImageSubresourceDescription> GetAdditionalViews() const;
+    ImageViewHandle GetViewHandle(ImageSubresourceDescription subresourceDescription) const;
+    const ImageDescription& GetDescription() const;
 };
 
 struct ImageSubresource

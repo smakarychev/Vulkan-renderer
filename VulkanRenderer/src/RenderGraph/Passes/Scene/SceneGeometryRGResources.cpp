@@ -13,24 +13,16 @@ SceneGeometryRGResources SceneGeometryRGResources::ForGeometry(const SceneGeomet
             renderGraph, geometry.RenderObjectSkinnedInfosIndices);
     
     return {
-        .Meshlets = renderGraph.Import("Meshlets"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Meshlets)),
-        .RenderObjects = 
-            renderGraph.Import("RenderObjects"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.RenderObjects)),
-        .Attributes = 
-            renderGraph.Import("Attributes"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Attributes)),
-        .Indices = 
-            renderGraph.Import("Indices"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Indices)),
-        .JointMatrices = 
-            renderGraph.Import("JointMatrices"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.JointMatrices)),
-        .Skins = 
-            renderGraph.Import("Skins"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Skins)),
-        .BlendShapes = 
-            renderGraph.Import("BlendShapes"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.BlendShapes)),
-        .Materials = 
-            renderGraph.Import("Materials"_hsv, Device::GetBufferArenaUnderlyingBuffer(geometry.Materials)),
+        .Meshlets = renderGraph.Import("Meshlets"_hsv, geometry.Meshlets.GetUnderlyingBuffer()),
+        .RenderObjects = renderGraph.Import("RenderObjects"_hsv, geometry.RenderObjects.GetUnderlyingBuffer()),
+        .Attributes = renderGraph.Import("Attributes"_hsv, geometry.Attributes.GetUnderlyingBuffer()),
+        .Indices = renderGraph.Import("Indices"_hsv, geometry.Indices.GetUnderlyingBuffer()),
+        .JointMatrices = renderGraph.Import("JointMatrices"_hsv, geometry.JointMatrices.GetUnderlyingBuffer()),
+        .Skins = renderGraph.Import("Skins"_hsv, geometry.Skins.GetUnderlyingBuffer()),
+        .BlendShapes = renderGraph.Import("BlendShapes"_hsv, geometry.BlendShapes.GetUnderlyingBuffer()),
+        .Materials = renderGraph.Import("Materials"_hsv, geometry.Materials.GetUnderlyingBuffer()),
         .RenderObjectSkinnedInfos = 
-            renderGraph.Import("RenderObjectSkinnedInfos"_hsv,
-                Device::GetBufferArenaUnderlyingBuffer(geometry.RenderObjectSkinnedInfos)),
+            renderGraph.Import("RenderObjectSkinnedInfos"_hsv, geometry.RenderObjectSkinnedInfos.GetUnderlyingBuffer()),
         .RenderObjectSkinnedInfoIndices = renderObjectSkinnedInfoIndices,
     };
 }

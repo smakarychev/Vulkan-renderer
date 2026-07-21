@@ -1050,7 +1050,7 @@ struct Writer
         {
             BeginForLoop("m_SamplerCount");
             WriteLine("const auto& binding = m_SamplerBindings[i];");
-            WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
+            WriteLine("Shader->Descriptors(binding.Set).Update("
                 "DescriptorSlotInfo{.Slot = binding.Slot, .Type = DescriptorType::Sampler}, binding.Sampler);");
             EndForLoop();
         }
@@ -1058,7 +1058,7 @@ struct Writer
         {
             BeginForLoop("m_BufferCount");
             WriteLine("const auto& binding = m_BufferBindings[i];");
-            WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
+            WriteLine("Shader->Descriptors(binding.Set).Update("
                 "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
                 "Graph->GetBufferBinding(binding.Resource), binding.ArrayOffset);");
             EndForLoop();
@@ -1068,7 +1068,7 @@ struct Writer
             BeginForLoop("m_ImageCount");
             WriteLine("const auto& binding = m_ImageBindings[i];");
             WriteLine("const auto& image = Graph->GetImageBinding(binding.Resource);");
-            WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
+            WriteLine("Shader->Descriptors(binding.Set).Update("
                 "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
                 "image.Subresource, image.Layout, binding.ArrayOffset);");
             EndForLoop();

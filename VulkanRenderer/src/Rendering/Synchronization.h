@@ -17,7 +17,12 @@ struct FenceCreateInfo
 };
 
 struct FenceTag{};
-using Fence = ResourceHandleType<FenceTag>;
+struct Fence : ResourceHandleType<FenceTag>
+{
+    void Wait() const;
+    bool Check() const;
+    void Reset() const;
+};
 
 struct SemaphoreTag{};
 using Semaphore = ResourceHandleType<SemaphoreTag>;
@@ -28,7 +33,11 @@ struct TimelineSemaphoreCreateInfo
 };
 
 struct TimelineSemaphoreTag{};
-using TimelineSemaphore = ResourceHandleType<TimelineSemaphoreTag>;
+struct TimelineSemaphore : ResourceHandleType<TimelineSemaphoreTag>
+{
+    void WaitCPU(u64 value) const;
+    void SignalCPU(u64 value) const;
+};
 
 // todo: add queue transfer somewhere
 struct ExecutionDependencyInfo

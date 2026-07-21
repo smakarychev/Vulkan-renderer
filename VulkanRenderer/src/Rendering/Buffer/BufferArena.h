@@ -11,9 +11,6 @@ struct BufferArenaCreateInfo
     u64 VirtualSizeBytes{};
 };
 
-struct BufferArenaTag{};
-using BufferArena = ResourceHandleType<BufferArenaTag>;
-
 using BufferSuballocationHandle = u64;
 constexpr BufferSuballocationHandle INVALID_BUFFER_SUBALLOCATION_HANDLE = ~0llu;
 
@@ -31,3 +28,13 @@ struct BufferSuballocation
 };
 
 using BufferSuballocationResult = std::expected<BufferSuballocation, BufferSuballocationError>;
+
+struct BufferArenaTag{};
+struct BufferArena : ResourceHandleType<BufferArenaTag>
+{
+    void ResizePhysical(u64 newSize, CommandBuffer cmd, bool copyData = true) const;
+    Buffer GetUnderlyingBuffer() const;
+    u64 GetSizeBytesPhysical() const;
+    BufferSuballocationResult Suballocate(u64 sizeBytes, u32 alignment = 8) const;
+    void Free(BufferSuballocationHandle suballocation) const;
+};

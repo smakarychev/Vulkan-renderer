@@ -8,6 +8,33 @@
 std::unordered_map<DescriptorLayoutCache::CacheKey,
     DescriptorsLayout, DescriptorLayoutCache::DescriptorsLayoutKeyHash> DescriptorLayoutCache::s_LayoutCache = {};
 
+void Descriptors::Update(DescriptorSlotInfo slotInfo, const BufferSubresource& buffer, u32 index) const
+{
+    Device::UpdateDescriptors(*this, slotInfo, buffer, index);
+}
+
+void Descriptors::Update(DescriptorSlotInfo slotInfo, Sampler sampler) const
+{
+    Device::UpdateDescriptors(*this, slotInfo, sampler);
+}
+
+void Descriptors::Update(DescriptorSlotInfo slotInfo, const ImageSubresource& image, ImageLayout layout,
+    u32 index) const
+{
+    Device::UpdateDescriptors(*this, slotInfo, image, layout, index);
+}
+
+std::optional<Descriptors> DescriptorArenaAllocator::Allocate(DescriptorsLayout layout,
+    DescriptorAllocatorAllocationBindings&& bindings) const
+{
+    return Device::AllocateDescriptors(*this, layout, std::move(bindings));
+}
+
+void DescriptorArenaAllocator::Reset() const
+{
+    return Device::ResetDescriptorArenaAllocator(*this);
+}
+
 DescriptorArenaAllocators::DescriptorArenaAllocators(Span<const DescriptorArenaAllocator> transientAllocators,
     DescriptorArenaAllocator persistentAllocator)
 {
@@ -33,13 +60,13 @@ DescriptorArenaAllocator DescriptorArenaAllocators::GetPersistent() const
 void DescriptorArenaAllocators::ResetTransient() const
 {
     for (u32 i = 0; i < m_TransientDescriptorAllocators; i++)
-        Device::ResetDescriptorArenaAllocator(m_TransientAllocators[i]);
+        m_TransientAllocators[i].Reset();
 }
 
 void DescriptorArenaAllocators::Reset(u32 index) const
 {
-    ASSERT(index < m_TransientDescriptorAllocators);
-    Device::ResetDescriptorArenaAllocator(m_TransientAllocators[index]);
+    ASSERT(index < m_TransientDescriptorAllocators)
+    m_TransientAllocators[index].Reset();
 }
 
 DescriptorLayoutCache::CacheKey DescriptorLayoutCache::CreateCacheKey(const DescriptorsLayoutCreateInfo& createInfo)

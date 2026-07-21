@@ -21,7 +21,7 @@ void RGMermaidExporter::OnBufferResourcesFinalized(const std::vector<RGBuffer>& 
         m_BufferIndexToDescription[bufferIndex] = std::format("\tbuffer.{}[\"{}\n\t{}\n\t{}\"]\n",
             bufferIndex, buffer.Name,
             buffer.Description.SizeBytes,
-            BufferTraits::bufferUsageToString(buffer.Description.Usage));
+            bufferTraits::bufferUsageToString(buffer.Description.Usage));
     }
 }
 
@@ -33,7 +33,7 @@ void RGMermaidExporter::OnImageResourcesFinalized(const std::vector<RGImage>& im
         m_ImageIndexToDescription[imageIndex] = std::format("\timage.{}[\"{}\n\t{} x {} x {}\n\t{}\"]\n",
             imageIndex, image.Name,
             image.Description.Dimensions().x, image.Description.Dimensions().y, image.Description.Dimensions().z,
-            ImageTraits::imageUsageToString(image.Description.Usage));
+            imageTraits::imageUsageToString(image.Description.Usage));
     }
 }
 

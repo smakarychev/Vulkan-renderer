@@ -30,7 +30,7 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
 
             passData.BindGroup = SceneVbufferPbrBindGroupRG(graph, variant, ShaderSpecializations(
                 ShaderSpecialization{
-                    "MAX_REFLECTION_LOD"_hsv, (f32)Images::mipmapCount(
+                    "MAX_REFLECTION_LOD"_hsv, (f32)images::mipmapCount(
                         glm::uvec2(graph.GetImageDescription(info.IBL.PrefilterEnvironment).Width))
                 }
             ));

@@ -157,8 +157,8 @@ void Renderer::Init()
     Device::BeginFrame(GetFrameContext());
 
     Input::OnWindowResized(
-        Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution.x,
-        Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution.y
+        m_Swapchain.GetDescription().SwapchainResolution.x,
+        m_Swapchain.GetDescription().SwapchainResolution.y
     );
     m_Camera = std::make_shared<Camera>(CameraType::Perspective);
     m_CameraController = std::make_unique<CameraController>(m_Camera);
@@ -208,11 +208,11 @@ void Renderer::InitRenderGraph()
         TEXTURE_HEAP_SIZE, m_TextureHeap);
     m_SceneAssetManager->SetTextureRingBuffer(*m_BindlessTextureDescriptorsRingBuffer);
     m_TransmittanceLutBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
-        Images::Default::GetCopy(Images::DefaultKind::White, Device::DeletionQueue()));
+        images::Default::GetCopy(images::DefaultKind::White, Device::DeletionQueue()));
     m_SkyViewLutBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
-        Images::Default::GetCopy(Images::DefaultKind::White, Device::DeletionQueue()));
+        images::Default::GetCopy(images::DefaultKind::White, Device::DeletionQueue()));
     m_VolumetricShadowBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
-        Images::Default::GetCopy(Images::DefaultKind::White, Device::DeletionQueue()));
+        images::Default::GetCopy(images::DefaultKind::White, Device::DeletionQueue()));
 
     // todo: this is currently a rgb image, which is wasteful, I need to provide format hints to image converter
     m_BlueNoiseBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
@@ -385,15 +385,14 @@ void Renderer::ExecuteSkyboxPasses()
     static constexpr std::string_view SKYBOX_PATH = "../assets/textures/forest.hdr";
     m_Equirectangular = m_ImageAssetManager->LoadResource({.Path = SKYBOX_PATH});
 
-    const TextureDescription& equirectangularDescription =
-        Device::GetImageDescription(m_ImageAssetManager->Get(m_Equirectangular));
+    const TextureDescription& equirectangularDescription = m_ImageAssetManager->Get(m_Equirectangular).GetDescription();
     
     if (!m_SkyboxTexture.HasValue())
         m_SkyboxTexture = m_Graph->AddPersistent(Device::CreateImage({
             .Description = ImageDescription{
                 .Width = equirectangularDescription.Width / 2,
                 .Height = equirectangularDescription.Width / 2,
-                .Mipmaps = Images::mipmapCount(glm::uvec2{equirectangularDescription.Width / 2}),
+                .Mipmaps = images::mipmapCount(glm::uvec2{equirectangularDescription.Width / 2}),
                 .Format = Format::RGBA16_FLOAT,
                 .Kind = ImageKind::ImageCubemap,
                 .Usage = ImageUsage::Sampled | ImageUsage::Storage
@@ -459,7 +458,7 @@ void Renderer::SetupRenderGraph()
     using namespace RG;
     
     m_Graph->Reset();
-    m_Graph->SetBackbufferImage(Device::GetSwapchainDescription(m_Swapchain).DrawImage);
+    m_Graph->SetBackbufferImage(m_Swapchain.GetDescription().DrawImage);
     
     for (auto& task : m_RenderGraphNextFrameTasks)
         task();
@@ -562,7 +561,7 @@ void Renderer::SetupRenderGraph()
         m_PrimaryHizPrevious[GetPreviousFrameNumber()].HasValue() ?
         m_Graph->ImportPersistent("PrimaryHiz.Previous"_hsv, m_PrimaryHizPrevious[GetPreviousFrameNumber()]) :
         m_Graph->Import("PrimaryHiz.Dummy"_hsv,
-            Images::Default::GetCopy(Images::DefaultKind::White, GetFrameContext().DeletionQueue),
+            images::Default::GetCopy(images::DefaultKind::White, GetFrameContext().DeletionQueue),
             ImageLayout::Readonly
         );
     
@@ -702,7 +701,7 @@ void Renderer::UpdateGlobalRenderGraphResources()
     
     auto& blackboard = m_Graph->GetBlackboard();
 
-    SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
+    SwapchainDescription& swapchain = m_Swapchain.GetDescription();
 
     if (!blackboard.TryGet<GlobalResources>())
     {
@@ -1916,7 +1915,7 @@ void Renderer::BeginFrame()
 
     Device::BeginFrame(GetFrameContext());
     const FrameSync& frameSync = GetFrameContext().FrameSync;
-    m_SwapchainImageIndex = Device::AcquireNextImage(m_Swapchain, frameSync.RenderFence, frameSync.PresentSemaphore);
+    m_SwapchainImageIndex = m_Swapchain.AcquireNextImage(frameSync.RenderFence, frameSync.PresentSemaphore);
     if (m_SwapchainImageIndex == INVALID_SWAPCHAIN_IMAGE)
     {
         m_FrameEarlyExit = true;
@@ -1926,9 +1925,9 @@ void Renderer::BeginFrame()
     
     m_CurrentFrameContext->DeletionQueue.Flush();
 
-    CommandBuffer cmd = GetFrameContext().Cmd;
-    Device::ResetCommandBuffer(cmd);
-    Device::BeginCommandBuffer(cmd);
+    const CommandBuffer cmd = GetFrameContext().Cmd;
+    cmd.Reset();
+    cmd.Begin();
 
     GetFrameContext().CommandList.WaitOnBarrier({
         .DependencyInfo = Device::CreateDependencyInfo({
@@ -1952,7 +1951,7 @@ void Renderer::BeginFrame()
 
 RenderingInfo Renderer::GetImGuiUIRenderingInfo()
 {
-    const SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
+    const SwapchainDescription& swapchain = m_Swapchain.GetDescription();
 
     return Device::CreateRenderingInfo({
         .RenderArea = swapchain.SwapchainResolution,
@@ -1975,7 +1974,7 @@ void Renderer::EndFrame()
         .DependencyInfo = Device::CreateDependencyInfo({
             .LayoutTransitionInfo = LayoutTransitionInfo{
                 .ImageSubresource = {
-                    .Image = Device::GetSwapchainDescription(m_Swapchain).DrawImage,
+                    .Image = m_Swapchain.GetDescription().DrawImage,
                     .Description = {.Mipmaps = 1, .Layers = 1}
                 },
                 .SourceStage = PipelineStage::ColorOutput,
@@ -1998,15 +1997,15 @@ void Renderer::EndFrame()
     
     m_ResourceUploader.SubmitUpload(GetFrameContext());
 
-    Device::EndCommandBuffer(cmd);
-    
-    Device::SubmitCommandBuffer(cmd, QueueKind::Graphics, BufferSubmitSyncInfo{
+    cmd.End();
+    cmd.Submit(QueueKind::Graphics, BufferSubmitSyncInfo{
         .WaitStages = {PipelineStage::ColorOutput},
         .WaitSemaphores = {GetFrameContext().FrameSync.PresentSemaphore},
-        .SignalSemaphores = {Device::GetSwapchainRenderSemaphore(m_Swapchain, m_SwapchainImageIndex)},
-        .Fence = GetFrameContext().FrameSync.RenderFence});
+        .SignalSemaphores = {m_Swapchain.GetRenderSemaphore(m_SwapchainImageIndex)},
+        .Fence = GetFrameContext().FrameSync.RenderFence
+    });
     
-    bool isFramePresentSuccessful = Device::Present(m_Swapchain, QueueKind::Presentation, m_SwapchainImageIndex); 
+    bool isFramePresentSuccessful = m_Swapchain.Present(QueueKind::Presentation, m_SwapchainImageIndex); 
     bool shouldRecreateSwapchain = m_IsWindowResized || !isFramePresentSuccessful;
     if (shouldRecreateSwapchain)
         RecreateSwapchain();
@@ -2036,7 +2035,7 @@ void Renderer::InitRenderingStructures()
     m_ResourceUploader.Init();
     
     m_Swapchain = Device::CreateSwapchain({}, Device::DummyDeletionQueue());
-    const SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
+    const SwapchainDescription& swapchain = m_Swapchain.GetDescription();
 
     m_FrameContexts.resize(BUFFERED_FRAMES);
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
@@ -2062,7 +2061,7 @@ void Renderer::InitRenderingStructures()
     
     Device::BeginFrame(m_FrameContexts[0]);
     
-    Images::Default::Init();
+    images::Default::Init();
     
 
     std::array<CommandBuffer, BUFFERED_FRAMES> cmds;
@@ -2115,7 +2114,7 @@ void Renderer::RecreateSwapchain()
     Device::Destroy(m_Swapchain);
     m_Swapchain = Device::CreateSwapchain({}, Device::DummyDeletionQueue());
 
-    const SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
+    const SwapchainDescription& swapchain = m_Swapchain.GetDescription();
     m_Graph->SetBackbufferImage(swapchain.DrawImage);
 
     Input::OnWindowResized(swapchain.SwapchainResolution.x, swapchain.SwapchainResolution.y);

@@ -6,20 +6,20 @@
 enum class ImageLayout : u8
 {
     Undefined = 0,
-    
+
     General,
-    
+
     Attachment,
     Readonly,
-    
+
     ColorAttachment,
     Present,
-    
+
     DepthStencilAttachment,
     DepthStencilReadonly,
     DepthAttachment,
     DepthReadonly,
-    
+
     Source,
     Destination
 };
@@ -41,6 +41,7 @@ enum class ImageViewKind : u8
     /* inherit view kind from image kind */
     Inherit,
 };
+
 static_assert((u8)ImageViewKind::Image2d == (u8)ImageKind::Image2d,
     "Enum values of image kind and image view kind have to match");
 static_assert((u8)ImageViewKind::Image3d == (u8)ImageKind::Image3d,
@@ -93,23 +94,23 @@ enum class SamplerDepthCompareMode : u8
 enum class AttachmentLoad : u8
 {
     Unspecified = 0,
-    
+
     Load,
     Clear
 };
 
 enum class AttachmentStore : u8
-{ 
+{
     Unspecified = 0,
-    
+
     Store
 };
 
-namespace ImageTraits
+namespace imageTraits
 {
-    std::string imageKindToString(ImageKind kind);
-    std::string imageViewKindToString(ImageViewKind kind);
-    std::string imageUsageToString(ImageUsage usage);
-    std::string imageFilterToString(ImageFilter filter);
-    std::string imageLayoutToString(ImageLayout layout);
+std::string imageKindToString(ImageKind kind);
+std::string imageViewKindToString(ImageViewKind kind);
+std::string imageUsageToString(ImageUsage usage);
+std::string imageFilterToString(ImageFilter filter);
+std::string imageLayoutToString(ImageLayout layout);
 }

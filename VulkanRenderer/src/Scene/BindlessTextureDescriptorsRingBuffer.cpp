@@ -8,8 +8,8 @@ BindlessTextureDescriptorsRingBuffer::BindlessTextureDescriptorsRingBuffer(u32 m
     : m_MaxBindlessCount(maxCount), m_Descriptors(descriptors)
 {
     for (u32 i = 0; i < m_DefaultTextures.size(); i++)
-        m_DefaultTextures[i] = AddTexture(Images::Default::GetCopy(
-            (Images::DefaultKind)i, Device::DeletionQueue()));
+        m_DefaultTextures[i] = AddTexture(images::Default::GetCopy(
+            (images::DefaultKind)i, Device::DeletionQueue()));
 }
 
 u32 BindlessTextureDescriptorsRingBuffer::Size() const
@@ -55,7 +55,7 @@ Texture BindlessTextureDescriptorsRingBuffer::GetTexture(TextureHandle index) co
     return m_Textures[index.Handle];
 }
 
-TextureHandle BindlessTextureDescriptorsRingBuffer::GetDefaultTexture(Images::DefaultKind texture) const
+TextureHandle BindlessTextureDescriptorsRingBuffer::GetDefaultTexture(images::DefaultKind texture) const
 {
     return m_DefaultTextures[(u32)texture];
 }
@@ -67,8 +67,7 @@ u32 BindlessTextureDescriptorsRingBuffer::GetNextIndex(u32 index) const
 
 void BindlessTextureDescriptorsRingBuffer::UpdateDescriptor(Texture texture, u32 index) const
 {
-    Device::UpdateDescriptors(
-        m_Descriptors,
+    m_Descriptors.Update(
         DescriptorSlotInfo{
             .Slot = BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX,
             .Type = DescriptorType::Image

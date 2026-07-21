@@ -119,14 +119,13 @@ void ResourceUploader::EnsureCapacity(u64 sizeBytes)
     if (state.LastUsedBuffer == INVALID_INDEX)
         state.LastUsedBuffer = 0;
 
-    if (Device::GetBufferSizeBytes(state.StageBuffers[state.LastUsedBuffer].Buffer) <
-        state.CurrentBufferOffset + sizeBytes)
+    if (state.StageBuffers[state.LastUsedBuffer].Buffer.GetSizeBytes() < state.CurrentBufferOffset + sizeBytes)
     {
         state.LastUsedBuffer++;
         if (state.LastUsedBuffer == state.StageBuffers.size())
             state.StageBuffers.push_back(CreateStagingBuffer(sizeBytes));
 
-        if (Device::GetBufferSizeBytes(state.StageBuffers[state.LastUsedBuffer].Buffer) < sizeBytes)
+        if (state.StageBuffers[state.LastUsedBuffer].Buffer.GetSizeBytes() < sizeBytes)
         {
             Device::Destroy(state.StageBuffers[state.LastUsedBuffer].Buffer);
             state.StageBuffers[state.LastUsedBuffer] = CreateStagingBuffer(sizeBytes);

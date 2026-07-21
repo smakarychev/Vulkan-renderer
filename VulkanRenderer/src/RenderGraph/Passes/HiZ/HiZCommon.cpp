@@ -15,14 +15,14 @@ namespace HiZ
 {
 glm::uvec2 calculateHizResolution(const glm::uvec2& depthResolution)
 {
-    return Images::floorResolutionToPowerOfTwo(depthResolution);
+    return images::floorResolutionToPowerOfTwo(depthResolution);
 }
 
 RG::ImageResource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution, ReductionMode mode)
 {
     const f32 width = (f32)Math::floorToPowerOf2(depthResolution.x);
     const f32 height = (f32)Math::floorToPowerOf2(depthResolution.y);
-    const i8 mipmapCount = std::min(MAX_MIPMAP_COUNT, Images::mipmapCount({width, height}));
+    const i8 mipmapCount = std::min(MAX_MIPMAP_COUNT, images::mipmapCount({width, height}));
 
     return renderGraph.Create("HiZ"_hsv, RG::RGImageDescription{
         .Width = width,

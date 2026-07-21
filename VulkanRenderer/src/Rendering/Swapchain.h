@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include "Synchronization.h"
 #include "Image/Image.h"
 
 #include <CoreLib/types.h>
@@ -28,4 +29,10 @@ struct SwapchainDescription
 };
 
 struct SwapchainTag{};
-using Swapchain = ResourceHandleType<SwapchainTag>;
+struct Swapchain : ResourceHandleType<SwapchainTag>
+{
+    u32 AcquireNextImage(Fence renderFence, Semaphore presentSemaphore) const;
+    bool Present(QueueKind queueKind, u32 imageIndex) const;
+    SwapchainDescription& GetDescription() const;
+    Semaphore GetRenderSemaphore(u32 imageIndex) const;
+};

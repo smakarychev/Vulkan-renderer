@@ -30,7 +30,7 @@ Passes::SceneForwardPbr::PassData& Passes::SceneForwardPbr::addToGraph(StringId 
 
             const ShaderOverrides defaultOverrides(
                 ShaderDynamicSpecializations(
-                    ShaderSpecialization{"MAX_REFLECTION_LOD"_hsv, (f32)Images::mipmapCount(
+                    ShaderSpecialization{"MAX_REFLECTION_LOD"_hsv, (f32)images::mipmapCount(
                             glm::uvec2(graph.GetImageDescription(info.IBL.PrefilterEnvironment).Width))}
             ));
             

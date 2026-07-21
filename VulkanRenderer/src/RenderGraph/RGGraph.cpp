@@ -878,12 +878,12 @@ void Graph::ValidateImportedResources()
      * compatible with the description of virtual resource */
     for (auto& buffer : m_Buffers)
         if (buffer.IsImported)
-            if (!enumHasAll(Device::GetBufferDescription(buffer.Resource).Usage, buffer.Description.Usage))
+            if (!enumHasAll(buffer.Resource.GetDescription().Usage, buffer.Description.Usage))
                 LUX_LOG_WARN("Imported buffer was created with flags"
                 " that are incompatible with the in-frame usage of this resource: {}", buffer.Name);
     for (auto& image : m_Images)
         if (image.IsImported)
-            if (!enumHasAll(Device::GetImageDescription(image.Resource).Usage, image.Description.Usage))
+            if (!enumHasAll(image.Resource.GetDescription().Usage, image.Description.Usage))
                 LUX_LOG_WARN("Imported image was created with flags"
                 " that are incompatible with the in-frame usage of this resource: {}", image.Name);
 }
@@ -1492,7 +1492,7 @@ BufferResource Graph::Import(StringId name, Buffer buffer)
     const BufferResource resource(ResourceFlags::Imported, (u16)m_Buffers.size(), 0);
     RGBuffer bufferResource = {};
     bufferResource.Name = name;
-    bufferResource.Description = Device::GetBufferDescription(buffer);
+    bufferResource.Description = buffer.GetDescription();
     bufferResource.Resource = buffer;
     m_Buffers.push_back(bufferResource);
 
@@ -1504,7 +1504,7 @@ ImageResource Graph::Import(StringId name, Image image, ImageLayout layout)
     const ImageResource resource(ResourceFlags::Imported, (u16)m_Images.size(), 0);
     RGImage imageResource = {};
     imageResource.Name = name;
-    imageResource.Description = Device::GetImageDescription(image);
+    imageResource.Description = image.GetDescription();
     imageResource.Resource = image;
     imageResource.Layout = layout;
     imageResource.Extras.resize(imageResource.Description.AdditionalViews.size(), RGImageExtraInfo{

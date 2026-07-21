@@ -47,8 +47,8 @@ void SceneRenderObjectSet::OnUpdate(FrameContext& ctx)
     const i32 newRenderObjects = (i32)m_RenderObjectsCpu.size() - (i32)m_RenderObjects.Offset;
     if (newRenderObjects > 0)
     {
-        PushBuffers::grow<BufferAsymptoticGrowthPolicy>(m_RenderObjects, newRenderObjects, ctx.Cmd);
-        PushBuffers::grow<BufferAsymptoticGrowthPolicy>(m_BucketBits, newRenderObjects, ctx.Cmd);
+        pushBuffers::grow<BufferAsymptoticGrowthPolicy>(m_RenderObjects, newRenderObjects, ctx.Cmd);
+        pushBuffers::grow<BufferAsymptoticGrowthPolicy>(m_BucketBits, newRenderObjects, ctx.Cmd);
     }
     // todo: we don't need to upload the entire buffer each frame
     ctx.ResourceUploader->UpdateBuffer(m_RenderObjects.Buffer, m_RenderObjectsCpu);

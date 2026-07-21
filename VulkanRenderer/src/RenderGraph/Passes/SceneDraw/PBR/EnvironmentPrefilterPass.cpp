@@ -16,12 +16,12 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
     using PassDataBind = PassDataWithBind<PassData, EnvironmentPrefilterBindGroupRG>;
 
 
-    i8 mipmapCount = Device::GetImageDescription(renderGraph.GetImage(prefiltered)).Mipmaps;
+    i8 mipmapCount = renderGraph.GetImage(prefiltered).GetDescription().Mipmaps;
     ASSERT(MAX_MIPMAP_COUNT > mipmapCount)
     std::array<ImageResource, MAX_MIPMAP_COUNT> mips = {};
     for (i8 i = 0; i < mipmapCount; i++)
         mips[i] = renderGraph.SplitImage(prefiltered, 
-            Device::GetAdditionalImageViews(renderGraph.GetImage(prefiltered))[i]);
+            renderGraph.GetImage(prefiltered).GetAdditionalViews()[i]);
     
     for (i8 mipmap = 0; mipmap < mipmapCount; mipmap++)
     {
@@ -83,7 +83,7 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
 
 TextureDescription Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(u32 resolution)
 {
-    i8 mipmapCount = Images::mipmapCount({resolution, resolution});
+    i8 mipmapCount = images::mipmapCount({resolution, resolution});
     std::vector<ImageSubresourceDescription> additionalViews(mipmapCount);
     for (i8 i = 0; i < mipmapCount; i++)
         additionalViews[i] = ImageSubresourceDescription{

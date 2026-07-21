@@ -29,7 +29,7 @@ std::pair<Image, Buffer> generateSamples(u32 count)
             0.0f
         };
         randomDir = glm::normalize(randomDir);
-        pixel = Images::toRGBA8SNorm(glm::vec4{randomDir, 1.0f});
+        pixel = images::toRGBA8SNorm(glm::vec4{randomDir, 1.0f});
     }
 
     const Image noise = Device::CreateImage({

@@ -31,7 +31,7 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                     .Width = environmentSize,
                     .Height = environmentSize,
                     .LayersDepth = 6,
-                    .Mipmaps = Images::mipmapCount({environmentSize, environmentSize}),
+                    .Mipmaps = images::mipmapCount({environmentSize, environmentSize}),
                     .Format = Format::RGBA16_FLOAT,
                     .Kind = ImageKind::ImageCubemap
                 });

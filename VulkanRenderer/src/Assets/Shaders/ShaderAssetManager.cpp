@@ -93,8 +93,7 @@ ShaderCacheAllocateResult ShaderAssetManager::Allocate(ShaderHandle handle,
 
         const DescriptorsLayout descriptorsLayout = pipelineInfo.PipelineTemplate->GetDescriptorsLayout(i);
 
-        std::optional<Descriptors> descriptors = Device::AllocateDescriptors(
-            allocators.GetTransient(i),
+        std::optional<Descriptors> descriptors = allocators.GetTransient(i).Allocate(
             descriptorsLayout, {
                 .Bindings = pipelineInfo.PipelineTemplate->GetReflection().DescriptorSetsInfo()[i].Descriptors,
                 .BindlessCount = 0
@@ -136,7 +135,7 @@ ShaderCacheTextureHeapResult ShaderAssetManager::AllocateTextureHeap(DescriptorA
         .Flags = descriptors::BINDLESS_DESCRIPTORS_LAYOUT_FLAGS
     });
 
-    const auto allocation = Device::AllocateDescriptors(persistentAllocator, layout, {
+    const auto allocation = persistentAllocator.Allocate(layout, {
         .Bindings = {descriptorBinding},
         .BindlessCount = count,
     });

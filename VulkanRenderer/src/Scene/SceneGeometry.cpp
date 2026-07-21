@@ -16,21 +16,21 @@ void growBufferArena(BufferArena arena, u64 newMinSize, CommandBuffer cmd)
 {
     static constexpr f32 GROWTH_RATE = 1.5f;
 
-    const u64 newSize = std::max(newMinSize, (u64)GROWTH_RATE * Device::GetBufferArenaSizeBytesPhysical(arena));
-    Device::ResizeBufferArenaPhysical(arena, newSize, cmd);
+    const u64 newSize = std::max(newMinSize, (u64)GROWTH_RATE * arena.GetSizeBytesPhysical());
+    arena.ResizePhysical(newSize, cmd);
 }
 
 BufferSuballocation suballocateResizeIfFailed(BufferArena arena, u64 sizeBytes, u32 alignment, CommandBuffer cmd)
 {
-    BufferSuballocationResult suballocationResult = Device::BufferArenaSuballocate(arena, sizeBytes, alignment);
+    BufferSuballocationResult suballocationResult = arena.Suballocate(sizeBytes, alignment);
     if (suballocationResult.has_value())
         return suballocationResult.value();
 
     ASSERT(suballocationResult.error() != BufferSuballocationError::OutOfVirtualMemory,
         "Out of virtual memory for buffer arena")
 
-    growBufferArena(arena, Device::GetBufferArenaSizeBytesPhysical(arena) + sizeBytes, cmd);
-    suballocationResult = Device::BufferArenaSuballocate(arena, sizeBytes, alignment);
+    growBufferArena(arena, arena.GetSizeBytesPhysical() + sizeBytes, cmd);
+    suballocationResult = arena.Suballocate(sizeBytes, alignment);
     ASSERT(suballocationResult.has_value(), "Failed to suballocate")
 
     return suballocationResult.value();
@@ -294,14 +294,14 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
     }
 
     auto* renderObjects = ctx.ResourceUploader->MapBuffer<RenderObjectGPU>({
-        .Buffer = Device::GetBufferArenaUnderlyingBuffer(RenderObjects),
+        .Buffer = RenderObjects.GetUnderlyingBuffer(),
         .Description = {
             .SizeBytes = renderObjectsSizeBytes,
             .Offset = instanceInfo.RenderObjectsSuballocation.Description.Offset
         }
     });
     auto* renderObjectSkinnedInfos = ctx.ResourceUploader->MapBuffer<RenderObjectSkinnedInfoGPU>({
-        .Buffer = Device::GetBufferArenaUnderlyingBuffer(RenderObjectSkinnedInfos),
+        .Buffer = RenderObjectSkinnedInfos.GetUnderlyingBuffer(),
         .Description = {
             .SizeBytes = renderObjectSkinnedInfosSizeBytes,
             .Offset = instanceInfo.RenderObjectSkinnedInfosSuballocation.Description.Offset
@@ -367,7 +367,7 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
         if (instanceHasSkins)
         {
             SkinGPU* skins = ctx.ResourceUploader->MapBuffer<SkinGPU>({
-                .Buffer = Device::GetBufferArenaUnderlyingBuffer(Skins),
+                .Buffer = Skins.GetUnderlyingBuffer(),
                 .Description = {
                     .SizeBytes = skinsSizeBytes,
                     .Offset = instanceInfo.SkinsSuballocation.Description.Offset
@@ -391,7 +391,7 @@ SceneGeometry::AddInstanceResult SceneGeometry::AddInstance(const lux::SceneAsse
             using enum SceneInfoOffsetType;
             
             BlendShapeGPU* blendShapes = ctx.ResourceUploader->MapBuffer<BlendShapeGPU>({
-                .Buffer = Device::GetBufferArenaUnderlyingBuffer(BlendShapes),
+                .Buffer = BlendShapes.GetUnderlyingBuffer(),
                 .Description = {
                     .SizeBytes = blendShapesSizeBytes,
                     .Offset = instanceInfo.BlendShapesSuballocation.Description.Offset
@@ -443,7 +443,7 @@ void SceneGeometry::UpdateMaterials(const lux::SceneAsset& scene, FrameContext& 
     if (it == m_SceneInfoOffsets.end())
         return;
     const auto& suballocations = it->second.Suballocations;
-    Device::BufferArenaFree(this->Materials, suballocations[(u32)Materials]);
+    this->Materials.Free(suballocations[(u32)Materials]);
 
     writeSuballocation(this->Materials, scene.Geometry.Materials, Materials, it->second, ctx);
 }
@@ -458,14 +458,14 @@ void SceneGeometry::Delete(const lux::SceneAsset& scene)
 
     const auto& suballocations = it->second.Suballocations;
 
-    Device::BufferArenaFree(Attributes, suballocations[(u32)Position]);
-    Device::BufferArenaFree(Attributes, suballocations[(u32)Normal]);
-    Device::BufferArenaFree(Attributes, suballocations[(u32)Tangent]);
-    Device::BufferArenaFree(Attributes, suballocations[(u32)Uv]);
-    Device::BufferArenaFree(Indices, suballocations[(u32)Index]);
-    Device::BufferArenaFree(this->Meshlets, suballocations[(u32)Meshlets]);
-    Device::BufferArenaFree(this->Meshlets, suballocations[(u32)MeshletBounds]);
-    Device::BufferArenaFree(this->Materials, suballocations[(u32)Materials]);
+    Attributes.Free(suballocations[(u32)Position]);
+    Attributes.Free(suballocations[(u32)Normal]);
+    Attributes.Free(suballocations[(u32)Tangent]);
+    Attributes.Free(suballocations[(u32)Uv]);
+    Indices.Free(suballocations[(u32)Index]);
+    this->Meshlets.Free(suballocations[(u32)Meshlets]);
+    this->Meshlets.Free(suballocations[(u32)MeshletBounds]);
+    this->Materials.Free(suballocations[(u32)Materials]);
 
     m_SceneInfoOffsets.erase(it);
 }
@@ -473,22 +473,20 @@ void SceneGeometry::Delete(const lux::SceneAsset& scene)
 void SceneGeometry::DeleteRenderObjects(lux::SceneInstanceHandle instance)
 {
     auto& instanceInfo = m_InstancesInfo.at(instance);
-    Device::BufferArenaFree(RenderObjects, instanceInfo.RenderObjectsSuballocation.Handle);
+    RenderObjects.Free(instanceInfo.RenderObjectsSuballocation.Handle);
 
     if (instanceInfo.SkinnedRenderObjectCount > 0)
     {
-        Device::BufferArenaFree(RenderObjectSkinnedInfos, instanceInfo.RenderObjectSkinnedInfosSuballocation.Handle);
+        RenderObjectSkinnedInfos.Free(instanceInfo.RenderObjectSkinnedInfosSuballocation.Handle);
         if (instanceInfo.SkinsSuballocation.Handle != INVALID_BUFFER_SUBALLOCATION_HANDLE)
         {
-            Device::BufferArenaFree(JointMatrices, instanceInfo.JointMatricesSuballocation.Handle);
-            Device::BufferArenaFree(Skins, instanceInfo.SkinsSuballocation.Handle);
+            JointMatrices.Free(instanceInfo.JointMatricesSuballocation.Handle);
+            Skins.Free(instanceInfo.SkinsSuballocation.Handle);
         }
         if (instanceInfo.BlendShapesSuballocation.Handle != INVALID_BUFFER_SUBALLOCATION_HANDLE)
-        {
-            Device::BufferArenaFree(BlendShapes, instanceInfo.BlendShapesSuballocation.Handle);
-        }
-        Device::BufferArenaFree(Attributes, instanceInfo.SkinnedVertexSuballocation.Handle);
-        Device::BufferArenaFree(Meshlets, instanceInfo.SkinnedMeshletBoundSuballocation.Handle);
+            BlendShapes.Free(instanceInfo.BlendShapesSuballocation.Handle);
+        Attributes.Free(instanceInfo.SkinnedVertexSuballocation.Handle);
+        Meshlets.Free(instanceInfo.SkinnedMeshletBoundSuballocation.Handle);
         SkinnedRenderObjectCount -= instanceInfo.SkinnedRenderObjectCount;
         SkinnedMeshletCount -= instanceInfo.SkinnedMeshletCount;
         SkinnedVertexCount -= instanceInfo.SkinnedVertexCount;

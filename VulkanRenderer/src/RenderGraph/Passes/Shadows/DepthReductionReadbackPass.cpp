@@ -32,9 +32,9 @@ Passes::DepthReductionReadback::PassData& Passes::DepthReductionReadback::addToG
             passData.MinMaxDepth = graph.ReadBuffer(info.MinMaxDepthReduction, ResourceAccessFlags::Readback);
 
             const Buffer minMax = graph.GetBuffer(passData.MinMaxDepth);
-            const void* address = Device::MapBuffer(minMax);
+            const void* address = minMax.Map();
             HiZ::MinMaxDepth depths = *(const HiZ::MinMaxDepth*)address;
-            Device::UnmapBuffer(minMax);
+            minMax.Unmap();
 
             passData.Min = -linearizeDepth(std::bit_cast<f32>(depths.Max), *info.PrimaryCamera);
             passData.Max = -linearizeDepth(std::bit_cast<f32>(depths.Min), *info.PrimaryCamera);

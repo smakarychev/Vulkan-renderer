@@ -134,8 +134,8 @@ ImageAsset ImageAssetManager::DoLoad(import::ImageImporter& importer, const std:
         layersDepth = imageAsset.Header.Depth;
     if (imageAsset.Header.GenerateMipmaps)
         mips = imageAsset.Header.Kind == assetlib::ImageKind::Image3d ?
-           Images::mipmapCount({imageAsset.Header.Width, imageAsset.Header.Height, imageAsset.Header.Depth}) :
-           Images::mipmapCount({imageAsset.Header.Width, imageAsset.Header.Height});
+           images::mipmapCount({imageAsset.Header.Width, imageAsset.Header.Height, imageAsset.Header.Depth}) :
+           images::mipmapCount({imageAsset.Header.Width, imageAsset.Header.Height});
 
     const Image image = Device::CreateImage({
         .DataSource = &imageAsset,

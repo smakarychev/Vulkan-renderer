@@ -34,7 +34,7 @@ RG::ImageResource& createShapeTexture(StringId name, RG::Graph& renderGraph, f32
                     .Width = textureSize,
                     .Height = textureSize,
                     .LayersDepth = textureSize,
-                    .Mipmaps = Images::mipmapCount(glm::uvec2((u32)textureSize)),
+                    .Mipmaps = images::mipmapCount(glm::uvec2((u32)textureSize)),
                     .Format = Format::R16_FLOAT,
                     .Kind = ImageKind::Image3d,
                 });

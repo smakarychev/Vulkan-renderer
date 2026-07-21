@@ -8,6 +8,7 @@
 #include <vector>
 #include <unordered_map>
 
+struct DescriptorAllocatorAllocationBindings;
 // todo: probably 4
 static constexpr u32 MAX_DESCRIPTOR_SETS = 3;
 static_assert(MAX_DESCRIPTOR_SETS == 3, "Must have exactly 3 sets");
@@ -44,17 +45,28 @@ struct DescriptorsLayoutCreateInfo
 struct DescriptorsLayoutTag{};
 using DescriptorsLayout = ResourceHandleType<DescriptorsLayoutTag>;
 
-struct DescriptorArenaAllocatorTag{};
-using DescriptorArenaAllocator = ResourceHandleType<DescriptorArenaAllocatorTag>;
-
-struct DescriptorsTag{};
-using Descriptors = ResourceHandleType<DescriptorsTag>;
-
 struct DescriptorSlotInfo
 {
     u32 Slot{};
     DescriptorType Type{};
 };
+
+struct DescriptorsTag{};
+struct Descriptors : ResourceHandleType<DescriptorsTag>
+{
+    void Update(DescriptorSlotInfo slotInfo, const BufferSubresource& buffer, u32 index) const;  
+    void Update(DescriptorSlotInfo slotInfo, Sampler sampler) const;  
+    void Update(DescriptorSlotInfo slotInfo, const ImageSubresource& image, ImageLayout layout, u32 index) const;
+};
+
+struct DescriptorArenaAllocatorTag{};
+struct DescriptorArenaAllocator : ResourceHandleType<DescriptorArenaAllocatorTag>
+{
+    std::optional<Descriptors> Allocate(DescriptorsLayout layout,
+        DescriptorAllocatorAllocationBindings&& bindings) const;
+    void Reset() const;
+};
+
 
 enum class DescriptorAllocatorResidence
 {

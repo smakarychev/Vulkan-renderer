@@ -12,7 +12,7 @@ CameraGPU CameraGPU::FromCamera(const ::Camera& camera, const glm::uvec2& resolu
     viewFlags |= (u32)(camera.GetType() == CameraType::Orthographic) << IS_ORTHOGRAPHIC_BIT;
     viewFlags |= (u32)enumHasAny(visibilityFlags, VisibilityFlags::ClampDepth) << CLAMP_DEPTH_BIT;
     const glm::uvec2 hizResolution = enumHasAny(visibilityFlags, VisibilityFlags::OcclusionCull) ?
-        Images::floorResolutionToPowerOfTwo(resolution) : glm::uvec2(0);
+        images::floorResolutionToPowerOfTwo(resolution) : glm::uvec2(0);
     const f32 maxCullDistance = *CVars::Get().GetF32CVar("Renderer.Limits.MaxGeometryCullDistance"_hsv);
 
     const auto& frustumPlanes = camera.GetFrustumPlanes(maxCullDistance);

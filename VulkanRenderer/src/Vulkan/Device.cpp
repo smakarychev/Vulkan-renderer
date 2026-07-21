@@ -1860,7 +1860,7 @@ DeviceCreateInfo DeviceCreateInfo::Default(lux::Window* window, bool asyncComput
 
 void DeviceResources::MapCmdToPool(CommandBuffer cmd, CommandPool pool)
 {
-    m_CommandPoolToBuffersMap[pool.m_Id].push_back(cmd.m_Id);
+    m_CommandPoolToBuffersMap[pool.m_Id].push_back(cmd);
 }
 
 void DeviceResources::DestroyCmdsOfPool(CommandPool pool)
@@ -3627,7 +3627,7 @@ Swapchain DeviceInternal::CreateSwapchain(const auto& resources, SwapchainCreate
     swapchainResource.RenderSemaphores.reserve(imageCount);
     for (u32 i = 0; i < imageCount; i++)
         swapchainResource.RenderSemaphores.push_back({CreateSemaphore(resources, Device::DummyDeletionQueue())});
-    Swapchain swapchain = resources.Add(swapchainResource);
+    Swapchain swapchain = {resources.Add(swapchainResource)};
     CreateSwapchainImages(resources, swapchain);
     deletionQueue.Enqueue(swapchain);
 
@@ -3665,7 +3665,7 @@ void DeviceInternal::CreateSwapchainImages(const auto& resources, Swapchain swap
     for (u32 i = 0; i < imageCount; i++)
     {
         ImageResource imageResource = {.Image = images[i], .Description = description};
-        colorImages[i] = resources.Add(imageResource);
+        colorImages[i] = {resources.Add(imageResource)};
         resources[colorImages[i]].Views.ViewType.View = DeviceInternal::CreateVulkanImageView(resources,
             ImageSubresource{.Image = colorImages[i], .Description = {.Mipmaps = 1, .Layers = 1}},
             swapchainResource.ColorFormat);
@@ -3752,7 +3752,7 @@ CommandPool DeviceInternal::CreateCommandPool(const auto& resources, CommandPool
     deviceCheck(vkCreateCommandPool(g_State.Device, &poolCreateInfo, nullptr, &commandPoolResource.CommandPool),
         "Failed to create command pool");
 
-    const CommandPool commandPool = resources.Add(commandPoolResource);
+    const CommandPool commandPool = {resources.Add(commandPoolResource)};
     if (commandPool.m_Id >= deviceResources().m_CommandPoolToBuffersMap.size())
         deviceResources().m_CommandPoolToBuffersMap.resize(commandPool.m_Id + 1);
     deletionQueue.Enqueue(commandPool);
@@ -3786,7 +3786,7 @@ CommandBuffer DeviceInternal::CreateCommandBuffer(const auto& resources, Command
     deviceCheck(vkAllocateCommandBuffers(g_State.Device, &allocateInfo, &commandBufferResource.CommandBuffer),
         "Failed to allocate command buffer");
 
-    CommandBuffer cmd = resources.Add(commandBufferResource);
+    const CommandBuffer cmd = {resources.Add(commandBufferResource)};
     deviceResources().MapCmdToPool(cmd, createInfo.Pool);
 
     return cmd;
@@ -4118,7 +4118,7 @@ Buffer DeviceInternal::AllocateBuffer(const auto& resources, const BufferCreateI
     if (createInfo.PersistentMapping)
         bufferResource.HostAddress = bufferResource.Allocation->GetMappedData();
 
-    return resources.Add(bufferResource);
+    return {resources.Add(bufferResource)};
 }
 
 BufferArena DeviceInternal::CreateBufferArena(const auto& resources, BufferArenaCreateInfo&& createInfo,
@@ -4133,7 +4133,7 @@ BufferArena DeviceInternal::CreateBufferArena(const auto& resources, BufferArena
     bufferArenaResource.Buffer = createInfo.Buffer;
     bufferArenaResource.VirtualSizeBytes = createInfo.VirtualSizeBytes;
 
-    const BufferArena arena = resources.Add(bufferArenaResource);
+    const BufferArena arena = {resources.Add(bufferArenaResource)};
     deletionQueue.Enqueue(arena);
 
     return arena;
@@ -4491,7 +4491,7 @@ Image DeviceInternal::AllocateImage(const auto& resources, ImageCreateInfo& crea
         "Failed to create image");
     imageResource.Description = createInfo.Description;
 
-    return resources.Add(imageResource);
+    return {resources.Add(imageResource)};
 }
 
 void DeviceInternal::Destroy(const auto& resources, Image image)
@@ -5285,7 +5285,7 @@ DescriptorArenaAllocator DeviceInternal::CreateDescriptorArenaAllocator(const au
     descriptorAllocatorResource.MaxSetsPerPool = createInfo.DescriptorCount;
     descriptorAllocatorResource.Descriptors.reserve(createInfo.DescriptorCount);
 
-    const DescriptorArenaAllocator allocator = resources.Add(descriptorAllocatorResource);
+    const DescriptorArenaAllocator allocator = {resources.Add(descriptorAllocatorResource)};
     deletionQueue.Enqueue(allocator);
 
     return allocator;
@@ -5348,7 +5348,7 @@ std::optional<Descriptors> DeviceInternal::AllocateDescriptors(const auto& resou
         descriptorSetResource.Pool = pool;
     }
 
-    const Descriptors set = resources.Add(descriptorSetResource);
+    const Descriptors set = {resources.Add(descriptorSetResource)};
     allocatorResource.Descriptors.push_back(set);
 
     return set;
@@ -5444,7 +5444,7 @@ Fence DeviceInternal::CreateFence(const auto& resources, FenceCreateInfo&& creat
     deviceCheck(vkCreateFence(g_State.Device, &fenceCreateInfo, nullptr, &fenceResource.Fence),
         "Failed to create fence");
 
-    const Fence fence = resources.Add(fenceResource);
+    const Fence fence = {resources.Add(fenceResource)};
     deletionQueue.Enqueue(fence);
 
     return fence;
@@ -5510,7 +5510,7 @@ TimelineSemaphore DeviceInternal::CreateTimelineSemaphore(const auto& resources,
     vkCreateSemaphore(g_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore);
     semaphoreResource.Timeline = createInfo.InitialValue;
 
-    TimelineSemaphore semaphore = resources.Add(semaphoreResource);
+    TimelineSemaphore semaphore = {resources.Add(semaphoreResource)};
     deletionQueue.Enqueue(semaphore);
 
     return semaphore;
