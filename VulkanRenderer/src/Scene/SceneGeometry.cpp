@@ -2,13 +2,12 @@
 
 #include "SceneGeometry.h"
 
-#include "BindlessTextureDescriptorsRingBuffer.h"
+#include "Renderer/BindlessTextureDescriptorsRingBuffer.h"
 #include "Vulkan/Device.h"
 
 #include "FrameContext.h"
 #include "ResourceUploader.h"
 #include "Scene.h"
-#include "RenderGraph/Passes/Generated/Types/SkinnedVertexUniform.generated.h"
 
 namespace
 {

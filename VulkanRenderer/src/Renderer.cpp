@@ -79,7 +79,7 @@
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/MipMapPass.h"
 #include "RenderGraph/Passes/Utility/UploadPass.h"
-#include "Scene/BindlessTextureDescriptorsRingBuffer.h"
+#include "Renderer/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Scene.h"
 
 #include <AssetLib/Images/ImageMeta.h>

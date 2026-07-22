@@ -5,7 +5,6 @@
 #include "Assets/Enums/ConvertAssetEnums.h"
 #include "Assets/Images/ImageAssetManager.h"
 #include "Assets/Materials/MaterialAssetManager.h"
-#include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 
 #include <AssetLib/Images/ImageMeta.h>
 #include <AssetLib/Materials/MaterialAsset.h>

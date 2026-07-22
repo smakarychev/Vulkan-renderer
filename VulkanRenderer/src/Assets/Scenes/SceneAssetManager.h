@@ -3,7 +3,7 @@
 #include "Assets/AssetManager.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Common/AssetSlotMap.h"
-#include "Scene/BindlessTextureDescriptorsRingBuffer.h"
+#include "Renderer/BindlessTextureDescriptorsRingBuffer.h"
 
 #include <AssetLib/Scenes/GeometryBuffer/GeometryBufferAsset.h>
 #include <AssetImportLib/Importers/ImportContext.h>

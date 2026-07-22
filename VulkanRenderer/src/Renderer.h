@@ -22,7 +22,6 @@
 #include "RenderGraph/Visualization/RGMermaidExporter.h"
 #include "Vulkan/Device.h"
 #include "Rendering/Swapchain.h"
-#include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Scene.h"
 #include "Scene/ScenePass.h"
 #include "Scene/SceneRenderObjectSet.h"
