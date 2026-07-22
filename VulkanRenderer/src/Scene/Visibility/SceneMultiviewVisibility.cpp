@@ -1,7 +1,7 @@
 #include "rendererpch.h"
 
 #include "SceneMultiviewVisibility.h"
-#include "Scene/SceneRenderObjectSet.h"
+#include "Scene/Rendering/SceneRenderObjectSet.h"
 
 void SceneMultiviewVisibility::Init(const SceneRenderObjectSet& set)
 {

@@ -4,7 +4,7 @@
 
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewCreateDrawCommandsPass.h"
-#include "Scene/SceneRenderObjectSet.h"
+#include "Scene/Rendering/SceneRenderObjectSet.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewVisibilityHiZPass.h"

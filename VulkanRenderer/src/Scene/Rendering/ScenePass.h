@@ -4,6 +4,11 @@
 
 #include <CoreLib/String/StringId.h>
 
+namespace lux
+{
+struct SceneGeometryInfo;
+}
+
 struct ScenePassCreateInfo
 {
     StringId Name{};

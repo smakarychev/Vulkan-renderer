@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Scene.h"
+#include "Scene/Scene.h"
 #include "ScenePass.h"
 #include "Rendering/Buffer/PushBuffer.h"
 

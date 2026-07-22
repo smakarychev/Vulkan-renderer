@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Scene/ScenePass.h"
+#include "Scene/Rendering/ScenePass.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGDrawResources.h"
 

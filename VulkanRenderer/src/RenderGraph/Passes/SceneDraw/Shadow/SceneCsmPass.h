@@ -4,7 +4,7 @@
 #include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/RGResource.h"
 #include "RenderGraph/Passes/Generated/Types/CsmDataUniform.generated.h"
-#include "Scene/ScenePass.h"
+#include "Scene/Rendering/ScenePass.h"
 
 #include <CoreLib/Math/Geometry.h>
 

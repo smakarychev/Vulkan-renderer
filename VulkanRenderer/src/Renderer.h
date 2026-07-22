@@ -23,8 +23,8 @@
 #include "Vulkan/Device.h"
 #include "Rendering/Swapchain.h"
 #include "Scene/Scene.h"
-#include "Scene/ScenePass.h"
-#include "Scene/SceneRenderObjectSet.h"
+#include "Scene/Rendering/ScenePass.h"
+#include "Scene/Rendering/SceneRenderObjectSet.h"
 #include "Scene/Visibility/SceneMultiviewVisibility.h"
 #include <AssetImportLib/Importers/Shaders/ShaderImporter.h>
 

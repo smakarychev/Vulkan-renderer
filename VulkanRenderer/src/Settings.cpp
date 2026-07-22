@@ -3,7 +3,7 @@
 #include "Settings.h"
 #include "cvars/CVarSystem.h"
 #include "Rendering/Commands/RenderCommands.h"
-#include "Scene/ScenePass.h"
+#include "Scene/Rendering/ScenePass.h"
 #include "Scene/Visibility/SceneVisibility.h"
 
 void Settings::initCvars()

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "SceneVisibility.h"
-#include "Scene/SceneRenderObjectSet.h"
+#include "Scene/Rendering/SceneRenderObjectSet.h"
 
 #include <array>
 
