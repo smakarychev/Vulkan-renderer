@@ -37,6 +37,4 @@ struct SceneVisibilityPassesResources
         RG::Graph& renderGraph,
         SceneGeometryRGResources& sceneGeometryRGResources,
         const SceneMultiviewVisibility& sceneMultiviewVisibility);
-
-    void Init(const SceneMultiviewVisibility& sceneMultiviewVisibility, RG::Graph& renderGraph);
 };

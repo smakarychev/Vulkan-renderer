@@ -5,6 +5,7 @@
 #include "RenderGraph/RGDrawResources.h"
 
 #include "Scene/Visibility/SceneVisibility.h"
+#include "Scene/Visibility/SceneView.h"
 
 #include <functional>
 

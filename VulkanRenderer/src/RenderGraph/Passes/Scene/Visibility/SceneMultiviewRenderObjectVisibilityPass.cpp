@@ -25,9 +25,6 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             resources.RenderObjects = passData.BindGroup.SetResourcesObjects(resources.RenderObjects);
             resources.RenderObjectHandles = passData.BindGroup.SetResourcesObjectHandles(resources.RenderObjectHandles);
 
-            if (info.Stage != SceneVisibilityStage::Reocclusion)
-                resources.Init(multiview, graph);
-
             resources.VisibleRenderObjectsData = passData.BindGroup.SetResourcesVisibleRenderObjects(
                 resources.VisibleRenderObjectsData);
             resources.OccludedRenderObjectsData = passData.BindGroup.SetResourcesOccludedRenderObjects(

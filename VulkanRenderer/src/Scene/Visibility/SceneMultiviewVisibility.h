@@ -1,5 +1,6 @@
 #pragma once
 
+#include "SceneView.h"
 #include "SceneVisibility.h"
 #include "Scene/Rendering/SceneRenderObjectSet.h"
 

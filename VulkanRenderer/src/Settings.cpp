@@ -4,7 +4,7 @@
 #include "cvars/CVarSystem.h"
 #include "Rendering/Commands/RenderCommands.h"
 #include "Scene/Rendering/ScenePass.h"
-#include "Scene/Visibility/SceneVisibility.h"
+#include "Scene/Visibility/SceneView.h"
 
 void Settings::initCvars()
 {
@@ -162,10 +162,4 @@ void Settings::initCvars()
     CVarI32 sceneSetRenderObjectBucketBufferSize("Scene.RenderObjectSet.RenderObjectBuckets.SizeBytes"_hsv,
         "Default size of the scene render object set buckets buffer",
         DEFAULT_RENDER_OBJECT_COUNT * sizeof(SceneBucketBits));
-    CVarI32 sceneVisibilityBufferSize("Scene.Visibility.Buffer.SizeBytes"_hsv,
-        "Default size of the scene visibility buffer",
-        DEFAULT_RENDER_OBJECT_COUNT / sizeof(SceneVisibilityBucket));
-    CVarI32 sceneMeshletVisibilityBufferSize("Scene.Visibility.Meshlet.Buffer.SizeBytes"_hsv,
-        "Default size of the scene visibility buffer for meshlets",
-        DEFAULT_MESHLET_COUNT / sizeof(SceneVisibilityBucket));
 }

@@ -61,19 +61,25 @@ SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultivie
                 RG::RGBufferDescription{.SizeBytes = sizeof(SceneBucketDrawInfo)});
         }
     }
+
+    renderGraph.AddRenderPass<u32>("UploadMultiviewVisibility"_hsv, [&](RG::Graph& graph, u32&)
+        {
+            CPU_PROFILE_FRAME("UploadMultiviewVisibility.Setup")
+
+            resources.VisibilityCountData = graph.Upload(resources.VisibilityCountData,
+                ::gen::SceneVisibilityCountData{});
+            for (u32 i = 0; i < resources.VisibilityCount; i++)
+            {
+                if (sceneMultiviewVisibility.View({i}).ViewInfo.IsViewInfoGPU())
+                    resources.Views[i] = graph.Upload(resources.Views[i],
+                        sceneMultiviewVisibility.View({i}).ViewInfo.AsViewInfoGPU());
+                else
+                    resources.Views[i] = sceneMultiviewVisibility.View({i}).ViewInfo.AsHandle<RG::BufferResource>();
+            }
+        },
+        [=](const u32&, FrameContext&, const RG::Graph&)
+        {
+        });
     
     return resources;
-}
-
-void SceneVisibilityPassesResources::Init(const SceneMultiviewVisibility& sceneMultiviewVisibility,
-    RG::Graph& renderGraph)
-{
-    VisibilityCountData = renderGraph.Upload(VisibilityCountData, ::gen::SceneVisibilityCountData{});
-    for (u32 i = 0; i < VisibilityCount; i++)
-    {
-        if (sceneMultiviewVisibility.View({i}).ViewInfo.IsViewInfoGPU())
-            Views[i] = renderGraph.Upload(Views[i], sceneMultiviewVisibility.View({i}).ViewInfo.AsViewInfoGPU());
-        else
-            Views[i] = sceneMultiviewVisibility.View({i}).ViewInfo.AsHandle<RG::BufferResource>();
-    }
 }

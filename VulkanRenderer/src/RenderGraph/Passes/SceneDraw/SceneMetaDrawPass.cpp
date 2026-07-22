@@ -58,7 +58,7 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                     {
                         const u32 bucketIndex = info.MultiviewVisibility->ObjectSet().BucketHandleToIndex(bucketHandle);
                         auto& bucket = pass.Pass->BucketFromHandle(bucketHandle);
-                        u32 drawIndex = visibilityIndex * bucketCount + bucketIndex;
+                        const u32 drawIndex = visibilityIndex * bucketCount + bucketIndex;
                         
                         attachmentResources = pass.DrawPassInit(
                             StringId("{}.{}.{}.{}.{}",

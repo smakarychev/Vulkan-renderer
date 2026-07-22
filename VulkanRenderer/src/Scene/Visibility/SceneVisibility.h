@@ -1,8 +1,6 @@
 #pragma once
 
-#include "SceneView.h"
-
-using SceneVisibilityBucket = u64;
+#include <CoreLib/types.h>
 
 struct SceneVisibilityHandle
 {
