@@ -1024,6 +1024,8 @@ void deviceCheck(VkResult res, std::string_view message)
 }
 }
 
+namespace
+{
 struct SwapchainResource
 {
     using ObjectType = SwapchainTag;
@@ -1255,6 +1257,7 @@ struct TagTraits
 {
     static_assert(!sizeof(Tag), "No match for type");
 };
+}
 
 template <>
 struct TagTraits<SwapchainTag>
