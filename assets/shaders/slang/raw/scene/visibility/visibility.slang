@@ -197,6 +197,9 @@ public VisibilityResult isVisibleOcclusionFirstStageOrthographic(const ViewInfo 
     if (!isFrustumVisibleOrthographic(origin, radius, view.camera))
         return VisibilityResult.NotVisible;
 
+    if (!view.camera.isOcclusionCulled())
+        return VisibilityResult.Visible;
+
     if (!isFrustumVisibleOrthographic(originPrevious, radiusPrevious, view.previousCamera))
         return VisibilityResult.MaybeVisible;
 
@@ -211,6 +214,9 @@ public VisibilityResult isVisibleOcclusionFirstStagePerspective(const ViewInfo v
 
     if (!isFrustumVisible(origin, radius, view.camera))
         return VisibilityResult.NotVisible;
+
+    if (!view.camera.isOcclusionCulled())
+        return VisibilityResult.Visible;
 
     if (!isFrustumVisible(originPrevious, radiusPrevious, view.previousCamera))
         return VisibilityResult.MaybeVisible;

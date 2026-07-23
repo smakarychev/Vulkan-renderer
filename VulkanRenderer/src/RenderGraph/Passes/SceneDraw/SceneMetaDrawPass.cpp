@@ -90,8 +90,14 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                 }
             };
             
+            bool hasAnyPassWithOcclusionCulling = false;
+            for (u32 i = 0; i < info.MultiviewVisibility->VisibilityCount(); i++)
+                hasAnyPassWithOcclusionCulling = hasAnyPassWithOcclusionCulling || enumHasAny(
+                    info.MultiviewVisibility->View({i}).ViewInfo.VisibilityFlags(), VisibilityFlags::OcclusionCull);
+
             for (auto& viewPass : info.DrawPasses)
-                passData.DrawPassViewAttachments.Add(viewPass.SceneView.Name, viewPass.Pass->Name(), viewPass.Attachments);
+                passData.DrawPassViewAttachments.Add(viewPass.SceneView.Name, viewPass.Pass->Name(),
+                    viewPass.Attachments);
 
             u64 bucketsMask = 0;
             for (auto& pass : info.DrawPasses)
@@ -135,6 +141,9 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
             for (u32 visibilityIndex = 0; visibilityIndex < info.MultiviewVisibility->VisibilityCount();
                 visibilityIndex++)
                 drawWithVisibility(visibilityIndex, /*reocclusion*/false);
+            
+            if (!hasAnyPassWithOcclusionCulling)
+                return;
 
             SceneMultiviewVisibilityHiz::addToGraph(
                 name.Concatenate("HizMultiview"),

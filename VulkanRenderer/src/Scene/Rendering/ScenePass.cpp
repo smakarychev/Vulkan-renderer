@@ -23,7 +23,7 @@ void ScenePass::AddBuckets(Span<const SceneBucketCreateInfo> buckets)
         MAX_BUCKETS_PER_SET, maxHandle - minHandle)
 }
 
-SceneBucketHandle ScenePass::Filter(const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject)
+SceneBucketHandle ScenePass::Filter(const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) const
 {
     SceneBucketHandle bucketToAssignTo = INVALID_SCENE_BUCKET;
     for (auto bucketHandle : m_BucketHandles)
