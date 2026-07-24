@@ -16,7 +16,8 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             CPU_PROFILE_FRAME("RenderObjectVisibilityPass.Setup")
 
             passData.BindGroup = SceneRenderObjectVisibilityBindGroupRG(graph, ShaderSpecializations(
-                ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}));
+                ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion},
+                ShaderSpecialization{"SINGLE_PASS"_hsv, info.Stage == SceneVisibilityStage::Single}));
             
             auto& multiview = *info.MultiviewVisibility;
             
@@ -40,7 +41,7 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
                 if (!enumHasAny(multiview.View({i}).ViewInfo.VisibilityFlags(), VisibilityFlags::OcclusionCull))
                     continue;
                     
-                if (info.Stage == SceneVisibilityStage::Reocclusion)
+                if (info.Stage != SceneVisibilityStage::Cull)
                     resources.Hiz[i] = passData.BindGroup.SetResourcesHiz(resources.Hiz[i], i);
                 else
                     resources.HizPrevious[i] = passData.BindGroup.SetResourcesHizPrevious(resources.HizPrevious[i], i);

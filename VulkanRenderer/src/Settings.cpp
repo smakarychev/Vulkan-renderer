@@ -38,7 +38,10 @@ void Settings::initCvars()
         "Flag if depth prepass enabled possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
     CVarI32 forwardShading("Renderer.UseForwardShading"_hsv,
         "Flag if renderer uses forward shading as main rendering pass "
-        "possible values are 0 (disabled, default) and 1 (enabled)", (i32)false);
+        "possible values are 0 (disabled, default) and 1 (enabled)", (i32)false); 
+    CVarI32 forwardTranslucentShading("Renderer.UseForwardTranslucentShading"_hsv,
+        "Flag if renderer should draw translucent geometry possible values are 0 (disabled) and 1 (enabled, default)",
+        (i32)true);
     CVarI32 gpuShadowCameras("Renderer.UseGpuShadowCameras"_hsv,
         "Flag if renderer create shadow cameras on gpu "
         "possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);

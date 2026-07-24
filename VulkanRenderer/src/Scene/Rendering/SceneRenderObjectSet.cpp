@@ -76,8 +76,7 @@ void SceneRenderObjectSet::OnNewSceneInstance(const NewInstanceData& instanceDat
 {
     const lux::SceneGeometryInfo& geometry = instanceData.Scene->Geometry;
 
-    static constexpr u32 INVALID_ID = ~0u;
-    SceneInstanceInfo addedInstanceInfo = {.FirstRenderObject = INVALID_ID};
+    SceneInstanceInfo addedInstanceInfo = {.FirstRenderObject = SceneInstanceInfo::INVALID};
     
     for (u32 renderObjectIndex = 0; renderObjectIndex < geometry.RenderObjects.size(); renderObjectIndex++)
     {
@@ -106,7 +105,7 @@ void SceneRenderObjectSet::OnNewSceneInstance(const NewInstanceData& instanceDat
                 trianglesCount += geometry.Meshlets[renderObject.FirstMeshlet + meshletIndex].IndexCount / 3;
             m_TriangleCount += trianglesCount;
             
-            if (addedInstanceInfo.FirstRenderObject == INVALID_ID)
+            if (addedInstanceInfo.FirstRenderObject == SceneInstanceInfo::INVALID)
                 addedInstanceInfo.FirstRenderObject = renderObjectCpuIndex;
             addedInstanceInfo.RenderObjectCount += 1;
             addedInstanceInfo.MeshletCount += renderObject.MeshletCount;
@@ -114,13 +113,18 @@ void SceneRenderObjectSet::OnNewSceneInstance(const NewInstanceData& instanceDat
         }
     }
 
-    m_InstancesInfo.emplace(instanceData.Instance, addedInstanceInfo);
+    if (addedInstanceInfo.FirstRenderObject != SceneInstanceInfo::INVALID)
+        m_InstancesInfo.emplace(instanceData.Instance, addedInstanceInfo);
 }
 
 void SceneRenderObjectSet::OnDeletedSceneInstance(const DeletedInstanceData& instanceData)
 {
-    const SceneInstanceInfo& sceneInstance = m_InstancesInfo.at(instanceData.Instance);
-
+    const auto it = m_InstancesInfo.find(instanceData.Instance);
+    if (it == m_InstancesInfo.end())
+        return;
+    
+    const SceneInstanceInfo& sceneInstance = it->second;
+    
     m_RenderObjectsCpu.erase(
         m_RenderObjectsCpu.begin() + sceneInstance.FirstRenderObject,
         m_RenderObjectsCpu.begin() + sceneInstance.FirstRenderObject + sceneInstance.RenderObjectCount);

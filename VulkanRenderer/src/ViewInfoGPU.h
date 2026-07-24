@@ -21,9 +21,10 @@ class Camera;
 enum class VisibilityFlags : u32
 {
     None = 0,
-    ClampDepth      = BIT(1),
-    OcclusionCull   = BIT(2),
-    IsPrimaryView   = BIT(3),
+    ClampDepth = BIT(1),
+    OcclusionCull = BIT(2),
+    IsPrimaryView = BIT(3),
+    IsSingleOcclusionCull = BIT(4),
 };
 
 CREATE_ENUM_FLAGS_OPERATORS(VisibilityFlags)

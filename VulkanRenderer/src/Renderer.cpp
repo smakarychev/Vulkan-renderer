@@ -297,9 +297,31 @@ void Renderer::InitRenderGraph()
         },
         Passes::SceneCsm::getScenePassCreateInfo("Shadow"_hsv, *m_MaterialAssetManager),
     }, Device::DeletionQueue());
+    m_TranslucentSet.Init("Translucent"_hsv, *m_Scene, m_SceneBucketList, {
+        ScenePassCreateInfo{
+            .Name = "ForwardTranslucentPbr"_hsv,
+            .BucketCreateInfos = {
+                {
+                    .Name = "Translucent material"_hsv,
+                    .Filter = [this](const lux::SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
+                        const u32 material = geometry.RenderObjects[renderObject.Index].Material;
+                        if (material == lux::SceneRenderObject::INVALID)
+                            return false;
+                        const lux::MaterialAsset* materialAsset = m_MaterialAssetManager->Get(
+                            geometry.MaterialsCpu[material].Handle);
+                        if (materialAsset == nullptr)
+                            return false;
+                        
+                        return materialAsset->AlphaMode == lux::MaterialAlphaMode::Translucent;
+                    },
+                }
+            }
+        }
+    }, Device::DeletionQueue());
 
     m_ShadowMultiviewVisibility.Init(m_OpaqueSet);
     m_PrimaryVisibility.Init(m_OpaqueSet);
+    m_PrimaryTranslucentVisibility.Init(m_TranslucentSet);
     
     /* initial submit */
     Device::ImmediateSubmit([&](CommandBuffer cmd)
@@ -484,11 +506,6 @@ void Renderer::SetupRenderGraph()
         .Reference = backbuffer,
         .Format = Format::D32_FLOAT});
     
-    auto& shadowPass = m_OpaqueSet.FindPass("Shadow"_hsv);
-    auto* depthPrepass = m_OpaqueSet.TryFindPass("DepthPrepass"_hsv);
-    auto& pbrPass = m_OpaqueSet.FindPass("ForwardPbr"_hsv);
-    auto& vbufferPass = m_OpaqueSet.FindPass("Vbuffer"_hsv);
-    
     std::vector<SceneDrawPassDescription> drawPasses;
     
     m_Scene->IterateLights(lux::LightType::Directional, 
@@ -553,6 +570,14 @@ void Renderer::SetupRenderGraph()
             (VisibilityFlags)m_Graph->GetGlobalResources().PrimaryViewInfo.Camera.VisibilityFlags)
     };
     
+    m_TranslucentSetPrimaryView = {
+        .Name = "TranslucentPrimary"_hsv,
+        .ViewInfo = SceneViewInfo(
+            m_Graph->GetGlobalResources().PrimaryViewInfoResource,
+            (VisibilityFlags)m_Graph->GetGlobalResources().PrimaryViewInfo.Camera.VisibilityFlags |
+            VisibilityFlags::IsSingleOcclusionCull)
+    };
+    
     m_OpaqueSetPrimaryVisibility = m_PrimaryVisibility.AddVisibility(m_OpaqueSetPrimaryView);
     const u32 primaryVisibilityIndex = m_PrimaryVisibility.VisibilityHandleToIndex(m_OpaqueSetPrimaryVisibility);
     m_PrimaryVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
@@ -583,6 +608,8 @@ void Renderer::SetupRenderGraph()
 
     ImageResource minMaxDepth =
         m_PrimaryVisibilityResources.Hiz[primaryVisibilityIndex];
+    
+    RenderGraphForwardTranslucentPass(color, depth, m_CsmData, minMaxDepth);
     
     m_Graph->Export(
         metaUgb->DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
@@ -1042,6 +1069,74 @@ SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::ImageRes
     };
 }
 
+SceneDrawPassDescription Renderer::RenderGraphForwardTranslucentPbrDescription(RG::ImageResource color,
+    RG::ImageResource depth, RG::CsmData csmData, const ScenePass& scenePass)
+{
+    using namespace RG;
+
+    auto initForwardPbr = [&](StringId name, Graph& graph, const SceneDrawPassExecutionInfo& info)
+    {
+        const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
+        
+        Passes::SceneForwardPbr::ExecutionInfo executionInfo = {
+            .DrawInfo = info,
+            .Geometry = &m_SceneGeometryRGResources,
+            .DirectionalLights = m_Graph->Import(
+                "DirectionalLights"_hsv, m_Scene->Lights().GetBuffers().DirectionalLights),
+            .PointLights = m_Graph->Import("PointLights"_hsv, m_Scene->Lights().GetBuffers().PointLights),
+            .SSAO = {.SSAO = m_Ssao},
+            .IBL = {
+                .IrradianceSH = renderAtmosphere ? 
+                    m_SkyIrradianceSHResource :
+                    m_Graph->ImportPersistent("IrradianceSH"_hsv, m_IrradianceSH),
+                .PrefilterEnvironment = renderAtmosphere ?
+                    m_SkyPrefilterMapResource :
+                    m_Graph->ImportPersistent("PrefilterMap"_hsv, m_SkyboxPrefilterMap),
+                .BRDF = m_Graph->ImportPersistent("BRDF"_hsv, m_BRDFLut)
+            },
+            .Clusters = m_ClusterLightsInfo.Clusters,
+            .Tiles = m_TileLightsInfo.Tiles,
+            .ZBins = m_TileLightsInfo.ZBins,
+            .CsmData = csmData
+        };
+        executionInfo.CommonOverrides = ShaderPipelineOverrides({.DepthMode = DepthMode::Read});
+        
+        auto& pass = Passes::SceneForwardPbr::addToGraph(name.Concatenate(".TranslucentUGB"), graph, executionInfo);
+
+        return pass.Resources.Attachments;
+    };
+
+    const AttachmentLoad depthOnLoad = AttachmentLoad::Load;
+    const AttachmentStore depthOnStore = AttachmentStore::Store;
+
+    DrawAttachments attachments = {
+        .Colors = {
+            DrawAttachment{
+                .Resource = color,
+                .Description = {
+                    .OnLoad = AttachmentLoad::Load,
+                }
+            }
+        },
+        .Depth = DepthStencilAttachment{
+            .Resource = depth,
+            .Description = {
+                .OnLoad = depthOnLoad,
+                .OnStore = depthOnStore,
+                .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}
+            }
+        }
+    };
+
+    return {
+        .Pass = &scenePass,
+        .DrawPassInit = initForwardPbr, 
+        .SceneView = m_TranslucentSetPrimaryView,
+        .Visibility = m_TranslucentSetPrimaryVisibility,
+        .Attachments = attachments
+    };
+}
+
 SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::ImageResource vbuffer, RG::ImageResource depth,
     const ScenePass& scenePass)
 {
@@ -1087,8 +1182,8 @@ SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::ImageResour
     };
 }
 
-RG::ImageResource Renderer::RenderGraphVBufferPbr(RG::ImageResource vbuffer, RG::BufferResource visibleMeshlets, 
-    RG::BufferResource viewInfo, RG::CsmData csmData)
+RG::ImageResource Renderer::RenderGraphVBufferPbr(RG::ImageResource vbuffer, RG::ImageResource& color,
+    RG::BufferResource visibleMeshlets, RG::BufferResource viewInfo, RG::CsmData csmData)
 {
     const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
     
@@ -1096,6 +1191,7 @@ RG::ImageResource Renderer::RenderGraphVBufferPbr(RG::ImageResource vbuffer, RG:
         .Geometry = &m_SceneGeometryRGResources,
         .VisibleMeshlets = visibleMeshlets,
         .VisibilityTexture = vbuffer,
+        .ColorIn = color,
         .ViewInfo = viewInfo,
         .DirectionalLights = m_Graph->Import("DirectionalLights"_hsv, m_Scene->Lights().GetBuffers().DirectionalLights),
         .PointLights = m_Graph->Import("PointLights"_hsv, m_Scene->Lights().GetBuffers().PointLights),
@@ -1168,10 +1264,46 @@ Passes::SceneMetaDraw::PassData& Renderer::RenderGraphVBuffer(RG::ImageResource&
     depth = meta.DrawPassViewAttachments.Get(m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Depth->Resource;
     vbuffer = meta.DrawPassViewAttachments.Get(m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Colors[0].Resource;
     RenderGraphOnFrameDepthGenerated("VBufferDepth"_hsv, depth);
-    color = RenderGraphVBufferPbr(vbuffer, m_PrimaryVisibilityResources.VisibleMeshletsData,
+    color = RenderGraphVBufferPbr(vbuffer, color, m_PrimaryVisibilityResources.VisibleMeshletsData,
         m_Graph->GetGlobalResources().PrimaryViewInfoResource, m_CsmData);
 
     return meta;
+}
+
+Passes::SceneMetaDraw::PassData* Renderer::RenderGraphForwardTranslucentPass(RG::ImageResource& color,
+    RG::ImageResource& depth, RG::CsmData csmData, RG::ImageResource hiz)
+{
+    bool shouldRender = CVars::Get().GetI32CVar("Renderer.UseForwardTranslucentShading"_hsv).value_or(true);
+    ImGui::Begin("TranslucentShading");
+    ImGui::Checkbox("Enabled", &shouldRender);
+    CVars::Get().SetI32CVar("Renderer.UseForwardTranslucentShading"_hsv, shouldRender);
+    ImGui::End();
+    
+    if (!shouldRender || m_TranslucentSet.RenderObjectCount() == 0)
+        return nullptr;
+    
+    m_TranslucentSetPrimaryVisibility = m_PrimaryTranslucentVisibility.AddVisibility(m_TranslucentSetPrimaryView);
+    const u32 primaryTranslucentVisibilityIndex = 
+        m_PrimaryTranslucentVisibility.VisibilityHandleToIndex(m_TranslucentSetPrimaryVisibility);
+    m_PrimaryTranslucentVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
+        *m_Graph, m_SceneGeometryRGResources, m_PrimaryTranslucentVisibility);
+    m_PrimaryTranslucentVisibilityResources.Hiz[primaryTranslucentVisibilityIndex] = hiz;
+    
+    auto& translucentForwardPass = m_TranslucentSet.FindPass("ForwardTranslucentPbr"_hsv);
+
+    auto& meta = Passes::SceneMetaDraw::addToGraph("MetaTranslucentUgb"_hsv,
+        *m_Graph, {
+            .MultiviewVisibility = &m_PrimaryTranslucentVisibility,
+            .Resources = &m_PrimaryTranslucentVisibilityResources,
+            .DrawPasses = {RenderGraphForwardTranslucentPbrDescription(color, depth, csmData, translucentForwardPass)}
+        });
+
+    depth = meta.DrawPassViewAttachments.Get(m_TranslucentSetPrimaryView.Name, translucentForwardPass.Name()).Depth->
+                 Resource;
+    color = meta.DrawPassViewAttachments.Get(m_TranslucentSetPrimaryView.Name, translucentForwardPass.Name()).Colors[0].
+        Resource;
+
+    return &meta;
 }
 
 void Renderer::RenderGraphOnFrameDepthGenerated(StringId passName, RG::ImageResource depth)
@@ -1833,9 +1965,11 @@ void Renderer::OnUpdate()
     LightFrustumCuller::CullDepthSort(m_Scene->Lights(), *GetFrameContext().PrimaryCamera);
     m_Scene->OnUpdate(GetFrameContext());
     m_OpaqueSet.OnUpdate(GetFrameContext());
+    m_TranslucentSet.OnUpdate(GetFrameContext());
 
     m_ShadowMultiviewVisibility.OnUpdate(GetFrameContext());
     m_PrimaryVisibility.OnUpdate(GetFrameContext());
+    m_PrimaryTranslucentVisibility.OnUpdate(GetFrameContext());
 
     struct InstanceWithLife
     {

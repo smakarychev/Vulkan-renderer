@@ -2,6 +2,7 @@
 
 #include "SceneVBufferPbrPass.h"
 
+#include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/SceneVbufferPbrBindGroupRG.generated.h"
 #include "RenderGraph/Passes/Scene/SceneGeometryRGResources.h"
 #include "Rendering/Image/ImageUtility.h"
@@ -61,12 +62,11 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
             passData.BindGroup.SetResourcesBrdf(info.IBL.BRDF);
             passData.BindGroup.SetResourcesIrradianceSH(info.IBL.IrradianceSH);
 
-            const ImageResource color = graph.Create("Color"_hsv,
-                RGImageDescription{
-                    .Inference = RGImageInference::Size,
-                    .Reference = info.VisibilityTexture,
-                    .Format = SceneVbufferPbrBindGroupRG::GetColorAttachmentFormat()
-                });
+            const ImageResource color = RgUtils::ensureResource(info.ColorIn, graph, "Color"_hsv, RGImageDescription{
+                .Inference = RGImageInference::Size,
+                .Reference = info.VisibilityTexture,
+                .Format = SceneVbufferPbrBindGroupRG::GetColorAttachmentFormat()
+            });
             passData.Color = graph.RenderTarget(color, {.OnLoad = AttachmentLoad::Clear});
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)

@@ -121,6 +121,44 @@ void visibilitySecondStage(
         resources.visibilityCountData);
 }
 
+
+void visibilitySingleStage(
+    uint renderObjectHandle,
+    uniform uint viewCount) {
+
+    const RenderObject object = resources.objects[resources.objectHandles[renderObjectHandle]];
+
+    const float4 originWorld = mul(float4(
+        object.boundingSphere.x,
+        object.boundingSphere.y,
+        object.boundingSphere.z, 1.0f), object.transform);
+    const float radius = object.boundingSphere.w * extractScale(object.transform);
+
+    static_assert(MAX_VISIBILITY_VIEWS == 32, "It is required that MAX_VISIBILITY_VIEWS fits into 32 bits");
+    uint visibleMask = 0;
+
+    for (uint i = 0; i < viewCount; i++) {
+        const ViewInfo view = resources.views[i];
+
+        float3 originView = float3(mul(originWorld, view.camera.view).xyz);
+        if (view.camera.isDepthClamped())
+            originView.z = min(originView.z, -view.camera.frustumNear);
+
+        const VisibilityResult visibility = isVisibleOcclusionSecondStage(
+            view, samplers.samplerHiz, resources.hiz[i], originView, radius);
+
+        if (visibility == VisibilityResult.Visible)
+            visibleMask |= 1 << i;
+    }
+    
+    compact<false>(
+        renderObjectHandle,
+        visibleMask, 0,
+        resources.visibleRenderObjects,
+        resources.occludedRenderObjects,
+        resources.visibilityCountData);
+}
+
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void renderObjectVisibility(
@@ -137,7 +175,9 @@ void renderObjectVisibility(
     if (dispatchThreadID >= maxRenderObjectIndex)
         return;
 
-    if (REOCCLUSION) {
+    if (SINGLE_PASS) {
+        visibilitySingleStage(dispatchThreadID, viewCount);
+    } else if (REOCCLUSION) {
         const SceneVisibilityElement objectVisibility = resources.occludedRenderObjects[dispatchThreadID];
         visibilitySecondStage(objectVisibility.renderObjectHandle, objectVisibility.viewMask, viewCount);
     }

@@ -91,9 +91,23 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
             };
             
             bool hasAnyPassWithOcclusionCulling = false;
+            bool hasAnyPassWithSingleStageCulling = false;
+            bool hasAnyPassWithNotSingleStageCulling = false;
             for (u32 i = 0; i < info.MultiviewVisibility->VisibilityCount(); i++)
+            {
                 hasAnyPassWithOcclusionCulling = hasAnyPassWithOcclusionCulling || enumHasAny(
                     info.MultiviewVisibility->View({i}).ViewInfo.VisibilityFlags(), VisibilityFlags::OcclusionCull);
+                const bool hasSingleStageCulling = enumHasAny(
+                    info.MultiviewVisibility->View({i}).ViewInfo.VisibilityFlags(),
+                    VisibilityFlags::IsSingleOcclusionCull);
+                hasAnyPassWithSingleStageCulling = hasAnyPassWithSingleStageCulling || hasSingleStageCulling;
+                hasAnyPassWithNotSingleStageCulling = hasAnyPassWithNotSingleStageCulling || !hasSingleStageCulling;
+            }
+
+            ASSERT(!hasAnyPassWithSingleStageCulling || !hasAnyPassWithNotSingleStageCulling,
+                "If any pass has single stage occlusion culling, all passes must also have it")
+            
+            const bool hasSecondStage = hasAnyPassWithOcclusionCulling && !hasAnyPassWithSingleStageCulling;
 
             for (auto& viewPass : info.DrawPasses)
                 passData.DrawPassViewAttachments.Add(viewPass.SceneView.Name, viewPass.Pass->Name(),
@@ -108,26 +122,30 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                     bucketsMask |= (u64)1 << bucketIndex;
                 }
             }
+            
+            const SceneVisibilityStage firstCullingStage = hasAnyPassWithSingleStageCulling ?
+                SceneVisibilityStage::Single :
+                SceneVisibilityStage::Cull;
         
             SceneMultiviewRenderObjectVisibility::addToGraph(
                 name.Concatenate("SceneROVisibility"),
                 graph, {
                     .MultiviewVisibility = info.MultiviewVisibility,
                     .Resources = info.Resources,
-                    .Stage = SceneVisibilityStage::Cull
+                    .Stage = firstCullingStage,
                 });
             SceneVisibilityExpandMeshlets::addToGraph(
                 name.Concatenate(".ExpandMeshlets"),
                 graph, {
                     .Resources = info.Resources,
-                    .Stage = SceneVisibilityStage::Cull,
+                    .Stage = firstCullingStage,
                 });
             SceneMultiviewMeshletVisibility::addToGraph(
                 name.Concatenate("SceneMeshletVisibility"),
                 graph, {
                     .MultiviewVisibility = info.MultiviewVisibility,
                     .Resources = info.Resources,
-                    .Stage = SceneVisibilityStage::Cull
+                    .Stage = firstCullingStage,
                 });
 
             SceneMultiviewCreateDrawCommands::addToGraph(
@@ -135,14 +153,14 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                 graph, {
                     .MultiviewVisibility = info.MultiviewVisibility,
                     .Resources = info.Resources,
-                    .Stage = SceneVisibilityStage::Cull,
+                    .Stage = firstCullingStage,
                     .BucketsMask = bucketsMask
                 });
             for (u32 visibilityIndex = 0; visibilityIndex < info.MultiviewVisibility->VisibilityCount();
                 visibilityIndex++)
                 drawWithVisibility(visibilityIndex, /*reocclusion*/false);
             
-            if (!hasAnyPassWithOcclusionCulling)
+            if (!hasSecondStage)
                 return;
 
             SceneMultiviewVisibilityHiz::addToGraph(

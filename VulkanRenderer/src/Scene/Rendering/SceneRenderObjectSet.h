@@ -54,6 +54,7 @@ private:
     std::vector<ScenePass> m_Passes;
     struct SceneInstanceInfo
     {
+        static constexpr u32 INVALID = ~0u;
         u32 FirstRenderObject{};
         u32 RenderObjectCount{};
         u32 MeshletCount{};

@@ -7,6 +7,7 @@ import "core/ugb";
 import "visibility";
 
 [SpecializationConstant] const bool REOCCLUSION = false;
+[SpecializationConstant] const bool SINGLE_PASS = false;
 static const uint MAX_COMMAND_BUFFERS = BUCKETS_PER_SET * 2;
 static const uint CREATE_COMMANDS_DISPATCHES = 256;
 
@@ -22,7 +23,7 @@ void createDrawCommandsDispatches(
     uniform ParameterBlock<CreateIndirectDispatchesResources> resources) {
 
     uint visibleCount = 0;
-    if (REOCCLUSION)
+    if (REOCCLUSION || SINGLE_PASS)
         visibleCount = resources.visibilityCountData[0].visibleMeshletsSecondStage;
     else
         visibleCount = resources.visibilityCountData[0].visibleMeshlets;
@@ -54,7 +55,7 @@ void createDrawCommands(
     uniform ParameterBlock<Resources> resources) {
 
     uint visibleCount = 0;
-    if (REOCCLUSION)
+    if (REOCCLUSION || SINGLE_PASS)
         visibleCount = resources.visibilityCountData[0].visibleMeshletsSecondStage;
     else
         visibleCount = resources.visibilityCountData[0].visibleMeshlets;
@@ -63,7 +64,7 @@ void createDrawCommands(
         return;
 
     uint meshletId = dispatchThreadID;
-    if (REOCCLUSION)
+    if (REOCCLUSION || SINGLE_PASS)
         meshletId += resources.visibilityCountData[0].visibleMeshlets;
 
     const SceneVisibilityElement meshletElement = resources.visibleMeshlets[meshletId];

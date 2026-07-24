@@ -10,6 +10,7 @@ struct CreateIndirectDispatchesResources {
 }
 
 [SpecializationConstant] const bool REOCCLUSION = false;
+[SpecializationConstant] const bool SINGLE_PASS = false;
 static const uint EXPAND_MESHLETS_DISPATCHES = 1024;
 
 [shader("compute")]
@@ -19,7 +20,7 @@ void createIndirectMeshletDispatches(
     uniform ParameterBlock<CreateIndirectDispatchesResources> resources) {
 
     uint visibleCount = 0;
-    if (REOCCLUSION)
+    if (REOCCLUSION || SINGLE_PASS)
         visibleCount = resources.visibilityCountData[0].visibleRenderObjectsSecondStage;
     else
         visibleCount = resources.visibilityCountData[0].visibleRenderObjects;
@@ -47,7 +48,7 @@ void expandMeshlets(
     uniform ParameterBlock<ExpandMeshletsResources> resources) {
 
     uint visibleRenderObjectsCount = 0;
-    if (REOCCLUSION)
+    if (REOCCLUSION || SINGLE_PASS)
         visibleRenderObjectsCount = resources.visibilityCountData[0].visibleRenderObjectsSecondStage;
     else
         visibleRenderObjectsCount = resources.visibilityCountData[0].visibleRenderObjects;
@@ -56,7 +57,7 @@ void expandMeshlets(
         return;
 
     uint renderObjectIndex = workgroupID;
-    if (REOCCLUSION)
+    if (REOCCLUSION || SINGLE_PASS)
         renderObjectIndex += resources.visibilityCountData[0].visibleRenderObjects;
 
     const SceneVisibilityElement renderObjectElement = resources.visibleRenderObjects[renderObjectIndex];
@@ -64,7 +65,7 @@ void expandMeshlets(
     const RenderObject renderObject = resources.renderObjects[renderObjectId];
 
     if (groupThreadId == 0) {
-         if (REOCCLUSION)
+         if (REOCCLUSION || SINGLE_PASS)
             InterlockedAdd(resources.visibilityCountData[0].occludedMeshlets, renderObject.meshletCount,
                 sMeshletOffset);
         else

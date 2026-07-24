@@ -24,7 +24,8 @@ RG::BufferResource createDrawCommandsDispatchPass(StringId name, RG::Graph& rend
             CPU_PROFILE_FRAME("Scene.SceneCreateDrawCommandsDispatch")
 
             passData.BindGroup = SceneCreateDrawCommandsDispatchesBindGroupRG(graph, ShaderSpecializations(
-                ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}));
+                ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion},
+                ShaderSpecialization{"SINGLE_PASS"_hsv, info.Stage == SceneVisibilityStage::Single}));
 
             passData.BindGroup.SetResourcesVisibilityCountData(info.Resources->VisibilityCountData);
             passData.Dispatch =
@@ -65,7 +66,8 @@ PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo&
             CPU_PROFILE_FRAME("CreateDrawCommands.Setup")
 
             passData.BindGroup = SceneCreateDrawCommandsBindGroupRG(graph, ShaderSpecializations(
-                ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}));
+                ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion},
+                ShaderSpecialization{"SINGLE_PASS"_hsv, info.Stage == SceneVisibilityStage::Single}));
 
             passData.Resources = info.Resources;
             auto& resources = *passData.Resources;

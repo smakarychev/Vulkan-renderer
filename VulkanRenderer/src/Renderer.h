@@ -95,15 +95,19 @@ private:
     SceneDrawPassDescription RenderGraphDepthPrepassDescription(RG::ImageResource depth, const ScenePass& scenePass);
     SceneDrawPassDescription RenderGraphForwardPbrDescription(RG::ImageResource color, RG::ImageResource depth,
         RG::CsmData csmData, const ScenePass& scenePass);
+    SceneDrawPassDescription RenderGraphForwardTranslucentPbrDescription(RG::ImageResource color,
+        RG::ImageResource depth, RG::CsmData csmData, const ScenePass& scenePass);
 
     SceneDrawPassDescription RenderGraphVBufferDescription(RG::ImageResource vbuffer, RG::ImageResource depth,
         const ScenePass& scenePass);
-    RG::ImageResource RenderGraphVBufferPbr(RG::ImageResource vbuffer, RG::BufferResource visibleMeshlets,
-        RG::BufferResource viewInfo, RG::CsmData csmData);
+    RG::ImageResource RenderGraphVBufferPbr(RG::ImageResource vbuffer, RG::ImageResource& color,
+        RG::BufferResource visibleMeshlets, RG::BufferResource viewInfo, RG::CsmData csmData);
 
     Passes::SceneMetaDraw::PassData& RenderGraphForwardPass(RG::ImageResource& color, RG::ImageResource& depth);
     Passes::SceneMetaDraw::PassData& RenderGraphVBuffer(RG::ImageResource& vbuffer, RG::ImageResource& color, 
         RG::ImageResource& depth);
+    Passes::SceneMetaDraw::PassData* RenderGraphForwardTranslucentPass(RG::ImageResource& color,
+        RG::ImageResource& depth, RG::CsmData csmData, RG::ImageResource hiz);
     
     void RenderGraphOnFrameDepthGenerated(StringId passName, RG::ImageResource depth);
 
@@ -255,15 +259,20 @@ private:
     SceneGeometryRGResources m_SceneGeometryRGResources;
     SceneBucketList m_SceneBucketList;
     SceneRenderObjectSet m_OpaqueSet;
+    SceneRenderObjectSet m_TranslucentSet;
     SceneVisibilityHandle m_OpaqueSetPrimaryVisibility{};
+    SceneVisibilityHandle m_TranslucentSetPrimaryVisibility{};
     SceneView m_OpaqueSetPrimaryView{};
+    SceneView m_TranslucentSetPrimaryView{};
     
     std::array<RG::PersistentBufferResource, BUFFERED_FRAMES> m_MinMaxDepthReductions{};
     std::array<RG::PersistentBufferResource, BUFFERED_FRAMES> m_MinMaxDepthReductionsNextFrame{};
     SceneMultiviewVisibility m_ShadowMultiviewVisibility{};
     SceneMultiviewVisibility m_PrimaryVisibility{};
+    SceneMultiviewVisibility m_PrimaryTranslucentVisibility{};
     SceneVisibilityPassesResources m_ShadowMultiviewVisibilityResources{};
     SceneVisibilityPassesResources m_PrimaryVisibilityResources{};
+    SceneVisibilityPassesResources m_PrimaryTranslucentVisibilityResources{};
 
     std::array<RG::PersistentImageResource, BUFFERED_FRAMES> m_PrimaryHizPrevious{};
 

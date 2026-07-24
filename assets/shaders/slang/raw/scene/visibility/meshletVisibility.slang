@@ -146,6 +146,58 @@ void visibilitySecondStage(
 }
 
 
+void visibilitySingleStage(
+    uint renderObjectHandle,
+    uint meshletId,
+    uint occludedMask,
+    uniform uint viewCount) {
+
+    const RenderObject object = resources.objects[resources.objectHandles[renderObjectHandle]];
+    const MeshletBounds meshlet = resources.meshlets.bounds(object.meshletBoundIndex + meshletId);
+
+    const float4 originWorld = mul(float4(
+        meshlet.x,
+        meshlet.y,
+        meshlet.z, 1.0f), object.transform);
+    const float scale = extractScale(object.transform);
+    const float radius = meshlet.r * scale;
+
+    const float4 originWorldPrevious = mul(float4(
+        meshlet.x,
+        meshlet.y,
+        meshlet.z, 1.0f), object.previousTransform);
+    const float scalePrevious = extractScale(object.previousTransform);
+    const float radiusPrevious = meshlet.r * scalePrevious;
+
+    uint visibleMask = 0;
+
+    for (uint i = 0; i < viewCount; i++) {
+        if ((occludedMask & (1u << i)) == 0)
+            continue;
+
+        const ViewInfo view = resources.views[i];
+
+        float3 originView = float3(mul(originWorld, view.camera.view).xyz);
+        if (view.camera.isDepthClamped())
+            originView.z = min(originView.z, -view.camera.frustumNear);
+
+        const VisibilityResult visibility = isVisibleOcclusionSingleStage(
+            view, samplers.samplerHiz, resources.hiz[i], originView, radius);
+
+        if (visibility == VisibilityResult.Visible)
+            visibleMask |= 1 << i;
+    }
+    
+    compact<false>(
+        renderObjectHandle,
+        meshletId,
+        visibleMask, 0,
+        resources.visibleMeshlets,
+        resources.occludedMeshlets,
+        resources.visibilityCountData);
+}
+
+
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void meshletVisibility(
@@ -153,14 +205,21 @@ void meshletVisibility(
     uniform uint viewCount) {
 
     uint expandedCount = 0;
-    if (REOCCLUSION)
+    if (REOCCLUSION || SINGLE_PASS)
         expandedCount = resources.visibilityCountData[0].occludedMeshlets;
     else
         expandedCount = resources.visibilityCountData[0].expandedMeshletsCount;
     if (dispatchThreadID >= expandedCount)
         return;
 
-    if (REOCCLUSION) {
+    if (SINGLE_PASS) {
+        const SceneVisibilityElement meshletVisiblityElement = resources.occludedMeshlets[dispatchThreadID];
+        visibilitySingleStage(
+            meshletVisiblityElement.renderObjectHandle,
+            meshletVisiblityElement.meshletId,
+            meshletVisiblityElement.viewMask,
+            viewCount);
+    } else if (REOCCLUSION) {
         const SceneVisibilityElement meshletVisiblityElement = resources.occludedMeshlets[dispatchThreadID];
         visibilitySecondStage(
             meshletVisiblityElement.renderObjectHandle,

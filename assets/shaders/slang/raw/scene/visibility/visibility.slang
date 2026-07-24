@@ -256,6 +256,30 @@ public VisibilityResult isVisibleOcclusionSecondStagePerspective(const ViewInfo 
     return VisibilityResult.Visible;
 }
 
+public VisibilityResult isVisibleOcclusionSingleStageOrthographic(const ViewInfo view, SamplerState sampler, 
+    Texture2D hiz, float3 origin, float radius) {
+
+    if (!isFrustumVisibleOrthographic(origin, radius, view.camera))
+        return VisibilityResult.NotVisible;
+
+    if (!isOcclusionVisibleOrthographic(origin, radius, view.camera, sampler, hiz))
+        return VisibilityResult.NotVisible;
+
+    return VisibilityResult.Visible;
+}
+
+public VisibilityResult isVisibleOcclusionSingleStagePerspective(const ViewInfo view, SamplerState sampler, 
+    Texture2D hiz, float3 origin, float radius) {
+
+    if (!isFrustumVisible(origin, radius, view.camera))
+        return VisibilityResult.NotVisible;
+
+    if (!isOcclusionVisible(origin, radius, view.camera, sampler, hiz))
+        return VisibilityResult.NotVisible;
+
+    return VisibilityResult.Visible;
+}
+
 public VisibilityResult isVisibleOcclusionSecondStage(const ViewInfo view, SamplerState sampler, Texture2D hiz, 
     float3 origin, float radius) {
 
@@ -263,4 +287,13 @@ public VisibilityResult isVisibleOcclusionSecondStage(const ViewInfo view, Sampl
         return isVisibleOcclusionSecondStageOrthographic(view, sampler, hiz, origin, radius);
     
     return isVisibleOcclusionSecondStagePerspective(view, sampler, hiz, origin, radius);
+}
+
+public VisibilityResult isVisibleOcclusionSingleStage(const ViewInfo view, SamplerState sampler, Texture2D hiz, 
+    float3 origin, float radius) {
+
+    if (view.camera.isOrthographic())
+        return isVisibleOcclusionSingleStageOrthographic(view, sampler, hiz, origin, radius);
+    
+    return isVisibleOcclusionSingleStagePerspective(view, sampler, hiz, origin, radius);
 }

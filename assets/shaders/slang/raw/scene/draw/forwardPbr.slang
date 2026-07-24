@@ -144,5 +144,5 @@ float4 pixelMain(VSOutput input) {
     shadingInfo.ao = resources.ssao.SampleLevel(samplers.sampler, screenUv, 0) *
         nonuniform(material.ambientOcclusionTexture.desc).Sample(samplers.sampler, input.uv).r;
 
-    return float4(pbrShade(resources.view, shadingInfo, samplers.pbr, resources.pbr) + emissive, 1.0f);
+    return float4(pbrShade(resources.view, shadingInfo, samplers.pbr, resources.pbr) + emissive, albedo.a);
 }

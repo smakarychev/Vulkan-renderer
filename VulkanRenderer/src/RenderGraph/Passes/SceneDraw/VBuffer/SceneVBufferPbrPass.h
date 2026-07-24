@@ -12,6 +12,7 @@ struct ExecutionInfo
     const SceneGeometryRGResources* Geometry{nullptr};
     RG::BufferResource VisibleMeshlets{};
     RG::ImageResource VisibilityTexture{};
+    RG::ImageResource ColorIn{};
     RG::BufferResource ViewInfo{};
     RG::BufferResource DirectionalLights{};
     RG::BufferResource PointLights{};

@@ -23,7 +23,8 @@ RG::BufferResource createIndirectDispatchPass(StringId name, RG::Graph& renderGr
             CPU_PROFILE_FRAME("Scene.SceneVisibilityExpandMeshletsDispatch.Setup")
 
             passData.BindGroup = SceneVisibilityExpandMeshletsDispatchesBindGroupRG(graph, ShaderSpecializations(
-                ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}));
+                ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion},
+                ShaderSpecialization{"SINGLE_PASS"_hsv, info.Stage == SceneVisibilityStage::Single}));
 
             passData.BindGroup.SetResourcesVisibilityCountData(info.Resources->VisibilityCountData);
             passData.Dispatch =
@@ -63,7 +64,8 @@ PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo&
             CPU_PROFILE_FRAME("Scene.SceneVisibilityExpandMeshlets.Setup")
 
             passData.BindGroup = SceneVisibilityExpandMeshletsBindGroupRG(graph, ShaderSpecializations(
-                ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}));
+                ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion},
+                ShaderSpecialization{"SINGLE_PASS"_hsv, info.Stage == SceneVisibilityStage::Single}));
 
             passData.Resources = info.Resources;
             auto& resources = *passData.Resources;
@@ -72,7 +74,7 @@ PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo&
             resources.RenderObjectHandles = passData.BindGroup.SetResourcesObjectHandles(resources.RenderObjectHandles);
             passData.BindGroup.SetResourcesVisibleRenderObjects(resources.VisibleRenderObjectsData);
             
-            if (info.Stage == SceneVisibilityStage::Reocclusion)
+            if (info.Stage != SceneVisibilityStage::Cull)
                 resources.OccludedMeshletsData =
                     passData.BindGroup.SetResourcesExpandedMeshlets(resources.OccludedMeshletsData);
             else

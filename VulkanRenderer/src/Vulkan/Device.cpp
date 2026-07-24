@@ -4888,8 +4888,7 @@ Pipeline DeviceInternal::CreatePipeline(const auto& resources, PipelineCreateInf
         depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
         depthStencilState.depthTestEnable = createInfo.DepthMode == DepthMode::None ? VK_FALSE : VK_TRUE;
         depthStencilState.depthWriteEnable =
-            (createInfo.DepthMode == DepthMode::None ||
-                createInfo.DepthMode == DepthMode::Read) ?
+            (createInfo.DepthMode == DepthMode::None || createInfo.DepthMode == DepthMode::Read) ?
             VK_FALSE :
             VK_TRUE;
         depthStencilState.depthCompareOp = createInfo.DepthTest == DepthTest::GreaterOrEqual ?
