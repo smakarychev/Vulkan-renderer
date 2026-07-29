@@ -24,7 +24,7 @@ struct CloudsReprojectResources {
 }
 
 [shader("compute")]
-[numthreads(8, 8, 8)]
+[numthreads(8, 8, 1)]
 void cloudReprojection(
     uint2 dispatchThreadID: SV_DispatchThreadID,
     uniform ParameterBlock<CloudsReprojectSamplers> samplers,
@@ -147,7 +147,7 @@ struct CloudsComposeResources {
 }
 
 [shader("compute")]
-[numthreads(8, 8, 8)]
+[numthreads(8, 8, 1)]
 void cloudComposition(
     uint2 dispatchThreadID: SV_DispatchThreadID,
     uniform ParameterBlock<CloudsComposeSamplers> samplers,
