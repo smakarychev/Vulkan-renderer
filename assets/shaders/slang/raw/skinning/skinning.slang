@@ -174,7 +174,7 @@ public struct UGBComputeSkinning {
     }
 
     private ValueT loadAtIndex<ValueT>(uint index) {
-        return ugb.LoadAligned<ValueT>(index * sizeof(ValueT), sizeof(ValueT));
+        return ugb.Load<ValueT>(index * sizeof(ValueT));
     }
 }
 
@@ -200,7 +200,7 @@ public struct UGBMeshletsSkinning {
     }
 
     private ValueT loadAtIndex<ValueT>(uint index) {
-        return meshletsUgb.LoadAligned<ValueT>(index * sizeof(ValueT), sizeof(ValueT));
+        return meshletsUgb.Load<ValueT>(index * sizeof(ValueT));
     }
 }
 
