@@ -160,6 +160,19 @@ constexpr std::array BUFFER_FLAGS_TO_SUB_ACCESS_MAP = {
             .Usage = BufferUsage::Readback
         },
     },
+    FlagsToBufferAccess{
+        .Flags = ResourceAccessFlags::Transfer,
+        .Read = {
+            .Stage = PipelineStage::AllTransfer,
+            .Access = PipelineAccess::ReadTransfer,
+            .Usage = BufferUsage::Source
+        },
+        .Write = {
+            .Stage = PipelineStage::AllTransfer,
+            .Access = PipelineAccess::WriteTransfer,
+            .Usage = BufferUsage::Destination
+        }
+    },
 };
 constexpr std::array IMAGE_FLAGS_TO_SUB_ACCESS_MAP = {
     FlagsToImageAccess{
@@ -233,6 +246,19 @@ constexpr std::array IMAGE_FLAGS_TO_SUB_ACCESS_MAP = {
         },
         .Write = {
             .Stage = PipelineStage::Copy,
+            .Access = PipelineAccess::WriteTransfer,
+            .Usage = ImageUsage::Destination
+        }
+    },
+    FlagsToImageAccess{
+        .Flags = ResourceAccessFlags::Transfer,
+        .Read = {
+            .Stage = PipelineStage::AllTransfer,
+            .Access = PipelineAccess::ReadTransfer,
+            .Usage = ImageUsage::Source
+        },
+        .Write = {
+            .Stage = PipelineStage::AllTransfer,
             .Access = PipelineAccess::WriteTransfer,
             .Usage = ImageUsage::Destination
         }
@@ -325,7 +351,7 @@ constexpr StageWithAccess inferImageReadAccess(ImageDescription& description, Re
             ResourceAccessFlags::Readback),
         "Image read has inappropriate flags")
     ASSERT(
-        enumHasAny(readFlags, ResourceAccessFlags::Blit | ResourceAccessFlags::Copy) ||
+        enumHasAny(readFlags, ResourceAccessFlags::Blit | ResourceAccessFlags::Copy | ResourceAccessFlags::Transfer) ||
         enumHasAny(readFlags, ResourceAccessFlags::Sampled | ResourceAccessFlags::Storage) ||
         enumHasAny(description.Usage, ImageUsage::Sampled | ImageUsage::Storage),
         "Image read does not have appropriate flags")
@@ -341,7 +367,7 @@ constexpr StageWithAccess inferImageWriteAccess(ImageDescription& description, R
             ResourceAccessFlags::Attribute | ResourceAccessFlags::Uniform),
         "Image write has inappropriate flags")
     ASSERT(
-        enumHasAny(writeFlags, ResourceAccessFlags::Blit | ResourceAccessFlags::Copy) ||
+        enumHasAny(writeFlags, ResourceAccessFlags::Blit | ResourceAccessFlags::Copy | ResourceAccessFlags::Transfer) ||
         enumHasAny(writeFlags, ResourceAccessFlags::Sampled | ResourceAccessFlags::Storage) ||
         enumHasAny(description.Usage, ImageUsage::Sampled | ImageUsage::Storage),
         "Image write does not have appropriate flags")
@@ -359,7 +385,7 @@ constexpr StageWithAccess inferImageReadWriteAccess(ImageDescription& descriptio
             ResourceAccessFlags::Attribute | ResourceAccessFlags::Uniform),
         "Image read-write has inappropriate flags")
     ASSERT(
-        enumHasAny(flags, ResourceAccessFlags::Blit | ResourceAccessFlags::Copy) ||
+        enumHasAny(flags, ResourceAccessFlags::Blit | ResourceAccessFlags::Copy | ResourceAccessFlags::Transfer) ||
         enumHasAny(flags, ResourceAccessFlags::Sampled | ResourceAccessFlags::Storage) ||
         enumHasAny(description.Usage, ImageUsage::Sampled | ImageUsage::Storage),
         "Image read-write does not have appropriate flags")
@@ -967,7 +993,7 @@ std::vector<ImageResourceAccessConflict> Graph::FindImageResourceConflicts()
                 return description.Format == Format::D32_FLOAT ?
                     ImageLayout::DepthAttachment :
                     ImageLayout::DepthStencilAttachment;
-            return ImageLayout::Attachment;
+            return enumHasAny(description.Usage, ImageUsage::Color) ? ImageLayout::Attachment : ImageLayout::General;
         }
         if (enumHasAny(access.Access, PipelineAccess::ReadDepthStencilAttachment) ||
             description.Format == Format::D32_FLOAT ||

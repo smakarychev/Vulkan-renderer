@@ -28,6 +28,7 @@ enum class ResourceAccessFlags
     Copy = BIT(12),
 
     Readback = BIT(13),
+    Transfer = BIT(14),
 };
 
 CREATE_ENUM_FLAGS_OPERATORS(ResourceAccessFlags)
