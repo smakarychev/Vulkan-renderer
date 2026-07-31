@@ -31,7 +31,7 @@ struct glz::meta<lux::assetlib::ShaderRasterizationPrimitiveKind> : lux::assetli
 template <>
 struct glz::meta<lux::assetlib::ShaderRasterizationAlphaBlending> : lux::assetlib::reflection::CamelCase {
     using enum lux::assetlib::ShaderRasterizationAlphaBlending;
-    static constexpr auto value = glz::enumerate(None, Over);
+    static constexpr auto value = glz::enumerate(None, Over, Additive);
 };
 template <> struct glz::meta<lux::assetlib::ShaderLoadRasterizationColor> : lux::assetlib::reflection::CamelCase {}; 
 template <> struct glz::meta<lux::assetlib::ShaderLoadRasterizationInfo> : lux::assetlib::reflection::CamelCase {}; 

@@ -21,7 +21,7 @@ enum class ShaderRasterizationDepthMode : u8 { Read, ReadWrite, None };
 enum class ShaderRasterizationDepthTest : u8 { GreaterOrEqual, Equal };
 enum class ShaderRasterizationFaceCullMode : u8 { Front, Back, None };
 enum class ShaderRasterizationPrimitiveKind : u8 { Triangle, Point };
-enum class ShaderRasterizationAlphaBlending : u8 { None, Over };
+enum class ShaderRasterizationAlphaBlending : u8 { None, Over, Additive };
 
 struct ShaderLoadRasterizationColor
 {

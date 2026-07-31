@@ -68,7 +68,7 @@ enum class FaceCullMode : u8 {Front, Back, None};
 
 enum class PrimitiveKind : u8 {Triangle, Point};
 
-enum class AlphaBlending : u8 {None, Over};
+enum class AlphaBlending : u8 {None, Over, Additive};
 
 struct VertexInputDescription
 {

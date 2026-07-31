@@ -383,6 +383,7 @@ constexpr AlphaBlending alphaBlendingFromAssetAlphaBlending(assetlib::ShaderRast
 {
     static_assert((u8)AlphaBlending::None == (u8)assetlib::ShaderRasterizationAlphaBlending::None);
     static_assert((u8)AlphaBlending::Over == (u8)assetlib::ShaderRasterizationAlphaBlending::Over);
+    static_assert((u8)AlphaBlending::Additive == (u8)assetlib::ShaderRasterizationAlphaBlending::Additive);
 
     return (AlphaBlending)blending;
 }

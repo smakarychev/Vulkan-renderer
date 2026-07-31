@@ -4897,34 +4897,48 @@ Pipeline DeviceInternal::CreatePipeline(const auto& resources, PipelineCreateInf
         depthStencilState.depthBoundsTestEnable = VK_FALSE;
         depthStencilState.stencilTestEnable = VK_FALSE;
 
-        VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
-        colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-            VK_COLOR_COMPONENT_G_BIT |
-            VK_COLOR_COMPONENT_B_BIT |
-            VK_COLOR_COMPONENT_A_BIT;
-        switch (createInfo.AlphaBlending)
+        std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachmentStates(std::max(1u,
+            (u32)createInfo.ColorFormats.size()));
+        for (auto& attachment : colorBlendAttachmentStates)
         {
-        case AlphaBlending::None:
-            colorBlendAttachmentState.blendEnable = VK_FALSE;
-            break;
-        case AlphaBlending::Over:
-            colorBlendAttachmentState.blendEnable = VK_TRUE;
-            colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-            colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-            colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-            colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-            colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-            break;
-        default:
-            ASSERT(false, "Unsupported blending mode")
+            attachment = {};
+            attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
+                VK_COLOR_COMPONENT_G_BIT |
+                VK_COLOR_COMPONENT_B_BIT |
+                VK_COLOR_COMPONENT_A_BIT;
+            switch (createInfo.AlphaBlending)
+            {
+            case AlphaBlending::None:
+                attachment.blendEnable = VK_FALSE;
+                break;
+            case AlphaBlending::Over:
+                attachment.blendEnable = VK_TRUE;
+                attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+                attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                attachment.colorBlendOp = VK_BLEND_OP_ADD;
+                attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+                attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+                attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+                break;
+            case AlphaBlending::Additive:
+                attachment.blendEnable = VK_TRUE;
+                attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+                attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+                attachment.colorBlendOp = VK_BLEND_OP_ADD;
+                attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+                attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+                attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+                break;
+            default:
+                ASSERT(false, "Unsupported blending mode")
+            }
         }
-
+        
         VkPipelineColorBlendStateCreateInfo colorBlendState = {};
         colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         colorBlendState.logicOpEnable = VK_FALSE;
-        colorBlendState.attachmentCount = 1;
-        colorBlendState.pAttachments = &colorBlendAttachmentState;
+        colorBlendState.attachmentCount = (u32)colorBlendAttachmentStates.size();
+        colorBlendState.pAttachments = colorBlendAttachmentStates.data();
 
         std::vector<VkFormat> colorFormats;
         colorFormats.resize(createInfo.ColorFormats.size());
