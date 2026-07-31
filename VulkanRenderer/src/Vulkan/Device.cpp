@@ -2706,10 +2706,14 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
             physicalDeviceDescriptorBufferFeaturesExt.sType =
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
             physicalDeviceDescriptorBufferFeaturesExt.pNext = &physicalDeviceIndexTypeUint8FeaturesExt;
+            
+            VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT shaderInterlockFeaturesExt = {};
+            shaderInterlockFeaturesExt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT;
+            shaderInterlockFeaturesExt.pNext = &physicalDeviceDescriptorBufferFeaturesExt;
 
             VkPhysicalDeviceFeatures2 features = {};
             features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-            features.pNext = &physicalDeviceDescriptorBufferFeaturesExt;
+            features.pNext = &shaderInterlockFeaturesExt;
 
             vkGetPhysicalDeviceFeatures2(gpu, &features);
 
@@ -2721,6 +2725,7 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
                 features.features.shaderInt16 == VK_TRUE &&
                 features.features.shaderInt64 == VK_TRUE &&
                 features.features.depthClamp == VK_TRUE &&
+                features.features.fragmentStoresAndAtomics == VK_TRUE &&
                 descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing == VK_TRUE &&
                 descriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE &&
                 descriptorIndexingFeatures.descriptorBindingPartiallyBound == VK_TRUE &&
@@ -2746,7 +2751,8 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
                 deviceVulkan13Features.synchronization2 == VK_TRUE &&
                 deviceVulkan13Features.shaderDemoteToHelperInvocation == VK_TRUE &&
                 conditionalRenderingFeaturesExt.conditionalRendering == VK_TRUE &&
-                physicalDeviceIndexTypeUint8FeaturesExt.indexTypeUint8 == VK_TRUE;
+                physicalDeviceIndexTypeUint8FeaturesExt.indexTypeUint8 == VK_TRUE &&
+                shaderInterlockFeaturesExt.fragmentShaderPixelInterlock == VK_TRUE;
 #ifdef DESCRIPTOR_BUFFER
             suitable = suitable && physicalDeviceDescriptorBufferFeaturesExt.descriptorBuffer == VK_TRUE;
 #endif
@@ -2843,6 +2849,7 @@ void Device::CreateDevice(const DeviceCreateInfo& createInfo)
     deviceFeatures.shaderInt16 = VK_TRUE;
     deviceFeatures.shaderInt64 = VK_TRUE;
     deviceFeatures.depthClamp = VK_TRUE;
+    deviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
 
     VkPhysicalDeviceVulkan12Features vulkan12Features = {};
     vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
@@ -2865,6 +2872,7 @@ void Device::CreateDevice(const DeviceCreateInfo& createInfo)
     vulkan12Features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
     vulkan12Features.timelineSemaphore = VK_TRUE;
     vulkan12Features.bufferDeviceAddress = VK_TRUE;
+    vulkan12Features.scalarBlockLayout = VK_TRUE;
     vulkan12Features.scalarBlockLayout = VK_TRUE;
 
     VkPhysicalDeviceVulkan13Features vulkan13Features = {};
@@ -2890,10 +2898,16 @@ void Device::CreateDevice(const DeviceCreateInfo& createInfo)
 #ifdef DESCRIPTOR_BUFFER
     physicalDeviceDescriptorBufferFeaturesExt.descriptorBuffer = VK_TRUE;
 #endif
+    
+    VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT shaderInterlockFeaturesExt = {};
+    shaderInterlockFeaturesExt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT;
+    shaderInterlockFeaturesExt.pNext = &physicalDeviceDescriptorBufferFeaturesExt;
+    shaderInterlockFeaturesExt.fragmentShaderPixelInterlock = VK_TRUE;
+    shaderInterlockFeaturesExt.fragmentShaderPixelInterlock = VK_TRUE;
 
     VkDeviceCreateInfo deviceCreateInfo = {};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.pNext = &physicalDeviceDescriptorBufferFeaturesExt;
+    deviceCreateInfo.pNext = &shaderInterlockFeaturesExt;
     deviceCreateInfo.queueCreateInfoCount = (u32)queueCreateInfos.size();
     deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
     deviceCreateInfo.enabledExtensionCount = (u32)createInfo.DeviceExtensions.size();

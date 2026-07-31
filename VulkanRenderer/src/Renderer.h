@@ -95,7 +95,7 @@ private:
     SceneDrawPassDescription RenderGraphDepthPrepassDescription(RG::ImageResource depth, const ScenePass& scenePass);
     SceneDrawPassDescription RenderGraphForwardPbrDescription(RG::ImageResource color, RG::ImageResource depth,
         RG::CsmData csmData, const ScenePass& scenePass);
-    SceneDrawPassDescription RenderGraphForwardTranslucentPbrDescription(RG::ImageResource color,
+    SceneDrawPassDescription RenderGraphForwardTranslucentPbrDescription(RG::ImageResource& color,
         RG::ImageResource depth, RG::CsmData csmData, const ScenePass& scenePass);
 
     SceneDrawPassDescription RenderGraphVBufferDescription(RG::ImageResource vbuffer, RG::ImageResource depth,

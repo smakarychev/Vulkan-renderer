@@ -1054,6 +1054,7 @@ private:
         case SLANG_RESOURCE_ACCESS_READ:
             return assetlib::ShaderBindingAccess::Read;
         case SLANG_RESOURCE_ACCESS_READ_WRITE:
+        case SLANG_RESOURCE_ACCESS_RASTER_ORDERED:
             return assetlib::ShaderBindingAccess::ReadWrite;
         case SLANG_RESOURCE_ACCESS_WRITE:
             return assetlib::ShaderBindingAccess::Write;

@@ -80,6 +80,7 @@
 #include "RenderGraph/Passes/Utility/MipMapPass.h"
 #include "RenderGraph/Passes/Utility/UploadPass.h"
 #include "Renderer/BindlessTextureDescriptorsRingBuffer.h"
+#include "RenderGraph/Passes/SceneDraw/OIT/MomentBasedOitPass.h"
 #include "Scene/Scene.h"
 
 #include <AssetLib/Images/ImageMeta.h>
@@ -609,8 +610,6 @@ void Renderer::SetupRenderGraph()
     ImageResource minMaxDepth =
         m_PrimaryVisibilityResources.Hiz[primaryVisibilityIndex];
     
-    RenderGraphForwardTranslucentPass(color, depth, m_CsmData, minMaxDepth);
-    
     m_Graph->Export(
         metaUgb->DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
         m_MinMaxDepthReductionsNextFrame[GetFrameContext().FrameNumber],
@@ -641,6 +640,8 @@ void Renderer::SetupRenderGraph()
     {
         colorWithSky = RenderGraphSkyBox(color, depth);
     }
+    
+    RenderGraphForwardTranslucentPass(colorWithSky, depth, m_CsmData, minMaxDepth);
     
     ImageResource colorPreTonemapping = colorWithSky;
     auto& exposure = Passes::PbrCameraExposure::addToGraph("CameraExposure"_hsv,
@@ -1069,7 +1070,7 @@ SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::ImageRes
     };
 }
 
-SceneDrawPassDescription Renderer::RenderGraphForwardTranslucentPbrDescription(RG::ImageResource color,
+SceneDrawPassDescription Renderer::RenderGraphForwardTranslucentPbrDescription(RG::ImageResource& color,
     RG::ImageResource depth, RG::CsmData csmData, const ScenePass& scenePass)
 {
     using namespace RG;
@@ -1078,8 +1079,9 @@ SceneDrawPassDescription Renderer::RenderGraphForwardTranslucentPbrDescription(R
     {
         const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
         
-        Passes::SceneForwardPbr::ExecutionInfo executionInfo = {
+        Passes::MomentBasedOit::ExecutionInfo executionInfo = {
             .DrawInfo = info,
+            .ColorIn = color,
             .Geometry = &m_SceneGeometryRGResources,
             .DirectionalLights = m_Graph->Import(
                 "DirectionalLights"_hsv, m_Scene->Lights().GetBuffers().DirectionalLights),
@@ -1101,20 +1103,30 @@ SceneDrawPassDescription Renderer::RenderGraphForwardTranslucentPbrDescription(R
         };
         executionInfo.CommonOverrides = ShaderPipelineOverrides({.DepthMode = DepthMode::Read});
         
-        auto& pass = Passes::SceneForwardPbr::addToGraph(name.Concatenate(".TranslucentUGB"), graph, executionInfo);
-
+        auto& pass = Passes::MomentBasedOit::addToGraph(name.Concatenate(".OIT"), graph, executionInfo);
+        
+        color = pass.Color;
+        
         return pass.Resources.Attachments;
     };
 
     const AttachmentLoad depthOnLoad = AttachmentLoad::Load;
     const AttachmentStore depthOnStore = AttachmentStore::Store;
 
+    const ImageResource translucentColor = m_Graph->Create("TranslucentColor"_hsv, ResourceCreationFlags::AutoUpdate,
+        RGImageDescription{
+            .Inference = RGImageInference::Size2d,
+            .Reference = color,
+            .Format = Format::RGBA16_FLOAT,
+        });
+    
     DrawAttachments attachments = {
         .Colors = {
             DrawAttachment{
-                .Resource = color,
+                .Resource = translucentColor,
                 .Description = {
-                    .OnLoad = AttachmentLoad::Load,
+                    .OnLoad = AttachmentLoad::Clear,
+                    .ClearColor = {.F = glm::vec4(0.0f)}
                 }
             }
         },
@@ -1122,8 +1134,7 @@ SceneDrawPassDescription Renderer::RenderGraphForwardTranslucentPbrDescription(R
             .Resource = depth,
             .Description = {
                 .OnLoad = depthOnLoad,
-                .OnStore = depthOnStore,
-                .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}
+                .OnStore = depthOnStore
             }
         }
     };
@@ -1298,11 +1309,9 @@ Passes::SceneMetaDraw::PassData* Renderer::RenderGraphForwardTranslucentPass(RG:
             .DrawPasses = {RenderGraphForwardTranslucentPbrDescription(color, depth, csmData, translucentForwardPass)}
         });
 
-    depth = meta.DrawPassViewAttachments.Get(m_TranslucentSetPrimaryView.Name, translucentForwardPass.Name()).Depth->
-                 Resource;
-    color = meta.DrawPassViewAttachments.Get(m_TranslucentSetPrimaryView.Name, translucentForwardPass.Name()).Colors[0].
-        Resource;
-
+    depth = meta.DrawPassViewAttachments.Get(
+        m_TranslucentSetPrimaryView.Name, translucentForwardPass.Name()).Depth->Resource;
+    
     return &meta;
 }
 
