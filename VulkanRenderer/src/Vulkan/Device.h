@@ -245,6 +245,8 @@ public:
     static void CompileCommand(CommandBuffer cmd, const CopyImageCommand& command);
     static void CompileCommand(CommandBuffer cmd, const BlitImageCommand& command);
     static void CompileCommand(CommandBuffer cmd, const MipmapImageCommand& command);
+    static void CompileCommand(CommandBuffer cmd, const ClearColorImageCommand& command);
+    static void CompileCommand(CommandBuffer cmd, const ClearDepthStencilImageCommand& command);
 
     static void CompileCommand(CommandBuffer cmd, const WaitOnFullPipelineBarrierCommand& command);
     static void CompileCommand(CommandBuffer cmd, const WaitOnBarrierCommand& command);

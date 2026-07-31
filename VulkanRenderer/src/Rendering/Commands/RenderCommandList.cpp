@@ -90,6 +90,16 @@ void RenderCommandList::MipmapImage(MipmapImageCommand&& command)
     Device::CompileCommand(m_Cmd, command);
 }
 
+void RenderCommandList::ClearColorImage(ClearColorImageCommand&& command)
+{
+    Device::CompileCommand(m_Cmd, command);
+}
+
+void RenderCommandList::ClearDepthStencilImage(ClearDepthStencilImageCommand&& command)
+{
+    Device::CompileCommand(m_Cmd, command);
+}
+
 void RenderCommandList::WaitOnFullPipelineBarrier(WaitOnFullPipelineBarrierCommand&& command)
 {
     Device::CompileCommand(m_Cmd, command);

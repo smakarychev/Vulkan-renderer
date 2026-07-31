@@ -1,6 +1,5 @@
 #pragma once
 
-#include "RenderHandle.h"
 #include "RenderGraph/Passes/Generated/Types/IndirectCommandUniform.generated.h"
 #include "Rendering/Buffer/Buffer.h"
 #include "Rendering/CommandBuffer.h"
@@ -42,6 +41,8 @@ enum class RenderCommandType
     ImageCopy,
     ImageBlit,
     ImageMipmaps,
+    ClearColor,
+    ClearDepthStencil,
 
     /* synchronization */
     BarrierFull,
@@ -205,6 +206,18 @@ struct MipmapImageCommand : RenderCommandTyped<RenderCommandType::ImageMipmaps, 
 {
     Image Image{};
     ImageLayout Layout{ImageLayout::Undefined};
+};
+struct ClearColorImageCommand : RenderCommandTyped<RenderCommandType::ClearColor, RenderCommandQueueType::Transfer>
+{
+    ImageSubresource Image{};
+    ColorClearValue ClearValue{};
+};
+
+struct ClearDepthStencilImageCommand : RenderCommandTyped<RenderCommandType::ClearDepthStencil, 
+    RenderCommandQueueType::Transfer>
+{
+    ImageSubresource Image{};
+    DepthStencilClearValue ClearValue{};
 };
 
 

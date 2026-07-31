@@ -1785,6 +1785,8 @@ public:
     static void CompileCommand(const auto& resources, CommandBuffer cmd, const CopyImageCommand& command);
     static void CompileCommand(const auto& resources, CommandBuffer cmd, const BlitImageCommand& command);
     static void CompileCommand(const auto& resources, CommandBuffer cmd, const MipmapImageCommand& command);
+    static void CompileCommand(const auto& resources, CommandBuffer cmd, const ClearColorImageCommand& command);
+    static void CompileCommand(const auto& resources, CommandBuffer cmd, const ClearDepthStencilImageCommand& command);
 
     static void CompileCommand(const auto& resources, CommandBuffer cmd,
         const WaitOnFullPipelineBarrierCommand& command);
@@ -3351,6 +3353,18 @@ void Device::CompileCommand(CommandBuffer cmd, const BlitImageCommand& command)
 void Device::CompileCommand(CommandBuffer cmd, const MipmapImageCommand& command)
 {
     auto view = deviceResources().GetLockedView<CommandBufferTag, DependencyInfoTag, ImageTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
+}
+
+void Device::CompileCommand(CommandBuffer cmd, const ClearColorImageCommand& command)
+{
+    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
+    DeviceInternal::CompileCommand(view, cmd, command);
+}
+
+void Device::CompileCommand(CommandBuffer cmd, const ClearDepthStencilImageCommand& command)
+{
+    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
@@ -6242,6 +6256,45 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
             }, deletionQueue)
         });
     }
+}
+
+void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const ClearColorImageCommand& command)
+{
+    const VkClearColorValue clearValue = {
+        .float32 = {
+            command.ClearValue.F.r,
+            command.ClearValue.F.g,
+            command.ClearValue.F.b,
+            command.ClearValue.F.a
+        }
+    };
+    const VkImageSubresourceRange imageSubresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = (u32)command.Image.Description.MipmapBase,
+        .levelCount = (u32)command.Image.Description.Mipmaps,
+        .baseArrayLayer = (u32)command.Image.Description.LayerBase,
+        .layerCount = (u32)command.Image.Description.Layers, 
+    };
+    vkCmdClearColorImage(resources[cmd].CommandBuffer, resources[command.Image.Image].Image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &imageSubresourceRange);
+}
+
+void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
+    const ClearDepthStencilImageCommand& command)
+{
+    const VkClearDepthStencilValue clearValue = {
+        .depth = command.ClearValue.Depth,
+        .stencil = command.ClearValue.Stencil
+    };
+    const VkImageSubresourceRange imageSubresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+        .baseMipLevel = (u32)command.Image.Description.MipmapBase,
+        .levelCount = (u32)command.Image.Description.Mipmaps,
+        .baseArrayLayer = (u32)command.Image.Description.LayerBase,
+        .layerCount = (u32)command.Image.Description.Layers,
+    };
+    vkCmdClearDepthStencilImage(resources[cmd].CommandBuffer, resources[command.Image.Image].Image, 
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &imageSubresourceRange);
 }
 
 void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const WaitOnFullPipelineBarrierCommand&)
