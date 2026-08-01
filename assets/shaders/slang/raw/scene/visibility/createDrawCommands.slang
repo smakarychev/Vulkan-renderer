@@ -36,9 +36,8 @@ void createDrawCommandsDispatches(
 struct Resources {
     UGBMeshlets meshlets;
     StructuredBuffer<RenderObject> objects;
-    StructuredBuffer<uint32_t> objectHandles;
     StructuredBuffer<uint64_t> renderObjectBuckets;
-    RWStructuredBuffer<SceneVisibilityElement> visibleMeshlets;
+    StructuredBuffer<SceneVisibilityElement> visibleMeshlets;
     StructuredBuffer<SceneVisibilityCountData> visibilityCountData;
     RWStructuredBuffer<IndirectCommand> drawCommands[MAX_COMMAND_BUFFERS];
     RWStructuredBuffer<DrawInfo> drawInfos[MAX_COMMAND_BUFFERS];
@@ -68,8 +67,7 @@ void createDrawCommands(
         meshletId += resources.visibilityCountData[0].visibleMeshlets;
 
     const SceneVisibilityElement meshletElement = resources.visibleMeshlets[meshletId];
-    const uint renderObjectId = resources.objectHandles[meshletElement.renderObjectHandle];
-    const RenderObject object = resources.objects[renderObjectId];
+    const RenderObject object = resources.objects[meshletElement.renderObjectId];
     const uint64_t objectBuckets = resources.renderObjectBuckets[meshletElement.renderObjectHandle];
     const Meshlet meshlet = resources.meshlets.meshlet(object.meshletIndex + meshletElement.meshletId);
 
@@ -78,14 +76,11 @@ void createDrawCommands(
     while (views > 0) {
         int viewBit = firstbitlow(views);
 
-        writeView(viewBit * bucketCount, views, viewBit, buckets, objectBuckets, renderObjectId, meshletId, meshlet, 
-            object, resources);
+        writeView(viewBit * bucketCount, views, viewBit, buckets, objectBuckets, meshletElement.renderObjectId, 
+            meshletId, meshlet, object, resources);
 
         views = views & ~(1u << viewBit);
     }
-
-    // change renderObjectHandle (which is Set-specific) to renderObjectId (which is Geometry-specific)
-    resources.visibleMeshlets[meshletId].renderObjectHandle = renderObjectId;
 }
 
 void writeView(uint viewOffset, const uint views, const int viewBit, uint64_t buckets, uint64_t objectBuckets,

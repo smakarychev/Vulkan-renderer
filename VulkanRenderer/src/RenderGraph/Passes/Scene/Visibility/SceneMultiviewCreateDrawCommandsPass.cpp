@@ -71,15 +71,12 @@ PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo&
 
             passData.Resources = info.Resources;
             auto& resources = *passData.Resources;
-            resources.Meshlets = passData.BindGroup.SetResourcesMeshletsUgb(resources.Meshlets);
-            resources.RenderObjects = passData.BindGroup.SetResourcesObjects(resources.RenderObjects);
-            resources.RenderObjectHandles = passData.BindGroup.SetResourcesObjectHandles(resources.RenderObjectHandles);
-            resources.RenderObjectBuckets =
-                passData.BindGroup.SetResourcesRenderObjectBuckets(resources.RenderObjectBuckets);
-            resources.VisibleMeshletsData =
-                passData.BindGroup.SetResourcesVisibleMeshlets(resources.VisibleMeshletsData);
-            resources.VisibilityCountData = passData.BindGroup.SetResourcesVisibilityCountData(
-                resources.VisibilityCountData);
+            
+            passData.BindGroup.SetResourcesMeshletsUgb(resources.Meshlets);
+            passData.BindGroup.SetResourcesObjects(resources.RenderObjects);
+            passData.BindGroup.SetResourcesRenderObjectBuckets(resources.RenderObjectBuckets);
+            passData.BindGroup.SetResourcesVisibilityCountData(resources.VisibilityCountData);
+            passData.BindGroup.SetResourcesVisibleMeshlets(resources.VisibleMeshletsData);
 
             for (u32 view = 0; view < resources.VisibilityCount; view++)
             {

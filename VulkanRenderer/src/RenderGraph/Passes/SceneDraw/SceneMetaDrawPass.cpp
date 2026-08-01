@@ -126,27 +126,33 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
             const SceneVisibilityStage firstCullingStage = hasAnyPassWithSingleStageCulling ?
                 SceneVisibilityStage::Single :
                 SceneVisibilityStage::Cull;
+            
+            const bool finishedFirstCullingStage = info.Resources->FinishedCullingStages[(u32)firstCullingStage];
         
-            SceneMultiviewRenderObjectVisibility::addToGraph(
-                name.Concatenate("SceneROVisibility"),
-                graph, {
-                    .MultiviewVisibility = info.MultiviewVisibility,
-                    .Resources = info.Resources,
-                    .Stage = firstCullingStage,
-                });
-            SceneVisibilityExpandMeshlets::addToGraph(
-                name.Concatenate(".ExpandMeshlets"),
-                graph, {
-                    .Resources = info.Resources,
-                    .Stage = firstCullingStage,
-                });
-            SceneMultiviewMeshletVisibility::addToGraph(
-                name.Concatenate("SceneMeshletVisibility"),
-                graph, {
-                    .MultiviewVisibility = info.MultiviewVisibility,
-                    .Resources = info.Resources,
-                    .Stage = firstCullingStage,
-                });
+            if (!finishedFirstCullingStage)
+            {
+                SceneMultiviewRenderObjectVisibility::addToGraph(
+                    name.Concatenate("SceneROVisibility"),
+                    graph, {
+                        .MultiviewVisibility = info.MultiviewVisibility,
+                        .Resources = info.Resources,
+                        .Stage = firstCullingStage,
+                    });
+                SceneVisibilityExpandMeshlets::addToGraph(
+                    name.Concatenate(".ExpandMeshlets"),
+                    graph, {
+                        .Resources = info.Resources,
+                        .Stage = firstCullingStage,
+                    });
+                SceneMultiviewMeshletVisibility::addToGraph(
+                    name.Concatenate("SceneMeshletVisibility"),
+                    graph, {
+                        .MultiviewVisibility = info.MultiviewVisibility,
+                        .Resources = info.Resources,
+                        .Stage = firstCullingStage,
+                    });
+                info.Resources->FinishedCullingStages[(u32)firstCullingStage] = true;
+            }
 
             SceneMultiviewCreateDrawCommands::addToGraph(
                 name.Concatenate("CreateDrawCommands"),
@@ -162,8 +168,10 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
             
             if (!hasSecondStage)
                 return;
-
-            SceneMultiviewVisibilityHiz::addToGraph(
+            
+            if (!finishedFirstCullingStage)
+            {
+                SceneMultiviewVisibilityHiz::addToGraph(
                 name.Concatenate("HizMultiview"),
                 graph, {
                     .MultiviewVisibility = info.MultiviewVisibility,
@@ -171,27 +179,35 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                     .Stage = SceneVisibilityStage::Cull,
                     .Depths = passDepths
                 });
+            }
             
-            SceneMultiviewRenderObjectVisibility::addToGraph(
-                name.Concatenate("SceneROReocclusion"),
-                graph, {
-                    .MultiviewVisibility = info.MultiviewVisibility,
-                    .Resources = info.Resources,
-                    .Stage = SceneVisibilityStage::Reocclusion
-                });
-            SceneVisibilityExpandMeshlets::addToGraph(
-                name.Concatenate(".ExpandMeshletsReocclusion"),
-                graph, {
-                    .Resources = info.Resources,
-                    .Stage = SceneVisibilityStage::Reocclusion,
-                });
-            SceneMultiviewMeshletVisibility::addToGraph(
-                name.Concatenate("SceneMeshletReocclusion"),
-                graph, {
-                    .MultiviewVisibility = info.MultiviewVisibility,
-                    .Resources = info.Resources,
-                    .Stage = SceneVisibilityStage::Reocclusion
-                });
+            const bool finishedReocclusionCullingStage = 
+                info.Resources->FinishedCullingStages[(u32)SceneVisibilityStage::Reocclusion];
+
+            if (!finishedReocclusionCullingStage)
+            {
+                SceneMultiviewRenderObjectVisibility::addToGraph(
+                    name.Concatenate("SceneROReocclusion"),
+                    graph, {
+                        .MultiviewVisibility = info.MultiviewVisibility,
+                        .Resources = info.Resources,
+                        .Stage = SceneVisibilityStage::Reocclusion
+                    });
+                SceneVisibilityExpandMeshlets::addToGraph(
+                    name.Concatenate(".ExpandMeshletsReocclusion"),
+                    graph, {
+                        .Resources = info.Resources,
+                        .Stage = SceneVisibilityStage::Reocclusion,
+                    });
+                SceneMultiviewMeshletVisibility::addToGraph(
+                    name.Concatenate("SceneMeshletReocclusion"),
+                    graph, {
+                        .MultiviewVisibility = info.MultiviewVisibility,
+                        .Resources = info.Resources,
+                        .Stage = SceneVisibilityStage::Reocclusion
+                    });
+                info.Resources->FinishedCullingStages[(u32)SceneVisibilityStage::Reocclusion] = true;
+            }
             
             SceneMultiviewCreateDrawCommands::addToGraph(
                 name.Concatenate("CreateDrawCommandsReocclusion"),
@@ -206,15 +222,17 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                 visibilityIndex++)
                 drawWithVisibility(visibilityIndex, /*reocclusion*/true);
 
-            
-            SceneMultiviewVisibilityHiz::addToGraph(
-                name.Concatenate("HizMultiviewReocclusion"),
-                graph, {
-                    .MultiviewVisibility = info.MultiviewVisibility,
-                    .Resources = info.Resources,
-                    .Stage = SceneVisibilityStage::Reocclusion,
-                    .Depths = passDepths
-                });
+            if (!finishedReocclusionCullingStage)
+            {
+                SceneMultiviewVisibilityHiz::addToGraph(
+                    name.Concatenate("HizMultiviewReocclusion"),
+                    graph, {
+                        .MultiviewVisibility = info.MultiviewVisibility,
+                        .Resources = info.Resources,
+                        .Stage = SceneVisibilityStage::Reocclusion,
+                        .Depths = passDepths
+                    });
+            }
             for (auto& pass : info.DrawPasses)
             {
                 const u32 visibilityIndex = info.MultiviewVisibility->VisibilityHandleToIndex(pass.Visibility);

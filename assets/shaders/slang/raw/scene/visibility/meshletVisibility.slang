@@ -19,7 +19,6 @@ struct MeshletVisibilityResources {
     Texture2D hizPrevious[MAX_VISIBILITY_VIEWS];
     ConstantBuffer<ViewInfo> views[MAX_VISIBILITY_VIEWS];
     StructuredBuffer<RenderObject> objects;
-    StructuredBuffer<uint32_t> objectHandles;
 
     UGBMeshlets meshlets;
     
@@ -36,12 +35,13 @@ ParameterBlock<MeshletVisibilitySamplers> samplers;
 ParameterBlock<MeshletVisibilityResources> resources;
 
 void visibilityFirstStage(
+    uint renderObjectId,
     uint renderObjectHandle,
     uint meshletId,
     uint viewMask,
     uniform uint viewCount) {
 
-    const RenderObject object = resources.objects[resources.objectHandles[renderObjectHandle]];
+    const RenderObject object = resources.objects[renderObjectId];
     const MeshletBounds meshlet = resources.meshlets.bounds(object.meshletBoundIndex + meshletId);
 
     const float4 originWorld = mul(float4(
@@ -85,6 +85,7 @@ void visibilityFirstStage(
     }
 
     compact<true>(
+        renderObjectId,
         renderObjectHandle,
         meshletId,
         visibleMask, occludedMask,
@@ -95,12 +96,13 @@ void visibilityFirstStage(
 
 
 void visibilitySecondStage(
+    uint renderObjectId,
     uint renderObjectHandle,
     uint meshletId,
     uint occludedMask,
     uniform uint viewCount) {
 
-    const RenderObject object = resources.objects[resources.objectHandles[renderObjectHandle]];
+    const RenderObject object = resources.objects[renderObjectId];
     const MeshletBounds meshlet = resources.meshlets.bounds(object.meshletBoundIndex + meshletId);
 
     const float4 originWorld = mul(float4(
@@ -137,6 +139,7 @@ void visibilitySecondStage(
     }
     
     compact<false>(
+        renderObjectId,
         renderObjectHandle,
         meshletId,
         visibleMask, 0,
@@ -147,12 +150,13 @@ void visibilitySecondStage(
 
 
 void visibilitySingleStage(
+    uint renderObjectId,
     uint renderObjectHandle,
     uint meshletId,
     uint occludedMask,
     uniform uint viewCount) {
 
-    const RenderObject object = resources.objects[resources.objectHandles[renderObjectHandle]];
+    const RenderObject object = resources.objects[renderObjectId];
     const MeshletBounds meshlet = resources.meshlets.bounds(object.meshletBoundIndex + meshletId);
 
     const float4 originWorld = mul(float4(
@@ -189,6 +193,7 @@ void visibilitySingleStage(
     }
     
     compact<false>(
+        renderObjectId,
         renderObjectHandle,
         meshletId,
         visibleMask, 0,
@@ -215,6 +220,7 @@ void meshletVisibility(
     if (SINGLE_PASS) {
         const SceneVisibilityElement meshletVisiblityElement = resources.occludedMeshlets[dispatchThreadID];
         visibilitySingleStage(
+            meshletVisiblityElement.renderObjectId,
             meshletVisiblityElement.renderObjectHandle,
             meshletVisiblityElement.meshletId,
             meshletVisiblityElement.viewMask,
@@ -222,6 +228,7 @@ void meshletVisibility(
     } else if (REOCCLUSION) {
         const SceneVisibilityElement meshletVisiblityElement = resources.occludedMeshlets[dispatchThreadID];
         visibilitySecondStage(
+            meshletVisiblityElement.renderObjectId,
             meshletVisiblityElement.renderObjectHandle,
             meshletVisiblityElement.meshletId,
             meshletVisiblityElement.viewMask,
@@ -229,6 +236,7 @@ void meshletVisibility(
     } else {
         const SceneVisibilityElement meshletVisiblityElement = resources.expandedMeshlets[dispatchThreadID];
         visibilityFirstStage(
+            meshletVisiblityElement.renderObjectId,
             meshletVisiblityElement.renderObjectHandle,
             meshletVisiblityElement.meshletId, 
             meshletVisiblityElement.viewMask, 
@@ -237,7 +245,7 @@ void meshletVisibility(
 }
 
 inline void compact<let isFirstStage : bool>(
-    uint renderObjectHandle,
+    uint renderObjectId, uint renderObjectHandle,
     uint meshletId,
     uint visibleMask, uint occludedMask,
     RWStructuredBuffer<SceneVisibilityElement> visibleMeshlets,
@@ -273,7 +281,8 @@ inline void compact<let isFirstStage : bool>(
     const uint compactedBufferIndex = compactedBufferIndexBase + compactedBufferOffset;
 
     if (anyVisible) {
-        visibleMeshlets[compactedBufferIndex] = SceneVisibilityElement(renderObjectHandle, meshletId, visibleMask);
+        visibleMeshlets[compactedBufferIndex] = SceneVisibilityElement(renderObjectId, renderObjectHandle, meshletId,
+            visibleMask);
     }
 
     if (isFirstStage) {
@@ -283,7 +292,8 @@ inline void compact<let isFirstStage : bool>(
         const uint compactedBufferIndex = compactedOccludedBufferIndexBase + compactedBufferOffset;
 
         if (anyOccluded) {
-            occludedMeshlets[compactedBufferIndex] = SceneVisibilityElement(renderObjectHandle, meshletId, occludedMask);
+            occludedMeshlets[compactedBufferIndex] = SceneVisibilityElement(renderObjectId, renderObjectHandle, 
+                meshletId, occludedMask);
         }
     }
 }

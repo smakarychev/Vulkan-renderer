@@ -21,6 +21,8 @@ public struct SceneVisibilityCountData {
 
 [StandaloneType("sceneVisibilityElement")]
 public struct SceneVisibilityElement {
+    public uint renderObjectId;
+    // handle is the id of render object that is local to set
     public uint renderObjectHandle;
     public uint meshletId;
     public uint viewMask;
@@ -29,6 +31,7 @@ public struct SceneVisibilityElement {
 /// Same as `SceneVisibilityElement`, but is used in draw passes
 public struct SceneDrawElement {
     public uint renderObjectId;
+    public uint renderObjectHandle;
     public uint meshletId;
     public uint viewMask;
 }

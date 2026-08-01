@@ -5,7 +5,12 @@
 
 struct SceneGeometryRGResources;
 
-enum class SceneVisibilityStage {Cull, Reocclusion, Single};
+enum class SceneVisibilityStage : u8
+{
+    Cull, Reocclusion, Single,
+    
+    MaxValue
+};
 
 struct SceneVisibilityPassesResources
 {
@@ -32,6 +37,7 @@ struct SceneVisibilityPassesResources
     u32 VisibilityCount{0};
     u32 RenderObjectCount{0};
     u32 MeshletCount{0};
+    std::array<bool, (u32)SceneVisibilityStage::MaxValue> FinishedCullingStages{false};
     
     static SceneVisibilityPassesResources FromSceneMultiviewVisibility(
         RG::Graph& renderGraph,
