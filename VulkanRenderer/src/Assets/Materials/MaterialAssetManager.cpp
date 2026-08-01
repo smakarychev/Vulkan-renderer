@@ -35,7 +35,7 @@ void MaterialAssetManager::OnFileModified(const std::filesystem::path& path)
         return;
 
     import::MaterialImporter importer(m_Ctx);
-    AssetSystemFileLockGuard fileLock = m_AssetSystem->LockAssetFile(path, importer);
+    m_AssetSystem->SkipFileUpdateNotify(importer.GetMetaPath(path));
     
     auto newMaterial = DoLoad(importer, path);
     if (!newMaterial.has_value())

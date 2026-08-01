@@ -11,39 +11,6 @@ namespace fs = std::filesystem;
 
 namespace lux
 {
-bool AssetSystemFileLocker::HasLock(const std::filesystem::path& path)
-{
-    std::scoped_lock lock(m_Mutex);
-    
-    return m_Locked.contains(path);
-}
-
-void AssetSystemFileLocker::AddLock(const std::filesystem::path& rawPath, const std::filesystem::path& metadataPath)
-{
-    std::scoped_lock lock(m_Mutex);
-    m_Locked.insert(rawPath);
-    m_Locked.insert(metadataPath);
-}
-
-void AssetSystemFileLocker::ReleaseLock(const std::filesystem::path& rawPath, const std::filesystem::path& metadataPath)
-{
-    std::scoped_lock lock(m_Mutex);
-    m_Locked.erase(rawPath);
-    m_Locked.erase(metadataPath);
-}
-
-AssetSystemFileLockGuard::AssetSystemFileLockGuard(const std::filesystem::path& rawPath,
-    const std::filesystem::path& metadataPath, AssetSystemFileLocker& locker)
-    : m_RawPath(rawPath), m_MetadataPath(metadataPath), m_Locker(&locker)
-{
-    m_Locker->AddLock(rawPath, metadataPath);
-}
-
-AssetSystemFileLockGuard::~AssetSystemFileLockGuard()
-{
-    m_Locker->ReleaseLock(m_RawPath, m_MetadataPath);
-}
-
 void AssetSystem::Init(const std::shared_ptr<import::Context>& context)
 {
     m_Ctx = context;
@@ -130,16 +97,18 @@ bool AssetSystem::AddImportRequest(AssetImportRequest&& request)
     return m_ImportQueue.AddRequest(std::move(request));
 }
 
-AssetSystemFileLockGuard AssetSystem::LockAssetFile(const std::filesystem::path& assetPath,
-    const import::Importer& importer)
+void AssetSystem::SkipFileUpdateNotify(const std::filesystem::path& path)
 {
-    return AssetSystemFileLockGuard(assetPath, importer.GetMetaPath(assetPath), m_AssetSystemFileLocker);
+    std::scoped_lock lock(m_SkippedFileUpdateMutex);
+    auto& updateInfo = m_SkippedFileUpdateInfos[path];
+    updateInfo.Count += 1;
+    updateInfo.LatestTimePoint = std::chrono::high_resolution_clock::now();
 }
 
 void AssetSystem::InitFileWatcher(const std::filesystem::path& path)
 {
     m_FileWatcher = std::make_unique<FileWatcher>();
-    if (const auto res = m_FileWatcher->Watch(path, {.DebounceDuration = 0ms}); !res.has_value())
+    if (const auto res = m_FileWatcher->Watch(path, {}); !res.has_value())
     {
         LUX_LOG_ERROR("Failed to init file watcher for directory {}. Error: {}",
             path.string(), FileWatcher::ErrorDescription(res.error()));
@@ -149,6 +118,14 @@ void AssetSystem::InitFileWatcher(const std::filesystem::path& path)
     m_FileWatcherHandler = ::FileWatcherHandler([this](const FileWatcherEvent& event)
     {
         const std::filesystem::path filePath = event.Name;
+        
+        /* delete expired skipped file updates */
+        {
+            std::scoped_lock lock(m_SkippedFileUpdateMutex);
+            std::erase_if(m_SkippedFileUpdateInfos, [&event](const auto& item) {
+                return item.second.LatestTimePoint + SkippedFileUpdateInfo::EXPIRE_TIME < event.TimePoint;
+            });   
+        }
         
         /* is it possible that file is deleted or renamed before we begin to process it */
         if (!std::filesystem::exists(filePath) || std::filesystem::is_directory(filePath))
@@ -167,8 +144,17 @@ void AssetSystem::InitFileWatcher(const std::filesystem::path& path)
 
 void AssetSystem::OnFileModified(const std::filesystem::path& path)
 {
-    if (m_AssetSystemFileLocker.HasLock(path))
-        return;
+    {
+        std::scoped_lock lock(m_SkippedFileUpdateMutex);
+        const auto it = m_SkippedFileUpdateInfos.find(path);
+        if (it != m_SkippedFileUpdateInfos.end())
+        {
+            it->second.Count -= 1;
+            if (it->second.Count == 0)
+                m_SkippedFileUpdateInfos.erase(it);
+            return;
+        }
+    }
     
     for (auto& manager : m_Managers | std::views::values)
         manager->OnFileModified(path);

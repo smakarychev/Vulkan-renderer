@@ -30,36 +30,6 @@ struct AssetUpdatedInfo
 using AssetUpdatedSignal = Signal<AssetUpdatedInfo>;
 using AssetUpdatedHandler = SignalHandler<AssetUpdatedInfo>;
 
-class AssetSystemFileLocker
-{
-public:
-    bool HasLock(const std::filesystem::path& path);
-    void AddLock(const std::filesystem::path& rawPath, const std::filesystem::path& metadataPath);
-    void ReleaseLock(const std::filesystem::path& rawPath, const std::filesystem::path& metadataPath);
-
-private:
-    std::mutex m_Mutex;
-    std::unordered_set<std::filesystem::path> m_Locked;
-};
-
-class AssetSystemFileLockGuard
-{
-public:
-    AssetSystemFileLockGuard(const std::filesystem::path& rawPath, const std::filesystem::path& metadataPath,
-        AssetSystemFileLocker& locker);
-
-    AssetSystemFileLockGuard(const AssetSystemFileLockGuard&) = delete;
-    AssetSystemFileLockGuard& operator=(const AssetSystemFileLockGuard&) = delete;
-    AssetSystemFileLockGuard(AssetSystemFileLockGuard&&) noexcept = default;
-    AssetSystemFileLockGuard& operator=(AssetSystemFileLockGuard&&) noexcept = default;
-    ~AssetSystemFileLockGuard();
-
-private:
-    std::filesystem::path m_RawPath;
-    std::filesystem::path m_MetadataPath;
-    AssetSystemFileLocker* m_Locker{nullptr};
-};
-
 class AssetSystem
 {
 public:
@@ -81,7 +51,7 @@ public:
     const AssetIdResolver::AssetInfo* Resolve(assetlib::AssetId id) const;
     assetlib::AssetId ResolveMetaPath(const std::filesystem::path& path) const;
     bool AddImportRequest(AssetImportRequest&& request);
-    AssetSystemFileLockGuard LockAssetFile(const std::filesystem::path& assetPath, const import::Importer& importer);
+    void SkipFileUpdateNotify(const std::filesystem::path& path);
 
     const std::filesystem::path& GetAssetsDirectory() const { return m_AssetsDirectory; }
     const std::shared_ptr<import::Context>& GetContext() const { return m_Ctx; }
@@ -103,7 +73,15 @@ private:
     std::unordered_map<assetlib::AssetType, AssetUpdatedSignal> m_AssetUpdatedSignals;
 
     AssetImportQueue m_ImportQueue;
-    AssetSystemFileLocker m_AssetSystemFileLocker;
+  
+    struct SkippedFileUpdateInfo
+    {
+        static constexpr auto EXPIRE_TIME = 15s;
+        u32 Count{0};
+        std::chrono::time_point<std::chrono::high_resolution_clock> LatestTimePoint;
+    };
+    std::unordered_map<std::filesystem::path, SkippedFileUpdateInfo> m_SkippedFileUpdateInfos;
+    std::mutex m_SkippedFileUpdateMutex;
 };
 
 template <typename ResourceAssetManager> requires std::is_base_of_v<AssetManager, ResourceAssetManager>

@@ -140,7 +140,7 @@ void SceneAssetManager::OnRawFileModified(const std::filesystem::path& path)
         .ImportFn = [this, path]()
         {
             import::SceneImporter importer(m_Ctx);
-            AssetSystemFileLockGuard fileLock = m_AssetSystem->LockAssetFile(path, importer);
+            m_AssetSystem->SkipFileUpdateNotify(importer.GetMetaPath(path));
             
             auto sceneAsset = DoLoad(importer, path);
             if (!sceneAsset.has_value())
