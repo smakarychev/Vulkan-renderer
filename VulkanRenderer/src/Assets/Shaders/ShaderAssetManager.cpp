@@ -205,12 +205,6 @@ ShaderHandle ShaderAssetManager::LoadAsset(const ShaderLoadParameters& parameter
         m_Pipelines.push_back(newPipeline);
         m_PipelinesMap[nameWithOverrides] = handle;
     }
-    else
-    {
-        handle = it->second;
-        m_FrameDeletionQueue->Enqueue(m_Pipelines[handle.Index()].Pipeline);
-        m_Pipelines[handle.Index()] = newPipeline;
-    }
 
     return handle;
 }
