@@ -56,7 +56,7 @@ public:
         };
 
         Type BarrierType{Type::Barrier};
-        const DependencyInfoCreateInfo* DependencyInfo{nullptr};
+        const DependencyInfo* DependencyInfo{nullptr};
     };
     struct BufferBarrier
     {

@@ -2011,15 +2011,16 @@ void Renderer::OnRender()
         CPU_PROFILE_FRAME("Initial submit")
         GPU_PROFILE_FRAME("Initial submit")
         GetFrameContext().ResourceUploader->SubmitUpload(GetFrameContext());
-        GetFrameContext().CommandList.WaitOnBarrier({.DependencyInfo = Device::CreateDependencyInfo({
-            .MemoryDependencyInfo = MemoryDependencyInfo{
+        GetFrameContext().CommandList.WaitOnBarrier({
+            .DependencyInfo = MemoryDependencyInfo{
                 .SourceStage = PipelineStage::AllTransfer,
                 .DestinationStage = PipelineStage::AllCommands,
                 .SourceAccess = PipelineAccess::WriteAll,
-                .DestinationAccess = PipelineAccess::ReadAll}},
-            *GetFrameContext().DeletionQueue)});
+                .DestinationAccess = PipelineAccess::ReadAll
+            }
+        });
     }
-    
+
     {
         // todo: as always everything in this file is somewhat temporary
         // todo: what I really want here is a single-time render graph, that can be queried to check if it has pending passes
@@ -2073,15 +2074,12 @@ void Renderer::BeginFrame()
     cmd.Begin();
 
     GetFrameContext().CommandList.WaitOnBarrier({
-        .DependencyInfo = Device::CreateDependencyInfo({
-            .MemoryDependencyInfo = MemoryDependencyInfo{
-                .SourceStage = PipelineStage::Host,
-                .DestinationStage = PipelineStage::AllCommands,
-                .SourceAccess = PipelineAccess::WriteAll | PipelineAccess::WriteHost,
-                .DestinationAccess = PipelineAccess::ReadAll
-            }
-        },
-        *GetFrameContext().DeletionQueue)
+        .DependencyInfo = MemoryDependencyInfo{
+            .SourceStage = PipelineStage::Host,
+            .DestinationStage = PipelineStage::AllCommands,
+            .SourceAccess = PipelineAccess::WriteAll | PipelineAccess::WriteHost,
+            .DestinationAccess = PipelineAccess::ReadAll
+        }
     });
     
     m_ResourceUploader.BeginFrame(GetFrameContext());
@@ -2114,20 +2112,18 @@ void Renderer::EndFrame()
     ImGuiUI::EndFrame(GetFrameContext().CommandList, GetImGuiUIRenderingInfo());
     /* transition swapchain draw image to the layout swapchain expects */
     GetFrameContext().CommandList.WaitOnBarrier({
-        .DependencyInfo = Device::CreateDependencyInfo({
-            .LayoutTransitionInfo = LayoutTransitionInfo{
-                .ImageSubresource = {
-                    .Image = m_Swapchain.GetDescription().DrawImage,
-                    .Description = {.Mipmaps = 1, .Layers = 1}
-                },
-                .SourceStage = PipelineStage::ColorOutput,
-                .DestinationStage = PipelineStage::Bottom,
-                .SourceAccess = PipelineAccess::WriteColorAttachment,
-                .DestinationAccess = PipelineAccess::None,
-                .OldLayout = ImageLayout::ColorAttachment,
-                .NewLayout = ImageLayout::Source
-            }
-        }, *GetFrameContext().DeletionQueue)
+        .DependencyInfo = LayoutTransitionInfo{
+            .ImageSubresource = {
+                .Image = m_Swapchain.GetDescription().DrawImage,
+                .Description = {.Mipmaps = 1, .Layers = 1}
+            },
+            .SourceStage = PipelineStage::ColorOutput,
+            .DestinationStage = PipelineStage::Bottom,
+            .SourceAccess = PipelineAccess::WriteColorAttachment,
+            .DestinationAccess = PipelineAccess::None,
+            .OldLayout = ImageLayout::ColorAttachment,
+            .NewLayout = ImageLayout::Source
+        }
     });
 
     CommandBuffer cmd = GetFrameContext().Cmd;

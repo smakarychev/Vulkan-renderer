@@ -65,16 +65,35 @@ struct LayoutTransitionInfo
     ImageLayout NewLayout{ImageLayout::Undefined};
 };
 
-struct DependencyInfoCreateInfo
+enum class DependencyInfoType : u8
 {
-    PipelineDependencyFlags Flags{PipelineDependencyFlags::None};
-    std::optional<ExecutionDependencyInfo> ExecutionDependencyInfo{};
-    std::optional<MemoryDependencyInfo> MemoryDependencyInfo{};
-    std::optional<LayoutTransitionInfo> LayoutTransitionInfo{};
+    Execution, Memory, Layout
 };
 
-struct DependencyInfoTag{};
-using DependencyInfo = ResourceHandleType<DependencyInfoTag>;
+struct DependencyInfo
+{
+    DependencyInfoType Type{DependencyInfoType::Execution};
+    union
+    {
+        ExecutionDependencyInfo Execution{};
+        MemoryDependencyInfo Memory;
+        LayoutTransitionInfo Layout;
+    } Dependency{};
+    
+    DependencyInfo() = default;
+    DependencyInfo(const ExecutionDependencyInfo& dependency) : Type(DependencyInfoType::Execution)
+    {
+        Dependency.Execution = dependency;
+    }
+    DependencyInfo(const MemoryDependencyInfo& dependency) : Type(DependencyInfoType::Memory)
+    {
+        Dependency.Memory = dependency;
+    }
+    DependencyInfo(const LayoutTransitionInfo& dependency) : Type(DependencyInfoType::Layout)
+    {
+        Dependency.Layout = dependency;
+    }
+};
 
 struct SplitBarrierTag{};
 using SplitBarrier = ResourceHandleType<SplitBarrierTag>;

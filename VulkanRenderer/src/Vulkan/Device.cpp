@@ -1236,16 +1236,6 @@ struct TimelineSemaphoreResource
     u64 Timeline{0};
 };
 
-struct DependencyInfoResource
-{
-    using ObjectType = DependencyInfoTag;
-    static constexpr u32 MAX_MEMORY_BARRIERS = 2;
-    VkDependencyInfo DependencyInfo;
-    u32 MemoryBarriersCount{0};
-    std::array<VkMemoryBarrier2, MAX_MEMORY_BARRIERS> MemoryBarriers{};
-    std::optional<VkImageMemoryBarrier2> LayoutDependency;
-};
-
 struct SplitBarrierResource
 {
     using ObjectType = SplitBarrierTag;
@@ -1365,12 +1355,6 @@ template <>
 struct TagTraits<TimelineSemaphoreTag>
 {
     using ResourceType = TimelineSemaphoreResource;
-};
-
-template <>
-struct TagTraits<DependencyInfoTag>
-{
-    using ResourceType = DependencyInfoResource;
 };
 
 template <>
@@ -1549,8 +1533,6 @@ private:
             return m_Semaphores;
         else if constexpr (std::is_same_v<Tag, TimelineSemaphoreTag>)
             return m_TimelineSemaphores;
-        else if constexpr (std::is_same_v<Tag, DependencyInfoTag>)
-            return m_DependencyInfos;
         else if constexpr (std::is_same_v<Tag, SplitBarrierTag>)
             return m_SplitBarriers;
         else
@@ -1579,7 +1561,6 @@ private:
     ResourceContainerWithLock<FenceResource> m_Fences;
     ResourceContainerWithLock<SemaphoreResource> m_Semaphores;
     ResourceContainerWithLock<TimelineSemaphoreResource> m_TimelineSemaphores;
-    ResourceContainerWithLock<DependencyInfoResource> m_DependencyInfos;
     ResourceContainerWithLock<SplitBarrierResource> m_SplitBarriers;
 
     std::vector<std::vector<CommandBuffer>> m_CommandPoolToBuffersMap;
@@ -1732,10 +1713,6 @@ public:
     static void Destroy(const auto& resources, TimelineSemaphore semaphore);
     static void TimelineSemaphoreWaitCPU(const auto& resources, TimelineSemaphore semaphore, u64 value);
     static void TimelineSemaphoreSignalCPU(const auto& resources, TimelineSemaphore semaphore, u64 value);
-
-    static DependencyInfo CreateDependencyInfo(const auto& resources, DependencyInfoCreateInfo&& createInfo,
-        DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, DependencyInfo dependencyInfo);
 
     static SplitBarrier CreateSplitBarrier(const auto& resources, DeletionQueue& deletionQueue);
     static void Destroy(const auto& resources, SplitBarrier splitBarrier);
@@ -2256,7 +2233,7 @@ void Device::BufferArenaFree(BufferArena arena, BufferSuballocationHandle suball
 
 Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<ImageTag, BufferTag, DependencyInfoTag, FenceTag, CommandBufferTag,
+    auto view = deviceResources().GetLockedView<ImageTag, BufferTag, FenceTag, CommandBufferTag,
                                                 CommandPoolTag>();
 
     return DeviceInternal::CreateImage(view, std::move(createInfo), deletionQueue);
@@ -2512,19 +2489,6 @@ void Device::TimelineSemaphoreSignalCPU(TimelineSemaphore semaphore, u64 value)
 {
     auto view = deviceResources().GetLockedView<TimelineSemaphoreTag>();
     DeviceInternal::TimelineSemaphoreSignalCPU(view, semaphore, value);
-}
-
-DependencyInfo Device::CreateDependencyInfo(DependencyInfoCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
-{
-    auto view = deviceResources().GetLockedView<DependencyInfoTag, ImageTag>();
-
-    return DeviceInternal::CreateDependencyInfo(view, std::move(createInfo), deletionQueue);
-}
-
-void Device::Destroy(DependencyInfo dependencyInfo)
-{
-    auto view = deviceResources().GetLockedView<DependencyInfoTag>();
-    DeviceInternal::Destroy(view, dependencyInfo);
 }
 
 SplitBarrier Device::CreateSplitBarrier(::DeletionQueue& deletionQueue)
@@ -3282,7 +3246,7 @@ void Device::CompileCommand(CommandBuffer cmd, const ExecuteSecondaryBufferComma
 
 void Device::CompileCommand(CommandBuffer cmd, const PrepareSwapchainPresentCommand& command)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, SwapchainTag, DependencyInfoTag, ImageTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, SwapchainTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
@@ -3366,7 +3330,7 @@ void Device::CompileCommand(CommandBuffer cmd, const BlitImageCommand& command)
 
 void Device::CompileCommand(CommandBuffer cmd, const MipmapImageCommand& command)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, DependencyInfoTag, ImageTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
@@ -3384,31 +3348,31 @@ void Device::CompileCommand(CommandBuffer cmd, const ClearDepthStencilImageComma
 
 void Device::CompileCommand(CommandBuffer cmd, const WaitOnFullPipelineBarrierCommand& command)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, DependencyInfoTag, ImageTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const WaitOnBarrierCommand& command)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, DependencyInfoTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const SignalSplitBarrierCommand& command)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, SplitBarrierTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const WaitOnSplitBarrierCommand& command)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, SplitBarrierTag, ImageTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const ResetSplitBarrierCommand& command)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, DependencyInfoTag, SplitBarrierTag>();
+    auto view = deviceResources().GetLockedView<CommandBufferTag, SplitBarrierTag>();
     DeviceInternal::CompileCommand(view, cmd, command);
 }
 
@@ -4293,17 +4257,15 @@ Image DeviceInternal::CreateImageFromAssetFile(const auto& resources, ImageCreat
         ::DeletionQueue& deletionQueue = *g_State.FrameDeletionQueue;
 
         CompileCommand(resources, cmd, WaitOnBarrierCommand{
-            .DependencyInfo = CreateDependencyInfo(resources, {
-                .LayoutTransitionInfo = LayoutTransitionInfo{
-                    .ImageSubresource = imageSubresource,
-                    .SourceStage = PipelineStage::AllTransfer,
-                    .DestinationStage = PipelineStage::AllTransfer,
-                    .SourceAccess = PipelineAccess::None,
-                    .DestinationAccess = PipelineAccess::WriteTransfer,
-                    .OldLayout = ImageLayout::Undefined,
-                    .NewLayout = ImageLayout::Destination
-                }
-            }, deletionQueue)
+            .DependencyInfo = LayoutTransitionInfo{
+                .ImageSubresource = imageSubresource,
+                .SourceStage = PipelineStage::AllTransfer,
+                .DestinationStage = PipelineStage::AllTransfer,
+                .SourceAccess = PipelineAccess::None,
+                .DestinationAccess = PipelineAccess::WriteTransfer,
+                .OldLayout = ImageLayout::Undefined,
+                .NewLayout = ImageLayout::Destination
+            }
         });
 
         i8 mipsToCopy = createInfo.CalculateMipmaps ? (i8)1 : (i8)asset->Header.Mipmaps;
@@ -4350,17 +4312,15 @@ Image DeviceInternal::CreateImageFromAssetFile(const auto& resources, ImageCreat
         }
 
         CompileCommand(resources, cmd, WaitOnBarrierCommand{
-            .DependencyInfo = CreateDependencyInfo(resources, {
-                .LayoutTransitionInfo = LayoutTransitionInfo{
-                    .ImageSubresource = imageSubresource,
-                    .SourceStage = PipelineStage::AllTransfer,
-                    .DestinationStage = PipelineStage::AllTransfer,
-                    .SourceAccess = PipelineAccess::None,
-                    .DestinationAccess = PipelineAccess::WriteTransfer,
-                    .OldLayout = currentLayout,
-                    .NewLayout = ImageLayout::Readonly
-                }
-            }, deletionQueue)
+            .DependencyInfo = LayoutTransitionInfo{
+                .ImageSubresource = imageSubresource,
+                .SourceStage = PipelineStage::AllTransfer,
+                .DestinationStage = PipelineStage::AllTransfer,
+                .SourceAccess = PipelineAccess::None,
+                .DestinationAccess = PipelineAccess::WriteTransfer,
+                .OldLayout = currentLayout,
+                .NewLayout = ImageLayout::Readonly
+            }
         });
     });
 
@@ -4409,17 +4369,15 @@ Image DeviceInternal::CreateImageFromBuffer(const auto& resources, ImageCreateIn
         ::DeletionQueue& deletionQueue = *g_State.FrameDeletionQueue;
 
         CompileCommand(resources, cmd, WaitOnBarrierCommand{
-            .DependencyInfo = CreateDependencyInfo(resources, {
-                .LayoutTransitionInfo = LayoutTransitionInfo{
-                    .ImageSubresource = imageSubresource,
-                    .SourceStage = PipelineStage::AllTransfer,
-                    .DestinationStage = PipelineStage::AllTransfer,
-                    .SourceAccess = PipelineAccess::None,
-                    .DestinationAccess = PipelineAccess::WriteTransfer,
-                    .OldLayout = ImageLayout::Undefined,
-                    .NewLayout = ImageLayout::Destination
-                }
-            }, deletionQueue)
+            .DependencyInfo = LayoutTransitionInfo{
+                .ImageSubresource = imageSubresource,
+                .SourceStage = PipelineStage::AllTransfer,
+                .DestinationStage = PipelineStage::AllTransfer,
+                .SourceAccess = PipelineAccess::None,
+                .DestinationAccess = PipelineAccess::WriteTransfer,
+                .OldLayout = ImageLayout::Undefined,
+                .NewLayout = ImageLayout::Destination
+            }
         });
 
         CompileCommand(resources, cmd, CopyBufferToImageCommand{
@@ -4443,17 +4401,15 @@ Image DeviceInternal::CreateImageFromBuffer(const auto& resources, ImageCreateIn
         }
 
         CompileCommand(resources, cmd, WaitOnBarrierCommand{
-            .DependencyInfo = CreateDependencyInfo(resources, {
-                .LayoutTransitionInfo = LayoutTransitionInfo{
-                    .ImageSubresource = imageSubresource,
-                    .SourceStage = PipelineStage::AllTransfer,
-                    .DestinationStage = PipelineStage::AllTransfer,
-                    .SourceAccess = PipelineAccess::None,
-                    .DestinationAccess = PipelineAccess::WriteTransfer,
-                    .OldLayout = currentLayout,
-                    .NewLayout = ImageLayout::Readonly
-                }
-            }, deletionQueue)
+            .DependencyInfo = LayoutTransitionInfo{
+                .ImageSubresource = imageSubresource,
+                .SourceStage = PipelineStage::AllTransfer,
+                .DestinationStage = PipelineStage::AllTransfer,
+                .SourceAccess = PipelineAccess::None,
+                .DestinationAccess = PipelineAccess::WriteTransfer,
+                .OldLayout = currentLayout,
+                .NewLayout = ImageLayout::Readonly
+            }
         });
     });
 
@@ -5591,83 +5547,6 @@ void DeviceInternal::TimelineSemaphoreSignalCPU(const auto& resources, TimelineS
     resources[semaphore].Timeline = value;
 }
 
-DependencyInfo DeviceInternal::CreateDependencyInfo(const auto& resources, DependencyInfoCreateInfo&& createInfo,
-    DeletionQueue& deletionQueue)
-{
-    DependencyInfoResource dependencyInfoResource = {};
-    dependencyInfoResource.DependencyInfo = {};
-    dependencyInfoResource.DependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    dependencyInfoResource.DependencyInfo.dependencyFlags = vulkanDependencyFlagsFromPipelineDependencyFlags(
-        createInfo.Flags);
-
-    if (createInfo.ExecutionDependencyInfo.has_value())
-    {
-        VkMemoryBarrier2 memoryBarrier = {};
-        memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
-        memoryBarrier.srcStageMask = vulkanPipelineStageFromPipelineStage(
-            createInfo.ExecutionDependencyInfo->SourceStage);
-        memoryBarrier.dstStageMask = vulkanPipelineStageFromPipelineStage(
-            createInfo.ExecutionDependencyInfo->DestinationStage);
-
-        dependencyInfoResource.MemoryBarriers[dependencyInfoResource.MemoryBarriersCount++] = memoryBarrier;
-    }
-    if (createInfo.MemoryDependencyInfo.has_value())
-    {
-        VkMemoryBarrier2 memoryBarrier = {};
-        memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
-        memoryBarrier.srcStageMask = vulkanPipelineStageFromPipelineStage(
-            createInfo.MemoryDependencyInfo->SourceStage);
-        memoryBarrier.dstStageMask = vulkanPipelineStageFromPipelineStage(
-            createInfo.MemoryDependencyInfo->DestinationStage);
-        memoryBarrier.srcAccessMask = vulkanAccessFlagsFromPipelineAccess(
-            createInfo.MemoryDependencyInfo->SourceAccess);
-        memoryBarrier.dstAccessMask = vulkanAccessFlagsFromPipelineAccess(
-            createInfo.MemoryDependencyInfo->DestinationAccess);
-
-        dependencyInfoResource.MemoryBarriers[dependencyInfoResource.MemoryBarriersCount++] = memoryBarrier;
-    }
-    if (createInfo.LayoutTransitionInfo.has_value())
-    {
-        const ImageResource& image =
-            resources[createInfo.LayoutTransitionInfo->ImageSubresource.Image];
-        VkImageMemoryBarrier2 imageMemoryBarrier = {};
-        imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-        imageMemoryBarrier.srcStageMask = vulkanPipelineStageFromPipelineStage(
-            createInfo.LayoutTransitionInfo->SourceStage);
-        imageMemoryBarrier.dstStageMask = vulkanPipelineStageFromPipelineStage(
-            createInfo.LayoutTransitionInfo->DestinationStage);
-        imageMemoryBarrier.srcAccessMask = vulkanAccessFlagsFromPipelineAccess(
-            createInfo.LayoutTransitionInfo->SourceAccess);
-        imageMemoryBarrier.dstAccessMask = vulkanAccessFlagsFromPipelineAccess(
-            createInfo.LayoutTransitionInfo->DestinationAccess);
-        imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-
-        imageMemoryBarrier.oldLayout = vulkanImageLayoutFromImageLayout(createInfo.LayoutTransitionInfo->OldLayout);
-        imageMemoryBarrier.newLayout = vulkanImageLayoutFromImageLayout(createInfo.LayoutTransitionInfo->NewLayout);
-        imageMemoryBarrier.image = resources[createInfo.LayoutTransitionInfo->ImageSubresource.Image].Image;
-        imageMemoryBarrier.subresourceRange = {
-            .aspectMask = vulkanImageAspectFromImageUsage(image.Description.Usage),
-            .baseMipLevel = (u32)createInfo.LayoutTransitionInfo->ImageSubresource.Description.MipmapBase,
-            .levelCount = (u32)createInfo.LayoutTransitionInfo->ImageSubresource.Description.Mipmaps,
-            .baseArrayLayer = (u32)createInfo.LayoutTransitionInfo->ImageSubresource.Description.LayerBase,
-            .layerCount = (u32)createInfo.LayoutTransitionInfo->ImageSubresource.Description.Layers
-        };
-
-        dependencyInfoResource.LayoutDependency = imageMemoryBarrier;
-    }
-
-    DependencyInfo dependencyInfo = resources.Add(dependencyInfoResource);
-    deletionQueue.Enqueue(dependencyInfo);
-
-    return dependencyInfo;
-}
-
-void DeviceInternal::Destroy(const auto& resources, DependencyInfo dependencyInfo)
-{
-    resources.Remove(dependencyInfo);
-}
-
 SplitBarrier DeviceInternal::CreateSplitBarrier(const auto& resources, DeletionQueue& deletionQueue)
 {
     VkEventCreateInfo eventCreateInfo = {};
@@ -5896,9 +5775,7 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
     destinationToPresentTransitionInfo.NewLayout = ImageLayout::Present;
 
     CompileCommand(resources, cmd, WaitOnBarrierCommand{
-        .DependencyInfo = CreateDependencyInfo(resources, {
-            .LayoutTransitionInfo = presentToDestinationTransitionInfo
-        }, deletionQueue)
+        .DependencyInfo = presentToDestinationTransitionInfo
     });
 
     ImageSubregion sourceSubregion = {
@@ -5925,9 +5802,7 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
     });
 
     CompileCommand(resources, cmd, WaitOnBarrierCommand{
-        .DependencyInfo = CreateDependencyInfo(resources, {
-            .LayoutTransitionInfo = destinationToPresentTransitionInfo
-        }, deletionQueue)
+        .DependencyInfo = destinationToPresentTransitionInfo
     });
 }
 
@@ -6199,9 +6074,7 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
     };
 
     CompileCommand(resources, cmd, WaitOnBarrierCommand{
-        .DependencyInfo = CreateDependencyInfo(resources, {
-            .LayoutTransitionInfo = transitionInfo
-        }, deletionQueue)
+        .DependencyInfo = transitionInfo
     });
 
     for (i8 mip = 1; mip < imageResource.Description.Mipmaps; mip++)
@@ -6241,9 +6114,7 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
             .NewLayout = ImageLayout::Destination
         };
         CompileCommand(resources, cmd, WaitOnBarrierCommand{
-            .DependencyInfo = CreateDependencyInfo(resources, {
-                .LayoutTransitionInfo = transitionInfo
-            }, deletionQueue)
+            .DependencyInfo = transitionInfo
         });
 
         CompileCommand(resources, cmd, BlitImageCommand{
@@ -6265,9 +6136,7 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
         };
 
         CompileCommand(resources, cmd, WaitOnBarrierCommand{
-            .DependencyInfo = CreateDependencyInfo(resources, {
-                .LayoutTransitionInfo = transitionInfo
-            }, deletionQueue)
+            .DependencyInfo = transitionInfo
         });
     }
 }
@@ -6328,55 +6197,104 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
     vkCmdPipelineBarrier2(resources[cmd].CommandBuffer, &dependencyInfo);
 }
 
+namespace 
+{
+void barrierCommand(const auto& resources, const auto& command, const auto& vkCall)
+{
+    const DependencyInfo& dependencyInfo = command.DependencyInfo;
+
+    VkDependencyInfo vkDependencyInfo = {};
+    vkDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    
+    VkMemoryBarrier2 memoryBarrier = {};
+    VkImageMemoryBarrier2 imageMemoryBarrier = {};
+    
+    switch (dependencyInfo.Type) 
+    {
+    case DependencyInfoType::Execution:
+        memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+        memoryBarrier.srcStageMask = vulkanPipelineStageFromPipelineStage(
+            dependencyInfo.Dependency.Execution.SourceStage);
+        memoryBarrier.dstStageMask = vulkanPipelineStageFromPipelineStage(
+            dependencyInfo.Dependency.Execution.DestinationStage);
+        vkDependencyInfo.memoryBarrierCount = 1;
+        vkDependencyInfo.pMemoryBarriers = &memoryBarrier;
+        break;
+    case DependencyInfoType::Memory:
+        memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+        memoryBarrier.srcStageMask = vulkanPipelineStageFromPipelineStage(
+            dependencyInfo.Dependency.Memory.SourceStage);
+        memoryBarrier.dstStageMask = vulkanPipelineStageFromPipelineStage(
+            dependencyInfo.Dependency.Memory.DestinationStage);
+        memoryBarrier.srcAccessMask = vulkanAccessFlagsFromPipelineAccess(
+            dependencyInfo.Dependency.Memory.SourceAccess);
+        memoryBarrier.dstAccessMask = vulkanAccessFlagsFromPipelineAccess(
+            dependencyInfo.Dependency.Memory.DestinationAccess);
+        vkDependencyInfo.memoryBarrierCount = 1;
+        vkDependencyInfo.pMemoryBarriers = &memoryBarrier;
+        break;
+    case DependencyInfoType::Layout:
+        {
+            const ImageResource& image = resources[dependencyInfo.Dependency.Layout.ImageSubresource.Image];
+            imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+            imageMemoryBarrier.srcStageMask = vulkanPipelineStageFromPipelineStage(
+                dependencyInfo.Dependency.Layout.SourceStage);
+            imageMemoryBarrier.dstStageMask = vulkanPipelineStageFromPipelineStage(
+                dependencyInfo.Dependency.Layout.DestinationStage);
+            imageMemoryBarrier.srcAccessMask = vulkanAccessFlagsFromPipelineAccess(
+                dependencyInfo.Dependency.Layout.SourceAccess);
+            imageMemoryBarrier.dstAccessMask = vulkanAccessFlagsFromPipelineAccess(
+                dependencyInfo.Dependency.Layout.DestinationAccess);
+            imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            imageMemoryBarrier.oldLayout = vulkanImageLayoutFromImageLayout(dependencyInfo.Dependency.Layout.OldLayout);
+            imageMemoryBarrier.newLayout = vulkanImageLayoutFromImageLayout(dependencyInfo.Dependency.Layout.NewLayout);
+            imageMemoryBarrier.image = resources[dependencyInfo.Dependency.Layout.ImageSubresource.Image].Image;
+            imageMemoryBarrier.subresourceRange = {
+                .aspectMask = vulkanImageAspectFromImageUsage(image.Description.Usage),
+                .baseMipLevel = (u32)dependencyInfo.Dependency.Layout.ImageSubresource.Description.MipmapBase,
+                .levelCount = (u32)dependencyInfo.Dependency.Layout.ImageSubresource.Description.Mipmaps,
+                .baseArrayLayer = (u32)dependencyInfo.Dependency.Layout.ImageSubresource.Description.LayerBase,
+                .layerCount = (u32)dependencyInfo.Dependency.Layout.ImageSubresource.Description.Layers
+            };
+            vkDependencyInfo.imageMemoryBarrierCount = 1;
+            vkDependencyInfo.pImageMemoryBarriers = &imageMemoryBarrier;
+        }
+        break;
+    default:
+        ASSERT(false, "Unexpected dependency type")
+        break;
+    }
+
+    vkCall(vkDependencyInfo);
+}
+}
+
 void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const WaitOnBarrierCommand& command)
 {
-    const DependencyInfoResource& dependencyInfo = resources[command.DependencyInfo];
-
-    VkDependencyInfo vkDependencyInfo = dependencyInfo.DependencyInfo;
-    vkDependencyInfo.memoryBarrierCount = dependencyInfo.MemoryBarriersCount;
-    vkDependencyInfo.pMemoryBarriers = dependencyInfo.MemoryBarriers.data();
-    vkDependencyInfo.imageMemoryBarrierCount = dependencyInfo.LayoutDependency ? 1u : 0u;
-    vkDependencyInfo.pImageMemoryBarriers = dependencyInfo.LayoutDependency ?
-        std::to_address(dependencyInfo.LayoutDependency) :
-        nullptr;
-    vkCmdPipelineBarrier2(resources[cmd].CommandBuffer, &vkDependencyInfo);
+    barrierCommand(resources, command, [&](const VkDependencyInfo& dependencyInfo) {
+        vkCmdPipelineBarrier2(resources[cmd].CommandBuffer, &dependencyInfo);
+    });
 }
 
 void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const SignalSplitBarrierCommand& command)
 {
-    const DependencyInfoResource& dependencyInfo = resources[command.DependencyInfo];
-
-    VkDependencyInfo vkDependencyInfo = dependencyInfo.DependencyInfo;
-    vkDependencyInfo.memoryBarrierCount = dependencyInfo.MemoryBarriersCount;
-    vkDependencyInfo.pMemoryBarriers = dependencyInfo.MemoryBarriers.data();
-    vkDependencyInfo.imageMemoryBarrierCount = dependencyInfo.LayoutDependency ? 1u : 0u;
-    vkDependencyInfo.pImageMemoryBarriers = dependencyInfo.LayoutDependency ?
-        std::to_address(dependencyInfo.LayoutDependency) :
-        nullptr;
-    vkCmdSetEvent2(resources[cmd].CommandBuffer, resources[command.SplitBarrier].Event, &vkDependencyInfo);
+    barrierCommand(resources, command, [&](const VkDependencyInfo& dependencyInfo) {
+        vkCmdSetEvent2(resources[cmd].CommandBuffer, resources[command.SplitBarrier].Event, &dependencyInfo);
+    });
 }
 
 void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const WaitOnSplitBarrierCommand& command)
 {
-    const DependencyInfoResource& dependencyInfo = resources[command.DependencyInfo];
-
-    VkDependencyInfo vkDependencyInfo = dependencyInfo.DependencyInfo;
-    vkDependencyInfo.memoryBarrierCount = dependencyInfo.MemoryBarriersCount;
-    vkDependencyInfo.pMemoryBarriers = dependencyInfo.MemoryBarriers.data();
-    vkDependencyInfo.imageMemoryBarrierCount = dependencyInfo.LayoutDependency ? 1u : 0u;
-    vkDependencyInfo.pImageMemoryBarriers = dependencyInfo.LayoutDependency ?
-        std::to_address(dependencyInfo.LayoutDependency) :
-        nullptr;
-    vkCmdWaitEvents2(resources[cmd].CommandBuffer, 1, &resources[command.SplitBarrier].Event,
-        &vkDependencyInfo);
+    barrierCommand(resources, command, [&](const VkDependencyInfo& dependencyInfo) {
+        vkCmdWaitEvents2(resources[cmd].CommandBuffer, 1, &resources[command.SplitBarrier].Event, &dependencyInfo);
+    });
 }
 
 void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const ResetSplitBarrierCommand& command)
 {
-    ASSERT(resources[command.DependencyInfo].MemoryBarriersCount != 0, "Invalid reset operation")
-
     vkCmdResetEvent2(resources[cmd].CommandBuffer, resources[command.SplitBarrier].Event,
-        resources[command.DependencyInfo].MemoryBarriers.front().dstStageMask);
+        vulkanPipelineStageFromPipelineStage(command.DestinationStage));
 }
 
 void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const BindVertexBuffersCommand& command)

@@ -71,7 +71,7 @@ public:
     {
         BarrierInfo::Type BarrierType{BarrierInfo::Type::Barrier};
         Res Resource{};
-        DependencyInfoCreateInfo DependencyInfo{};
+        DependencyInfo DependencyInfo{};
         const RG::Pass* FirstPass{};
         const RG::Pass* SecondPass{};
     };
@@ -521,8 +521,8 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
         
         graph.Compile(ctx);
         REQUIRE(watcher.ImageBarriers.size() == 1);
-        REQUIRE(watcher.ImageBarriers.front().DependencyInfo.LayoutTransitionInfo.has_value());
-        REQUIRE(watcher.ImageBarriers.front().DependencyInfo.LayoutTransitionInfo->NewLayout == ImageLayout::Readonly);
+        REQUIRE(watcher.ImageBarriers.front().DependencyInfo.Type == DependencyInfoType::Layout);
+        REQUIRE(watcher.ImageBarriers.front().DependencyInfo.Dependency.Layout.NewLayout == ImageLayout::Readonly);
         
         graph.Reset();
         
@@ -876,9 +876,8 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         REQUIRE(watcher.ImageAccesses->size() == 2);
         REQUIRE(watcher.ImageBarriers.size() == 1);
         REQUIRE(watcher.ImageBarriers.front().BarrierType == RG::GraphWatcher::BarrierInfo::Type::Barrier);
-        REQUIRE(watcher.ImageBarriers.front().DependencyInfo.LayoutTransitionInfo.has_value());
-        REQUIRE(watcher.ImageBarriers.front().DependencyInfo.LayoutTransitionInfo.value().NewLayout
-            == ImageLayout::General);
+        REQUIRE(watcher.ImageBarriers.front().DependencyInfo.Type == DependencyInfoType::Layout);
+        REQUIRE(watcher.ImageBarriers.front().DependencyInfo.Dependency.Layout.NewLayout == ImageLayout::General);
     }
     SECTION("Images have correct layout transition")
     {
@@ -918,17 +917,16 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
 
         renderGraph.Compile(ctx);
         REQUIRE(watcher.ImageBarriers.size() == 4);
-        REQUIRE(watcher.ImageBarriers[0].DependencyInfo.LayoutTransitionInfo.has_value());
-        REQUIRE(watcher.ImageBarriers[0].DependencyInfo.LayoutTransitionInfo.value().NewLayout
-            == ImageLayout::DepthReadonly);
-        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.LayoutTransitionInfo.has_value());
-        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.LayoutTransitionInfo.value().NewLayout
+        REQUIRE(watcher.ImageBarriers[0].DependencyInfo.Type == DependencyInfoType::Layout);
+        REQUIRE(watcher.ImageBarriers[0].DependencyInfo.Dependency.Layout.NewLayout == ImageLayout::DepthReadonly);
+        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.Type == DependencyInfoType::Layout);
+        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.Dependency.Layout.NewLayout == 
+            ImageLayout::DepthStencilReadonly);
+        REQUIRE(watcher.ImageBarriers[2].DependencyInfo.Type == DependencyInfoType::Layout);
+        REQUIRE(watcher.ImageBarriers[2].DependencyInfo.Dependency.Layout.NewLayout 
             == ImageLayout::DepthStencilReadonly);
-        REQUIRE(watcher.ImageBarriers[2].DependencyInfo.LayoutTransitionInfo.has_value());
-        REQUIRE(watcher.ImageBarriers[2].DependencyInfo.LayoutTransitionInfo.value().NewLayout
-            == ImageLayout::DepthStencilReadonly);
-        REQUIRE(watcher.ImageBarriers[3].DependencyInfo.LayoutTransitionInfo.has_value());
-        REQUIRE(watcher.ImageBarriers[3].DependencyInfo.LayoutTransitionInfo.value().NewLayout == ImageLayout::General);
+        REQUIRE(watcher.ImageBarriers[3].DependencyInfo.Type == DependencyInfoType::Layout);
+        REQUIRE(watcher.ImageBarriers[3].DependencyInfo.Dependency.Layout.NewLayout == ImageLayout::General);
     }
     SECTION("Simple read-write results in execution barrier")
     {
@@ -972,7 +970,7 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         {
             REQUIRE(barrier.BarrierType == RG::GraphWatcher::BarrierInfo::Type::Barrier);
 
-            if (barrier.DependencyInfo.ExecutionDependencyInfo.has_value())
+            if (barrier.DependencyInfo.Type == DependencyInfoType::Execution)
                 if (renderGraph.GetBuffer(barrier.Resource) == renderGraph.GetBuffer(out.Buffer))
                     hasBufferExecutionDependency = true;
         }
@@ -980,11 +978,12 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         {
             REQUIRE(barrier.BarrierType == RG::GraphWatcher::BarrierInfo::Type::Barrier);
             
-            if (barrier.DependencyInfo.LayoutTransitionInfo.has_value() &&
-                barrier.DependencyInfo.LayoutTransitionInfo->SourceStage == PipelineStage::None)
+            
+            if (barrier.DependencyInfo.Type == DependencyInfoType::Layout &&
+                barrier.DependencyInfo.Dependency.Layout.SourceStage == PipelineStage::None)
                 hasLayoutTranstion = true;
-            if (barrier.DependencyInfo.MemoryDependencyInfo.has_value() &&
-                barrier.DependencyInfo.MemoryDependencyInfo->SourceStage == PipelineStage::ComputeShader &&
+            if (barrier.DependencyInfo.Type == DependencyInfoType::Memory &&
+                barrier.DependencyInfo.Dependency.Memory.SourceStage == PipelineStage::ComputeShader &&
                 renderGraph.GetImage(barrier.Resource) == renderGraph.GetImage(out.Image))
                 hasImageWriteDependency = true;
         }
@@ -1035,7 +1034,7 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         {
             REQUIRE(barrier.BarrierType == RG::GraphWatcher::BarrierInfo::Type::Barrier);
             
-            if (barrier.DependencyInfo.MemoryDependencyInfo.has_value())
+            if (barrier.DependencyInfo.Type == DependencyInfoType::Memory)
             {
                 if (renderGraph.GetBuffer(barrier.Resource) == renderGraph.GetBuffer(out.Buffer))
                     hasBufferMemoryDependency = true;
@@ -1045,10 +1044,10 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         {
             REQUIRE(barrier.BarrierType == RG::GraphWatcher::BarrierInfo::Type::Barrier);
             
-            if (barrier.DependencyInfo.LayoutTransitionInfo.has_value() &&
-                barrier.DependencyInfo.LayoutTransitionInfo->SourceStage == PipelineStage::None)
+            if (barrier.DependencyInfo.Type == DependencyInfoType::Layout &&
+                barrier.DependencyInfo.Dependency.Layout.SourceStage == PipelineStage::None)
                 hasLayoutTranstion = true;
-            else if (barrier.DependencyInfo.MemoryDependencyInfo.has_value())
+            else if (barrier.DependencyInfo.Type == DependencyInfoType::Memory)
             {
                 if (renderGraph.GetImage(barrier.Resource) == renderGraph.GetImage(out.Image))
                     hasImageMemoryDependency = true;
@@ -1100,7 +1099,7 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         {
             REQUIRE(barrier.BarrierType == RG::GraphWatcher::BarrierInfo::Type::Barrier);
             
-            if (barrier.DependencyInfo.MemoryDependencyInfo.has_value() &&
+            if (barrier.DependencyInfo.Type == DependencyInfoType::Memory &&
                 renderGraph.GetBuffer(barrier.Resource) == renderGraph.GetBuffer(out.Buffer))
                 hasBufferMemoryDependency = true;
         }
@@ -1108,11 +1107,11 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         {
             REQUIRE(barrier.BarrierType == RG::GraphWatcher::BarrierInfo::Type::Barrier);
             
-            if (barrier.DependencyInfo.LayoutTransitionInfo.has_value() &&
-                barrier.DependencyInfo.LayoutTransitionInfo->SourceStage == PipelineStage::None)
+            if (barrier.DependencyInfo.Type == DependencyInfoType::Layout &&
+                barrier.DependencyInfo.Dependency.Layout.SourceStage == PipelineStage::None)
                 hasLayoutTranstion = true;
-            if (barrier.DependencyInfo.MemoryDependencyInfo.has_value() &&
-                barrier.DependencyInfo.MemoryDependencyInfo->SourceStage == PipelineStage::ComputeShader &&
+            if (barrier.DependencyInfo.Type == DependencyInfoType::Memory &&
+                barrier.DependencyInfo.Dependency.Memory.SourceStage == PipelineStage::ComputeShader &&
                 renderGraph.GetImage(barrier.Resource) == renderGraph.GetImage(out.Image))
                 hasImageWriteDependency = true;
         }
@@ -1188,8 +1187,8 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
             /* of all barriers there should be only two which are not split barriers
              * and they should be image transitions from undefined */
             if (barrier.BarrierType == RG::GraphWatcher::BarrierInfo::Type::Barrier &&
-                (!barrier.DependencyInfo.LayoutTransitionInfo.has_value() ||
-                barrier.DependencyInfo.LayoutTransitionInfo->OldLayout != ImageLayout::Undefined))
+                (barrier.DependencyInfo.Type != DependencyInfoType::Layout ||
+                barrier.DependencyInfo.Dependency.Layout.OldLayout != ImageLayout::Undefined))
                 REQUIRE(false);
         }
         SUCCEED();
@@ -1258,8 +1257,8 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         REQUIRE(watcher.Passes->at(1)->Name().AsString() == "Split");
         REQUIRE(watcher.Passes->at(2)->Name().AsString() == "Split");
         REQUIRE(watcher.Passes->at(3)->Name().AsString() == "WriteToSplit0");
-        REQUIRE(watcher.Passes->at(4)->Name().AsString() == "ReadSplit0");
-        REQUIRE(watcher.Passes->at(5)->Name().AsString() == "WriteToSplit1");
+        REQUIRE(watcher.Passes->at(4)->Name().AsString() == "WriteToSplit1");
+        REQUIRE(watcher.Passes->at(5)->Name().AsString() == "ReadSplit0");
         REQUIRE(watcher.Passes->at(6)->Name().AsString() == "Merge");
         REQUIRE(watcher.Passes->at(7)->Name().AsString() == "ReadMerged");
         REQUIRE(watcher.Passes->at(8)->Name().AsString() == "WriteMerged");
@@ -1351,10 +1350,10 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         REQUIRE(renderGraph.GetImage(watcher.ImageBarriers[1].Resource) == renderGraph.GetImage(depth));
         REQUIRE(renderGraph.GetImage(watcher.ImageBarriers[2].Resource) == renderGraph.GetImage(color));
         REQUIRE(renderGraph.GetImage(watcher.ImageBarriers[3].Resource) == renderGraph.GetImage(depth));
-        REQUIRE(watcher.ImageBarriers[0].DependencyInfo.LayoutTransitionInfo.has_value());
-        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.LayoutTransitionInfo.has_value());
-        REQUIRE(watcher.ImageBarriers[2].DependencyInfo.MemoryDependencyInfo.has_value());
-        REQUIRE(watcher.ImageBarriers[3].DependencyInfo.MemoryDependencyInfo.has_value());
+        REQUIRE(watcher.ImageBarriers[0].DependencyInfo.Type == DependencyInfoType::Layout);
+        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.Type == DependencyInfoType::Layout);
+        REQUIRE(watcher.ImageBarriers[2].DependencyInfo.Type == DependencyInfoType::Memory);
+        REQUIRE(watcher.ImageBarriers[3].DependencyInfo.Type == DependencyInfoType::Memory);
     }
     SECTION("Can do multipass render using auto-update resources with access in-between")
     {
@@ -1417,14 +1416,14 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
          * split-barrier on depth
          */
         REQUIRE(watcher.ImageBarriers.size() == 5);
-        REQUIRE(watcher.ImageBarriers[0].DependencyInfo.LayoutTransitionInfo.has_value());
-        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.LayoutTransitionInfo.has_value());
-        REQUIRE((watcher.ImageBarriers[2].DependencyInfo.LayoutTransitionInfo.has_value() &&
+        REQUIRE(watcher.ImageBarriers[0].DependencyInfo.Type == DependencyInfoType::Layout);
+        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.Type == DependencyInfoType::Layout);
+        REQUIRE((watcher.ImageBarriers[2].DependencyInfo.Type == DependencyInfoType::Layout &&
             watcher.ImageBarriers[2].SecondPass == watcher.Passes->at(1).get()));
-        REQUIRE((watcher.ImageBarriers[3].DependencyInfo.LayoutTransitionInfo.has_value() &&
+        REQUIRE((watcher.ImageBarriers[3].DependencyInfo.Type == DependencyInfoType::Layout &&
             watcher.ImageBarriers[3].SecondPass == watcher.Passes->at(2).get()));
         REQUIRE((watcher.ImageBarriers[4].BarrierType == RG::GraphWatcher::BarrierInfo::Type::SplitBarrier &&
-            watcher.ImageBarriers[4].DependencyInfo.MemoryDependencyInfo.has_value() &&
+            watcher.ImageBarriers[4].DependencyInfo.Type == DependencyInfoType::Memory &&
             watcher.ImageBarriers[4].FirstPass == watcher.Passes->at(0).get() &&
             watcher.ImageBarriers[4].SecondPass == watcher.Passes->at(2).get()));
     }
@@ -1541,16 +1540,16 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
          * split-barrier on depth +
          */
         REQUIRE(watcher.ImageBarriers.size() == 12);
-        REQUIRE((watcher.ImageBarriers[0].DependencyInfo.LayoutTransitionInfo.has_value() &&
+        REQUIRE((watcher.ImageBarriers[0].DependencyInfo.Type == DependencyInfoType::Layout &&
             renderGraph.GetImage(watcher.ImageBarriers[0].Resource) == renderGraph.GetImage(color)));
-        REQUIRE((watcher.ImageBarriers[1].DependencyInfo.LayoutTransitionInfo.has_value() &&
+        REQUIRE((watcher.ImageBarriers[1].DependencyInfo.Type == DependencyInfoType::Layout &&
             renderGraph.GetImage(watcher.ImageBarriers[1].Resource) == renderGraph.GetImage(depth)));
-        REQUIRE((watcher.ImageBarriers[2].DependencyInfo.LayoutTransitionInfo.has_value() &&
+        REQUIRE((watcher.ImageBarriers[2].DependencyInfo.Type == DependencyInfoType::Layout &&
             renderGraph.GetImage(watcher.ImageBarriers[2].Resource) == renderGraph.GetImage(color)));
-        REQUIRE((watcher.ImageBarriers[3].DependencyInfo.LayoutTransitionInfo.has_value() &&
+        REQUIRE((watcher.ImageBarriers[3].DependencyInfo.Type == DependencyInfoType::Layout &&
             renderGraph.GetImage(watcher.ImageBarriers[3].Resource) == renderGraph.GetImage(depth)));
         for (u32 i = 4; i < 2 + 2 * 4; i++)
-            REQUIRE((watcher.ImageBarriers[i].DependencyInfo.MemoryDependencyInfo.has_value() &&
+            REQUIRE((watcher.ImageBarriers[i].DependencyInfo.Type == DependencyInfoType::Memory &&
                 renderGraph.GetImage(watcher.ImageBarriers[i].Resource) == renderGraph.GetImage(i % 2 == 0 ? color : depth)));
         REQUIRE(watcher.ImageBarriers[10].BarrierType == RG::GraphWatcher::BarrierInfo::Type::SplitBarrier); 
         REQUIRE(watcher.ImageBarriers[11].BarrierType == RG::GraphWatcher::BarrierInfo::Type::SplitBarrier);
@@ -1648,18 +1647,18 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         REQUIRE(watcher.BufferBarriers.size() == 1);
         REQUIRE(watcher.ImageBarriers.size() == 2);
         REQUIRE(watcher.BufferBarriers[0].Resource == buffer1);
-        REQUIRE(watcher.BufferBarriers[0].DependencyInfo.MemoryDependencyInfo->SourceStage == 
+        REQUIRE(watcher.BufferBarriers[0].DependencyInfo.Dependency.Memory.SourceStage == 
             PipelineStage::ComputeShader);
-        REQUIRE(watcher.BufferBarriers[0].DependencyInfo.MemoryDependencyInfo->SourceAccess == 
+        REQUIRE(watcher.BufferBarriers[0].DependencyInfo.Dependency.Memory.SourceAccess == 
             PipelineAccess::WriteShader);
         REQUIRE(watcher.ImageBarriers[0].Resource == depth0);
         REQUIRE(watcher.ImageBarriers[1].Resource == depth1);
-        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.LayoutTransitionInfo->SourceStage == 
+        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.Dependency.Layout.SourceStage == 
             PipelineStage::ComputeShader);
-        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.LayoutTransitionInfo->SourceAccess == 
+        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.Dependency.Layout.SourceAccess == 
             PipelineAccess::WriteShader);
         /* the old content should always be discarded */
-        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.LayoutTransitionInfo->OldLayout == ImageLayout::Undefined);
+        REQUIRE(watcher.ImageBarriers[1].DependencyInfo.Dependency.Layout.OldLayout == ImageLayout::Undefined);
     }
     SECTION("Readback resources can be aliased only after frames in flight span")
     {

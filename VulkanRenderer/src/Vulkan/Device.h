@@ -170,10 +170,6 @@ public:
     static void TimelineSemaphoreWaitCPU(TimelineSemaphore semaphore, u64 value);
     static void TimelineSemaphoreSignalCPU(TimelineSemaphore semaphore, u64 value);
 
-    static DependencyInfo CreateDependencyInfo(DependencyInfoCreateInfo&& createInfo,
-        DeletionQueue& deletionQueue = DeletionQueue());
-    static void Destroy(DependencyInfo dependencyInfo);
-
     static SplitBarrier CreateSplitBarrier(DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(SplitBarrier splitBarrier);
     

@@ -246,7 +246,7 @@ struct ResetSplitBarrierCommand
     : RenderCommandTyped<RenderCommandType::ResetSplitBarrier, RenderCommandQueueType::All>
 {
     SplitBarrier SplitBarrier{};
-    DependencyInfo DependencyInfo{};
+    PipelineStage DestinationStage{PipelineStage::None};
 };
 
 struct BindVertexBuffersCommand

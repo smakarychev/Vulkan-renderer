@@ -26,15 +26,15 @@ Passes::Mipmap::PassData& Passes::Mipmap::addToGraph(StringId name, RG::Graph& r
             Texture sourceTexture = graph.GetImage(passData.Texture);
             frameContext.CommandList.MipmapImage({.Image = sourceTexture, .Layout = ImageLayout::Destination});
             frameContext.CommandList.WaitOnBarrier({
-                .DependencyInfo = Device::CreateDependencyInfo({
-                    .LayoutTransitionInfo = LayoutTransitionInfo{
-                        .ImageSubresource = ImageSubresource{.Image = sourceTexture},
-                        .SourceStage = PipelineStage::Blit,
-                        .DestinationStage = PipelineStage::Blit,
-                        .SourceAccess = PipelineAccess::ReadTransfer,
-                        .DestinationAccess = PipelineAccess::WriteTransfer,
-                        .OldLayout = ImageLayout::Source,
-                        .NewLayout = ImageLayout::Destination}},
-                    *frameContext.DeletionQueue)});
+                .DependencyInfo = LayoutTransitionInfo{
+                    .ImageSubresource = ImageSubresource{.Image = sourceTexture},
+                    .SourceStage = PipelineStage::Blit,
+                    .DestinationStage = PipelineStage::Blit,
+                    .SourceAccess = PipelineAccess::ReadTransfer,
+                    .DestinationAccess = PipelineAccess::WriteTransfer,
+                    .OldLayout = ImageLayout::Source,
+                    .NewLayout = ImageLayout::Destination
+                }
+            });
         });
 }

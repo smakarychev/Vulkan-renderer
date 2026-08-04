@@ -579,9 +579,7 @@ void Graph::Execute(FrameContext& frameContext)
         .NewLayout = ImageLayout::ColorAttachment
     };
     frameContext.CommandList.WaitOnBarrier({
-        .DependencyInfo = Device::CreateDependencyInfo({
-            .LayoutTransitionInfo = backbufferTransition
-        }, *m_FrameDeletionQueue)
+        .DependencyInfo = backbufferTransition
     });
 }
 
@@ -1197,7 +1195,7 @@ void Graph::ManageBarriers(const std::vector<BufferResourceAccessConflict>& buff
 
     // todo: barrier merging
 
-    auto addBarriers = [this]<typename Res>(DependencyInfoCreateInfo& dependencyInfo, Res resource,
+    auto addBarriers = [this]<typename Res>(const DependencyInfo& dependencyInfo, Res resource,
         u32 firstPass, u32 secondPass)
     {
         const u32 span = secondPass - firstPass;
@@ -1212,15 +1210,13 @@ void Graph::ManageBarriers(const std::vector<BufferResourceAccessConflict>& buff
                     .Resource = resource,
                 }, *m_Passes[firstPass], *m_Passes[secondPass]);
 
-            const DependencyInfo dependency = Device::CreateDependencyInfo(
-                std::move(dependencyInfo), *m_FrameDeletionQueue);
             const SplitBarrier splitBarrier = Device::CreateSplitBarrier(*m_FrameDeletionQueue);
             m_Passes[firstPass]->m_SplitBarriersToSignal.push_back({
-                .Dependency = dependency,
+                .Dependency = dependencyInfo,
                 .Barrier = splitBarrier
             });
             m_Passes[secondPass]->m_SplitBarriersToWait.push_back({
-                .Dependency = dependency,
+                .Dependency = dependencyInfo,
                 .Barrier = splitBarrier
             });
         }
@@ -1240,39 +1236,33 @@ void Graph::ManageBarriers(const std::vector<BufferResourceAccessConflict>& buff
                         *m_Passes[firstPass], *m_Passes[secondPass]);
             }
 
-            const DependencyInfo dependency = Device::CreateDependencyInfo(
-                std::move(dependencyInfo), *m_FrameDeletionQueue);
-            m_Passes[secondPass]->m_BarriersToWait.push_back(dependency);
+            m_Passes[secondPass]->m_BarriersToWait.push_back(dependencyInfo);
         }
     };
 
     for (auto& buffer : bufferConflicts)
     {
         auto& info = buffer.Info;
-        DependencyInfoCreateInfo dependencyCreateInfo = {};
         if (info.Type == AccessConflictType::Execution)
-            dependencyCreateInfo.ExecutionDependencyInfo = {
+            addBarriers(ExecutionDependencyInfo{
                 .SourceStage = info.FirstStage,
                 .DestinationStage = info.SecondStage
-            };
+            }, buffer.Resource, info.FirstPassIndex, info.SecondPassIndex);
         else
-            dependencyCreateInfo.MemoryDependencyInfo = {
+            addBarriers(MemoryDependencyInfo{
                 .SourceStage = info.FirstStage,
                 .DestinationStage = info.SecondStage,
                 .SourceAccess = info.FirstAccess,
                 .DestinationAccess = info.SecondAccess
-            };
-
-        addBarriers(dependencyCreateInfo, buffer.Resource, info.FirstPassIndex, info.SecondPassIndex);
+            }, buffer.Resource, info.FirstPassIndex, info.SecondPassIndex);
     }
 
     for (auto& image : imageConflicts)
     {
         auto& info = image.Info;
-        DependencyInfoCreateInfo dependencyCreateInfo = {};
         if (info.Type == AccessConflictType::Layout)
         {
-            dependencyCreateInfo.LayoutTransitionInfo = {
+            addBarriers(LayoutTransitionInfo{
                 .ImageSubresource = ImageSubresource{
                     .Image = m_Images[image.Resource.m_Index].Resource,
                     .Description = image.Subresource
@@ -1283,7 +1273,7 @@ void Graph::ManageBarriers(const std::vector<BufferResourceAccessConflict>& buff
                 .DestinationAccess = info.SecondAccess,
                 .OldLayout = image.FirstLayout,
                 .NewLayout = image.SecondLayout
-            };
+            }, image.Resource, info.FirstPassIndex, info.SecondPassIndex);
 
             m_Passes[info.SecondPassIndex]->m_ImageLayouts.push_back({
                 .Image = image.Resource,
@@ -1292,22 +1282,20 @@ void Graph::ManageBarriers(const std::vector<BufferResourceAccessConflict>& buff
         }
         else if (info.Type == AccessConflictType::Execution)
         {
-            dependencyCreateInfo.MemoryDependencyInfo = {
+            addBarriers(MemoryDependencyInfo{
                 .SourceStage = info.FirstStage,
                 .DestinationStage = info.SecondStage,
-            };
+            }, image.Resource, info.FirstPassIndex, info.SecondPassIndex);
         }
         else
         {
-            dependencyCreateInfo.MemoryDependencyInfo = {
+            addBarriers(MemoryDependencyInfo{
                 .SourceStage = info.FirstStage,
                 .DestinationStage = info.SecondStage,
                 .SourceAccess = info.FirstAccess,
                 .DestinationAccess = info.SecondAccess
-            };
+            }, image.Resource, info.FirstPassIndex, info.SecondPassIndex);
         }
-
-        addBarriers(dependencyCreateInfo, image.Resource, info.FirstPassIndex, info.SecondPassIndex);
     }
 }
 
@@ -1370,28 +1358,22 @@ void Graph::SubmitPassUploads(FrameContext& frameContext)
         return;
 
     frameContext.CommandList.WaitOnBarrier({
-        .DependencyInfo = Device::CreateDependencyInfo({
-                .ExecutionDependencyInfo = ExecutionDependencyInfo{
-                    .SourceStage = PipelineStage::AllCommands,
-                    .DestinationStage = PipelineStage::AllTransfer
-                }
-            },
-            *frameContext.DeletionQueue)
+        .DependencyInfo = ExecutionDependencyInfo{
+            .SourceStage = PipelineStage::AllCommands,
+            .DestinationStage = PipelineStage::AllTransfer
+        }
     });
 
     m_ResourceUploader.Upload(CurrentPass(), *this, *frameContext.ResourceUploader);
     frameContext.ResourceUploader->SubmitUpload(frameContext);
 
     frameContext.CommandList.WaitOnBarrier({
-        .DependencyInfo = Device::CreateDependencyInfo({
-                .MemoryDependencyInfo = MemoryDependencyInfo{
-                    .SourceStage = PipelineStage::AllTransfer,
-                    .DestinationStage = PipelineStage::AllCommands,
-                    .SourceAccess = PipelineAccess::WriteAll,
-                    .DestinationAccess = PipelineAccess::ReadAll
-                }
-            },
-            *frameContext.DeletionQueue)
+        .DependencyInfo = MemoryDependencyInfo{
+            .SourceStage = PipelineStage::AllTransfer,
+            .DestinationStage = PipelineStage::AllCommands,
+            .SourceAccess = PipelineAccess::WriteAll,
+            .DestinationAccess = PipelineAccess::ReadAll
+        }
     });
 }
 
