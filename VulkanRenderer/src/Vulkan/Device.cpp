@@ -2001,7 +2001,7 @@ DeviceResources& deviceResources()
 
 void Device::BeginFrame(FrameContext& ctx)
 {
-    g_State.FrameDeletionQueue = &ctx.DeletionQueue;
+    g_State.FrameDeletionQueue = ctx.DeletionQueue.get();
 }
 
 Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)

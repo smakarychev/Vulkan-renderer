@@ -357,6 +357,7 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
         RG::Graph graph;
         Device::Init(DeviceCreateInfo::Default(nullptr, true));
         FrameContext ctx = {};
+        ctx.DeletionQueue = std::make_unique<DeletionQueue>();
 
         RG::PersistentBufferResource persistentBuffer = {};
         RG::PersistentImageResource persistentImage = {};
@@ -394,6 +395,7 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
         RG::Graph graph;
         Device::Init(DeviceCreateInfo::Default(nullptr, true));
         FrameContext ctx = {};
+        ctx.DeletionQueue = std::make_unique<DeletionQueue>();
 
         RG::PersistentImageResource persistentImage = {};
         RG::PersistentBufferResource persistentBuffer = {};
@@ -456,6 +458,7 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
         RG::Graph graph;
         Device::Init(DeviceCreateInfo::Default(nullptr, true));
         FrameContext ctx = {};
+        ctx.DeletionQueue = std::make_unique<DeletionQueue>();
 
         RG::PersistentBufferResource persistentBuffer = {};
         RG::PersistentImageResource persistentImage = {};
@@ -499,6 +502,7 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
         graph.SetWatcher(watcher);
         Device::Init(DeviceCreateInfo::Default(nullptr, true));
         FrameContext ctx = {};
+        ctx.DeletionQueue = std::make_unique<DeletionQueue>();
 
         RG::PersistentImageResource persistentImage = {};
         
@@ -636,6 +640,7 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
     RG::Graph renderGraph;
     Device::Init(DeviceCreateInfo::Default(nullptr, true));
     FrameContext ctx = {};
+    ctx.DeletionQueue = std::make_unique<DeletionQueue>();
 
     SECTION("Can create pass")
     {

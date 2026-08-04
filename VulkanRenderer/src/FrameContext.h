@@ -27,7 +27,7 @@ struct FrameContext
     CommandBuffer Cmd{};
     RenderCommandList CommandList{};
     
-    DeletionQueue DeletionQueue{};
+    std::unique_ptr<DeletionQueue> DeletionQueue{};
     
     Camera* PrimaryCamera{nullptr};
     ResourceUploader* ResourceUploader{nullptr};

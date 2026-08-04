@@ -67,7 +67,7 @@ void ShaderAssetManager::Shutdown()
 
 void ShaderAssetManager::OnFrameBegin(FrameContext& ctx)
 {
-    m_FrameDeletionQueue = &ctx.DeletionQueue;
+    m_FrameDeletionQueue = ctx.DeletionQueue.get();
 }
 
 ShaderCacheAllocateResult ShaderAssetManager::Allocate(ShaderHandle handle,

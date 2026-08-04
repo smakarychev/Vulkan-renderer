@@ -428,7 +428,7 @@ void Graph::Compile(FrameContext& frameContext)
 {
     CPU_PROFILE_FRAME("Render Graph Compile")
 
-    m_FrameDeletionQueue = &frameContext.DeletionQueue;
+    m_FrameDeletionQueue = frameContext.DeletionQueue.get();
 
     auto dependencyList = BuildDependencyList();
     TopologicalSort(dependencyList);
@@ -1376,7 +1376,7 @@ void Graph::SubmitPassUploads(FrameContext& frameContext)
                     .DestinationStage = PipelineStage::AllTransfer
                 }
             },
-            frameContext.DeletionQueue)
+            *frameContext.DeletionQueue)
     });
 
     m_ResourceUploader.Upload(CurrentPass(), *this, *frameContext.ResourceUploader);
@@ -1391,7 +1391,7 @@ void Graph::SubmitPassUploads(FrameContext& frameContext)
                     .DestinationAccess = PipelineAccess::ReadAll
                 }
             },
-            frameContext.DeletionQueue)
+            *frameContext.DeletionQueue)
     });
 }
 

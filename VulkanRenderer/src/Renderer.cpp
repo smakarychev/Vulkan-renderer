@@ -2017,7 +2017,7 @@ void Renderer::OnRender()
                 .DestinationStage = PipelineStage::AllCommands,
                 .SourceAccess = PipelineAccess::WriteAll,
                 .DestinationAccess = PipelineAccess::ReadAll}},
-            GetFrameContext().DeletionQueue)});
+            *GetFrameContext().DeletionQueue)});
     }
     
     {
@@ -2066,7 +2066,7 @@ void Renderer::BeginFrame()
         return;
     }
     
-    m_CurrentFrameContext->DeletionQueue.Flush();
+    m_CurrentFrameContext->DeletionQueue->Flush();
 
     const CommandBuffer cmd = GetFrameContext().Cmd;
     cmd.Reset();
@@ -2081,7 +2081,7 @@ void Renderer::BeginFrame()
                 .DestinationAccess = PipelineAccess::ReadAll
             }
         },
-        GetFrameContext().DeletionQueue)
+        *GetFrameContext().DeletionQueue)
     });
     
     m_ResourceUploader.BeginFrame(GetFrameContext());
@@ -2105,8 +2105,8 @@ RenderingInfo Renderer::GetImGuiUIRenderingInfo()
             },
             .Image = swapchain.DrawImage,
             .Layout = ImageLayout::ColorAttachment
-        }, GetFrameContext().DeletionQueue)}
-    }, GetFrameContext().DeletionQueue);
+        }, *GetFrameContext().DeletionQueue)}
+    }, *GetFrameContext().DeletionQueue);
 }
 
 void Renderer::EndFrame()
@@ -2127,7 +2127,7 @@ void Renderer::EndFrame()
                 .OldLayout = ImageLayout::ColorAttachment,
                 .NewLayout = ImageLayout::Source
             }
-        }, GetFrameContext().DeletionQueue)
+        }, *GetFrameContext().DeletionQueue)
     });
 
     CommandBuffer cmd = GetFrameContext().Cmd;
@@ -2200,6 +2200,7 @@ void Renderer::InitRenderingStructures()
         m_FrameContexts[i].CommandList.SetCommandBuffer(m_FrameContexts[i].Cmd);
         
         m_FrameContexts[i].ResourceUploader = &m_ResourceUploader;
+        m_FrameContexts[i].DeletionQueue = std::make_unique<DeletionQueue>();
     }
     
     Device::BeginFrame(m_FrameContexts[0]);
@@ -2230,7 +2231,7 @@ void Renderer::Shutdown()
     m_AssetSystem.Shutdown();
     
     for (auto& ctx : m_FrameContexts)
-        ctx.DeletionQueue.Flush();
+        ctx.DeletionQueue->Flush();
     ProfilerContext::Get()->Shutdown();
 
     Device::Shutdown();

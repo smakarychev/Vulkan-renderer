@@ -43,7 +43,7 @@ void ImageAssetManager::Shutdown()
 
 void ImageAssetManager::OnFrameBegin(FrameContext& ctx)
 {
-    m_FrameDeletionQueue = &ctx.DeletionQueue;
+    m_FrameDeletionQueue = ctx.DeletionQueue.get();
 }
 
 ImageHandle ImageAssetManager::LoadAsset(const ImageLoadParameters& parameters)

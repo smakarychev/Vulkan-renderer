@@ -35,6 +35,6 @@ Passes::Mipmap::PassData& Passes::Mipmap::addToGraph(StringId name, RG::Graph& r
                         .DestinationAccess = PipelineAccess::WriteTransfer,
                         .OldLayout = ImageLayout::Source,
                         .NewLayout = ImageLayout::Destination}},
-                    frameContext.DeletionQueue)});
+                    *frameContext.DeletionQueue)});
         });
 }
