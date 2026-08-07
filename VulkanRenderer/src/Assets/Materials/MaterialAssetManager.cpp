@@ -15,7 +15,7 @@ namespace lux
 {
 void MaterialAssetManager::OnAssetSystemInit()
 {
-    m_ImageAssetManager = m_AssetSystem->GetAssetManagerFor<ImageAssetManager>(assetlib::image::ASSET_TYPE);
+    m_ImageAssetManager = AssetSystem::Get().GetAssetManagerFor<ImageAssetManager>(assetlib::image::ASSET_TYPE);
     ASSERT(m_ImageAssetManager)
 }
 
@@ -40,7 +40,7 @@ void MaterialAssetManager::OnFileModified(const std::filesystem::path& path)
     /* new material was created */
     if (!handle.IsValid())
     {
-        m_AssetSystem->RegisterAsset(import::MaterialImporter(m_Ctx).GetMetaPath(path));
+        AssetSystem::Get().RegisterAsset(import::MaterialImporter(m_Ctx).GetMetaPath(path));
         return;
     }
 
@@ -71,7 +71,7 @@ void MaterialAssetManager::ReloadAsset(MaterialHandle handle)
         return;
     
     m_Materials[handle.Index()] = std::move(*newMaterial);
-    m_AssetSystem->NotifyAssetUpdate({.Type = assetlib::material::ASSET_TYPE, .AssetHandle = handle});
+    AssetSystem::Get().NotifyAssetUpdate({.Type = assetlib::material::ASSET_TYPE, .AssetHandle = handle});
 }
 
 void MaterialAssetManager::UnloadAsset(MaterialHandle handle)
@@ -130,7 +130,7 @@ ImageHandle MaterialAssetManager::LoadTexture(assetlib::AssetId imageAsset) cons
     if (!imageAsset.HasValue())
         return {};
 
-    const AssetIdResolver::AssetInfo* imageInfo = m_AssetSystem->Resolve(imageAsset);
+    const AssetIdResolver::AssetInfo* imageInfo = AssetSystem::Get().Resolve(imageAsset);
     // todo: return dummy image instead
     if (imageInfo == nullptr)
         return {};

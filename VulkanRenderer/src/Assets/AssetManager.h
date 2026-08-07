@@ -30,7 +30,7 @@ class AssetManager
 public:
     using IoError = assetlib::io::IoError;
 public:
-    AssetManager(AssetSystem& system);
+    AssetManager();
     virtual ~AssetManager() = default;
     virtual const std::string& GetName() const = 0;
     virtual const Guid& GetGuid() const = 0;
@@ -45,7 +45,6 @@ public:
     virtual void Reload(AssetHandleBase handle) = 0;
     virtual void Unload(AssetHandleBase handle) = 0;
 protected:
-    AssetSystem* m_AssetSystem{nullptr};
     std::shared_ptr<import::Context> m_Ctx{nullptr};
 };
 
@@ -179,8 +178,6 @@ public:
     using GetType = ResourceAssetTraits::template GetType<Resource>;  
     using Lock = ManagerTraits::Lock;
     using Mutex = ManagerTraits::Mutex;
-    
-    ResourceAssetManager(AssetSystem& system) : AssetManager(system) {}
     
     GetType Get(AssetHandle<Resource> handle) const
     {
@@ -378,5 +375,4 @@ const ResourceAssetManagerCache<Resource>::Key* ResourceAssetManagerCache<Resour
     static const std::string& GetNameStatic() { static const std::string name = #_x; return name; } \
     const std::string& GetName() const override { return GetNameStatic(); } \
     static const Guid& GetGuidStatic() { static constexpr Guid guid = _guid; return guid; } \
-    const Guid& GetGuid() const override { return GetGuidStatic(); } \
-    _x(AssetSystem& system) : ResourceAssetManager(system) {}
+    const Guid& GetGuid() const override { return GetGuidStatic(); }

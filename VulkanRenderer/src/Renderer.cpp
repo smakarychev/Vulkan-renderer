@@ -131,28 +131,29 @@ void Renderer::Init()
         .EnableHotReloading = true,
     };
 
-    m_AssetSystem.Init(m_ImportCtx);
-    m_AssetSystem.SetAssetsDirectory(*CVars::Get().GetStringCVar("Path.Assets"_hsv));
+    auto& assetSystem = lux::AssetSystem::Get();
+    assetSystem.Init(m_ImportCtx);
+    assetSystem.SetAssetsDirectory(*CVars::Get().GetStringCVar("Path.Assets"_hsv));
 
-    m_ShaderAssetManager = std::make_unique<lux::ShaderAssetManager>(m_AssetSystem);
-    m_AssetSystem.RegisterAssetManager(lux::assetlib::shader::ASSET_TYPE, *m_ShaderAssetManager);
+    m_ShaderAssetManager = std::make_unique<lux::ShaderAssetManager>();
+    assetSystem.RegisterAssetManager(lux::assetlib::shader::ASSET_TYPE, *m_ShaderAssetManager);
     m_ShaderAssetManager->Init(m_ShaderImportSettings);
 
-    m_ImageAssetManager = std::make_unique<lux::ImageAssetManager>(m_AssetSystem);
-    m_AssetSystem.RegisterAssetManager(lux::assetlib::image::ASSET_TYPE, *m_ImageAssetManager);
+    m_ImageAssetManager = std::make_unique<lux::ImageAssetManager>();
+    assetSystem.RegisterAssetManager(lux::assetlib::image::ASSET_TYPE, *m_ImageAssetManager);
 
-    m_MaterialAssetManager = std::make_unique<lux::MaterialAssetManager>(m_AssetSystem);
-    m_AssetSystem.RegisterAssetManager(lux::assetlib::material::ASSET_TYPE, *m_MaterialAssetManager);
+    m_MaterialAssetManager = std::make_unique<lux::MaterialAssetManager>();
+    assetSystem.RegisterAssetManager(lux::assetlib::material::ASSET_TYPE, *m_MaterialAssetManager);
 
-    m_SceneAssetManager = std::make_unique<lux::SceneAssetManager>(m_AssetSystem);
-    m_AssetSystem.RegisterAssetManager(lux::assetlib::scene::ASSET_TYPE, *m_SceneAssetManager);
+    m_SceneAssetManager = std::make_unique<lux::SceneAssetManager>();
+    assetSystem.RegisterAssetManager(lux::assetlib::scene::ASSET_TYPE, *m_SceneAssetManager);
 
-    m_AssetSystem.ScanAssetsDirectory();
+    assetSystem.ScanAssetsDirectory();
     
     m_ImageAssetReloadedHandler = lux::AssetUpdatedHandler([this](const lux::AssetUpdatedInfo& updatedImage) {
         OnImageAssetReloaded(updatedImage.AssetHandle);
     });
-    m_AssetSystem.SubscribeOnAssetUpdate(lux::assetlib::image::ASSET_TYPE, m_ImageAssetReloadedHandler);
+    assetSystem.SubscribeOnAssetUpdate(lux::assetlib::image::ASSET_TYPE, m_ImageAssetReloadedHandler);
     
     InitRenderingStructures();
     Device::BeginFrame(GetFrameContext());
@@ -1918,7 +1919,7 @@ void Renderer::Run()
     {
         Input::OnUpdate();
         m_Window->OnUpdate();
-        m_AssetSystem.OnUpdate();
+        lux::AssetSystem::Get().OnUpdate();
         
         BeginFrame();
 
@@ -2225,7 +2226,7 @@ void Renderer::Shutdown()
     m_ShaderAssetManager->Shutdown();
     m_ImageAssetManager->Shutdown();
 
-    m_AssetSystem.Shutdown();
+    lux::AssetSystem::Get().Shutdown();
     
     for (auto& ctx : m_FrameContexts)
         ctx.DeletionQueue->Flush();

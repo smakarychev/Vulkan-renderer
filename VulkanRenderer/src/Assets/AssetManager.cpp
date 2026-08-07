@@ -4,6 +4,6 @@
 
 namespace lux
 {
-AssetManager::AssetManager(AssetSystem& system): m_AssetSystem(&system), m_Ctx(system.GetContext())
+AssetManager::AssetManager(): m_Ctx(AssetSystem::Get().GetContext())
 {}
 }

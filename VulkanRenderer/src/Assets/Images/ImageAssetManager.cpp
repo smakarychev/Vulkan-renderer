@@ -65,7 +65,7 @@ void ImageAssetManager::ReloadAsset(ImageHandle handle)
         return;
     
     import::ImageImporter importer(m_Ctx, {});
-    m_AssetSystem->SkipFileUpdateNotify(importer.GetMetaPath(parameters->Path));
+    AssetSystem::Get().SkipFileUpdateNotify(importer.GetMetaPath(parameters->Path));
             
     const ImageAsset newImage = DoLoad(importer, parameters->Path);
     if (!newImage.HasValue())
@@ -74,7 +74,7 @@ void ImageAssetManager::ReloadAsset(ImageHandle handle)
     m_FrameDeletionQueue->Enqueue(GetAsset(handle));
     m_Images[handle.Index()] = newImage;
 
-    m_AssetSystem->NotifyAssetUpdate({.Type =assetlib::image::ASSET_TYPE, .AssetHandle = handle});
+    AssetSystem::Get().NotifyAssetUpdate({.Type =assetlib::image::ASSET_TYPE, .AssetHandle = handle});
 }
 
 void ImageAssetManager::UnloadAsset(ImageHandle handle)
@@ -104,11 +104,11 @@ void ImageAssetManager::OnRawFileModified(const std::filesystem::path& path)
     /* new image was created */
     if (!handle.IsValid())
     {
-        m_AssetSystem->RegisterAsset(import::ImageImporter(m_Ctx, {}).GetMetaPath(path));
+        AssetSystem::Get().RegisterAsset(import::ImageImporter(m_Ctx, {}).GetMetaPath(path));
         return;
     }
     
-    m_AssetSystem->AddImportRequest({
+    AssetSystem::Get().AddImportRequest({
         .ImportFn = [this, handle]()
         {
             Lock lock(m_ResourceAccessMutex);

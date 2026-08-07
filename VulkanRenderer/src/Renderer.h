@@ -198,8 +198,7 @@ private:
     std::shared_ptr<lux::assetlib::io::AssetCompressor> m_AssetCompressor{};
     std::shared_ptr<lux::import::Context> m_ImportCtx{};
     lux::import::ShaderImportSettings m_ShaderImportSettings{};
-
-    lux::AssetSystem m_AssetSystem;
+    
     std::unique_ptr<lux::ShaderAssetManager> m_ShaderAssetManager;
     std::unique_ptr<lux::ImageAssetManager> m_ImageAssetManager;
     std::unique_ptr<lux::MaterialAssetManager> m_MaterialAssetManager;

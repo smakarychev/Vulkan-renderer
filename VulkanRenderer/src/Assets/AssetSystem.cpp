@@ -11,6 +11,13 @@ namespace fs = std::filesystem;
 
 namespace lux
 {
+AssetSystem& AssetSystem::Get()
+{
+    static AssetSystem assetSystem = {};
+    
+    return assetSystem;
+}
+
 void AssetSystem::Init(const std::shared_ptr<import::Context>& context)
 {
     m_Ctx = context;

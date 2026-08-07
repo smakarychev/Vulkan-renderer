@@ -35,6 +35,7 @@ using AssetUpdatedHandler = SignalHandler<AssetUpdatedInfo>;
 class AssetSystem
 {
 public:
+    static AssetSystem& Get(); 
     void Init(const std::shared_ptr<import::Context>& context);
     void Shutdown();
     void OnUpdate();
@@ -60,6 +61,8 @@ public:
     const std::shared_ptr<import::Context>& GetContext() const { return m_Ctx; }
 
 private:
+    AssetSystem() = default;
+    
     void InitFileWatcher(const std::filesystem::path& path);
     void OnFileModified(const std::filesystem::path& path);
     void RegisterAsset(const std::filesystem::path& metadataPath, const assetlib::AssetMetadata& metadata);

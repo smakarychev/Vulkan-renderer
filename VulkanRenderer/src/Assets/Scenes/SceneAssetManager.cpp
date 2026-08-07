@@ -24,11 +24,11 @@ namespace lux
 {
 void SceneAssetManager::OnAssetSystemInit()
 {
-    m_TextureAssetManager = m_AssetSystem->GetAssetManagerFor<ImageAssetManager>(assetlib::image::ASSET_TYPE);
+    m_TextureAssetManager = AssetSystem::Get().GetAssetManagerFor<ImageAssetManager>(assetlib::image::ASSET_TYPE);
     ASSERT(m_TextureAssetManager)
     
     m_MaterialAssetManager =
-        m_AssetSystem->GetAssetManagerFor<MaterialAssetManager>(assetlib::material::ASSET_TYPE);
+        AssetSystem::Get().GetAssetManagerFor<MaterialAssetManager>(assetlib::material::ASSET_TYPE);
     ASSERT(m_MaterialAssetManager)    
     
     m_MaterialUpdatedHandler = AssetUpdatedHandler([this](const AssetUpdatedInfo& updatedMaterial) {
@@ -37,8 +37,8 @@ void SceneAssetManager::OnAssetSystemInit()
     m_TextureUpdatedHandler = AssetUpdatedHandler([this](const AssetUpdatedInfo& updatedTexture) {
         OnTextureUpdated(updatedTexture.AssetHandle);
     });
-    m_AssetSystem->SubscribeOnAssetUpdate(assetlib::material::ASSET_TYPE, m_MaterialUpdatedHandler);
-    m_AssetSystem->SubscribeOnAssetUpdate(assetlib::image::ASSET_TYPE, m_TextureUpdatedHandler);
+    AssetSystem::Get().SubscribeOnAssetUpdate(assetlib::material::ASSET_TYPE, m_MaterialUpdatedHandler);
+    AssetSystem::Get().SubscribeOnAssetUpdate(assetlib::image::ASSET_TYPE, m_TextureUpdatedHandler);
 }
 
 bool SceneAssetManager::AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path&)
@@ -113,7 +113,7 @@ void SceneAssetManager::ReloadAsset(SceneHandle handle)
         return;
     
     import::SceneImporter importer(m_Ctx);
-    m_AssetSystem->SkipFileUpdateNotify(importer.GetMetaPath(parameters->Path));
+    AssetSystem::Get().SkipFileUpdateNotify(importer.GetMetaPath(parameters->Path));
             
     auto newScene = DoLoad(importer, parameters->Path);
     if (!newScene.has_value())
@@ -124,7 +124,7 @@ void SceneAssetManager::ReloadAsset(SceneHandle handle)
     RegisterMaterials(handle);
     m_SceneReplacedSignal.Emit({.Scene = handle});
     
-    m_AssetSystem->NotifyAssetUpdate({.Type = assetlib::scene::ASSET_TYPE, .AssetHandle = handle});
+    AssetSystem::Get().NotifyAssetUpdate({.Type = assetlib::scene::ASSET_TYPE, .AssetHandle = handle});
 }
 
 void SceneAssetManager::UnloadAsset(SceneHandle handle)
@@ -153,11 +153,11 @@ void SceneAssetManager::OnRawFileModified(const std::filesystem::path& path)
     /* new scene was created */
     if (!handle.IsValid())
     {
-        m_AssetSystem->RegisterAsset(import::SceneImporter(m_Ctx).GetMetaPath(path));
+        AssetSystem::Get().RegisterAsset(import::SceneImporter(m_Ctx).GetMetaPath(path));
         return;
     }
     
-    m_AssetSystem->AddImportRequest({
+    AssetSystem::Get().AddImportRequest({
         .ImportFn = [this, handle]()
         {
             Lock lock(m_ResourceAccessMutex);
@@ -257,7 +257,7 @@ std::optional<SceneAsset> SceneAssetManager::DoLoad(import::SceneImporter& impor
     
     auto& sceneAsset = importer.GetImportedScene().Asset;
     if (willBake) 
-        m_AssetSystem->ScanAssetsDirectory(std::filesystem::path(path).parent_path());
+        AssetSystem::Get().ScanAssetsDirectory(std::filesystem::path(path).parent_path());
 
     std::unordered_map<assetlib::AssetId, assetlib::GeometryBufferAsset> importedBuffers;
     std::optional<SceneGeometryInfo> geometryInfo = LoadGeometryInfo(sceneAsset, importedBuffers);
@@ -569,7 +569,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
     {
         if (!importedMaterials.contains(material.MaterialAsset))
         {
-            auto* materialAssetInfo = m_AssetSystem->Resolve(material.MaterialAsset);
+            auto* materialAssetInfo = AssetSystem::Get().Resolve(material.MaterialAsset);
             if (!materialAssetInfo)
                 return ~0lu;
         
@@ -605,7 +605,7 @@ bool SceneAssetManager::LoadMeshesAndSkins(SceneGeometryInfo& geometry, const as
         
         for (assetlib::AssetId mesh : scene.Meshes)
         {
-            auto* meshAssetInfo = m_AssetSystem->Resolve(mesh);
+            auto* meshAssetInfo = AssetSystem::Get().Resolve(mesh);
             if (!meshAssetInfo)
                 return false;
     
@@ -821,7 +821,7 @@ std::optional<assetlib::GeometryBufferAsset> SceneAssetManager::LoadGeometryBuff
 {
     using enum assetlib::GeometryBufferViewType;
     
-    auto* geometryBufferAssetInfo = m_AssetSystem->Resolve(buffer);
+    auto* geometryBufferAssetInfo = AssetSystem::Get().Resolve(buffer);
     if (!geometryBufferAssetInfo)
         return std::nullopt;
     

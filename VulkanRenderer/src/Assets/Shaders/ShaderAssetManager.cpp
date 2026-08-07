@@ -197,7 +197,7 @@ void ShaderAssetManager::ReloadAsset(ShaderHandle handle)
     auto defines = GetDefinesFromParameters(*parameters);
     const import::ShaderImportSettings settings = CreateBakeSettings(*parameters, defines);
     import::ShaderImporter importer(m_Ctx, settings);
-    m_AssetSystem->SkipFileUpdateNotify(importer.GetMetaPath(rawPath));
+    AssetSystem::Get().SkipFileUpdateNotify(importer.GetMetaPath(rawPath));
 
     auto pipelineInfo = DoLoad(importer, rawPath);
     if (!pipelineInfo.has_value())
@@ -236,7 +236,7 @@ void ShaderAssetManager::OnRawFileModified(const std::filesystem::path& path)
     {
         IterateBySourceUnsafe(name, [&](ShaderHandle asset)
         {
-            m_AssetSystem->AddImportRequest({.ImportFn = [this, asset]()
+            AssetSystem::Get().AddImportRequest({.ImportFn = [this, asset]()
                 {
                     Lock lock(m_ResourceAccessMutex);
                     ReloadAsset(asset);
