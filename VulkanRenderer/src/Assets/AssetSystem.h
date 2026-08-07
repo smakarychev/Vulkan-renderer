@@ -2,6 +2,7 @@
 #include "AssetImportQueue.h"
 #include "AssetIdResolver.h"
 #include "AssetManager.h"
+#include "AssetPath.h"
 
 #include <CoreLib/Platform/FileWatcher.h>
 
@@ -24,6 +25,7 @@ struct AssetLoadParameters;
 
 struct AssetUpdatedInfo
 {
+    assetlib::AssetType Type{};
     AssetHandleBase AssetHandle{};
 };
 
@@ -35,14 +37,15 @@ class AssetSystem
 public:
     void Init(const std::shared_ptr<import::Context>& context);
     void Shutdown();
+    void OnUpdate();
     void RegisterAssetManager(assetlib::AssetType type, AssetManager& manager);
     void SetAssetsDirectory(const std::filesystem::path& path);
     void ScanAssetsDirectory();
     void ScanAssetsDirectory(const std::filesystem::path& path);
-    void RegisterAsset(const std::filesystem::path& metadataPath, const assetlib::AssetMetadata& metadata);
+    void RegisterAsset(const std::filesystem::path& metadataPath);
 
     void SubscribeOnAssetUpdate(assetlib::AssetType type, AssetUpdatedHandler& handler);
-    void NotifyAssetUpdate(assetlib::AssetType type, const AssetUpdatedInfo& assetInfo);
+    void NotifyAssetUpdate(const AssetUpdatedInfo& assetInfo);
 
     template <typename ResourceAssetManager>
     requires std::is_base_of_v<AssetManager, ResourceAssetManager>
@@ -59,7 +62,8 @@ public:
 private:
     void InitFileWatcher(const std::filesystem::path& path);
     void OnFileModified(const std::filesystem::path& path);
-
+    void RegisterAsset(const std::filesystem::path& metadataPath, const assetlib::AssetMetadata& metadata);
+    void NotifyAssetUpdatedWatchers();
 private:
     std::unordered_map<assetlib::AssetType, AssetManager*> m_Managers;
 
@@ -71,7 +75,8 @@ private:
     std::shared_ptr<import::Context> m_Ctx{nullptr};
 
     std::unordered_map<assetlib::AssetType, AssetUpdatedSignal> m_AssetUpdatedSignals;
-
+    std::vector<AssetUpdatedInfo> m_AssetUpdates;
+    
     AssetImportQueue m_ImportQueue;
   
     struct SkippedFileUpdateInfo
@@ -81,7 +86,8 @@ private:
         std::chrono::time_point<std::chrono::high_resolution_clock> LatestTimePoint;
     };
     std::unordered_map<std::filesystem::path, SkippedFileUpdateInfo> m_SkippedFileUpdateInfos;
-    std::mutex m_SkippedFileUpdateMutex;
+    
+    std::mutex m_Mutex;
 };
 
 template <typename ResourceAssetManager> requires std::is_base_of_v<AssetManager, ResourceAssetManager>

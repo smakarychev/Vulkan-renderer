@@ -33,62 +33,56 @@ void MaterialAssetManager::OnFileModified(const std::filesystem::path& path)
 {
     if (!Imports(path.extension().string()))
         return;
-
-    import::MaterialImporter importer(m_Ctx);
-    m_AssetSystem->SkipFileUpdateNotify(importer.GetMetaPath(path));
     
-    auto newMaterial = DoLoad(importer, path);
-    if (!newMaterial.has_value())
-        return;
+    Lock lock(m_ResourceAccessMutex);
     
-    const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
-    MaterialHandle cached;
+    const MaterialHandle handle = FindHandleByLoadParametersUnsafe({.Path = path});
+    /* new material was created */
+    if (!handle.IsValid())
     {
-        Lock lock(m_ResourceAccessMutex);
-        cached = m_Materials.Find(id);
-
-        /* new material was created */
-        if (!cached.IsValid())
-        {
-            m_AssetSystem->RegisterAsset(importer.GetMetaPath(path), importer.GetImportedAssetMetadata());
-            return;
-        }
-        m_Materials[cached.Index()] = std::move(*newMaterial);
+        m_AssetSystem->RegisterAsset(import::MaterialImporter(m_Ctx).GetMetaPath(path));
+        return;
     }
-    
-    m_AssetSystem->NotifyAssetUpdate(assetlib::material::ASSET_TYPE, {.AssetHandle = cached});
+
+    ReloadAsset(handle);
 }
 
 MaterialHandle MaterialAssetManager::LoadAsset(const MaterialLoadParameters& parameters)
 {
-    const std::filesystem::path path = weakly_canonical(parameters.Path).generic_string();
     import::MaterialImporter importer(m_Ctx);
-    const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
 
-    const MaterialHandle cached = m_Materials.Find(id);
-    if (cached.IsValid())
-        return cached;
-
-    auto material = DoLoad(importer, path);
+    auto material = DoLoad(importer, parameters.Path);
     if (!material.has_value())
         return {};
 
-    return m_Materials.Add(std::move(*material), id);
+    return m_Materials.Insert(std::move(*material));
+}
+
+void MaterialAssetManager::ReloadAsset(MaterialHandle handle)
+{
+    const auto* parameters = FindLoadParametersUnsafe(handle); 
+    if (!parameters)
+        return;
+    
+    import::MaterialImporter importer(m_Ctx);
+    
+    auto newMaterial = DoLoad(importer, parameters->Path);
+    if (!newMaterial)
+        return;
+    
+    m_Materials[handle.Index()] = std::move(*newMaterial);
+    m_AssetSystem->NotifyAssetUpdate({.Type = assetlib::material::ASSET_TYPE, .AssetHandle = handle});
 }
 
 void MaterialAssetManager::UnloadAsset(MaterialHandle handle)
 {
-    const assetlib::AssetId id = m_Materials.Find(handle);
-    if (!id.HasValue())
+    const auto* parameters = FindLoadParametersUnsafe(handle);
+    if (!parameters)
         return;
-
-    const auto* assetInfo = m_AssetSystem->Resolve(id);
-    if (!assetInfo)
-        return;
-
-    LUX_LOG_INFO("Unloading material: {}", assetInfo->Path.string());
-
-    m_Materials.Erase(handle, id);
+    
+    LUX_LOG_INFO("Unloading material: {}", parameters->Path.ToString());
+    
+    m_Materials.Erase(handle);
 }
 
 const MaterialAsset* MaterialAssetManager::GetAsset(MaterialHandle handle) const
@@ -96,15 +90,15 @@ const MaterialAsset* MaterialAssetManager::GetAsset(MaterialHandle handle) const
     return &m_Materials[handle.Index()];
 }
 
-std::optional<MaterialAsset> MaterialAssetManager::DoLoad(import::MaterialImporter& importer,
-    const std::filesystem::path& path) const
+std::optional<MaterialAsset> MaterialAssetManager::DoLoad(import::MaterialImporter& importer, 
+    const AssetPath& path) const
 {
-    LUX_LOG_INFO("Loading material: {}", path.string());
+    LUX_LOG_INFO("Loading material: {}", path.ToString());
 
     auto imported = importer.Import(path);
     if (!imported.has_value())
     {
-        LUX_LOG_ERROR("Failed to load material: {} ({})", imported.error(), path.string());
+        LUX_LOG_ERROR("Failed to load material: {} ({})", imported.error(), path.ToString());
         return std::nullopt;
     }
     auto& materialAsset = importer.GetImportedMaterial().Asset;

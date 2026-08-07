@@ -22,6 +22,11 @@ void AssetSystem::Shutdown()
     m_ImportQueue.Shutdown();
 }
 
+void AssetSystem::OnUpdate()
+{
+    NotifyAssetUpdatedWatchers();
+}
+
 void AssetSystem::RegisterAssetManager(assetlib::AssetType type, AssetManager& manager)
 {
     m_Managers[type] = &manager;
@@ -63,6 +68,15 @@ void AssetSystem::ScanAssetsDirectory(const std::filesystem::path& path)
     }
 }
 
+void AssetSystem::RegisterAsset(const std::filesystem::path& metadataPath)
+{
+    auto metadataRead = assetlib::io::readBaseAssetMetadata(metadataPath);
+    if (!metadataRead.has_value())
+        return;
+    
+    RegisterAsset(metadataPath, *metadataRead);
+}
+
 void AssetSystem::RegisterAsset(const std::filesystem::path& metadataPath, const assetlib::AssetMetadata& metadata)
 {
     m_IdResolver.RegisterId(metadata.AssetId, {
@@ -77,9 +91,19 @@ void AssetSystem::SubscribeOnAssetUpdate(assetlib::AssetType type, AssetUpdatedH
     handler.Connect(m_AssetUpdatedSignals[type]);
 }
 
-void AssetSystem::NotifyAssetUpdate(assetlib::AssetType type, const AssetUpdatedInfo& assetInfo)
+void AssetSystem::NotifyAssetUpdate(const AssetUpdatedInfo& assetInfo)
 {
-    m_AssetUpdatedSignals[type].Emit(assetInfo);
+    std::scoped_lock lock(m_Mutex);
+    m_AssetUpdates.push_back(assetInfo);
+}
+
+void AssetSystem::NotifyAssetUpdatedWatchers()
+{
+    std::scoped_lock lock(m_Mutex);
+    for (auto& update : m_AssetUpdates)
+        m_AssetUpdatedSignals[update.Type].Emit(update);
+        
+    m_AssetUpdates.clear();
 }
 
 const AssetIdResolver::AssetInfo* AssetSystem::Resolve(assetlib::AssetId id) const
@@ -99,7 +123,7 @@ bool AssetSystem::AddImportRequest(AssetImportRequest&& request)
 
 void AssetSystem::SkipFileUpdateNotify(const std::filesystem::path& path)
 {
-    std::scoped_lock lock(m_SkippedFileUpdateMutex);
+    std::scoped_lock lock(m_Mutex);
     auto& updateInfo = m_SkippedFileUpdateInfos[path];
     updateInfo.Count += 1;
     updateInfo.LatestTimePoint = std::chrono::high_resolution_clock::now();
@@ -121,7 +145,7 @@ void AssetSystem::InitFileWatcher(const std::filesystem::path& path)
         
         /* delete expired skipped file updates */
         {
-            std::scoped_lock lock(m_SkippedFileUpdateMutex);
+            std::scoped_lock lock(m_Mutex);
             std::erase_if(m_SkippedFileUpdateInfos, [&event](const auto& item) {
                 return item.second.LatestTimePoint + SkippedFileUpdateInfo::EXPIRE_TIME < event.TimePoint;
             });   
@@ -145,7 +169,7 @@ void AssetSystem::InitFileWatcher(const std::filesystem::path& path)
 void AssetSystem::OnFileModified(const std::filesystem::path& path)
 {
     {
-        std::scoped_lock lock(m_SkippedFileUpdateMutex);
+        std::scoped_lock lock(m_Mutex);
         const auto it = m_SkippedFileUpdateInfos.find(path);
         if (it != m_SkippedFileUpdateInfos.end())
         {

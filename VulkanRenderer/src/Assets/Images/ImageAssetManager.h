@@ -2,7 +2,8 @@
 
 #include "ImageAsset.h"
 #include "Assets/AssetManager.h"
-#include "Assets/Common/AssetFreeListMap.h"
+#include "Assets/AssetPath.h"
+#include "Assets/Common/AssetFreeList.h"
 
 #include <AssetImportLib/Importers/ImportContext.h>
 
@@ -18,10 +19,19 @@ class ImageImporter;
 template <>
 struct ResourceAssetLoadParameters<ImageAsset>
 {
-    std::filesystem::path Path{};
+    AssetPath Path{};
+    auto operator<=>(const ResourceAssetLoadParameters&) const = default;
 };
-
 using ImageLoadParameters = ResourceAssetLoadParameters<ImageAsset>;
+
+template <>
+struct ResourceAssetLoadParametersHasher<ImageAsset>
+{
+    usize operator()(const ImageLoadParameters& parameters) const noexcept
+    {
+        return std::hash<AssetPath>{}(parameters.Path);
+    }
+};
 
 class ImageAssetManager final : public ResourceAssetManager<ImageAsset, ResourceAssetTraitsGetValue>
 {
@@ -38,17 +48,16 @@ public:
 
 protected:
     ImageHandle LoadAsset(const ImageLoadParameters& parameters) override;
+    void ReloadAsset(ImageHandle handle) override;
     void UnloadAsset(ImageHandle handle) override;
     GetType GetAsset(ImageHandle handle) const override;
 
 private:
     void OnRawFileModified(const std::filesystem::path& path);
-    ImageAsset DoLoad(import::ImageImporter& importer, const std::filesystem::path& path) const;
+    ImageAsset DoLoad(import::ImageImporter& importer, const AssetPath& path) const;
 
 private:
-    // todo: alternative is to make ImageHandle equivalent to Image (since both are handles)
-    // todo: this will require support from Device to swap things (already exists in method `ResizeBuffer`)
-    AssetFreeListMap<ImageAsset> m_Images;
+    AssetFreeList<ImageAsset> m_Images;
 
     /* for hot-reloading */
     DeletionQueue* m_FrameDeletionQueue{nullptr};

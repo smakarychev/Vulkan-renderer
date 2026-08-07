@@ -25,11 +25,28 @@ struct ShaderImportSettings;
 template <>
 struct ResourceAssetLoadParameters<ShaderAsset>
 {
+    using SourceType = StringId;
+    SourceType ToSourceType() const { return Name; }
+    
     StringId Name{};
-    std::optional<StringId> Variant{};
-    ShaderOverridesView* Overrides{nullptr};
+    StringId Variant{import::ShaderBaker::MAIN_VARIANT};
+    ShaderOverrides Overrides{};
+    auto operator<=>(const ResourceAssetLoadParameters&) const = default;
 };
 using ShaderLoadParameters = ResourceAssetLoadParameters<ShaderAsset>;
+
+template <>
+struct ResourceAssetLoadParametersHasher<ShaderAsset>
+{
+    usize operator()(const ShaderLoadParameters& parameters) const noexcept
+    {
+        u64 hash = parameters.Name.Hash();
+        Hash::combine(hash, parameters.Variant.Hash());
+        Hash::combine(hash, parameters.Overrides.Hash);
+            
+        return hash;
+    }
+};
 
 enum class ShaderAssetManagerError : u8
 {
@@ -45,7 +62,6 @@ struct ShaderTextureHeapAllocation
 
 using ShaderCacheAllocateResult = std::expected<void, ShaderAssetManagerError>;
 using ShaderCacheTextureHeapResult = std::expected<ShaderTextureHeapAllocation, ShaderAssetManagerError>;
-
 
 class ShaderAssetManager final : public ResourceAssetManager<ShaderAsset, ResourceAssetTraitsGetOptional>
 {
@@ -64,6 +80,7 @@ public:
     ShaderCacheTextureHeapResult AllocateTextureHeap(DescriptorArenaAllocator persistentAllocator, u32 count);
 protected:
     ShaderHandle LoadAsset(const ShaderLoadParameters& parameters) override;
+    void ReloadAsset(ShaderHandle handle) override;
     void UnloadAsset(ShaderHandle handle) override;
     GetType GetAsset(ShaderHandle handle) const override;
 private:
@@ -84,47 +101,18 @@ private:
         std::array<::Descriptors, MAX_DESCRIPTOR_SETS> Descriptors{};
         std::array<::DescriptorsLayout, MAX_DESCRIPTOR_SETS> DescriptorLayouts{};
         StringId Name{};
-
-        bool ShouldReload{false};
-    };
-    struct ShaderNameWithOverrides
-    {
-        StringId Name{};
-        StringId Variant{};
-        u64 OverridesHash{};
-
-        auto operator<=>(const ShaderNameWithOverrides&) const = default;
-    };
-    struct RebakeInfo
-    {
-        ShaderNameWithOverrides NameWithOverrides{};
-        u64 DefinesHash{0};
-        std::vector<std::pair<std::string, std::string>> Defines{};
-
-        auto operator<=>(const RebakeInfo&) const = default;
     };
     std::optional<LoadedPipelineInfo> DoLoad(import::ShaderImporter& importer, const std::filesystem::path& path);
     Pipeline CreatePipeline(const assetlib::ShaderLoadInfo& shaderLoadInfo, 
         const ShaderPipelineTemplate& pipelineTemplate, const ShaderLoadParameters& parameters);
     void ReloadPipeline(PipelineInfo& pipelineInfo, import::ShaderImporter& importer, 
         const ShaderLoadParameters& parameters);
-    RebakeInfo CreateRebakeInfo(const ShaderNameWithOverrides& name, const ShaderLoadParameters& parameters) const;
-    import::ShaderImportSettings CreateBakeSettings(const RebakeInfo& rebakeInfo) const;
+    std::vector<std::pair<std::string, std::string>> GetDefinesFromParameters(
+        const ShaderLoadParameters& parameters) const;
+    import::ShaderImportSettings CreateBakeSettings(const ShaderLoadParameters& parameters, 
+        std::vector<std::pair<std::string, std::string>>& defines) const;
 private:
-    struct ShaderNameWithOverridesHasher
-    {
-        constexpr u64 operator()(const ShaderNameWithOverrides& shader) const
-        {
-            u64 hash = shader.Name.Hash();
-            Hash::combine(hash, shader.Variant.Hash());
-            Hash::combine(hash, shader.OverridesHash);
-            
-            return hash;
-        }
-    };
-
     std::vector<PipelineInfo> m_Pipelines;
-    std::unordered_map<ShaderNameWithOverrides, ShaderHandle, ShaderNameWithOverridesHasher> m_PipelinesMap;
     std::unordered_map<assetlib::AssetId, ShaderPipelineTemplate> m_ShaderPipelineTemplates;
 
     struct DescriptorsWithLayout
@@ -138,7 +126,6 @@ private:
     const import::ShaderImportSettings* m_BakeSettings{nullptr};
     StringUnorderedMap<std::vector<StringId>> m_RawPathToShaders;
     std::unordered_map<StringId, std::filesystem::path> m_ShaderNameToRawPath;
-    StringUnorderedMap<std::vector<RebakeInfo>> m_RawPathToRebakeInfos;
     DeletionQueue* m_FrameDeletionQueue{nullptr};
 };
 }

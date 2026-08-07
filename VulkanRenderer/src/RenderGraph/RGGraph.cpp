@@ -1896,11 +1896,14 @@ const lux::ShaderAsset& Graph::SetShader(StringId name, ShaderOverridesView&& ov
 const lux::ShaderAsset& Graph::SetShader(StringId name, std::optional<StringId> variant,
     ShaderOverridesView&& overrides) const
 {
-    const lux::ShaderHandle shaderHandle = m_ShaderAssetManager->LoadResource({
+    lux::ShaderLoadParameters shaderLoadParameters = {
         .Name = name,
-        .Variant = variant,
-        .Overrides = &overrides
-    });
+        .Overrides = overrides        
+    };
+    if (variant.has_value())
+        shaderLoadParameters.Variant = *variant;
+    
+    const lux::ShaderHandle shaderHandle = m_ShaderAssetManager->LoadResource(shaderLoadParameters);
     if (!shaderHandle.IsValid())
         return HandleShaderError(name);
 

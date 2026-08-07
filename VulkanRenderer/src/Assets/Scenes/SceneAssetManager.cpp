@@ -73,7 +73,7 @@ SceneHandle SceneAssetManager::AddExternalScene(SceneAsset&& scene)
 {
     Lock lock(m_ResourceAccessMutex);
     
-    return m_Scenes.Add(std::move(scene), {});
+    return m_Scenes.Insert(std::move(scene));
 }
 
 void SceneAssetManager::OnFrameBegin(FrameContext&)
@@ -83,8 +83,8 @@ void SceneAssetManager::OnFrameBegin(FrameContext&)
     auto& queued = m_ToUnload[(u32)UnloadState::Queued];
     auto& toUnload = m_ToUnload[(u32)UnloadState::Unload];
 
-    for (SceneHandle toUnloadScene : toUnload)
-        m_Scenes.Erase(toUnloadScene, {});
+    for (const SceneHandle toUnloadScene : toUnload)
+        m_Scenes.Erase(toUnloadScene);
     toUnload.clear();
     
     for (SceneHandle queuedScene : queued)
@@ -94,35 +94,46 @@ void SceneAssetManager::OnFrameBegin(FrameContext&)
 
 SceneHandle SceneAssetManager::LoadAsset(const SceneLoadParameters& parameters)
 {
-    const std::filesystem::path path = weakly_canonical(parameters.Path).generic_string();
     import::SceneImporter importer(m_Ctx);
-    const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
     
-    const SceneHandle cached = m_Scenes.Find(id);
-    if (cached.IsValid())
-        return cached;
-    
-    auto sceneAsset = DoLoad(importer, path);
+    auto sceneAsset = DoLoad(importer, parameters.Path);
     if (!sceneAsset.has_value())
         return {};
     
-    const SceneHandle newScene = m_Scenes.Add(std::move(*sceneAsset), id);
+    const SceneHandle newScene = m_Scenes.Insert(std::move(*sceneAsset));
     RegisterMaterials(newScene);
     
     return newScene;
 }
 
-void SceneAssetManager::UnloadAsset(SceneHandle handle)
+void SceneAssetManager::ReloadAsset(SceneHandle handle)
 {
-    const assetlib::AssetId id = m_Scenes.Find(handle);
-    if (!id.HasValue())
-        return;
-
-    const auto* assetInfo = m_AssetSystem->Resolve(id);
-    if (!assetInfo)
+    const auto* parameters = FindLoadParametersUnsafe(handle);
+    if (!parameters)
         return;
     
-    LUX_LOG_INFO("Unloading scene: {}", assetInfo->Path.string());
+    import::SceneImporter importer(m_Ctx);
+    m_AssetSystem->SkipFileUpdateNotify(importer.GetMetaPath(parameters->Path));
+            
+    auto newScene = DoLoad(importer, parameters->Path);
+    if (!newScene.has_value())
+        return;
+            
+    UnregisterMaterials(handle);
+    m_Scenes[handle] = std::move(*newScene);
+    RegisterMaterials(handle);
+    m_SceneReplacedSignal.Emit({.Scene = handle});
+    
+    m_AssetSystem->NotifyAssetUpdate({.Type = assetlib::scene::ASSET_TYPE, .AssetHandle = handle});
+}
+
+void SceneAssetManager::UnloadAsset(SceneHandle handle)
+{
+    const auto* parameters = FindLoadParametersUnsafe(handle);
+    if (!parameters)
+        return;
+
+    LUX_LOG_INFO("Unloading scene: {}", parameters->Path.ToString());
 
     m_ToUnload[(u32)UnloadState::Queued].push_back(handle);
     UnregisterMaterials(handle);
@@ -136,36 +147,21 @@ const SceneAsset* SceneAssetManager::GetAsset(SceneHandle handle) const
 
 void SceneAssetManager::OnRawFileModified(const std::filesystem::path& path)
 {
+    Lock lock(m_ResourceAccessMutex);
+    
+    const SceneHandle handle = FindHandleByLoadParametersUnsafe({.Path = path});
+    /* new scene was created */
+    if (!handle.IsValid())
+    {
+        m_AssetSystem->RegisterAsset(import::SceneImporter(m_Ctx).GetMetaPath(path));
+        return;
+    }
+    
     m_AssetSystem->AddImportRequest({
-        .ImportFn = [this, path]()
+        .ImportFn = [this, handle]()
         {
-            import::SceneImporter importer(m_Ctx);
-            m_AssetSystem->SkipFileUpdateNotify(importer.GetMetaPath(path));
-            
-            auto sceneAsset = DoLoad(importer, path);
-            if (!sceneAsset.has_value())
-                return;
-            
-            const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
-            SceneHandle cached;
-            {
-                Lock lock(m_ResourceAccessMutex);
-                cached = m_Scenes.Find(id);
-
-                /* new scene was created */
-                if (!cached.IsValid())
-                {
-                    m_AssetSystem->RegisterAsset(importer.GetMetaPath(path), importer.GetImportedAssetMetadata());
-                    return;
-                }
-
-                UnregisterMaterials(cached);
-                m_Scenes[cached] = std::move(*sceneAsset);
-                RegisterMaterials(cached);
-                m_SceneReplacedSignal.Emit({.Scene = cached});
-            }
-            
-            m_AssetSystem->NotifyAssetUpdate(assetlib::scene::ASSET_TYPE, {.AssetHandle = cached});
+            Lock lock(m_ResourceAccessMutex);
+            ReloadAsset(handle);
         }
     });
 }
@@ -244,30 +240,30 @@ LightType lightTypeAssetLightType(assetlib::SceneAssetLightType lightType)
 }
 }
 
-std::optional<SceneAsset> SceneAssetManager::DoLoad(import::SceneImporter& importer, const std::filesystem::path& path)
+std::optional<SceneAsset> SceneAssetManager::DoLoad(import::SceneImporter& importer, const AssetPath& path)
 {
     ASSERT(m_TextureAssetManager)
     ASSERT(m_MaterialAssetManager)
     
-    LUX_LOG_INFO("Loading scene: {}", path.string());
+    LUX_LOG_INFO("Loading scene: {}", path.ToString());
     
     const bool willBake = importer.NeedsBaking(path);
     auto imported = importer.Import(path);
     if (!imported.has_value())
     {
-        LUX_LOG_ERROR("Failed to load scene: {} ({})", imported.error(), path.string());
+        LUX_LOG_ERROR("Failed to load scene: {} ({})", imported.error(), path.ToString());
         return std::nullopt;
     }
     
     auto& sceneAsset = importer.GetImportedScene().Asset;
     if (willBake) 
-        m_AssetSystem->ScanAssetsDirectory(path.parent_path());
+        m_AssetSystem->ScanAssetsDirectory(std::filesystem::path(path).parent_path());
 
     std::unordered_map<assetlib::AssetId, assetlib::GeometryBufferAsset> importedBuffers;
     std::optional<SceneGeometryInfo> geometryInfo = LoadGeometryInfo(sceneAsset, importedBuffers);
     if (!geometryInfo.has_value())
     {
-        LUX_LOG_ERROR("Failed to load geometry info for scene: {}", path.string());
+        LUX_LOG_ERROR("Failed to load geometry info for scene: {}", path.ToString());
         return std::nullopt;
     }
     

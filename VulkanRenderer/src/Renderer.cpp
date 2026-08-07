@@ -587,7 +587,7 @@ void Renderer::SetupRenderGraph()
         m_PrimaryHizPrevious[GetPreviousFrameNumber()].HasValue() ?
         m_Graph->ImportPersistent("PrimaryHiz.Previous"_hsv, m_PrimaryHizPrevious[GetPreviousFrameNumber()]) :
         m_Graph->Import("PrimaryHiz.Dummy"_hsv,
-            images::Default::GetCopy(images::DefaultKind::White, GetFrameContext().DeletionQueue),
+            images::Default::GetCopy(images::DefaultKind::White, *GetFrameContext().DeletionQueue),
             ImageLayout::Readonly
         );
     
@@ -1918,6 +1918,7 @@ void Renderer::Run()
     {
         Input::OnUpdate();
         m_Window->OnUpdate();
+        m_AssetSystem.OnUpdate();
         
         BeginFrame();
 

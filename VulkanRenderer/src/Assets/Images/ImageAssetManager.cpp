@@ -36,9 +36,14 @@ void ImageAssetManager::OnFileModified(const std::filesystem::path& path)
 
 void ImageAssetManager::Shutdown()
 {
-    for (ImageHandle handle : m_Images | std::views::values |
-         std::views::filter([this](const ImageHandle handle) { return GetAsset(handle).HasValue(); }))
-        Device::Destroy(GetAsset(handle));
+    IterateCacheUnsafe([this](const auto& _, ImageHandle handle)
+    {
+        const Image image = GetAsset(handle);
+        if (!image.HasValue())
+            return;
+        
+        Device::Destroy(image);
+    });
 }
 
 void ImageAssetManager::OnFrameBegin(FrameContext& ctx)
@@ -48,33 +53,42 @@ void ImageAssetManager::OnFrameBegin(FrameContext& ctx)
 
 ImageHandle ImageAssetManager::LoadAsset(const ImageLoadParameters& parameters)
 {
-    const std::filesystem::path path = weakly_canonical(parameters.Path).generic_string();
     import::ImageImporter importer(m_Ctx, {});
-    const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
     
-    const ImageHandle cached = m_Images.Find(id);
-    if (cached.IsValid())
-        return cached;
+    return m_Images.Insert(DoLoad(importer, parameters.Path));
+}
 
-    return m_Images.Add(DoLoad(importer, path), id);
+void ImageAssetManager::ReloadAsset(ImageHandle handle)
+{
+    const auto* parameters = FindLoadParametersUnsafe(handle);
+    if (!parameters)
+        return;
+    
+    import::ImageImporter importer(m_Ctx, {});
+    m_AssetSystem->SkipFileUpdateNotify(importer.GetMetaPath(parameters->Path));
+            
+    const ImageAsset newImage = DoLoad(importer, parameters->Path);
+    if (!newImage.HasValue())
+        return;
+    
+    m_FrameDeletionQueue->Enqueue(GetAsset(handle));
+    m_Images[handle.Index()] = newImage;
+
+    m_AssetSystem->NotifyAssetUpdate({.Type =assetlib::image::ASSET_TYPE, .AssetHandle = handle});
 }
 
 void ImageAssetManager::UnloadAsset(ImageHandle handle)
 {
     ASSERT(m_FrameDeletionQueue)
-
-    const assetlib::AssetId id = m_Images.Find(handle);
-    if (!id.HasValue())
+    
+    const auto* parameters = FindLoadParametersUnsafe(handle);
+    if (!parameters)
         return;
-
-    const auto* assetInfo = m_AssetSystem->Resolve(id);
-    if (!assetInfo)
-        return;
-
-    LUX_LOG_INFO("Unloading image: {}", assetInfo->Path.string());
+    
+    LUX_LOG_INFO("Unloading image: {}", parameters->Path.ToString());
 
     m_FrameDeletionQueue->Enqueue(GetAsset(handle));
-    m_Images.Erase(handle, id);
+    m_Images.Erase(handle);
 }
 
 Image ImageAssetManager::GetAsset(ImageHandle handle) const
@@ -84,46 +98,33 @@ Image ImageAssetManager::GetAsset(ImageHandle handle) const
 
 void ImageAssetManager::OnRawFileModified(const std::filesystem::path& path)
 {
+    Lock lock(m_ResourceAccessMutex);
+    
+    const ImageHandle handle = FindHandleByLoadParametersUnsafe({.Path = path});
+    /* new image was created */
+    if (!handle.IsValid())
+    {
+        m_AssetSystem->RegisterAsset(import::ImageImporter(m_Ctx, {}).GetMetaPath(path));
+        return;
+    }
+    
     m_AssetSystem->AddImportRequest({
-        .ImportFn = [this, path]()
+        .ImportFn = [this, handle]()
         {
-            import::ImageImporter importer(m_Ctx, {});
-            m_AssetSystem->SkipFileUpdateNotify(importer.GetMetaPath(path));
-            
-            const ImageAsset newImage = DoLoad(importer, path);
-            if (!newImage.HasValue())
-                return;
-
-            const assetlib::AssetId id = m_AssetSystem->ResolveMetaPath(importer.GetMetaPath(path));
-            ImageHandle cached;
-            {
-                Lock lock(m_ResourceAccessMutex);
-                cached = m_Images.Find(id);
-
-                /* new image was created */
-                if (!cached.IsValid())
-                {
-                    m_AssetSystem->RegisterAsset(importer.GetMetaPath(path), importer.GetImportedAssetMetadata());
-                    return;
-                }
-
-                m_FrameDeletionQueue->Enqueue(GetAsset(cached));
-                m_Images[cached.Index()] = newImage;
-            }
-
-            m_AssetSystem->NotifyAssetUpdate(assetlib::image::ASSET_TYPE, {.AssetHandle = cached});
+            Lock lock(m_ResourceAccessMutex);
+            ReloadAsset(handle);
         }
     });
 }
 
-ImageAsset ImageAssetManager::DoLoad(import::ImageImporter& importer, const std::filesystem::path& path) const
+ImageAsset ImageAssetManager::DoLoad(import::ImageImporter& importer, const AssetPath& path) const
 {
-    LUX_LOG_INFO("Loading image: {}", path.string());
+    LUX_LOG_INFO("Loading image: {}", path.ToString());
     
     auto imported = importer.Import(path);
     if (!imported.has_value())
     {
-        LUX_LOG_ERROR("Failed to load image: {} ({})", imported.error(), path.string());
+        LUX_LOG_ERROR("Failed to load image: {} ({})", imported.error(), path.ToString());
         return {};
     }
     auto& imageAsset = importer.GetImportedImage().Asset;

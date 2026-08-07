@@ -6,6 +6,10 @@
 
 #include <ranges>
 
+struct ShaderSpecializationsView;
+struct ShaderDefinesView;
+struct ShaderOverridesView;
+
 template <typename T>
 struct ShaderSpecialization
 {
@@ -53,6 +57,8 @@ struct ShaderDynamicSpecializations
     u64 Hash{0};
 
     constexpr ShaderDynamicSpecializations() = default;
+    
+    constexpr ShaderDynamicSpecializations(const ShaderSpecializationsView& view);
 
     template <typename ...Args>
     requires (ShaderSpecializationConcept<Args> && ...)
@@ -60,6 +66,10 @@ struct ShaderDynamicSpecializations
 
     template <typename T>
     constexpr ShaderDynamicSpecializations& Add(const ShaderSpecialization<T>& specialization);
+    
+    PipelineSpecializationsView ToPipelineSpecializationsView(const ShaderPipelineTemplate& shaderTemplate);
+    
+    auto operator<=>(const ShaderDynamicSpecializations&) const = default;
 private:
     template <std::size_t... Is, typename ...Args>
     constexpr void CopyDataToVector(std::index_sequence<Is...> seq, std::tuple<Args...>&& tupleArgs);
@@ -99,6 +109,8 @@ struct ShaderDefine
 
     template <typename T>
     constexpr ShaderDefine(StringId name, T&& value);
+    
+    auto operator<=>(const ShaderDefine&) const = default;
 };
 
 struct ShaderDefines
@@ -107,8 +119,11 @@ struct ShaderDefines
     u64 Hash{0};
 
     constexpr ShaderDefines() = default;
+    constexpr ShaderDefines(const ShaderDefinesView& view);
     constexpr ShaderDefines(Span<const ShaderDefine> defines);
     constexpr ShaderDefines& Add(const ShaderDefine& define);
+    
+    auto operator<=>(const ShaderDefines&) const = default;
 };
 
 struct ShaderDefinesView
@@ -131,6 +146,8 @@ struct ShaderPipelineOverrides
     std::optional<bool> ClampDepth{std::nullopt};
 
     constexpr u64 Hash() const;
+    
+    auto operator<=>(const ShaderPipelineOverrides&) const = default;
 };
 
 struct ShaderOverrides
@@ -141,6 +158,8 @@ struct ShaderOverrides
     u64 Hash{ShaderPipelineOverrides{}.Hash()};
 
     constexpr ShaderOverrides() = default;
+    
+    constexpr ShaderOverrides(const ShaderOverridesView& view);
 
     constexpr ShaderOverrides(ShaderDynamicSpecializations&& specializations,
         ShaderPipelineOverrides&& pipelineOverrides = {});
@@ -155,6 +174,8 @@ struct ShaderOverrides
 
     constexpr ShaderOverrides OverrideBy(const ShaderOverrides& other) const;
     constexpr ShaderOverrides OverrideBy(Span<const ShaderOverrides> overrides) const;
+    
+    auto operator<=>(const ShaderOverrides&) const = default;
 };
 
 struct ShaderOverridesView
@@ -297,6 +318,12 @@ constexpr ShaderSpecializationsView::ShaderSpecializationsView(ShaderSpecializat
     Hash(specializations.Hash)
 {}
 
+constexpr ShaderDynamicSpecializations::ShaderDynamicSpecializations(const ShaderSpecializationsView& view)
+    : Data(view.Data.begin(), view.Data.end()), Names(view.Names.begin(), view.Names.end()),
+      Descriptions(view.Descriptions.begin(), view.Descriptions.end()), Hash(view.Hash)
+{
+}
+
 constexpr ShaderSpecializationsView::ShaderSpecializationsView(ShaderDynamicSpecializations& specializations):
     Data(specializations.Data), Names(specializations.Names), Descriptions(specializations.Descriptions),
     Hash(specializations.Hash)
@@ -309,6 +336,11 @@ constexpr ShaderDefine::ShaderDefine(StringId name, T&& value): Name(name), Valu
 template <typename T>
 constexpr ShaderDefine::ShaderDefine(StringId name, T&& value): Name(name), Value(std::forward<T>(value))
 {}
+
+constexpr ShaderDefines::ShaderDefines(const ShaderDefinesView& view)
+    : Defines(view.Defines.begin(), view.Defines.end()), Hash(view.Hash)
+{
+}
 
 constexpr ShaderDefines::ShaderDefines(Span<const ShaderDefine> defines)
 {
@@ -344,6 +376,12 @@ constexpr u64 ShaderPipelineOverrides::Hash() const
         sizeof(std::optional<bool>{})));
 
     return Hash::charBytes((const char*)this, sizeof(ShaderPipelineOverrides));
+}
+
+constexpr ShaderOverrides::ShaderOverrides(const ShaderOverridesView& view)
+    : Defines(view.Defines), Specializations(view.Specializations), PipelineOverrides(view.PipelineOverrides),
+      Hash(view.Hash)
+{
 }
 
 constexpr ShaderOverrides::ShaderOverrides(ShaderDynamicSpecializations&& specializations,

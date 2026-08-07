@@ -25,10 +25,19 @@ struct SceneImportedAsset;
 template <>
 struct ResourceAssetLoadParameters<SceneAsset>
 {
-    std::filesystem::path Path{};
+    AssetPath Path{};
+    auto operator<=>(const ResourceAssetLoadParameters&) const = default;
 };
-
 using SceneLoadParameters = ResourceAssetLoadParameters<SceneAsset>;
+
+template <>
+struct ResourceAssetLoadParametersHasher<SceneAsset>
+{
+    usize operator()(const SceneLoadParameters& parameters) const noexcept
+    {
+        return std::hash<AssetPath>{}(parameters.Path);
+    }
+};
 
 class SceneAssetManager final : public ResourceAssetManager<SceneAsset, ResourceAssetTraits>
 {
@@ -71,6 +80,7 @@ public:
 
 protected:
     SceneHandle LoadAsset(const SceneLoadParameters& parameters) override;
+    void ReloadAsset(SceneHandle handle) override;
     void UnloadAsset(SceneHandle handle) override;
     GetType GetAsset(SceneHandle handle) const override;
 
@@ -80,7 +90,7 @@ private:
     void OnTextureUpdated(ImageHandle texture);
     void RegisterMaterials(SceneHandle sceneHandle);
     void UnregisterMaterials(SceneHandle sceneHandle);
-    std::optional<SceneAsset> DoLoad(import::SceneImporter& importer, const std::filesystem::path& path);
+    std::optional<SceneAsset> DoLoad(import::SceneImporter& importer, const AssetPath& path);
     
     std::optional<SceneGeometryInfo> LoadGeometryInfo(const assetlib::SceneAsset& scene, 
         std::unordered_map<assetlib::AssetId, assetlib::GeometryBufferAsset>& importedBuffers);

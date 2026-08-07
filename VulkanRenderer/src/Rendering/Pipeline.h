@@ -36,6 +36,8 @@ struct PipelineSpecializationDescription
     u32 SizeBytes{};
     u32 Offset{};
     ShaderStage ShaderStages{};
+    
+    auto operator<=>(const PipelineSpecializationDescription&) const = default;
 };
 
 struct PipelineSpecializationsView
