@@ -8,6 +8,8 @@
 
 namespace lux
 {
+class AssetPath;
+
 namespace import
 {
 struct Context;
@@ -39,7 +41,7 @@ public:
     virtual void OnAssetSystemInit() {}
     virtual bool AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path& metaPath) = 0;
     virtual bool Imports(std::string_view extension) = 0;
-    virtual void OnFileModified(const std::filesystem::path& path) = 0;
+    virtual void OnFileModified(const AssetPath& path) = 0;
     
     virtual AssetHandleBase Load(const AssetLoadParameters& parameters) = 0;
     virtual void Reload(AssetHandleBase handle) = 0;

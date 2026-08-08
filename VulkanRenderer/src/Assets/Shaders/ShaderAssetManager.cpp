@@ -29,7 +29,7 @@ bool ShaderAssetManager::AddManaged(const assetlib::AssetMetadata& metadata, con
         return false;
 
     const StringId name = StringId::FromString(shaderLoadInfo->Name);
-    m_ShaderNameToRawPath.emplace(name, std::filesystem::weakly_canonical(metadata.Io.OriginalFile).generic_string());
+    m_ShaderNameToAssetPath.emplace(name, AssetPath{std::filesystem::weakly_canonical(metadata.Io.OriginalFile)});
 
     for (auto& include : shaderHeader.Includes)
         if (std::ranges::find(m_RawPathToShaders[include], name) == m_RawPathToShaders[include].end())
@@ -45,10 +45,25 @@ bool ShaderAssetManager::Imports(std::string_view extension)
         extension == import::SHADER_ASSET_RAW_EXTENSION;
 }
 
-void ShaderAssetManager::OnFileModified(const std::filesystem::path& path)
+void ShaderAssetManager::OnFileModified(const AssetPath& path)
 {
-    if (Imports(path.extension().string()) || Imports(assetlib::getMetadataRawExtension(path)))
-        return OnRawFileModified(path);
+    if (!Imports(path.RawExtension()))
+        return;
+    
+    Lock lock(m_ResourceAccessMutex);
+
+    for (const StringId name : m_RawPathToShaders[path.RawPath().string()])
+    {
+        IterateBySourceUnsafe(name, [&](ShaderHandle asset)
+        {
+            AssetSystem::Get().AddImportRequest({.ImportFn = [this, asset]()
+                {
+                    Lock lock(m_ResourceAccessMutex);
+                    ReloadAsset(asset);
+                }
+            });
+        });
+    }
 }
 
 void ShaderAssetManager::Init(const import::ShaderImportSettings& bakeSettings)
@@ -169,8 +184,8 @@ ShaderHandle ShaderAssetManager::LoadAsset(const ShaderLoadParameters& parameter
     const import::ShaderImportSettings settings = CreateBakeSettings(parameters, defines);
     import::ShaderImporter importer(m_Ctx, settings);
     
-    const std::filesystem::path rawPath = m_ShaderNameToRawPath[parameters.Name];
-    std::optional<LoadedPipelineInfo> loadedPipeline = DoLoad(importer, rawPath);
+    const AssetPath assetPath = m_ShaderNameToAssetPath[parameters.Name];
+    std::optional<LoadedPipelineInfo> loadedPipeline = DoLoad(importer, assetPath);
     if (!loadedPipeline.has_value())
         return {};
 
@@ -192,14 +207,14 @@ void ShaderAssetManager::ReloadAsset(ShaderHandle handle)
     auto* parameters = FindLoadParametersUnsafe(handle);
     if (!parameters)
         return;
-    const auto rawPath = m_ShaderNameToRawPath.at(parameters->Name);
+    const auto assetPath = m_ShaderNameToAssetPath.at(parameters->Name);
 
     auto defines = GetDefinesFromParameters(*parameters);
     const import::ShaderImportSettings settings = CreateBakeSettings(*parameters, defines);
     import::ShaderImporter importer(m_Ctx, settings);
-    AssetSystem::Get().SkipFileUpdateNotify(importer.GetMetaPath(rawPath));
+    AssetSystem::Get().SkipFileUpdateNotify(importer.GetMetaPath(assetPath.RawPath()));
 
-    auto pipelineInfo = DoLoad(importer, rawPath);
+    auto pipelineInfo = DoLoad(importer, assetPath);
     if (!pipelineInfo.has_value())
         return;
     
@@ -228,33 +243,15 @@ ShaderAssetManager::GetType ShaderAssetManager::GetAsset(ShaderHandle handle) co
     return shader;
 }
 
-void ShaderAssetManager::OnRawFileModified(const std::filesystem::path& path)
-{
-    Lock lock(m_ResourceAccessMutex);
-
-    for (const StringId name : m_RawPathToShaders[path.generic_string()])
-    {
-        IterateBySourceUnsafe(name, [&](ShaderHandle asset)
-        {
-            AssetSystem::Get().AddImportRequest({.ImportFn = [this, asset]()
-                {
-                    Lock lock(m_ResourceAccessMutex);
-                    ReloadAsset(asset);
-                }
-            });
-        });
-    }
-}
-
 std::optional<ShaderAssetManager::LoadedPipelineInfo> ShaderAssetManager::DoLoad(import::ShaderImporter& importer,
-    const std::filesystem::path& path)
+    const AssetPath& path)
 {
-    LUX_LOG_INFO("Loading shader: {}", path.string());
+    LUX_LOG_INFO("Loading shader: {}", path.ToString());
     
-    auto imported = importer.Import(path);
+    auto imported = importer.Import(path.RawPath());
     if (!imported.has_value())
     {
-        LUX_LOG_ERROR("Failed to load shader: {} ({})", imported.error(), path.string());
+        LUX_LOG_ERROR("Failed to load shader: {} ({})", imported.error(), path.ToString());
         return std::nullopt;
     }
     
@@ -346,11 +343,6 @@ Pipeline ShaderAssetManager::CreatePipeline(const assetlib::ShaderLoadInfo& shad
 void ShaderAssetManager::ReloadPipeline(PipelineInfo& pipelineInfo, import::ShaderImporter& importer,
     const ShaderLoadParameters& parameters)
 {
-    const std::filesystem::path rawPath = m_ShaderNameToRawPath[parameters.Name];
-    auto imported = importer.Import(rawPath, import::ImportFlags::Header);
-    if (!imported)
-        return;
-    
     m_FrameDeletionQueue->Enqueue(pipelineInfo.Pipeline);
     pipelineInfo.Pipeline = CreatePipeline(importer.GetImportedShaderLoadInfo(), *pipelineInfo.PipelineTemplate, 
         parameters);

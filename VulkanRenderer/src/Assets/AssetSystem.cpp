@@ -41,7 +41,7 @@ void AssetSystem::RegisterAssetManager(assetlib::AssetType type, AssetManager& m
 
 void AssetSystem::SetAssetsDirectory(const std::filesystem::path& path)
 {
-    m_AssetsDirectory = path;
+    m_AssetsDirectory = weakly_canonical(path);
     
     InitFileWatcher(path);
 }
@@ -87,7 +87,7 @@ void AssetSystem::RegisterAsset(const std::filesystem::path& metadataPath)
 void AssetSystem::RegisterAsset(const std::filesystem::path& metadataPath, const assetlib::AssetMetadata& metadata)
 {
     m_IdResolver.RegisterId(metadata.AssetId, {
-        .Path = metadata.Io.OriginalFile,
+        .Path = AssetPath(std::filesystem::path(metadata.Io.OriginalFile)),
         .MetaPath = metadataPath,
         .AssetType = metadata.Type.Type
     });
@@ -113,14 +113,25 @@ void AssetSystem::NotifyAssetUpdatedWatchers()
     m_AssetUpdates.clear();
 }
 
+AssetPath AssetSystem::ResolveAssetPath(std::string_view filename) const
+{
+    const std::filesystem::path assetPath = m_AssetsDirectory / filename;
+    for (const auto& file : fs::directory_iterator(assetPath.parent_path()))
+    {
+        const auto& filePath = file.path();
+        
+        if (filePath.filename() != assetPath.filename())
+            continue;
+        
+        return {filePath};
+    }
+    
+    return {};
+}
+
 const AssetIdResolver::AssetInfo* AssetSystem::Resolve(assetlib::AssetId id) const
 {
     return m_IdResolver.Resolve(id);
-}
-
-assetlib::AssetId AssetSystem::ResolveMetaPath(const std::filesystem::path& path) const
-{
-    return m_IdResolver.ResolveMetaPath(path);
 }
 
 bool AssetSystem::AddImportRequest(AssetImportRequest&& request)
@@ -187,7 +198,13 @@ void AssetSystem::OnFileModified(const std::filesystem::path& path)
         }
     }
     
+    std::filesystem::path converted = path;
+    if (converted.extension() == assetlib::ASSETLIB_METADATA_EXTENSION)
+        converted.replace_extension();
+    
+    const AssetPath assetPath = converted;
+    
     for (auto& manager : m_Managers | std::views::values)
-        manager->OnFileModified(path);
+        manager->OnFileModified(assetPath);
 }
 }

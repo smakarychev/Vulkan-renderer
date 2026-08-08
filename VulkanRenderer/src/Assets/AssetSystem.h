@@ -52,8 +52,8 @@ public:
     requires std::is_base_of_v<AssetManager, ResourceAssetManager>
     ResourceAssetManager* GetAssetManagerFor(assetlib::AssetType type);
 
+    AssetPath ResolveAssetPath(std::string_view filename) const;
     const AssetIdResolver::AssetInfo* Resolve(assetlib::AssetId id) const;
-    assetlib::AssetId ResolveMetaPath(const std::filesystem::path& path) const;
     bool AddImportRequest(AssetImportRequest&& request);
     void SkipFileUpdateNotify(const std::filesystem::path& path);
 

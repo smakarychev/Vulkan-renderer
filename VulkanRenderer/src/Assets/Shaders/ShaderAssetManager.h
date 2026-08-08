@@ -70,7 +70,7 @@ public:
     
     bool AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path& metaPath) override;
     bool Imports(std::string_view extension) override;
-    void OnFileModified(const std::filesystem::path& path) override;
+    void OnFileModified(const AssetPath& path) override;
     
     void Init(const import::ShaderImportSettings& bakeSettings);
     void Shutdown();
@@ -84,8 +84,6 @@ protected:
     void UnloadAsset(ShaderHandle handle) override;
     GetType GetAsset(ShaderHandle handle) const override;
 private:
-    void OnRawFileModified(const std::filesystem::path& path);
-    
     struct LoadedPipelineInfo
     {
         const ShaderPipelineTemplate* PipelineTemplate{nullptr};
@@ -102,7 +100,7 @@ private:
         std::array<::DescriptorsLayout, MAX_DESCRIPTOR_SETS> DescriptorLayouts{};
         StringId Name{};
     };
-    std::optional<LoadedPipelineInfo> DoLoad(import::ShaderImporter& importer, const std::filesystem::path& path);
+    std::optional<LoadedPipelineInfo> DoLoad(import::ShaderImporter& importer, const AssetPath& path);
     Pipeline CreatePipeline(const assetlib::ShaderLoadInfo& shaderLoadInfo, 
         const ShaderPipelineTemplate& pipelineTemplate, const ShaderLoadParameters& parameters);
     void ReloadPipeline(PipelineInfo& pipelineInfo, import::ShaderImporter& importer, 
@@ -125,7 +123,7 @@ private:
     /* for hot-reloading */
     const import::ShaderImportSettings* m_BakeSettings{nullptr};
     StringUnorderedMap<std::vector<StringId>> m_RawPathToShaders;
-    std::unordered_map<StringId, std::filesystem::path> m_ShaderNameToRawPath;
+    std::unordered_map<StringId, AssetPath> m_ShaderNameToAssetPath;
     DeletionQueue* m_FrameDeletionQueue{nullptr};
 };
 }

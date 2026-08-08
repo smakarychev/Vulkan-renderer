@@ -40,7 +40,7 @@ public:
 
     bool AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path& metaPath) override;
     bool Imports(std::string_view extension) override;
-    void OnFileModified(const std::filesystem::path& path) override;
+    void OnFileModified(const AssetPath& path) override;
 
     void Shutdown();
 
@@ -53,7 +53,6 @@ protected:
     GetType GetAsset(ImageHandle handle) const override;
 
 private:
-    void OnRawFileModified(const std::filesystem::path& path);
     ImageAsset DoLoad(import::ImageImporter& importer, const AssetPath& path) const;
 
 private:

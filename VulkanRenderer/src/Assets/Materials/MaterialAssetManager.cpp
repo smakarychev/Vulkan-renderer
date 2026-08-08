@@ -29,9 +29,9 @@ bool MaterialAssetManager::Imports(std::string_view extension)
     return extension == import::MATERIAL_ASSET_EXTENSION;
 }
 
-void MaterialAssetManager::OnFileModified(const std::filesystem::path& path)
+void MaterialAssetManager::OnFileModified(const AssetPath& path)
 {
-    if (!Imports(path.extension().string()))
+    if (!Imports(path.RawExtension()))
         return;
     
     Lock lock(m_ResourceAccessMutex);
@@ -40,7 +40,7 @@ void MaterialAssetManager::OnFileModified(const std::filesystem::path& path)
     /* new material was created */
     if (!handle.IsValid())
     {
-        AssetSystem::Get().RegisterAsset(import::MaterialImporter(m_Ctx).GetMetaPath(path));
+        AssetSystem::Get().RegisterAsset(import::MaterialImporter(m_Ctx).GetMetaPath(path.RawPath()));
         return;
     }
 
@@ -95,7 +95,7 @@ std::optional<MaterialAsset> MaterialAssetManager::DoLoad(import::MaterialImport
 {
     LUX_LOG_INFO("Loading material: {}", path.ToString());
 
-    auto imported = importer.Import(path);
+    auto imported = importer.Import(path.RawPath());
     if (!imported.has_value())
     {
         LUX_LOG_ERROR("Failed to load material: {} ({})", imported.error(), path.ToString());

@@ -58,10 +58,28 @@ bool SceneAssetManager::Imports(std::string_view extension)
     return bakes;
 }
 
-void SceneAssetManager::OnFileModified(const std::filesystem::path& path)
+void SceneAssetManager::OnFileModified(const AssetPath& path)
 {
-    if (Imports(path.extension().string()) || Imports(assetlib::getMetadataRawExtension(path)))
-        OnRawFileModified(path);
+    if (!Imports(path.RawExtension()))
+        return;
+    
+    Lock lock(m_ResourceAccessMutex);
+    
+    const SceneHandle handle = FindHandleByLoadParametersUnsafe({.Path = path});
+    /* new scene was created */
+    if (!handle.IsValid())
+    {
+        AssetSystem::Get().RegisterAsset(import::SceneImporter(m_Ctx).GetMetaPath(path.RawPath()));
+        return;
+    }
+    
+    AssetSystem::Get().AddImportRequest({
+        .ImportFn = [this, handle]()
+        {
+            Lock lock(m_ResourceAccessMutex);
+            ReloadAsset(handle);
+        }
+    });
 }
 
 void SceneAssetManager::SetTextureRingBuffer(BindlessTextureDescriptorsRingBuffer& ringBuffer)
@@ -113,7 +131,7 @@ void SceneAssetManager::ReloadAsset(SceneHandle handle)
         return;
     
     import::SceneImporter importer(m_Ctx);
-    AssetSystem::Get().SkipFileUpdateNotify(importer.GetMetaPath(parameters->Path));
+    AssetSystem::Get().SkipFileUpdateNotify(importer.GetMetaPath(parameters->Path.RawPath()));
             
     auto newScene = DoLoad(importer, parameters->Path);
     if (!newScene.has_value())
@@ -143,27 +161,6 @@ void SceneAssetManager::UnloadAsset(SceneHandle handle)
 const SceneAsset* SceneAssetManager::GetAsset(SceneHandle handle) const
 {
     return handle.IsValid() ? &m_Scenes[handle] : nullptr;
-}
-
-void SceneAssetManager::OnRawFileModified(const std::filesystem::path& path)
-{
-    Lock lock(m_ResourceAccessMutex);
-    
-    const SceneHandle handle = FindHandleByLoadParametersUnsafe({.Path = path});
-    /* new scene was created */
-    if (!handle.IsValid())
-    {
-        AssetSystem::Get().RegisterAsset(import::SceneImporter(m_Ctx).GetMetaPath(path));
-        return;
-    }
-    
-    AssetSystem::Get().AddImportRequest({
-        .ImportFn = [this, handle]()
-        {
-            Lock lock(m_ResourceAccessMutex);
-            ReloadAsset(handle);
-        }
-    });
 }
 
 void SceneAssetManager::OnMaterialUpdated(MaterialHandle material)
@@ -247,8 +244,9 @@ std::optional<SceneAsset> SceneAssetManager::DoLoad(import::SceneImporter& impor
     
     LUX_LOG_INFO("Loading scene: {}", path.ToString());
     
-    const bool willBake = importer.NeedsBaking(path);
-    auto imported = importer.Import(path);
+    const std::filesystem::path& rawPath = path.RawPath();
+    const bool willBake = importer.NeedsBaking(rawPath);
+    auto imported = importer.Import(rawPath);
     if (!imported.has_value())
     {
         LUX_LOG_ERROR("Failed to load scene: {} ({})", imported.error(), path.ToString());
@@ -257,7 +255,7 @@ std::optional<SceneAsset> SceneAssetManager::DoLoad(import::SceneImporter& impor
     
     auto& sceneAsset = importer.GetImportedScene().Asset;
     if (willBake) 
-        AssetSystem::Get().ScanAssetsDirectory(std::filesystem::path(path).parent_path());
+        AssetSystem::Get().ScanAssetsDirectory(rawPath.parent_path());
 
     std::unordered_map<assetlib::AssetId, assetlib::GeometryBufferAsset> importedBuffers;
     std::optional<SceneGeometryInfo> geometryInfo = LoadGeometryInfo(sceneAsset, importedBuffers);

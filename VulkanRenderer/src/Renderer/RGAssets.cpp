@@ -7,7 +7,7 @@
 
 namespace lux
 {
-void PersistentImageAsset::Load(RG::Graph& graph, ImageAssetManager& manager, const std::filesystem::path& path)
+void PersistentImageAsset::Load(RG::Graph& graph, ImageAssetManager& manager, const AssetPath& path)
 {
     AssetHandle = manager.LoadResource({path});
     Image = graph.AddPersistent(manager.Get(AssetHandle), ImageLayout::Readonly);

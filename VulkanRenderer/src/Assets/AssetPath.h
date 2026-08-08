@@ -4,7 +4,6 @@
 
 namespace lux
 {
-// todo: convert all paths to this
 class AssetPath
 {
     friend struct std::hash<AssetPath>;
@@ -16,12 +15,14 @@ public:
     AssetPath(AssetPath&&) noexcept = default;
     AssetPath& operator=(AssetPath&&) noexcept = default;
     
-    AssetPath(const std::filesystem::path& path) : m_Path(weakly_canonical(path).generic_string()) {}
-    
-    operator const std::filesystem::path&() const { return m_Path; }
-    
-    std::string ToString() const { return m_Path.string(); }
-    
+    AssetPath(std::string_view filename);
+    AssetPath(const std::filesystem::path& rawAssetPath);
+
+    const std::filesystem::path& RawPath() const { return m_Path; }
+    std::string RawExtension() const { return m_Path.extension().string(); }
+
+    std::string ToString() const;
+
     auto operator<=>(const AssetPath&) const = default;
 private:
     std::filesystem::path m_Path{};

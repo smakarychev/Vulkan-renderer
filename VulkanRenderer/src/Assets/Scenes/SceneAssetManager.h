@@ -67,7 +67,7 @@ public:
     void OnAssetSystemInit() override;
     bool AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path& metaPath) override;
     bool Imports(std::string_view extension) override;
-    void OnFileModified(const std::filesystem::path& path) override;
+    void OnFileModified(const AssetPath& path) override;
 
     void SetTextureRingBuffer(BindlessTextureDescriptorsRingBuffer& ringBuffer);
     SceneDeletedSignal& GetSceneDeletedSignal() { return m_SceneDeletedSignal; }
@@ -85,7 +85,6 @@ protected:
     GetType GetAsset(SceneHandle handle) const override;
 
 private:
-    void OnRawFileModified(const std::filesystem::path& path);
     void OnMaterialUpdated(MaterialHandle material);
     void OnTextureUpdated(ImageHandle texture);
     void RegisterMaterials(SceneHandle sceneHandle);

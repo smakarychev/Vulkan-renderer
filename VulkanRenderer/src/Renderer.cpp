@@ -219,7 +219,7 @@ void Renderer::InitRenderGraph()
     // todo: this is currently a rgb image, which is wasteful, I need to provide format hints to image converter
     m_BlueNoiseBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
         m_ImageAssetManager->Get(m_ImageAssetManager->LoadResource(
-            {.Path = "../assets/textures/blue_noise_128.png"})
+            {.Path = "textures/blue_noise_128.png"sv})
     ));
     
     /*m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
@@ -343,18 +343,40 @@ void Renderer::InitRenderGraph()
         
         m_Scenes.push_back(
             m_SceneAssetManager->LoadResource(
-                {.Path = *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/hotReloadTest/scene.gltf"}));
+                {.Path = {"models/mat/scene.gltf"sv}}));
         m_Scenes.push_back(
             m_SceneAssetManager->LoadResource(
-                {.Path = *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/flight_helmet/scene.gltf"}));
-        
-        lux::SceneInstanceHandle instance = m_Scene->Instantiate(m_Scenes.front(), {
+                {.Path = {"models/senua/scene.gltf"sv}}));
+        m_Scenes.push_back(
+            m_SceneAssetManager->LoadResource(
+                {.Path = {"models/car/scene.gltf"sv}}));
+
+        lux::SceneInstanceHandle instance = m_Scene->Instantiate(m_Scenes[0], {
+            .Transform = {
+                .Position = glm::vec3{1.0f, 0.0f, 0.0f},
+                .Orientation = glm::angleAxis(glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
+                //.Scale = glm::vec3{0.04f},
+                //.Scale = glm::vec3{1.0f},
+            }
+        });
+
+
+        lux::SceneInstanceHandle instance2 = m_Scene->Instantiate(m_Scenes[1], {
             .Transform = {
                 //.Position = glm::vec3{1500.0f, -500.0f, -7.0f},
                 .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-                //.Scale = glm::vec3{750.0f},
-                //.Scale = glm::vec3{1.0f},
-                }});
+            }
+        });
+
+
+        lux::SceneInstanceHandle instance3 = m_Scene->Instantiate(m_Scenes[2], {
+            .Transform = {
+                .Position = glm::vec3{10.0f, -2.0f, 0.0f},
+                .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
+            }
+        });
+
+
 
         lux::SceneAsset lights = {};
         lights.SetSunLight({{
@@ -387,7 +409,7 @@ void Renderer::InitRenderGraph()
 
 void Renderer::ExecuteSingleTimePasses()
 {
-    m_MipsTest.Load(*m_Graph, *m_ImageAssetManager, "../assets/textures/texture.png");
+    m_MipsTest.Load(*m_Graph, *m_ImageAssetManager, "../assets/textures/texture.png"sv);
     m_PersistentImageAssetMap.Add(m_MipsTest);
 
     ExecuteSkyboxPasses();
@@ -1632,7 +1654,7 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     {
         if (!m_CloudCoverage.HasValue())
         {
-            m_CloudCoverage.Load(*m_Graph, *m_ImageAssetManager, "../assets/textures/clouds/coverage.png");
+            m_CloudCoverage.Load(*m_Graph, *m_ImageAssetManager, "../assets/textures/clouds/coverage.png"sv);
             m_PersistentImageAssetMap.Add(m_CloudCoverage);
         }
        cloudCoverageResource = m_Graph->ImportPersistent("CloudCoverage.Loaded"_hsv,
@@ -1662,7 +1684,7 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     {
         if (!m_CloudProfileMap.HasValue())
         {
-            m_CloudProfileMap.Load(*m_Graph, *m_ImageAssetManager, "../assets/textures/clouds/profile.png");
+            m_CloudProfileMap.Load(*m_Graph, *m_ImageAssetManager, "../assets/textures/clouds/profile.png"sv);
             m_PersistentImageAssetMap.Add(m_CloudProfileMap);
         }
         cloudProfileMapResource = m_Graph->ImportPersistent("CloudProfileMap.Loaded"_hsv,

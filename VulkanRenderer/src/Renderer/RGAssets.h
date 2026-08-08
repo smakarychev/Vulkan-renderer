@@ -5,6 +5,7 @@
 
 namespace lux
 {
+class AssetPath;
 class ImageAssetManager;
 
 struct PersistentImageAsset
@@ -13,7 +14,7 @@ struct PersistentImageAsset
     RG::PersistentImageResource Image{};
     std::optional<ImageLayout> Layout{};
     
-    void Load(RG::Graph& graph, ImageAssetManager& manager, const std::filesystem::path& path);
+    void Load(RG::Graph& graph, ImageAssetManager& manager, const AssetPath& path);
     PersistentImageAsset& Update(RG::Graph& graph, ImageAssetManager& manager);
     constexpr bool HasValue() const { return Image.HasValue(); }
 };

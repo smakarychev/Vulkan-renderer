@@ -39,7 +39,7 @@ public:
     void OnAssetSystemInit() override;
     bool AddManaged(const assetlib::AssetMetadata& metadata, const std::filesystem::path& metaPath) override;
     bool Imports(std::string_view extension) override;
-    void OnFileModified(const std::filesystem::path& path) override;
+    void OnFileModified(const AssetPath& path) override;
 
 protected:
     MaterialHandle LoadAsset(const MaterialLoadParameters& parameters) override;

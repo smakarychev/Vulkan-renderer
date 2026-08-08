@@ -28,10 +28,28 @@ bool ImageAssetManager::Imports(std::string_view extension)
     return bakes;
 }
 
-void ImageAssetManager::OnFileModified(const std::filesystem::path& path)
+void ImageAssetManager::OnFileModified(const AssetPath& path)
 {
-    if (Imports(path.extension().string()) || Imports(assetlib::getMetadataRawExtension(path)))
-        OnRawFileModified(path);
+    if (!Imports(path.RawExtension()))
+        return;
+    
+    Lock lock(m_ResourceAccessMutex);
+    
+    const ImageHandle handle = FindHandleByLoadParametersUnsafe({.Path = path});
+    /* new image was created */
+    if (!handle.IsValid())
+    {
+        AssetSystem::Get().RegisterAsset(import::ImageImporter(m_Ctx, {}).GetMetaPath(path.RawPath()));
+        return;
+    }
+    
+    AssetSystem::Get().AddImportRequest({
+        .ImportFn = [this, handle]()
+        {
+            Lock lock(m_ResourceAccessMutex);
+            ReloadAsset(handle);
+        }
+    });
 }
 
 void ImageAssetManager::Shutdown()
@@ -65,7 +83,7 @@ void ImageAssetManager::ReloadAsset(ImageHandle handle)
         return;
     
     import::ImageImporter importer(m_Ctx, {});
-    AssetSystem::Get().SkipFileUpdateNotify(importer.GetMetaPath(parameters->Path));
+    AssetSystem::Get().SkipFileUpdateNotify(importer.GetMetaPath(parameters->Path.RawPath()));
             
     const ImageAsset newImage = DoLoad(importer, parameters->Path);
     if (!newImage.HasValue())
@@ -96,32 +114,11 @@ Image ImageAssetManager::GetAsset(ImageHandle handle) const
     return m_Images[handle.Index()];
 }
 
-void ImageAssetManager::OnRawFileModified(const std::filesystem::path& path)
-{
-    Lock lock(m_ResourceAccessMutex);
-    
-    const ImageHandle handle = FindHandleByLoadParametersUnsafe({.Path = path});
-    /* new image was created */
-    if (!handle.IsValid())
-    {
-        AssetSystem::Get().RegisterAsset(import::ImageImporter(m_Ctx, {}).GetMetaPath(path));
-        return;
-    }
-    
-    AssetSystem::Get().AddImportRequest({
-        .ImportFn = [this, handle]()
-        {
-            Lock lock(m_ResourceAccessMutex);
-            ReloadAsset(handle);
-        }
-    });
-}
-
 ImageAsset ImageAssetManager::DoLoad(import::ImageImporter& importer, const AssetPath& path) const
 {
     LUX_LOG_INFO("Loading image: {}", path.ToString());
     
-    auto imported = importer.Import(path);
+    auto imported = importer.Import(path.RawPath());
     if (!imported.has_value())
     {
         LUX_LOG_ERROR("Failed to load image: {} ({})", imported.error(), path.ToString());
