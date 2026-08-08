@@ -46,7 +46,6 @@ void ImageAssetManager::OnFileModified(const AssetPath& path)
     AssetSystem::Get().AddImportRequest({
         .ImportFn = [this, handle]()
         {
-            Lock lock(m_ResourceAccessMutex);
             ReloadAsset(handle);
         }
     });
@@ -78,19 +77,26 @@ ImageHandle ImageAssetManager::LoadAsset(const ImageLoadParameters& parameters)
 
 void ImageAssetManager::ReloadAsset(ImageHandle handle)
 {
-    const auto* parameters = FindLoadParametersUnsafe(handle);
-    if (!parameters)
-        return;
+    const ImageLoadParameters* parameters;
+    {
+        Lock lock(m_ResourceAccessMutex);
+        parameters = FindLoadParametersUnsafe(handle);
+        if (!parameters)
+            return;
+    }
     
     import::ImageImporter importer(m_Ctx, {});
     AssetSystem::Get().SkipFileUpdateNotify(importer.GetMetaPath(parameters->Path.RawPath()));
-            
+    
     const ImageAsset newImage = DoLoad(importer, parameters->Path);
     if (!newImage.HasValue())
         return;
-    
-    m_FrameDeletionQueue->Enqueue(GetAsset(handle));
-    m_Images[handle.Index()] = newImage;
+
+    {
+        Lock lock(m_ResourceAccessMutex);
+        m_FrameDeletionQueue->Enqueue(GetAsset(handle));
+        m_Images[handle.Index()] = newImage;
+    }
 
     AssetSystem::Get().NotifyAssetUpdate({.Type =assetlib::image::ASSET_TYPE, .AssetHandle = handle});
 }

@@ -34,14 +34,17 @@ void MaterialAssetManager::OnFileModified(const AssetPath& path)
     if (!Imports(path.RawExtension()))
         return;
     
-    Lock lock(m_ResourceAccessMutex);
+    MaterialHandle handle;
     
-    const MaterialHandle handle = FindHandleByLoadParametersUnsafe({.Path = path});
-    /* new material was created */
-    if (!handle.IsValid())
     {
-        AssetSystem::Get().RegisterAsset(import::MaterialImporter(m_Ctx).GetMetaPath(path.RawPath()));
-        return;
+        Lock lock(m_ResourceAccessMutex);
+        handle = FindHandleByLoadParametersUnsafe({.Path = path});
+        /* new material was created */
+        if (!handle.IsValid())
+        {
+            AssetSystem::Get().RegisterAsset(import::MaterialImporter(m_Ctx).GetMetaPath(path.RawPath()));
+            return;
+        }
     }
 
     ReloadAsset(handle);
@@ -60,17 +63,24 @@ MaterialHandle MaterialAssetManager::LoadAsset(const MaterialLoadParameters& par
 
 void MaterialAssetManager::ReloadAsset(MaterialHandle handle)
 {
-    const auto* parameters = FindLoadParametersUnsafe(handle); 
-    if (!parameters)
-        return;
+    const MaterialLoadParameters* parameters;
+    {
+        Lock lock(m_ResourceAccessMutex);
+        parameters = FindLoadParametersUnsafe(handle); 
+        if (!parameters)
+            return;
+    }
     
     import::MaterialImporter importer(m_Ctx);
-    
     auto newMaterial = DoLoad(importer, parameters->Path);
     if (!newMaterial)
         return;
     
-    m_Materials[handle.Index()] = std::move(*newMaterial);
+    {
+        Lock lock(m_ResourceAccessMutex);
+        m_Materials[handle.Index()] = std::move(*newMaterial);
+    }
+    
     AssetSystem::Get().NotifyAssetUpdate({.Type = assetlib::material::ASSET_TYPE, .AssetHandle = handle});
 }
 

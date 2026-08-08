@@ -58,7 +58,6 @@ void ShaderAssetManager::OnFileModified(const AssetPath& path)
         {
             AssetSystem::Get().AddImportRequest({.ImportFn = [this, asset]()
                 {
-                    Lock lock(m_ResourceAccessMutex);
                     ReloadAsset(asset);
                 }
             });
@@ -204,10 +203,15 @@ ShaderHandle ShaderAssetManager::LoadAsset(const ShaderLoadParameters& parameter
 
 void ShaderAssetManager::ReloadAsset(ShaderHandle handle)
 {
-    auto* parameters = FindLoadParametersUnsafe(handle);
-    if (!parameters)
-        return;
-    const auto assetPath = m_ShaderNameToAssetPath.at(parameters->Name);
+    const ShaderLoadParameters* parameters;
+    AssetPath assetPath;
+    {
+        Lock lock(m_ResourceAccessMutex);
+        parameters = FindLoadParametersUnsafe(handle);
+        if (!parameters)
+            return;
+        assetPath = m_ShaderNameToAssetPath.at(parameters->Name);
+    }
 
     auto defines = GetDefinesFromParameters(*parameters);
     const import::ShaderImportSettings settings = CreateBakeSettings(*parameters, defines);
@@ -218,11 +222,14 @@ void ShaderAssetManager::ReloadAsset(ShaderHandle handle)
     if (!pipelineInfo.has_value())
         return;
     
-    auto& existingPipeline = m_Pipelines[handle.Index()];
-    existingPipeline.PipelineTemplate = pipelineInfo->PipelineTemplate;
-    existingPipeline.HasTextureHeap = pipelineInfo->HasTextureHeap;
-    existingPipeline.Layout = pipelineInfo->Layout;
-    ReloadPipeline(existingPipeline, importer, *parameters);
+    {
+        Lock lock(m_ResourceAccessMutex);
+        auto& existingPipeline = m_Pipelines[handle.Index()];
+        existingPipeline.PipelineTemplate = pipelineInfo->PipelineTemplate;
+        existingPipeline.HasTextureHeap = pipelineInfo->HasTextureHeap;
+        existingPipeline.Layout = pipelineInfo->Layout;
+        ReloadPipeline(existingPipeline, importer, *parameters);
+    }
 }
 
 void ShaderAssetManager::UnloadAsset(ShaderHandle)

@@ -76,7 +76,6 @@ void SceneAssetManager::OnFileModified(const AssetPath& path)
     AssetSystem::Get().AddImportRequest({
         .ImportFn = [this, handle]()
         {
-            Lock lock(m_ResourceAccessMutex);
             ReloadAsset(handle);
         }
     });
@@ -126,10 +125,14 @@ SceneHandle SceneAssetManager::LoadAsset(const SceneLoadParameters& parameters)
 
 void SceneAssetManager::ReloadAsset(SceneHandle handle)
 {
-    const auto* parameters = FindLoadParametersUnsafe(handle);
-    if (!parameters)
-        return;
-    
+    const SceneLoadParameters* parameters;
+    {
+        Lock lock(m_ResourceAccessMutex);
+        parameters = FindLoadParametersUnsafe(handle);
+        if (!parameters)
+            return;
+    }
+
     import::SceneImporter importer(m_Ctx);
     AssetSystem::Get().SkipFileUpdateNotify(importer.GetMetaPath(parameters->Path.RawPath()));
             
@@ -137,10 +140,13 @@ void SceneAssetManager::ReloadAsset(SceneHandle handle)
     if (!newScene.has_value())
         return;
             
-    UnregisterMaterials(handle);
-    m_Scenes[handle] = std::move(*newScene);
-    RegisterMaterials(handle);
-    m_SceneReplacedSignal.Emit({.Scene = handle});
+    {
+        Lock lock(m_ResourceAccessMutex);
+        UnregisterMaterials(handle);
+        m_Scenes[handle] = std::move(*newScene);
+        RegisterMaterials(handle);
+        m_SceneReplacedSignal.Emit({.Scene = handle});
+    }
     
     AssetSystem::Get().NotifyAssetUpdate({.Type = assetlib::scene::ASSET_TYPE, .AssetHandle = handle});
 }

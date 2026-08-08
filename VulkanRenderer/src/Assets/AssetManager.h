@@ -215,8 +215,6 @@ private:
     
     void Reload(AssetHandleBase handle) final
     {
-        Lock lock(m_ResourceAccessMutex);
-        
         ReloadAsset((AssetHandle<Resource>)handle);
     }
 
