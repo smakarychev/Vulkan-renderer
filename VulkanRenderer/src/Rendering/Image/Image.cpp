@@ -4,9 +4,9 @@
 
 #include "Vulkan/Device.h"
 
-Span<const ImageSubresourceDescription> Image::GetAdditionalViews() const
+ImageSubresourceDescription Image::GetAdditionalView(u32 viewIndex) const
 {
-    return Device::GetAdditionalImageViews(*this);
+    return Device::GetAdditionalImageView(*this, viewIndex);
 }
 
 ImageViewHandle Image::GetViewHandle(ImageSubresourceDescription subresourceDescription) const
@@ -14,9 +14,29 @@ ImageViewHandle Image::GetViewHandle(ImageSubresourceDescription subresourceDesc
     return Device::GetImageViewHandle(*this, subresourceDescription);
 }
 
-const ImageDescription& Image::GetDescription() const
+ImageDescription Image::GetDescriptionCopy() const
 {
     return Device::GetImageDescription(*this);
+}
+
+i8 Image::GetMipmaps() const
+{
+    return Device::GetImageMipmaps(*this);
+}
+
+glm::uvec2 Image::GetSize2d() const
+{
+    return Device::GetImageSize2d(*this);
+}
+
+glm::uvec3 Image::GetSize3d() const
+{
+    return Device::GetImageSize3d(*this);
+}
+
+ImageUsage Image::GetUsage() const
+{
+    return Device::GetImageUsage(*this);
 }
 
 u32 ImageDescription::GetDepth() const

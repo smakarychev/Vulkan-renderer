@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Buffer.h"
-#include "Rendering/ResourceHandle.h"
 
 #include <expected>
 
@@ -30,7 +29,7 @@ struct BufferSuballocation
 using BufferSuballocationResult = std::expected<BufferSuballocation, BufferSuballocationError>;
 
 struct BufferArenaTag{};
-struct BufferArena : ResourceHandleType<BufferArenaTag>
+struct BufferArena : lux::DeviceResourceListHandle<BufferArenaTag>
 {
     void ResizePhysical(u64 newSize, CommandBuffer cmd, bool copyData = true) const;
     Buffer GetUnderlyingBuffer() const;

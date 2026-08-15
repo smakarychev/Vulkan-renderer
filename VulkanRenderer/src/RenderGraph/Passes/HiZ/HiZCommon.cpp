@@ -6,6 +6,8 @@
 #include "Rendering/Image/ImageUtility.h"
 #include "Vulkan/Device.h"
 
+#include <CoreLib/Math/CoreMath.h>
+
 namespace
 {
 constexpr i8 MAX_MIPMAP_COUNT = 16;

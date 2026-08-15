@@ -7,6 +7,8 @@
 
 #define VMA_IMPLEMENTATION
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
+#include "DeviceResourceList.h"
+
 #include <vk_mem_alloc.h>
 #include <tracy/TracyVulkan.hpp>
 #include <imgui/imgui_impl_vulkan.h>
@@ -1026,21 +1028,85 @@ void deviceCheck(VkResult res, std::string_view message)
 
 namespace
 {
+template <typename Tag>
+struct NativeHandleTraits
+{
+    static_assert(!sizeof(Tag), "No match for type");
+};
+template <>
+struct NativeHandleTraits<SamplerTag>
+{
+    using Vk = VkSampler;
+};
+template <>
+struct NativeHandleTraits<CommandPoolTag>
+{
+    using Vk = VkCommandPool;
+};
+template <>
+struct NativeHandleTraits<CommandBufferTag>
+{
+    using Vk = VkCommandBuffer;
+};
+template <>
+struct NativeHandleTraits<DescriptorsLayoutTag>
+{
+    using Vk = VkDescriptorSetLayout;
+};
+template <>
+struct NativeHandleTraits<PipelineTag>
+{
+    using Vk = VkPipeline;
+};
+template <>
+struct NativeHandleTraits<ShaderModuleTag>
+{
+    using Vk = VkShaderModule;
+};
+template <>
+struct NativeHandleTraits<FenceTag>
+{
+    using Vk = VkFence;
+};
+template <>
+struct NativeHandleTraits<SemaphoreTag>
+{
+    using Vk = VkSemaphore;
+};
+template <>
+struct NativeHandleTraits<TimelineSemaphoreTag>
+{
+    using Vk = VkSemaphore;
+};
+template <>
+struct NativeHandleTraits<SplitBarrierTag>
+{
+    using Vk = VkEvent;
+};
 struct SwapchainResource
 {
-    using ObjectType = SwapchainTag;
-    VkSwapchainKHR Swapchain{VK_NULL_HANDLE};
-    VkFormat ColorFormat{};
-    SwapchainDescription Description{};
-    std::vector<Semaphore> RenderSemaphores{};
+    struct HotData
+    {
+        using ObjectType = SwapchainTag;
+        VkSwapchainKHR Swapchain{VK_NULL_HANDLE};
+        VkFormat ColorFormat{};
+    };
+    struct ColdData
+    {
+        SwapchainDescription Description{};
+        std::vector<Semaphore> RenderSemaphores{};
+    };
+    HotData Hot{};
+    ColdData Cold{};
 };
 
 struct BufferResource
 {
     using ObjectType = BufferTag;
     VkBuffer Buffer{VK_NULL_HANDLE};
-    BufferDescription Description{};
     void* HostAddress{nullptr};
+    u64 DeviceAddress{0};
+    BufferDescription Description{};
     VmaAllocation Allocation{VK_NULL_HANDLE};
 };
 
@@ -1054,8 +1120,6 @@ struct BufferArenaResource
 
 struct ImageResource
 {
-    using ObjectType = ImageTag;
-
     struct ViewsInfo
     {
         union ViewType
@@ -1071,89 +1135,69 @@ struct ImageResource
         VkImageView* ViewList{nullptr};
     };
 
-    VkImage Image{VK_NULL_HANDLE};
-    ViewsInfo Views{};
-    ImageDescription Description{};
-    VmaAllocation Allocation{VK_NULL_HANDLE};
-
-    friend void swap(ImageResource& a, ImageResource& b) noexcept
+    struct HotData
     {
-        std::swap(a.Image, b.Image);
-        std::swap(a.Description, b.Description);
-        std::swap(a.Allocation, b.Allocation);
-
-        const bool aSelfPointer = a.Views.ViewList == &a.Views.ViewType.View;
-        const bool bSelfPointer = b.Views.ViewList == &b.Views.ViewType.View;
-
-        std::swap(a.Views.ViewType, b.Views.ViewType);
-        std::swap(a.Views.ViewList, b.Views.ViewList);
-        /* swap is intentional */
-        if (aSelfPointer)
-            b.Views.ViewList = &b.Views.ViewType.View;
-        if (bSelfPointer)
-            a.Views.ViewList = &a.Views.ViewType.View;
-    }
+        using ObjectType = ImageTag;
+        VkImage Image{VK_NULL_HANDLE};
+        ViewsInfo Views{};
+        u32 Width{0};
+        u32 Height{0};
+        u32 LayersDepth{1};
+        i8 Mipmaps{1};
+        Format Format{Format::Undefined};
+        ImageKind Kind{ImageKind::Image2d};
+        ImageUsage Usage{ImageUsage::None};
+        ImageFilter MipmapFilter{ImageFilter::Linear};
+    };
+    struct ColdData
+    {
+        std::vector<ImageSubresourceDescription> AdditionalViews{};
+        VmaAllocation Allocation{VK_NULL_HANDLE};
+    };
+    HotData Hot{};
+    ColdData Cold{};
 };
 
-struct SamplerResource
-{
-    using ObjectType = SamplerTag;
-    VkSampler Sampler{VK_NULL_HANDLE};
-};
-
-struct CommandPoolResource
-{
-    using ObjectType = CommandPoolTag;
-    VkCommandPool CommandPool{VK_NULL_HANDLE};
-};
-
-struct CommandBufferResource
-{
-    using ObjectType = CommandBufferTag;
-    VkCommandBuffer CommandBuffer{VK_NULL_HANDLE};
-    CommandBufferKind Kind{CommandBufferKind::Primary};
-};
-
-struct DescriptorsLayoutResource
-{
-    using ObjectType = DescriptorsLayoutTag;
-    VkDescriptorSetLayout Layout{VK_NULL_HANDLE};
-};
 #ifdef DESCRIPTOR_BUFFER
 struct DescriptorsResource
 {
-    using ObjectType = DescriptorsTag;
-    std::vector<u64> Offsets{};
-    u64 SizeBytes{0};
-    DescriptorArenaAllocator Allocator{};
+    struct HotData
+    {
+        using ObjectType = DescriptorsTag;
+    };
+    struct ColdData
+    {
+        std::vector<u64> Offsets{};
+        u64 SizeBytes{0};
+        DescriptorArenaAllocator Allocator{};
+    };
+    HotData Hot{};
+    ColdData Cold{};
 };
 struct DescriptorArenaAllocatorResource
 {
-    using ObjectType = DescriptorArenaAllocatorTag;
-    void* MappedAddress;
-    u64 DeviceAddress;
-    u64 SizeBytes{0};
-    u64 CurrentOffset{0};
-    u32 DescriptorSet{0};
-    VkBufferUsageFlags DescriptorBufferUsage{};
-    DescriptorAllocatorResidence Residence{DescriptorAllocatorResidence::CPU};
-    Buffer Arena;
-    std::vector<Descriptors> Descriptors;
+    struct HotData
+    {
+        using ObjectType = DescriptorArenaAllocatorTag;
+        void* MappedAddress;
+        u64 DeviceAddress;
+        u64 SizeBytes{0};
+        u64 CurrentOffset{0};
+        u32 DescriptorSet{0};
+        VkBufferUsageFlags DescriptorBufferUsage{};
+        DescriptorAllocatorResidence Residence{DescriptorAllocatorResidence::CPU};
+        Buffer Arena;
+    };
+    struct ColdData
+    {
+        std::vector<Descriptors> Descriptors;
+    };
+    HotData Hot{};
+    ColdData Cold{};
 };
 #else
-struct DescriptorsResource
-{
-    using ObjectType = DescriptorsTag;
-    VkDescriptorSet DescriptorSet{VK_NULL_HANDLE};
-    VkDescriptorPool Pool{VK_NULL_HANDLE};
-    DescriptorArenaAllocator Allocator{};
-    DescriptorsLayout Layout{};
-};
-
 struct DescriptorArenaAllocatorResource
 {
-    using ObjectType = DescriptorArenaAllocatorTag;
-
     struct PoolInfo
     {
         VkDescriptorPool Pool;
@@ -1165,203 +1209,54 @@ struct DescriptorArenaAllocatorResource
         DescriptorType DescriptorType;
         f32 SetSizeMultiplier;
     };
-
-    std::vector<PoolInfo> FreePools;
-    std::vector<PoolInfo> UsedPools;
-    std::vector<PoolSize> PoolSizes = {
-        {DescriptorType::Sampler, 0.5f},
-        {DescriptorType::Image, 4.0f},
-        {DescriptorType::ImageStorage, 1.0f},
-        {DescriptorType::TexelUniform, 1.0f},
-        {DescriptorType::TexelStorage, 1.0f},
-        {DescriptorType::UniformBuffer, 2.0f},
-        {DescriptorType::StorageBuffer, 2.0f},
-        {DescriptorType::UniformBufferDynamic, 1.0f},
-        {DescriptorType::StorageBufferDynamic, 1.0f},
-        {DescriptorType::Input, 0.5f}
+    
+    struct HotData
+    {
+        using ObjectType = DescriptorArenaAllocatorTag;
     };
-    u32 MaxSetsPerPool{};
-    std::vector<Descriptors> Descriptors;
+    struct ColdData
+    {
+        std::vector<PoolInfo> FreePools;
+        std::vector<PoolInfo> UsedPools;
+        static constexpr std::array POOL_SIZES = {
+            PoolSize{DescriptorType::Sampler, 0.5f},
+            PoolSize{DescriptorType::Image, 4.0f},
+            PoolSize{DescriptorType::ImageStorage, 1.0f},
+            PoolSize{DescriptorType::TexelUniform, 1.0f},
+            PoolSize{DescriptorType::TexelStorage, 1.0f},
+            PoolSize{DescriptorType::UniformBuffer, 2.0f},
+            PoolSize{DescriptorType::StorageBuffer, 2.0f},
+            PoolSize{DescriptorType::UniformBufferDynamic, 1.0f},
+            PoolSize{DescriptorType::StorageBufferDynamic, 1.0f},
+            PoolSize{DescriptorType::Input, 0.5f}
+        };
+        u32 MaxSetsPerPool{};
+    };
+    HotData Hot{};
+    ColdData Cold{};
+};
+
+template <>
+struct NativeHandleTraits<DescriptorsTag>
+{
+    using Vk = VkDescriptorSet;
 };
 #endif
 struct PipelineLayoutResource
 {
-    using ObjectType = PipelineLayoutTag;
-    VkPipelineLayout Layout{VK_NULL_HANDLE};
-    std::vector<VkPushConstantRange> PushConstants;
-};
-
-struct PipelineResource
-{
-    using ObjectType = PipelineTag;
-    VkPipeline Pipeline{VK_NULL_HANDLE};
-};
-
-struct ShaderModuleResource
-{
-    using ObjectType = ShaderModuleTag;
-    VkShaderModule Module{VK_NULL_HANDLE};
-};
-
-struct RenderingAttachmentResource
-{
-    using ObjectType = RenderingAttachmentTag;
-    VkRenderingAttachmentInfo AttachmentInfo{};
-};
-
-struct RenderingInfoResource
-{
-    using ObjectType = RenderingInfoTag;
-    std::vector<VkRenderingAttachmentInfo> ColorAttachments{};
-    std::optional<VkRenderingAttachmentInfo> DepthAttachment{};
-    glm::uvec2 RenderArea{};
-};
-
-struct FenceResource
-{
-    using ObjectType = FenceTag;
-    VkFence Fence{VK_NULL_HANDLE};
-};
-
-struct SemaphoreResource
-{
-    using ObjectType = SemaphoreTag;
-    VkSemaphore Semaphore{VK_NULL_HANDLE};
-};
-
-struct TimelineSemaphoreResource
-{
-    using ObjectType = TimelineSemaphoreTag;
-    VkSemaphore Semaphore{VK_NULL_HANDLE};
-    u64 Timeline{0};
-};
-
-struct SplitBarrierResource
-{
-    using ObjectType = SplitBarrierTag;
-    VkEvent Event{VK_NULL_HANDLE};
-};
-
-template <typename Tag>
-struct TagTraits
-{
-    static_assert(!sizeof(Tag), "No match for type");
+    struct HotData
+    {
+        using ObjectType = PipelineLayoutTag;
+        VkPipelineLayout Layout{VK_NULL_HANDLE};
+    };
+    struct ColdData
+    {
+        std::vector<VkPushConstantRange> PushConstants;
+    };
+    HotData Hot{};
+    ColdData Cold{};
 };
 }
-
-template <>
-struct TagTraits<SwapchainTag>
-{
-    using ResourceType = SwapchainResource;
-};
-
-template <>
-struct TagTraits<BufferTag>
-{
-    using ResourceType = BufferResource;
-};
-
-template <>
-struct TagTraits<BufferArenaTag>
-{
-    using ResourceType = BufferArenaResource;
-};
-
-template <>
-struct TagTraits<ImageTag>
-{
-    using ResourceType = ImageResource;
-};
-
-template <>
-struct TagTraits<SamplerTag>
-{
-    using ResourceType = SamplerResource;
-};
-
-template <>
-struct TagTraits<CommandPoolTag>
-{
-    using ResourceType = CommandPoolResource;
-};
-
-template <>
-struct TagTraits<CommandBufferTag>
-{
-    using ResourceType = CommandBufferResource;
-};
-
-template <>
-struct TagTraits<DescriptorsLayoutTag>
-{
-    using ResourceType = DescriptorsLayoutResource;
-};
-
-template <>
-struct TagTraits<DescriptorsTag>
-{
-    using ResourceType = DescriptorsResource;
-};
-
-template <>
-struct TagTraits<DescriptorArenaAllocatorTag>
-{
-    using ResourceType = DescriptorArenaAllocatorResource;
-};
-
-template <>
-struct TagTraits<PipelineLayoutTag>
-{
-    using ResourceType = PipelineLayoutResource;
-};
-
-template <>
-struct TagTraits<PipelineTag>
-{
-    using ResourceType = PipelineResource;
-};
-
-template <>
-struct TagTraits<ShaderModuleTag>
-{
-    using ResourceType = ShaderModuleResource;
-};
-
-template <>
-struct TagTraits<RenderingAttachmentTag>
-{
-    using ResourceType = RenderingAttachmentResource;
-};
-
-template <>
-struct TagTraits<RenderingInfoTag>
-{
-    using ResourceType = RenderingInfoResource;
-};
-
-template <>
-struct TagTraits<FenceTag>
-{
-    using ResourceType = FenceResource;
-};
-
-template <>
-struct TagTraits<SemaphoreTag>
-{
-    using ResourceType = SemaphoreResource;
-};
-
-template <>
-struct TagTraits<TimelineSemaphoreTag>
-{
-    using ResourceType = TimelineSemaphoreResource;
-};
-
-template <>
-struct TagTraits<SplitBarrierTag>
-{
-    using ResourceType = SplitBarrierResource;
-};
 
 DeviceResources& deviceResources();
 
@@ -1370,435 +1265,131 @@ class DeviceResources
     FRIEND_INTERNAL
     friend class DeviceInternal;
     friend struct DeviceState;
-
-    template <typename T>
-    using ResourceContainerType = DeviceSparseSet<T>;
-
-    template <typename T>
-    struct ResourceContainerWithLock
-    {
-        ResourceContainerType<T> Container{};
-        std::mutex Mutex{};
-    };
-
 private:
-    void MapCmdToPool(CommandBuffer cmd, CommandPool pool);
-    void DestroyCmdsOfPool(CommandPool pool);
-
-private:
-    template <typename... Tags>
-    class View
-    {
-        friend class DeviceResources;
-
-    public:
-        template <typename Resource>
-        constexpr auto Add(Resource&& resource) const
-        {
-            using Decayed = std::decay_t<Resource>;
-            deviceResources().m_AllocatedCount += 1;
-            return GetContainer<typename Decayed::ObjectType>().Insert(std::forward<Resource>(resource));
-        }
-
-        template <typename Tag>
-        constexpr void Remove(ResourceHandleType<Tag> handle) const
-        {
-            deviceResources().m_DeallocatedCount += 1;
-            GetContainer<Tag>().Erase(handle);
-        }
-
-        template <typename Tag>
-        constexpr auto& operator[](ResourceHandleType<Tag> handle) const
-        {
-            return GetContainer<Tag>()[handle];
-        }
-
-        template <typename... R>
-        operator View<R...>() const
-        {
-            static_assert(is_unique_v<R...>, "Types must be unique");
-            return View<R...>(this->template GetContainer<R>()...);
-        }
-
-    protected:
-        View(ResourceContainerType<typename TagTraits<Tags>::ResourceType>&... containers)
-            : m_Containers(&containers...)
-        {
-        }
-
-        template <typename Tag>
-        auto& GetContainer() const
-        {
-            using ResourceType = TagTraits<Tag>::ResourceType;
-            return *std::get<ResourceContainerType<ResourceType>*>(m_Containers);
-        }
-
-    private:
-        std::tuple<ResourceContainerType<typename TagTraits<Tags>::ResourceType>*...> m_Containers;
-    };
-
-#ifndef NDEBUG
-    struct ViewLockHolderGuard
-    {
-        ViewLockHolderGuard()
-        {
-            ASSERT(!HoldsLockedView, "Already have active locked view")
-            HoldsLockedView = true;
-        }
-
-        ~ViewLockHolderGuard() { HoldsLockedView = false; }
-        inline static thread_local bool HoldsLockedView{false};
-    };
-#else
-    struct ViewLockHolderGuard
-    {
-    };
-#endif // NDEBUG
-
-    template <typename... Tags>
-    class LockedView : public View<Tags...>
-    {
-        friend class DeviceResources;
-
-        template <typename... R>
-        friend class View;
-
-        template <typename T>
-        using MutexT = std::mutex;
-        using LockType = decltype(std::scoped_lock(std::declval<MutexT<Tags>&>()...));
-
-    public:
-        LockedView(ResourceContainerWithLock<typename TagTraits<Tags>::ResourceType>&... containers)
-            : View<Tags...>(containers.Container...),
-              m_Lock(containers.Mutex...)
-        {
-        }
-
-        template <typename... R>
-        operator View<R...>() const
-        {
-            static_assert(is_unique_v<R...>, "Types must be unique");
-            return View<R...>(this->template GetContainer<R>()...);
-        }
-
-    private:
-        ViewLockHolderGuard m_LockHolderGuard;
-        LockType m_Lock;
-    };
-
-    template <typename... Tags>
-    auto GetLockedView()
-    {
-        static_assert(is_unique_v<Tags...>, "Types must be unique");
-
-        return LockedView<Tags...>(GetContainer<Tags>()...);
-    }
-
     template <typename Tag>
-    ResourceContainerWithLock<typename TagTraits<Tag>::ResourceType>& GetContainer()
+    auto& GetResourceList()
     {
         if constexpr (std::is_same_v<Tag, SwapchainTag>)
             return m_Swapchains;
-        else if constexpr (std::is_same_v<Tag, CommandPoolTag>)
-            return m_CommandPools;
-        else if constexpr (std::is_same_v<Tag, CommandBufferTag>)
-            return m_CommandBuffers;
-        else if constexpr (std::is_same_v<Tag, BufferTag>)
+        else  if constexpr(std::is_same_v<Tag, BufferTag>)
             return m_Buffers;
-        else if constexpr (std::is_same_v<Tag, BufferArenaTag>)
+        else if constexpr(std::is_same_v<Tag, BufferArenaTag>)
             return m_BufferArenas;
-        else if constexpr (std::is_same_v<Tag, ImageTag>)
+        else if constexpr(std::is_same_v<Tag, ImageTag>)
             return m_Images;
-        else if constexpr (std::is_same_v<Tag, SamplerTag>)
-            return m_Samplers;
-        else if constexpr (std::is_same_v<Tag, RenderingAttachmentTag>)
-            return m_RenderingAttachments;
-        else if constexpr (std::is_same_v<Tag, RenderingInfoTag>)
-            return m_RenderingInfos;
         else if constexpr (std::is_same_v<Tag, PipelineLayoutTag>)
             return m_PipelineLayouts;
-        else if constexpr (std::is_same_v<Tag, PipelineTag>)
-            return m_Pipelines;
-        else if constexpr (std::is_same_v<Tag, ShaderModuleTag>)
-            return m_ShaderModules;
-        else if constexpr (std::is_same_v<Tag, DescriptorsLayoutTag>)
-            return m_DescriptorLayouts;
         else if constexpr (std::is_same_v<Tag, DescriptorArenaAllocatorTag>)
             return m_DescriptorArenaAllocators;
+#ifdef DESCRIPTOR_BUFFER
         else if constexpr (std::is_same_v<Tag, DescriptorsTag>)
             return m_Descriptors;
-        else if constexpr (std::is_same_v<Tag, FenceTag>)
-            return m_Fences;
-        else if constexpr (std::is_same_v<Tag, SemaphoreTag>)
-            return m_Semaphores;
-        else if constexpr (std::is_same_v<Tag, TimelineSemaphoreTag>)
-            return m_TimelineSemaphores;
-        else if constexpr (std::is_same_v<Tag, SplitBarrierTag>)
-            return m_SplitBarriers;
+#endif // DESCRIPTOR_BUFFER 
         else
             static_assert(!sizeof(Tag), "No match for type");
+        
         std::unreachable();
+    }
+public:
+    template <typename ResourceHot>
+    auto Add(ResourceHot&& resource)
+    {
+        deviceResources().m_AllocatedCount += 1;
+        return GetResourceList<typename std::decay_t<ResourceHot>::ObjectType>().Insert(
+            std::forward<ResourceHot>(resource));
+    }
+    
+    template <typename ResourceHot, typename ResourceCold>
+    auto Add(ResourceHot&& hotData, ResourceCold&& coldData)
+    {
+        deviceResources().m_AllocatedCount += 1;
+        return GetResourceList<typename std::decay_t<ResourceHot>::ObjectType>().Insert(
+            std::forward<ResourceHot>(hotData), std::forward<ResourceCold>(coldData));
+    }
+    
+    template <typename Tag>
+    auto Remove(lux::DeviceResourceListHandle<Tag> handle)
+    {
+        deviceResources().m_DeallocatedCount += 1;
+        return GetResourceList<Tag>().Erase(handle);
+    }
+    
+    template <typename Tag>
+    auto& Hot(lux::DeviceResourceListHandle<Tag> handle)
+    {
+        return GetResourceList<Tag>().GetHot(handle);
+    }
+    
+    template <typename Tag>
+    auto& Cold(lux::DeviceResourceListHandle<Tag> handle)
+    {
+        return GetResourceList<Tag>().GetCold(handle);
+    }
+    
+    template <typename Tag>
+    decltype(auto) Get(lux::DeviceResourceListHandle<Tag> handle)
+    {
+        return GetResourceList<Tag>().Get(handle);
+    }
+
+    template <typename Tag>
+    auto NativeHandleToVk(lux::DeviceResourceListHandle<Tag> handle) const
+    {
+        return (typename NativeHandleTraits<Tag>::Vk)handle.GetId();
+    }
+    template <typename Tag>
+    lux::DeviceResourceListHandle<Tag> VkHandleToNative(auto handle) const
+    {
+        return lux::DeviceResourceListHandle<Tag>((u64)handle);
     }
 
     std::atomic<u64> m_AllocatedCount{0};
     std::atomic<u64> m_DeallocatedCount{0};
 
-    ResourceContainerWithLock<SwapchainResource> m_Swapchains;
-    ResourceContainerWithLock<CommandPoolResource> m_CommandPools;
-    ResourceContainerWithLock<CommandBufferResource> m_CommandBuffers;
-    ResourceContainerWithLock<BufferResource> m_Buffers;
-    ResourceContainerWithLock<BufferArenaResource> m_BufferArenas;
-    ResourceContainerWithLock<ImageResource> m_Images;
-    ResourceContainerWithLock<SamplerResource> m_Samplers;
-    ResourceContainerWithLock<RenderingAttachmentResource> m_RenderingAttachments;
-    ResourceContainerWithLock<RenderingInfoResource> m_RenderingInfos;
-    ResourceContainerWithLock<PipelineLayoutResource> m_PipelineLayouts;
-    ResourceContainerWithLock<PipelineResource> m_Pipelines;
-    ResourceContainerWithLock<ShaderModuleResource> m_ShaderModules;
-    ResourceContainerWithLock<DescriptorsLayoutResource> m_DescriptorLayouts;
-    ResourceContainerWithLock<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators;
-    ResourceContainerWithLock<DescriptorsResource> m_Descriptors;
-    ResourceContainerWithLock<FenceResource> m_Fences;
-    ResourceContainerWithLock<SemaphoreResource> m_Semaphores;
-    ResourceContainerWithLock<TimelineSemaphoreResource> m_TimelineSemaphores;
-    ResourceContainerWithLock<SplitBarrierResource> m_SplitBarriers;
-
-    std::vector<std::vector<CommandBuffer>> m_CommandPoolToBuffersMap;
+    lux::DeviceResourceList<SwapchainResource::HotData, SwapchainResource::ColdData> m_Swapchains{"Swapchains"};
+    lux::DeviceResourceList<BufferResource> m_Buffers{"Buffers"};
+    lux::DeviceResourceList<BufferArenaResource> m_BufferArenas{"BufferArenas"};
+    lux::DeviceResourceList<ImageResource::HotData, ImageResource::ColdData> m_Images{"Images"};
+    lux::DeviceResourceList<PipelineLayoutResource::HotData, PipelineLayoutResource::ColdData> 
+        m_PipelineLayouts{"PipelineLayouts"};
+    lux::DeviceResourceList<DescriptorArenaAllocatorResource::HotData, DescriptorArenaAllocatorResource::ColdData>
+        m_DescriptorArenaAllocators{"DescriptorArenaAllocators"};
+    
+#ifdef DESCRIPTOR_BUFFER
+    lux::DeviceResourceList<DescriptorsResource::HotData, DescriptorsResource::ColdData> m_Descriptors;
+#endif // DESCRIPTOR_BUFFER
 };
 
 class DeviceInternal
 {
 public:
-    template <typename... Tags>
-    using View = DeviceResources::View<Tags...>;
-
     static VmaAllocator& Allocator();
 
-    static Swapchain CreateSwapchain(const auto& resources, SwapchainCreateInfo&& createInfo,
-        DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, Swapchain swapchain);
-    static void CreateSwapchainImages(const auto& resources, Swapchain swapchain);
-    static void DestroySwapchainImages(const auto& resources, Swapchain swapchain);
-    static u32 AcquireNextImage(const auto& resources, Swapchain swapchain,
-        Fence renderFence, Semaphore presentSemaphore);
-    static bool Present(const auto& resources, Swapchain swapchain, QueueKind queueKind,
-        u32 imageIndex);
-    static SwapchainDescription& GetSwapchainDescription(const auto& resources, Swapchain swapchain);
-    static Semaphore GetSwapchainRenderSemaphore(const auto& resources, Swapchain swapchain,
-        u32 imageIndex);
+    static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
 
-    static CommandPool CreateCommandPool(const auto& resources, CommandPoolCreateInfo&& createInfo,
-        DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, CommandPool commandPool);
-    static void ResetPool(const auto& resources, CommandPool pool);
-
-    static CommandBuffer CreateCommandBuffer(const auto& resources, CommandBufferCreateInfo&& createInfo);
-    static void ResetCommandBuffer(const auto& resources, CommandBuffer cmd);
-    static void BeginCommandBuffer(const auto& resources, CommandBuffer cmd);
-    static void BeginCommandBuffer(const auto& resources, CommandBuffer cmd, CommandBufferUsage usage);
-    static void EndCommandBuffer(const auto& resources, CommandBuffer cmd);
-    static void SubmitCommandBuffer(const auto& resources, CommandBuffer cmd, QueueKind queueKind,
-        const BufferSubmitSyncInfo& submitSync);
-    static void SubmitCommandBuffer(const auto& resources, CommandBuffer cmd, QueueKind queueKind,
-        const BufferSubmitTimelineSyncInfo& submitSync);
-    static void SubmitCommandBuffer(const auto& resources, CommandBuffer cmd, QueueKind queueKind, Fence fence);
-    static void SubmitCommandBuffers(const auto& resources, Span<const CommandBuffer> cmds, QueueKind queueKind,
-        const BufferSubmitSyncInfo& submitSync);
-    static void SubmitCommandBuffers(const auto& resources, Span<const CommandBuffer> cmds, QueueKind queueKind,
-        const BufferSubmitTimelineSyncInfo& submitSync);
-    static void BeginCommandBufferLabel(const auto& resources, CommandBuffer cmd, std::string_view label);
-    static void EndCommandBufferLabel(const auto& resources, CommandBuffer cmd);
-    static ProfilerContext::Ctx CreateTracyGraphicsContext(const auto& resources, CommandBuffer cmd);
-    static VkCommandBuffer GetProfilerCommandBuffer(const auto& resources, ProfilerContext* context);
-
-    static Buffer CreateBuffer(const auto& resources, BufferCreateInfo&& createInfo, DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, Buffer buffer);
-    static Buffer CreateStagingBuffer(const auto& resources, u64 sizeBytes);
-    static void ResizeBuffer(const auto& resources, Buffer buffer, u64 newSize, CommandBuffer cmd, bool copyData);
-    static void* MapBuffer(const auto& resources, Buffer buffer);
-    static void UnmapBuffer(const auto& resources, Buffer buffer);
-    static void SetBufferData(const auto& resources, Buffer buffer, Span<const std::byte> data, u64 offsetBytes);
-    static void SetBufferData(const auto& resources, void* mappedAddress, Span<const std::byte> data, u64 offsetBytes);
-    static void* GetBufferMappedAddress(const auto& resources, Buffer buffer);
-    static usize GetBufferSizeBytes(const auto& resources, Buffer buffer);
-    static const BufferDescription& GetBufferDescription(const auto& resources, Buffer buffer);
-    static u64 GetDeviceAddress(const auto& resources, Buffer buffer);
-    static Buffer AllocateBuffer(const auto& resources, const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
+    static Buffer AllocateBuffer(const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
         VmaAllocationCreateFlags allocationFlags);
 
-    static BufferArena CreateBufferArena(const auto& resources, BufferArenaCreateInfo&& createInfo,
-        DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, BufferArena arena);
-    static void ResizeBufferArenaPhysical(const auto& resources, BufferArena arena, u64 newSize, CommandBuffer cmd,
-        bool copyData);
-    static Buffer GetBufferArenaUnderlyingBuffer(const auto& resources, BufferArena arena);
-    static u64 GetBufferArenaSizeBytesPhysical(const auto& resources, BufferArena arena);
-    static BufferSuballocationResult BufferArenaSuballocate(const auto& resources, BufferArena arena, u64 sizeBytes,
-        u32 alignment);
-    static void BufferArenaFree(const auto& resources, BufferArena arena, BufferSuballocationHandle suballocation);
+    static VkImageView CreateVulkanImageView(ImageKind kind, ImageUsage usage,
+        const ImageSubresourceDescription& subresourceDescription, VkImage image, VkFormat format);
 
-    static Image CreateImage(const auto& resources, ImageCreateInfo&& createInfo, DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, Image image);
-    static void CreateViews(const auto& resources, const ImageSubresource& image,
-        const std::vector<ImageSubresourceDescription>& additionalViews);
-    static Span<const ImageSubresourceDescription> GetAdditionalImageViews(const auto& resources, Image image);
-    static ImageViewHandle GetImageViewHandle(const auto& resources, Image image,
-        ImageSubresourceDescription subresourceDescription);
-    static const ImageDescription& GetImageDescription(const auto& resources, Image image);
-    static Image CreateImageFromAssetFile(const auto& resources, ImageCreateInfo& createInfo,
-        const lux::assetlib::ImageAsset* asset);
-    static Image CreateImageFromPixels(const auto& resources, ImageCreateInfo& createInfo,
-        Span<const std::byte> pixels);
-    static Image CreateImageFromBuffer(const auto& resources, ImageCreateInfo& createInfo, Buffer buffer);
-    static Image CreateEmptyImage(const auto& resources, ImageCreateInfo&& createInfo, DeletionQueue& deletionQueue);
-    static void PreprocessCreateInfo(ImageCreateInfo& createInfo);
-    static Image AllocateImage(const auto& resources, ImageCreateInfo& createInfo);
-    static VkImageView CreateVulkanImageView(const auto& resources, const ImageSubresource& image, VkFormat format);
-    static ImTextureID CreateImGuiImage(const auto& resources, const ImageSubresource& texture, Sampler sampler,
-        ImageLayout layout);
-    static void DestroyImGuiImage(ImTextureID image);
-
-    static Sampler CreateSampler(const auto& resources, SamplerCreateInfo&& createInfo);
-    static void Destroy(const auto& resources, Sampler sampler);
-
-    static RenderingAttachment CreateRenderingAttachment(const auto& resources,
-        RenderingAttachmentCreateInfo&& createInfo, DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, RenderingAttachment renderingAttachment);
-
-    static RenderingInfo CreateRenderingInfo(const auto& resources, RenderingInfoCreateInfo&& createInfo,
-        DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, RenderingInfo renderingInfo);
-
-    static PipelineLayout CreatePipelineLayout(const auto& resources, PipelineLayoutCreateInfo&& createInfo,
-        DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, PipelineLayout pipelineLayout);
-
-    static Pipeline CreatePipeline(const auto& resources, PipelineCreateInfo&& createInfo,
-        DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, Pipeline pipeline);
-
-    static ShaderModule CreateShaderModule(const auto& resources, ShaderModuleCreateInfo&& createInfo,
-        DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, ShaderModule shaderModule);
-
-    static DescriptorsLayout CreateDescriptorsLayout(const auto& resources, DescriptorsLayoutCreateInfo&& createInfo);
-    static DescriptorsLayout GetEmptyDescriptorsLayout(const auto& resources);
-    static void Destroy(const auto& resources, DescriptorsLayout layout);
-
-    static DescriptorArenaAllocator CreateDescriptorArenaAllocator(const auto& resources,
-        DescriptorArenaAllocatorCreateInfo&& createInfo, DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, DescriptorArenaAllocator allocator);
-    static std::optional<Descriptors> AllocateDescriptors(const auto& resources, DescriptorArenaAllocator allocator,
-        DescriptorsLayout layout, DescriptorAllocatorAllocationBindings&& bindings);
-    static void ResetDescriptorArenaAllocator(const auto& resources, DescriptorArenaAllocator allocator);
-
-    static void UpdateDescriptors(const auto& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo,
-        const BufferSubresource& buffer, u32 index);
-    static void UpdateDescriptors(const auto& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo,
-        Sampler sampler);
-    static void UpdateDescriptors(const auto& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo,
-        const ImageSubresource& image, ImageLayout layout, u32 index);
-
-    static Fence CreateFence(const auto& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, Fence fence);
-    static void WaitForFence(const auto& resources, Fence fence);
-    static bool CheckFence(const auto& resources, Fence fence);
-    static void ResetFence(const auto& resources, Fence fence);
-
-    static Semaphore CreateSemaphore(const auto& resources, DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, Semaphore semaphore);
-
-    static TimelineSemaphore CreateTimelineSemaphore(const auto& resources, TimelineSemaphoreCreateInfo&& createInfo,
-        DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, TimelineSemaphore semaphore);
-    static void TimelineSemaphoreWaitCPU(const auto& resources, TimelineSemaphore semaphore, u64 value);
-    static void TimelineSemaphoreSignalCPU(const auto& resources, TimelineSemaphore semaphore, u64 value);
-
-    static SplitBarrier CreateSplitBarrier(const auto& resources, DeletionQueue& deletionQueue);
-    static void Destroy(const auto& resources, SplitBarrier splitBarrier);
-
-    static ImmediateSubmitContext StartSubmitContext(const auto& resources);
-    static void EndSubmitContext(const auto& resources, const ImmediateSubmitContext& ctx);
-    template <typename LockedView, typename Fn>
-    static void ImmediateSubmit(LockedView& resources, Fn&& uploadFunction);
+    static VkRenderingAttachmentInfo CreateVulkanRenderingAttachmentInfo(const RenderingAttachment& attachment);
 
 #ifdef DESCRIPTOR_BUFFER
     static u32 GetDescriptorSizeBytes(DescriptorType type);
-    static void WriteDescriptor(const auto& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo, u32 index,
+    static void WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo slotInfo, u32 index,
         VkDescriptorGetInfoEXT& descriptorGetInfo);
 #else
-    static u32 GetFreePoolIndexFromAllocator(const auto& resources, DescriptorArenaAllocator allocator,
+    static u32 GetFreePoolIndexFromAllocator(DescriptorArenaAllocator allocator,
         DescriptorPoolFlags poolFlags);
 #endif
 
-    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(const auto& resources,
-        Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages);
-    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(const auto& resources,
-        Span<const TimelineSemaphore> semaphores, Span<const u64> waitValues, Span<const PipelineStage> waitStages);
-    static void BindDescriptors(const auto& resources, CommandBuffer cmd, PipelineLayout pipelineLayout,
+    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(Span<const Semaphore> semaphores, 
+        Span<const PipelineStage> waitStages);
+    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(Span<const TimelineSemaphore> semaphores,
+        Span<const u64> waitValues, Span<const PipelineStage> waitStages);
+    static void BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineLayout,
         Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint);
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const ExecuteSecondaryBufferCommand& command);
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const PrepareSwapchainPresentCommand& command);
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const BeginRenderingCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const EndRenderingCommand& command);
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const ImGuiBeginCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const ImGuiEndCommand& command);
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd,
-        const BeginConditionalRenderingCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const EndConditionalRenderingCommand& command);
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const SetViewportCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const SetScissorsCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const SetDepthBiasCommand& command);
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const CopyBufferCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const CopyBufferToImageCommand& command);
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const CopyImageCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const BlitImageCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const MipmapImageCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const ClearColorImageCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const ClearDepthStencilImageCommand& command);
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd,
-        const WaitOnFullPipelineBarrierCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const WaitOnBarrierCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const SignalSplitBarrierCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const WaitOnSplitBarrierCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const ResetSplitBarrierCommand& command);
-
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const BindVertexBuffersCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const BindIndexU32BufferCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const BindIndexU16BufferCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const BindIndexU8BufferCommand& command);
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const BindPipelineGraphicsCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const BindPipelineComputeCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd,
-        const BindImmutableSamplersGraphicsCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd,
-        const BindImmutableSamplersComputeCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const BindDescriptorsComputeCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd,
-        const BindDescriptorArenaAllocatorsCommand& command);
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const PushConstantsCommand& command);
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const DrawCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const DrawIndexedCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const DrawIndexedIndirectCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd,
-        const DrawIndexedIndirectCountCommand& command);
-
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const DispatchCommand& command);
-    static void CompileCommand(const auto& resources, CommandBuffer cmd, const DispatchIndirectCommand& command);
 };
 
 DeviceCreateInfo DeviceCreateInfo::Default(lux::Window* window, bool asyncCompute)
@@ -1840,19 +1431,6 @@ DeviceCreateInfo DeviceCreateInfo::Default(lux::Window* window, bool asyncComput
     return createInfo;
 }
 
-void DeviceResources::MapCmdToPool(CommandBuffer cmd, CommandPool pool)
-{
-    m_CommandPoolToBuffersMap[pool.m_Id].push_back(cmd);
-}
-
-void DeviceResources::DestroyCmdsOfPool(CommandPool pool)
-{
-    for (auto cmd : m_CommandPoolToBuffersMap[pool.m_Id])
-        m_CommandBuffers.Container.Erase(cmd);
-    m_DeallocatedCount += (u32)m_CommandPoolToBuffersMap[pool.m_Id].size();
-    m_CommandPoolToBuffersMap[pool.m_Id].clear();
-}
-
 struct QueueInfo
 {
     /* technically any family index is possible;
@@ -1888,7 +1466,7 @@ struct DeviceState
     DeviceResources Resources;
     VmaAllocator Allocator;
     DeviceQueues Queues;
-    ::DeletionQueue DeletionQueue;
+    DeletionQueue DeletionQueue;
     ::DeletionQueue DummyDeletionQueue;
 
     ::DeletionQueue* FrameDeletionQueue{nullptr};
@@ -1983,525 +1561,1940 @@ void Device::BeginFrame(FrameContext& ctx)
 
 Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<SwapchainTag, ImageTag, SemaphoreTag>();
+    if (g_State.Surface == VK_NULL_HANDLE)
+        return {};
 
-    return DeviceInternal::CreateSwapchain(view, std::move(createInfo), deletionQueue);
+    static std::vector<VkSurfaceFormatKHR> desiredFormats = {
+        {
+            {
+                .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+            }
+        }
+    };
+    static std::vector<VkPresentModeKHR> desiredPresentModes = {
+        {
+            //VK_PRESENT_MODE_IMMEDIATE_KHR,
+            VK_PRESENT_MODE_FIFO_RELAXED_KHR
+        }
+    };
+
+    SurfaceDetails surfaceDetails = getSurfaceDetails(g_State.GPU, g_State.Surface);
+    VkSurfaceCapabilitiesKHR capabilities = surfaceDetails.Capabilities;
+    VkSurfaceFormatKHR colorFormat = utils::getIntersectionOrDefault(
+        desiredFormats, surfaceDetails.Formats,
+        [](VkSurfaceFormatKHR des, VkSurfaceFormatKHR avail)
+        {
+            return des.format == avail.format && des.colorSpace == avail.colorSpace;
+        });
+    VkPresentModeKHR presentMode = utils::getIntersectionOrDefault(
+        desiredPresentModes, surfaceDetails.PresentModes,
+        [](VkPresentModeKHR des, VkPresentModeKHR avail)
+        {
+            return des == avail;
+        });
+
+    auto chooseImageCount = [](const VkSurfaceCapabilitiesKHR& capabilities)
+    {
+        if (capabilities.maxImageCount == 0)
+            return capabilities.minImageCount + 1;
+        return std::min(capabilities.minImageCount + 1, capabilities.maxImageCount);
+    };
+
+    auto chooseExtent = [](const lux::Window& window, const VkSurfaceCapabilitiesKHR& capabilities)
+    {
+        VkExtent2D extent = capabilities.currentExtent;
+
+        if (extent.width != std::numeric_limits<u32>::max())
+            return extent;
+
+        // indication that extent might not be same as window size
+        lux::WindowSize size = window.GetWindowSize();
+
+        extent.width = std::clamp(
+            (i32)size.Width, (i32)capabilities.minImageExtent.width, (i32)capabilities.maxImageExtent.width);
+        extent.height = std::clamp(
+            (i32)size.Height, (i32)capabilities.minImageExtent.height, (i32)capabilities.maxImageExtent.height);
+
+        return extent;
+    };
+
+    u32 imageCount = chooseImageCount(capabilities);
+
+    VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
+    swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    swapchainCreateInfo.surface = g_State.Surface;
+    swapchainCreateInfo.imageColorSpace = colorFormat.colorSpace;
+    swapchainCreateInfo.imageFormat = colorFormat.format;
+    VkExtent2D extent = chooseExtent(*g_State.Window, capabilities);
+    swapchainCreateInfo.imageExtent = extent;
+    swapchainCreateInfo.imageArrayLayers = 1;
+    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    swapchainCreateInfo.minImageCount = imageCount;
+    swapchainCreateInfo.presentMode = presentMode;
+
+    if (g_State.Queues.Graphics.Family == g_State.Queues.Presentation.Family)
+    {
+        swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    }
+    else
+    {
+        std::vector<u32> queueFamilies = g_State.Queues.AsFamilySet();
+        swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        swapchainCreateInfo.queueFamilyIndexCount = (u32)queueFamilies.size();
+        swapchainCreateInfo.pQueueFamilyIndices = queueFamilies.data();
+    }
+    swapchainCreateInfo.preTransform = capabilities.currentTransform;
+    swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    swapchainCreateInfo.clipped = VK_TRUE;
+    swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+
+    SwapchainResource swapchainResource = {};
+    swapchainResource.Hot.ColorFormat = colorFormat.format;
+    deviceCheck(vkCreateSwapchainKHR(g_State.Device, &swapchainCreateInfo, nullptr,
+        &swapchainResource.Hot.Swapchain), "Failed to create swapchain");
+
+    const glm::uvec2 swapchainResolution = glm::uvec2{extent.width, extent.height};
+    const glm::uvec2 drawResolution = createInfo.DrawResolution.x != 0 ?
+        createInfo.DrawResolution :
+        swapchainResolution;
+
+    swapchainResource.Cold.Description = {
+        .SwapchainResolution = swapchainResolution,
+        .DrawResolution = drawResolution,
+        .DrawFormat = createInfo.DrawFormat,
+        .DepthFormat = createInfo.DepthStencilFormat,
+        .DrawImage = CreateEmptyImage({
+                .Description = ImageDescription{
+                    .Width = drawResolution.x,
+                    .Height = drawResolution.y,
+                    .Format = createInfo.DrawFormat,
+                    .Usage = ImageUsage::Source | ImageUsage::Destination | ImageUsage::Storage | ImageUsage::Color
+                }
+            },
+            DummyDeletionQueue()),
+        .DepthImage = CreateEmptyImage({
+                .Description = ImageDescription{
+                    .Width = drawResolution.x,
+                    .Height = drawResolution.y,
+                    .Format = createInfo.DepthStencilFormat,
+                    .Usage = ImageUsage::Depth | ImageUsage::Stencil | ImageUsage::Sampled
+                }
+            },
+            DummyDeletionQueue())
+    };
+
+    swapchainResource.Cold.RenderSemaphores.reserve(imageCount);
+    for (u32 i = 0; i < imageCount; i++)
+        swapchainResource.Cold.RenderSemaphores.push_back({CreateSemaphore(DummyDeletionQueue())});
+    Swapchain swapchain = {deviceResources().Add(swapchainResource.Hot, swapchainResource.Cold)};
+    CreateSwapchainImages(swapchain);
+    deletionQueue.Enqueue(swapchain);
+
+    return swapchain;
+}
+
+void Device::CreateSwapchainImages(Swapchain swapchain)
+{
+    auto&& [hot, cold] = deviceResources().Get(swapchain);
+    u32 imageCount = 0;
+    vkGetSwapchainImagesKHR(g_State.Device, hot->Swapchain, &imageCount, nullptr);
+    std::vector<VkImage> images(imageCount);
+    vkGetSwapchainImagesKHR(g_State.Device, hot->Swapchain, &imageCount, images.data());
+
+    std::vector<Image> colorImages(imageCount);
+
+    std::vector<VkImageView> imageViews(imageCount);
+    for (u32 i = 0; i < imageCount; i++)
+    {
+        ImageResource imageResource = {
+            .Hot = {
+                .Image = images[i],
+                .Width = cold->Description.SwapchainResolution.x,
+                .Height = cold->Description.SwapchainResolution.y,
+                .LayersDepth = 1,
+                .Mipmaps = 1,
+                .Kind = ImageKind::Image2d,
+                .Usage = ImageUsage::Destination,
+            },
+        };
+        colorImages[i] = {deviceResources().Add(imageResource.Hot, imageResource.Cold)};
+        ImageResource::HotData& image = deviceResources().Hot(colorImages[i]);
+        image.Views.ViewType.View = DeviceInternal::CreateVulkanImageView(image.Kind, image.Usage,
+            ImageSubresourceDescription{.Mipmaps = 1, .Layers = 1}, image.Image, hot->ColorFormat);
+        image.Views.ViewList = &image.Views.ViewType.View;
+    }
+
+    cold->Description.ColorImages = colorImages;
+}
+
+void Device::DestroySwapchainImages(Swapchain swapchain)
+{
+    const SwapchainResource::ColdData cold = deviceResources().Cold(swapchain);
+    for (const auto& colorImage : cold.Description.ColorImages)
+    {
+        vkDestroyImageView(g_State.Device, *deviceResources().Hot(colorImage).Views.ViewList, nullptr);
+        deviceResources().Remove(colorImage);
+    }
+    Destroy(cold.Description.DrawImage);
+    Destroy(cold.Description.DepthImage);
 }
 
 void Device::Destroy(Swapchain swapchain)
 {
-    auto view = deviceResources().GetLockedView<SwapchainTag, ImageTag, SemaphoreTag>();
-
-    return DeviceInternal::Destroy(view, swapchain);
+    DestroySwapchainImages(swapchain);
+    vkDestroySwapchainKHR(g_State.Device, deviceResources().Hot(swapchain).Swapchain, nullptr);
+    for (Semaphore semaphore : deviceResources().Cold(swapchain).RenderSemaphores)
+        Destroy(semaphore);
+    deviceResources().Remove(swapchain);
 }
 
 u32 Device::AcquireNextImage(Swapchain swapchain, Fence renderFence, Semaphore presentSemaphore)
 {
-    auto view = deviceResources().GetLockedView<SwapchainTag, FenceTag, SemaphoreTag>();
+    WaitForFence(renderFence);
 
-    return DeviceInternal::AcquireNextImage(view, swapchain, renderFence, presentSemaphore);
+    u32 imageIndex;
+    const VkResult res = vkAcquireNextImageKHR(g_State.Device, deviceResources().Hot(swapchain).Swapchain,
+        10'000'000'000, deviceResources().NativeHandleToVk(presentSemaphore), VK_NULL_HANDLE,
+        &imageIndex);
+    if (res == VK_ERROR_OUT_OF_DATE_KHR)
+        return INVALID_SWAPCHAIN_IMAGE;
+
+    ASSERT(res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR, "Failed to acquire swapchain image")
+
+    ResetFence(renderFence);
+
+    return imageIndex;
 }
 
 bool Device::Present(Swapchain swapchain, QueueKind queueKind, u32 imageIndex)
 {
-    auto view = deviceResources().GetLockedView<SwapchainTag, SemaphoreTag>();
+    VkSwapchainKHR vkSwapchain = deviceResources().Hot(swapchain).Swapchain;
+    VkSemaphore waitSemaphore = 
+        deviceResources().NativeHandleToVk(deviceResources().Cold(swapchain).RenderSemaphores[imageIndex]);
+    VkPresentInfoKHR presentInfo = {};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = &vkSwapchain;
+    presentInfo.pImageIndices = &imageIndex;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = &waitSemaphore;
 
-    return DeviceInternal::Present(view, swapchain, queueKind, imageIndex);
+    VkResult result = vkQueuePresentKHR(g_State.Queues.GetQueueByKind(queueKind).Queue, &presentInfo);
+
+    ASSERT(result == VK_SUCCESS || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR,
+        "Failed to present image")
+
+    return result == VK_SUCCESS;
 }
 
-SwapchainDescription& Device::GetSwapchainDescription(Swapchain swapchain)
+SwapchainDescription Device::GetSwapchainDescription(Swapchain swapchain)
 {
-    auto view = deviceResources().GetLockedView<SwapchainTag>();
-
-    return DeviceInternal::GetSwapchainDescription(view, swapchain);
+    return deviceResources().Cold(swapchain).Description;
 }
 
 Semaphore Device::GetSwapchainRenderSemaphore(Swapchain swapchain, u32 imageIndex)
 {
-    auto view = deviceResources().GetLockedView<SwapchainTag>();
-
-    return DeviceInternal::GetSwapchainRenderSemaphore(view, swapchain, imageIndex);
+    return deviceResources().Cold(swapchain).RenderSemaphores[imageIndex];
 }
 
 CommandPool Device::CreateCommandPool(CommandPoolCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<CommandPoolTag>();
+    VkCommandPoolCreateFlags flags = 0;
+    if (createInfo.PerBufferReset)
+        flags |= VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-    return DeviceInternal::CreateCommandPool(view, std::move(createInfo), deletionQueue);
+    VkCommandPoolCreateInfo poolCreateInfo = {};
+    poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolCreateInfo.flags = flags;
+    poolCreateInfo.queueFamilyIndex = g_State.Queues.GetFamilyByKind(createInfo.QueueKind);
+
+    VkCommandPool vkCommandPool;
+    deviceCheck(vkCreateCommandPool(g_State.Device, &poolCreateInfo, nullptr, &vkCommandPool),
+        "Failed to create command pool");
+
+    const CommandPool commandPool = {deviceResources().VkHandleToNative<CommandPoolTag>(vkCommandPool)};
+    deletionQueue.Enqueue(commandPool);
+
+    return commandPool;
 }
 
 void Device::Destroy(CommandPool pool)
 {
-    auto view = deviceResources().GetLockedView<CommandPoolTag, CommandBufferTag>();
-    DeviceInternal::Destroy(view, pool);
+    vkDestroyCommandPool(g_State.Device, deviceResources().NativeHandleToVk(pool), nullptr);
 }
 
 void Device::ResetPool(CommandPool pool)
 {
-    auto view = deviceResources().GetLockedView<CommandPoolTag>();
-    DeviceInternal::ResetPool(view, pool);
+    deviceCheck(vkResetCommandPool(g_State.Device, deviceResources().NativeHandleToVk(pool), 0),
+        "Error while resetting command pool");
 }
 
 CommandBuffer Device::CreateCommandBuffer(CommandBufferCreateInfo&& createInfo)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, CommandPoolTag>();
+    VkCommandBufferAllocateInfo allocateInfo = {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocateInfo.commandPool = deviceResources().NativeHandleToVk(createInfo.Pool);
+    allocateInfo.level = vulkanBufferLevelFromBufferKind(createInfo.Kind);
+    allocateInfo.commandBufferCount = 1;
 
-    return DeviceInternal::CreateCommandBuffer(view, std::move(createInfo));
+    VkCommandBuffer vkCommandBuffer;
+    deviceCheck(vkAllocateCommandBuffers(g_State.Device, &allocateInfo, &vkCommandBuffer),
+        "Failed to allocate command buffer");
+
+    const CommandBuffer cmd = {deviceResources().VkHandleToNative<CommandBufferTag>(vkCommandBuffer)};
+
+    return cmd;
 }
 
 void Device::ResetCommandBuffer(CommandBuffer cmd)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::ResetCommandBuffer(view, cmd);
+    deviceCheck(vkResetCommandBuffer(deviceResources().NativeHandleToVk(cmd), 0), "Error while resetting command buffer");
 }
 
 void Device::BeginCommandBuffer(CommandBuffer cmd)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::BeginCommandBuffer(view, cmd);
+    BeginCommandBuffer(cmd, CommandBufferUsage::SingleSubmit);
 }
 
 void Device::BeginCommandBuffer(CommandBuffer cmd, CommandBufferUsage usage)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::BeginCommandBuffer(view, cmd, usage);
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = vulkanCommandBufferFlagsFromUsage(usage);
+    
+    deviceCheck(vkBeginCommandBuffer(deviceResources().NativeHandleToVk(cmd), &beginInfo),
+        "Error while beginning command buffer");
+}
+
+void Device::BeginSecondaryCommandBuffer(CommandBuffer cmd)
+{
+    BeginSecondaryCommandBuffer(cmd, CommandBufferUsage::SingleSubmit);
+}
+
+void Device::BeginSecondaryCommandBuffer(CommandBuffer cmd, CommandBufferUsage usage)
+{
+    VkCommandBufferInheritanceInfo inheritanceInfo = {};
+    inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = vulkanCommandBufferFlagsFromUsage(usage);
+    beginInfo.pInheritanceInfo = &inheritanceInfo;
+    deviceCheck(vkBeginCommandBuffer(deviceResources().NativeHandleToVk(cmd), &beginInfo),
+        "Error while beginning command buffer");
 }
 
 void Device::EndCommandBuffer(CommandBuffer cmd)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::EndCommandBuffer(view, cmd);
+    deviceCheck(vkEndCommandBuffer(deviceResources().NativeHandleToVk(cmd)), "Error while ending command buffer");
 }
 
 void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, const BufferSubmitSyncInfo& submitSync)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, FenceTag, SemaphoreTag>();
-    DeviceInternal::SubmitCommandBuffer(view, cmd, queueKind, submitSync);
+    SubmitCommandBuffers({cmd}, queueKind, submitSync);
 }
 
 void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind,
     const BufferSubmitTimelineSyncInfo& submitSync)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, FenceTag, TimelineSemaphoreTag>();
-    DeviceInternal::SubmitCommandBuffer(view, cmd, queueKind, submitSync);
+    SubmitCommandBuffers({cmd}, queueKind, submitSync);
 }
 
 void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, Fence fence)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, FenceTag>();
-    DeviceInternal::SubmitCommandBuffer(view, cmd, queueKind, fence);
+    VkCommandBufferSubmitInfo commandBufferSubmitInfo = {};
+    commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+    commandBufferSubmitInfo.commandBuffer = deviceResources().NativeHandleToVk(cmd);
+
+    VkSubmitInfo2 submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submitInfo.commandBufferInfoCount = 1;
+    submitInfo.pCommandBufferInfos = &commandBufferSubmitInfo;
+
+    deviceCheck(vkQueueSubmit2(g_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
+            fence.HasValue() ? deviceResources().NativeHandleToVk(fence) : VK_NULL_HANDLE),
+        "Error while submitting command buffer");
 }
 
 void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
     const BufferSubmitSyncInfo& submitSync)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, FenceTag, SemaphoreTag>();
-    DeviceInternal::SubmitCommandBuffers(view, cmds, queueKind, submitSync);
+    std::vector commandBufferSubmitInfos(cmds.size(), VkCommandBufferSubmitInfo{});
+    for (auto&& [i, cmd] : std::views::enumerate(cmds))
+    {
+        commandBufferSubmitInfos[i].sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+        commandBufferSubmitInfos[i].commandBuffer = deviceResources().NativeHandleToVk(cmd);
+    }
+
+    std::vector signalSemaphoreSubmitInfos(submitSync.SignalSemaphores.size(), VkSemaphoreSubmitInfo{});
+    for (auto&& [i, semaphore] : std::views::enumerate(submitSync.SignalSemaphores))
+    {
+        signalSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        signalSemaphoreSubmitInfos[i].semaphore = deviceResources().NativeHandleToVk(semaphore);
+    }
+
+    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = DeviceInternal::CreateVulkanSemaphoreSubmit(
+        submitSync.WaitSemaphores, submitSync.WaitStages);
+
+    VkSubmitInfo2 submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submitInfo.commandBufferInfoCount = (u32)commandBufferSubmitInfos.size();
+    submitInfo.pCommandBufferInfos = commandBufferSubmitInfos.data();
+    submitInfo.signalSemaphoreInfoCount = (u32)signalSemaphoreSubmitInfos.size();
+    submitInfo.pSignalSemaphoreInfos = signalSemaphoreSubmitInfos.data();
+    submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
+    submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
+
+    deviceCheck(vkQueueSubmit2(g_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
+            submitSync.Fence.HasValue() ? deviceResources().NativeHandleToVk(submitSync.Fence) : VK_NULL_HANDLE),
+        "Error while submitting command buffers");
 }
 
 void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
     const BufferSubmitTimelineSyncInfo& submitSync)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, FenceTag, TimelineSemaphoreTag>();
-    DeviceInternal::SubmitCommandBuffers(view, cmds, queueKind, submitSync);
+    std::vector commandBufferSubmitInfos(cmds.size(), VkCommandBufferSubmitInfo{});
+    for (auto&& [i, cmd] : std::views::enumerate(cmds))
+    {
+        commandBufferSubmitInfos[i].sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+        commandBufferSubmitInfos[i].commandBuffer = deviceResources().NativeHandleToVk(cmd);
+    }
+
+    std::vector signalSemaphoreSubmitInfos(submitSync.SignalSemaphores.size(), VkSemaphoreSubmitInfo{});
+    for (auto&& [i, semaphore] : std::views::enumerate(submitSync.SignalSemaphores))
+    {
+        signalSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        signalSemaphoreSubmitInfos[i].semaphore = deviceResources().NativeHandleToVk(semaphore);
+        signalSemaphoreSubmitInfos[i].value = submitSync.SignalValues[i];
+    }
+
+    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = DeviceInternal::CreateVulkanSemaphoreSubmit(
+        submitSync.WaitSemaphores, submitSync.WaitValues, submitSync.WaitStages);
+
+    VkSubmitInfo2 submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submitInfo.commandBufferInfoCount = (u32)commandBufferSubmitInfos.size();
+    submitInfo.pCommandBufferInfos = commandBufferSubmitInfos.data();
+    submitInfo.signalSemaphoreInfoCount = (u32)signalSemaphoreSubmitInfos.size();
+    submitInfo.pSignalSemaphoreInfos = signalSemaphoreSubmitInfos.data();
+    submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
+    submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
+
+    deviceCheck(vkQueueSubmit2(g_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
+            submitSync.Fence.HasValue() ? deviceResources().NativeHandleToVk(submitSync.Fence) : VK_NULL_HANDLE),
+        "Error while submitting command buffers");
 }
 
 Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<BufferTag, CommandBufferTag>();
+    VmaAllocationCreateFlags flags = 0;
+    if (enumHasAny(createInfo.Description.Usage, BufferUsage::Mappable))
+        flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+    if (enumHasAny(createInfo.Description.Usage, BufferUsage::MappableRandomAccess))
+        flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 
-    return DeviceInternal::CreateBuffer(view, std::move(createInfo), deletionQueue);
+    if (createInfo.PersistentMapping)
+        flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    const Buffer buffer = DeviceInternal::AllocateBuffer(createInfo, 
+        vulkanBufferUsageFromUsage(createInfo.Description.Usage), flags);
+
+    if (!createInfo.InitialData.empty())
+    {
+        if (enumHasAny(createInfo.Description.Usage, BufferUsage::Mappable | BufferUsage::MappableRandomAccess))
+        {
+            SetBufferData(buffer, createInfo.InitialData, 0);
+        }
+        else
+        {
+            const Buffer stagingBuffer = CreateStagingBuffer(createInfo.InitialData.size());
+            SetBufferData(stagingBuffer, createInfo.InitialData, 0);
+            ImmediateSubmit([&](CommandBuffer cmd)
+            {
+                CompileCommand(cmd, CopyBufferCommand{
+                    .Source = stagingBuffer,
+                    .Destination = buffer,
+                    .SizeBytes = createInfo.InitialData.size()
+                });
+            });
+            Destroy(stagingBuffer);
+        }
+    }
+
+    deletionQueue.Enqueue(buffer);
+
+    return buffer;
 }
 
 void Device::Destroy(Buffer buffer)
 {
-    auto view = deviceResources().GetLockedView<BufferTag>();
-    DeviceInternal::Destroy(view, buffer);
+    const BufferResource& bufferResource = deviceResources().Get(buffer);
+    vmaDestroyBuffer(DeviceInternal::Allocator(), bufferResource.Buffer, bufferResource.Allocation);
+    deviceResources().Remove(buffer);
 }
 
 Buffer Device::CreateStagingBuffer(u64 sizeBytes)
 {
-    auto view = deviceResources().GetLockedView<BufferTag, CommandBufferTag>();
-
-    return DeviceInternal::CreateStagingBuffer(view, sizeBytes);
+    return CreateBuffer({
+            .Description = {
+                .SizeBytes = sizeBytes,
+                .Usage = BufferUsage::Staging | BufferUsage::Mappable,
+            },
+            .PersistentMapping = true
+        },
+        DummyDeletionQueue());
 }
 
 void Device::ResizeBuffer(Buffer buffer, u64 newSize, CommandBuffer cmd, bool copyData)
 {
-    auto view = deviceResources().GetLockedView<BufferTag, CommandBufferTag>();
-    DeviceInternal::ResizeBuffer(view, buffer, newSize, cmd, copyData);
+    BufferResource& bufferResource = deviceResources().Get(buffer);
+    const auto& description = bufferResource.Description;
+    const u64 oldSize = description.SizeBytes;
+    if (description.SizeBytes == newSize)
+        return;
+
+    Buffer newBuffer = CreateBuffer({
+            .Description = {
+                .SizeBytes = newSize,
+                .Usage = description.Usage,
+            },
+            .PersistentMapping = bufferResource.HostAddress != nullptr
+        },
+        *g_State.FrameDeletionQueue);
+
+    /* seems very questionable
+     * after this line new Buffer will inherit lifetime of old buffer,
+     * and old buffer will be deleted in frame queue
+     */
+    std::swap(bufferResource, deviceResources().Get(newBuffer));
+
+    /* the source and destination are intentionally swapped */
+    if (copyData)
+        CompileCommand(cmd, {
+            .Source = newBuffer,
+            .Destination = buffer,
+            .SizeBytes = std::min(oldSize, newSize)
+        });
 }
 
 void* Device::MapBuffer(Buffer buffer)
 {
-    auto view = deviceResources().GetLockedView<BufferTag>();
-
-    return DeviceInternal::MapBuffer(view, buffer);
+    void* mappedData;
+    vmaMapMemory(DeviceInternal::Allocator(), deviceResources().Get(buffer).Allocation, &mappedData);
+    return mappedData;
 }
 
 void Device::UnmapBuffer(Buffer buffer)
 {
-    auto view = deviceResources().GetLockedView<BufferTag>();
-    DeviceInternal::UnmapBuffer(view, buffer);
+    vmaUnmapMemory(DeviceInternal::Allocator(), deviceResources().Get(buffer).Allocation);
 }
 
 void Device::SetBufferData(Buffer buffer, Span<const std::byte> data, u64 offsetBytes)
 {
-    auto view = deviceResources().GetLockedView<BufferTag>();
-    DeviceInternal::SetBufferData(view, buffer, data, offsetBytes);
+    vmaCopyMemoryToAllocation(DeviceInternal::Allocator(), data.data(), deviceResources().Get(buffer).Allocation, 
+        offsetBytes, data.size());
 }
 
 void Device::SetBufferData(void* mappedAddress, Span<const std::byte> data, u64 offsetBytes)
 {
-    auto view = deviceResources().GetLockedView<BufferTag>();
-    DeviceInternal::SetBufferData(view, mappedAddress, data, offsetBytes);
+    mappedAddress = (void*)((u8*)mappedAddress + offsetBytes);
+    std::memcpy(mappedAddress, data.data(), data.size());
 }
 
 void* Device::GetBufferMappedAddress(Buffer buffer)
 {
-    auto view = deviceResources().GetLockedView<BufferTag>();
-
-    return DeviceInternal::GetBufferMappedAddress(view, buffer);
+    return deviceResources().Get(buffer).HostAddress;
 }
 
 usize Device::GetBufferSizeBytes(Buffer buffer)
 {
-    auto view = deviceResources().GetLockedView<BufferTag>();
-
-    return DeviceInternal::GetBufferSizeBytes(view, buffer);
+    return deviceResources().Get(buffer).Description.SizeBytes;
 }
 
-const BufferDescription& Device::GetBufferDescription(Buffer buffer)
+BufferDescription Device::GetBufferDescription(Buffer buffer)
 {
-    auto view = deviceResources().GetLockedView<BufferTag>();
-
-    return DeviceInternal::GetBufferDescription(view, buffer);
+    return deviceResources().Get(buffer).Description;
 }
 
-u64 Device::GetDeviceAddress(Buffer buffer)
+u64 Device::GetBufferDeviceAddress(Buffer buffer)
 {
-    auto view = deviceResources().GetLockedView<BufferTag>();
+    return deviceResources().Get(buffer).DeviceAddress;
+}
 
-    return DeviceInternal::GetDeviceAddress(view, buffer);
+BufferUsage Device::GetBufferUsage(Buffer buffer)
+{
+    return deviceResources().Get(buffer).Description.Usage;
 }
 
 BufferArena Device::CreateBufferArena(BufferArenaCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<BufferArenaTag>();
+    VmaVirtualBlockCreateInfo virtualBlockCreateInfo = {};
+    virtualBlockCreateInfo.size = createInfo.VirtualSizeBytes;
 
-    return DeviceInternal::CreateBufferArena(view, std::move(createInfo), deletionQueue);
+    BufferArenaResource bufferArenaResource = {};
+    deviceCheck(vmaCreateVirtualBlock(&virtualBlockCreateInfo, &bufferArenaResource.VirtualBlock),
+        "Failed to create buffer arena");
+    bufferArenaResource.Buffer = createInfo.Buffer;
+    bufferArenaResource.VirtualSizeBytes = createInfo.VirtualSizeBytes;
+
+    const BufferArena arena = {deviceResources().Add(bufferArenaResource)};
+    deletionQueue.Enqueue(arena);
+
+    return arena;
 }
 
-void Device::Destroy(BufferArena bufferArena)
+void Device::Destroy(BufferArena arena)
 {
-    auto view = deviceResources().GetLockedView<BufferArenaTag>();
-    DeviceInternal::Destroy(view, bufferArena);
+    VmaVirtualBlock virtualBlock = deviceResources().Get(arena).VirtualBlock;
+
+    vmaClearVirtualBlock(virtualBlock);
+    vmaDestroyVirtualBlock(virtualBlock);
+
+    deviceResources().Remove(arena);
 }
 
 void Device::ResizeBufferArenaPhysical(BufferArena arena, u64 newSize, CommandBuffer cmd, bool copyData)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferArenaTag, BufferTag>();
-    DeviceInternal::ResizeBufferArenaPhysical(view, arena, newSize, cmd, copyData);
+    const Buffer buffer = deviceResources().Get(arena).Buffer;
+    const u64 oldSize = GetBufferSizeBytes(buffer);
+    if (oldSize == newSize)
+        return;
+
+    ResizeBuffer(buffer, newSize, cmd, copyData);
 }
 
 Buffer Device::GetBufferArenaUnderlyingBuffer(BufferArena arena)
 {
-    auto view = deviceResources().GetLockedView<BufferArenaTag>();
-
-    return DeviceInternal::GetBufferArenaUnderlyingBuffer(view, arena);
+    return deviceResources().Get(arena).Buffer;
 }
 
 u64 Device::GetBufferArenaSizeBytesPhysical(BufferArena arena)
 {
-    auto view = deviceResources().GetLockedView<BufferArenaTag, BufferTag>();
-
-    return DeviceInternal::GetBufferArenaSizeBytesPhysical(view, arena);
+    return GetBufferSizeBytes(GetBufferArenaUnderlyingBuffer(arena));
 }
 
 BufferSuballocationResult Device::BufferArenaSuballocate(BufferArena arena, u64 sizeBytes, u32 alignment)
 {
-    auto view = deviceResources().GetLockedView<BufferArenaTag, BufferTag>();
+    VmaVirtualAllocationCreateInfo allocationCreateInfo = {};
+    allocationCreateInfo.size = sizeBytes + alignment;
+    allocationCreateInfo.alignment = 0;
+    // todo: is this ok flag to use?
+    allocationCreateInfo.flags = VMA_VIRTUAL_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT;
 
-    return DeviceInternal::BufferArenaSuballocate(view, arena, sizeBytes, alignment);
+    const BufferArenaResource bufferArenaResource = deviceResources().Get(arena);
+    VmaVirtualAllocation allocation;
+    const VkResult allocateResult = vmaVirtualAllocate(bufferArenaResource.VirtualBlock,
+        &allocationCreateInfo, &allocation, nullptr);
+    if (allocateResult != VK_SUCCESS)
+        return std::unexpected(BufferSuballocationError::OutOfVirtualMemory);
+
+    VmaVirtualAllocationInfo allocationInfo = {};
+    vmaGetVirtualAllocationInfo(bufferArenaResource.VirtualBlock, allocation, &allocationInfo);
+
+    if (allocationInfo.offset + allocationInfo.size > GetBufferSizeBytes(bufferArenaResource.Buffer))
+    {
+        vmaVirtualFree(bufferArenaResource.VirtualBlock, allocation);
+        return std::unexpected(BufferSuballocationError::OutOfPhysicalMemory);
+    }
+
+    if (alignment != 0)
+        allocationInfo.offset = lux::mem::alignAddress(allocationInfo.offset, (u16)alignment);
+
+    return BufferSuballocation{
+        .Buffer = bufferArenaResource.Buffer,
+        .Description = {
+            .SizeBytes = allocationInfo.size,
+            .Offset = allocationInfo.offset
+        },
+        .Handle = (u64)allocation
+    };
 }
 
 void Device::BufferArenaFree(BufferArena arena, BufferSuballocationHandle suballocation)
 {
-    auto view = deviceResources().GetLockedView<BufferArenaTag>();
-    DeviceInternal::BufferArenaFree(view, arena, suballocation);
+    vmaVirtualFree(deviceResources().Get(arena).VirtualBlock, (VmaVirtualAllocation)suballocation);
 }
 
 Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<ImageTag, BufferTag, FenceTag, CommandBufferTag,
-                                                CommandPoolTag>();
+    Image image = {};
 
-    return DeviceInternal::CreateImage(view, std::move(createInfo), deletionQueue);
+    if (std::holds_alternative<const lux::assetlib::ImageAsset*>(createInfo.DataSource))
+        image = CreateImageFromAssetFile(createInfo,
+            std::get<const lux::assetlib::ImageAsset*>(createInfo.DataSource));
+    else if (std::holds_alternative<Span<const std::byte>>(createInfo.DataSource))
+        image = CreateImageFromPixels(createInfo, std::get<Span<const std::byte>>(createInfo.DataSource));
+
+    deletionQueue.Enqueue(image);
+
+    return image;
 }
 
-Span<const ImageSubresourceDescription> Device::GetAdditionalImageViews(Image image)
+void Device::PreprocessImageCreateInfo(ImageCreateInfo& createInfo)
 {
-    auto view = deviceResources().GetLockedView<ImageTag>();
+    if (std::holds_alternative<const lux::assetlib::ImageAsset*>(createInfo.DataSource))
+        createInfo.Description.Usage |= ImageUsage::Destination;
 
-    return DeviceInternal::GetAdditionalImageViews(view, image);
+    if (createInfo.Description.Mipmaps > 1)
+        createInfo.Description.Usage |= ImageUsage::Destination | ImageUsage::Source;
+
+    if (createInfo.Description.Kind == ImageKind::ImageCubemap)
+        createInfo.Description.LayersDepth = 6;
+
+    if (enumHasAny(createInfo.Description.Usage, ImageUsage::Readback))
+        createInfo.Description.Usage |= ImageUsage::Source;
+}
+
+Image Device::AllocateImage(ImageCreateInfo& createInfo)
+{
+    PreprocessImageCreateInfo(createInfo);
+
+    u32 depth = createInfo.Description.GetDepth();
+    u32 layers = (u32)(u8)createInfo.Description.GetLayers();
+
+    VkImageCreateInfo imageCreateInfo = {};
+    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCreateInfo.format = vulkanFormatFromFormat(createInfo.Description.Format);
+    imageCreateInfo.usage = vulkanImageUsageFromImageUsage(createInfo.Description.Usage);
+    imageCreateInfo.extent = {
+        .width = createInfo.Description.Width,
+        .height = createInfo.Description.Height,
+        .depth = depth
+    };
+    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageCreateInfo.imageType = vulkanImageTypeFromImageKind(createInfo.Description.Kind);
+    imageCreateInfo.mipLevels = (u32)(u8)createInfo.Description.Mipmaps;
+    imageCreateInfo.arrayLayers = layers;
+    imageCreateInfo.flags = vulkanImageFlagsFromImageKind(createInfo.Description.Kind);
+
+    VmaAllocationCreateInfo allocationInfo = {};
+    allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    allocationInfo.flags = 
+        enumHasAny(createInfo.Description.Usage, ImageUsage::Color | ImageUsage::Depth | ImageUsage::Stencil) ?
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT :
+        0;
+
+    ImageResource imageResource = {};
+    deviceCheck(vmaCreateImage(DeviceInternal::Allocator(), &imageCreateInfo, &allocationInfo,
+        &imageResource.Hot.Image, &imageResource.Cold.Allocation, nullptr),
+        "Failed to create image");
+    imageResource.Hot.Width = createInfo.Description.Width;
+    imageResource.Hot.Height = createInfo.Description.Height;
+    imageResource.Hot.LayersDepth = createInfo.Description.LayersDepth;
+    imageResource.Hot.Mipmaps = createInfo.Description.Mipmaps;
+    imageResource.Hot.Format = createInfo.Description.Format;
+    imageResource.Hot.Kind = createInfo.Description.Kind;
+    imageResource.Hot.Usage = createInfo.Description.Usage;
+    imageResource.Hot.MipmapFilter = createInfo.Description.MipmapFilter;
+    imageResource.Cold.AdditionalViews = createInfo.Description.AdditionalViews;
+
+    return {deviceResources().Add(imageResource.Hot, imageResource.Cold)};
+}
+
+
+Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, const lux::assetlib::ImageAsset* asset)
+{
+    Image image = {};
+    Buffer imageBuffer = {};
+
+    ImmediateSubmit([&](CommandBuffer cmd)
+    {
+        u64 totalSizeBytes = 0;
+        for (auto& mip : asset->Header.MipmapSizes)
+            for (const u64 layerSize : mip)
+                totalSizeBytes += layerSize;
+
+        imageBuffer = CreateBuffer({
+            .Description = {
+                .SizeBytes = totalSizeBytes,
+                .Usage = BufferUsage::Source | BufferUsage::StagingRandomAccess,
+            },
+            .PersistentMapping = true
+        }, DummyDeletionQueue());
+        void* imageBufferHost = GetBufferMappedAddress(imageBuffer);
+
+        image = AllocateImage(createInfo);
+        CreateViews(ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
+
+        ImageSubresource imageSubresource = {
+            .Image = image,
+            .Description = {.Mipmaps = (i8)asset->Header.Mipmaps, .Layers = (i8)asset->Header.Layers}
+        };
+
+        CompileCommand(cmd, WaitOnBarrierCommand{
+            .DependencyInfo = LayoutTransitionInfo{
+                .ImageSubresource = imageSubresource,
+                .SourceStage = PipelineStage::AllTransfer,
+                .DestinationStage = PipelineStage::AllTransfer,
+                .SourceAccess = PipelineAccess::None,
+                .DestinationAccess = PipelineAccess::WriteTransfer,
+                .OldLayout = ImageLayout::Undefined,
+                .NewLayout = ImageLayout::Destination
+            }
+        });
+
+        i8 mipsToCopy = createInfo.CalculateMipmaps ? (i8)1 : (i8)asset->Header.Mipmaps;
+        u64 mipOffset = 0;
+        u64 offset = 0;
+        for (i8 mip = 0; mip < mipsToCopy; mip++)
+        {
+            u64 mipSize = 0;
+            mipOffset = offset;
+            for (i8 layer = 0; layer < (i8)asset->Header.Layers; layer++)
+            {
+                const u64 size = asset->Header.MipmapSizes[mip][layer];
+                std::memcpy(
+                    (std::byte*)imageBufferHost + offset,
+                    asset->MipmapsImageData[mip][layer].data(),
+                    size
+                );
+                offset += size;
+                mipSize += size;
+            }
+
+            CompileCommand(cmd, {
+                .Buffer = imageBuffer,
+                .Image = image,
+                .SizeBytes = mipSize,
+                .BufferOffset = mipOffset,
+                .ImageSubresource = {
+                    .MipmapBase = mip,
+                    .Mipmaps = 1,
+                    .Layers = createInfo.Description.GetLayers()
+                }
+            });
+        }
+
+        ImageLayout currentLayout = ImageLayout::Destination;
+        if (createInfo.CalculateMipmaps)
+        {
+            CompileCommand(cmd, MipmapImageCommand{
+                .Image = image,
+                .Layout = currentLayout
+            });
+            currentLayout = ImageLayout::Source;
+            imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
+        }
+
+        CompileCommand(cmd, WaitOnBarrierCommand{
+            .DependencyInfo = LayoutTransitionInfo{
+                .ImageSubresource = imageSubresource,
+                .SourceStage = PipelineStage::AllTransfer,
+                .DestinationStage = PipelineStage::AllTransfer,
+                .SourceAccess = PipelineAccess::None,
+                .DestinationAccess = PipelineAccess::WriteTransfer,
+                .OldLayout = currentLayout,
+                .NewLayout = ImageLayout::Readonly
+            }
+        });
+    });
+
+    Destroy(imageBuffer);
+
+    return image;
+}
+
+Image Device::CreateImageFromPixels(ImageCreateInfo& createInfo, Span<const std::byte> pixels)
+{
+    if (pixels.empty())
+    {
+        Image image = AllocateImage(createInfo);
+        CreateViews(ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
+
+        return image;
+    }
+
+    const Buffer imageBuffer = CreateBuffer({
+            .Description = {
+                .SizeBytes = pixels.size(),
+                .Usage = BufferUsage::Source | BufferUsage::Staging,
+            },
+            .InitialData = pixels
+        },
+        DummyDeletionQueue());
+
+    const Image image = CreateImageFromBuffer(createInfo, imageBuffer);
+    Destroy(imageBuffer);
+
+    return image;
+}
+
+Image Device::CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer)
+{
+    Image image = {};
+
+    ImmediateSubmit([&](CommandBuffer cmd)
+    {
+        image = AllocateImage(createInfo);
+        CreateViews(ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
+
+        ImageSubresource imageSubresource = {.Image = image, .Description = {.Mipmaps = 1, .Layers = 1}};
+
+        CompileCommand(cmd, WaitOnBarrierCommand{
+            .DependencyInfo = LayoutTransitionInfo{
+                .ImageSubresource = imageSubresource,
+                .SourceStage = PipelineStage::AllTransfer,
+                .DestinationStage = PipelineStage::AllTransfer,
+                .SourceAccess = PipelineAccess::None,
+                .DestinationAccess = PipelineAccess::WriteTransfer,
+                .OldLayout = ImageLayout::Undefined,
+                .NewLayout = ImageLayout::Destination
+            }
+        });
+
+        CompileCommand(cmd, CopyBufferToImageCommand{
+            .Buffer = buffer,
+            .Image = image,
+            .ImageSubresource = {
+                .Mipmaps = 1,
+                .Layers = createInfo.Description.GetLayers()
+            }
+        });
+
+        ImageLayout currentLayout = ImageLayout::Destination;
+        if (createInfo.CalculateMipmaps)
+        {
+            CompileCommand(cmd, MipmapImageCommand{
+                .Image = image,
+                .Layout = currentLayout
+            });
+            currentLayout = ImageLayout::Source;
+            imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
+        }
+
+        CompileCommand(cmd, WaitOnBarrierCommand{
+            .DependencyInfo = LayoutTransitionInfo{
+                .ImageSubresource = imageSubresource,
+                .SourceStage = PipelineStage::AllTransfer,
+                .DestinationStage = PipelineStage::AllTransfer,
+                .SourceAccess = PipelineAccess::None,
+                .DestinationAccess = PipelineAccess::WriteTransfer,
+                .OldLayout = currentLayout,
+                .NewLayout = ImageLayout::Readonly
+            }
+        });
+    });
+
+    return image;
+}
+
+Image Device::CreateEmptyImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
+{
+    const Image image = AllocateImage(createInfo);
+    CreateViews(ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
+
+    deletionQueue.Enqueue(image);
+
+    return image;
+}
+
+ImageSubresourceDescription Device::GetAdditionalImageView(Image image, u32 viewIndex)
+{
+    return deviceResources().Cold(image).AdditionalViews[viewIndex];
 }
 
 void Device::Destroy(Image image)
 {
-    auto view = deviceResources().GetLockedView<ImageTag>();
-    DeviceInternal::Destroy(view, image);
+    const ImageResource::HotData& hotData = deviceResources().Hot(image);
+    const bool onlyPrimaryView = hotData.Views.ViewList == &hotData.Views.ViewType.View;
+    const ImageResource::ColdData& coldData = deviceResources().Cold(image);
+    if (onlyPrimaryView)
+    {
+        vkDestroyImageView(g_State.Device, hotData.Views.ViewType.View, nullptr);
+    }
+    else
+    {
+        for (u32 viewIndex = 0; viewIndex < hotData.Views.ViewType.ViewCount; viewIndex++)
+            vkDestroyImageView(g_State.Device, hotData.Views.ViewList[viewIndex], nullptr);
+        delete[] hotData.Views.ViewList;
+    }
+    vmaDestroyImage(DeviceInternal::Allocator(), hotData.Image, coldData.Allocation);
+    deviceResources().Remove(image);
 }
 
 void Device::CreateViews(const ImageSubresource& image, const std::vector<ImageSubresourceDescription>& additionalViews)
 {
-    auto view = deviceResources().GetLockedView<ImageTag>();
-    DeviceInternal::CreateViews(view, image, additionalViews);
+    auto&& [imageHot, imageCold] = deviceResources().Get(image.Image);
+    VkFormat viewFormat = vulkanFormatFromFormat(imageHot->Format);
+    if (additionalViews.empty())
+    {
+        imageHot->Views.ViewType.View = DeviceInternal::CreateVulkanImageView(
+            imageHot->Kind, imageHot->Usage, image.Description, imageHot->Image, viewFormat);
+        imageHot->Views.ViewList = &imageHot->Views.ViewType.View;
+        return;
+    }
+
+    imageHot->Views.ViewType.ViewCount = 1 + (u32)imageCold->AdditionalViews.size();
+    imageHot->Views.ViewList = new VkImageView[imageHot->Views.ViewType.ViewCount];
+    imageHot->Views.ViewList[0] = DeviceInternal::CreateVulkanImageView(
+        imageHot->Kind, imageHot->Usage, image.Description, imageHot->Image, viewFormat);
+    for (u32 viewIndex = 0; viewIndex < additionalViews.size(); viewIndex++)
+        imageHot->Views.ViewList[viewIndex + 1] = DeviceInternal::CreateVulkanImageView(
+            imageHot->Kind, imageHot->Usage, additionalViews[viewIndex], imageHot->Image, viewFormat);
 }
 
 ImageViewHandle Device::GetImageViewHandle(Image image, ImageSubresourceDescription subresourceDescription)
 {
-    auto view = deviceResources().GetLockedView<ImageTag>();
+    if (subresourceDescription == ImageSubresourceDescription{})
+        return 0;
+    
+    const ImageResource::ColdData& cold = deviceResources().Cold(image);
+    auto it = std::ranges::find(cold.AdditionalViews, subresourceDescription);
 
-    return DeviceInternal::GetImageViewHandle(view, image, subresourceDescription);
+    if (it != cold.AdditionalViews.end())
+        return ImageViewHandle{u32(it - cold.AdditionalViews.begin()) + 1};
+
+    LUX_LOG_ERROR("Image does not have such view subresource, returning default view");
+    
+    return ImageViewHandle{};
 }
 
-const ImageDescription& Device::GetImageDescription(Image image)
+ImageDescription Device::GetImageDescription(Image image)
 {
-    auto view = deviceResources().GetLockedView<ImageTag>();
+    auto&& [hot, cold] = deviceResources().Get(image);
+    return ImageDescription{
+        .Width = hot->Width,
+        .Height = hot->Height,
+        .LayersDepth = hot->LayersDepth,
+        .Mipmaps = hot->Mipmaps,
+        .Format = hot->Format,
+        .Kind = hot->Kind,
+        .Usage = hot->Usage,
+        .MipmapFilter = hot->MipmapFilter,
+        .AdditionalViews = cold->AdditionalViews
+    };
+}
 
-    return DeviceInternal::GetImageDescription(view, image);
+i8 Device::GetImageMipmaps(Image image)
+{
+    return deviceResources().Hot(image).Mipmaps;
+}
+
+glm::uvec2 Device::GetImageSize2d(Image image)
+{
+    const ImageResource::HotData& hot = deviceResources().Hot(image);
+    
+    return {
+        hot.Width, hot.Height
+    };
+}
+
+glm::uvec3 Device::GetImageSize3d(Image image)
+{
+    const ImageResource::HotData& hot = deviceResources().Hot(image);
+    
+    return {
+        hot.Width, hot.Height, hot.Kind == ImageKind::Image3d ? hot.LayersDepth : 1
+    };
+}
+
+ImageUsage Device::GetImageUsage(Image image)
+{
+    return deviceResources().Hot(image).Usage;
 }
 
 Sampler Device::CreateSampler(SamplerCreateInfo&& createInfo)
 {
-    auto view = deviceResources().GetLockedView<SamplerTag>();
+    const SamplerCache::CacheKey key = SamplerCache::CreateCacheKey(createInfo);
+    Sampler cached = SamplerCache::Find(key);
+    if (cached.HasValue())
+        return cached;
 
-    return DeviceInternal::CreateSampler(view, std::move(createInfo));
+    VkSamplerCreateInfo samplerCreateInfo = {};
+    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerCreateInfo.magFilter = vulkanFilterFromImageFilter(createInfo.MagnificationFilter);
+    samplerCreateInfo.minFilter = vulkanFilterFromImageFilter(createInfo.MinificationFilter);
+    samplerCreateInfo.mipmapMode = vulkanMipmapModeFromSamplerFilter(samplerCreateInfo.minFilter);
+    samplerCreateInfo.addressModeU = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
+    samplerCreateInfo.addressModeV = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
+    samplerCreateInfo.addressModeW = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
+    samplerCreateInfo.minLod = 0.0f;
+    samplerCreateInfo.maxLod = createInfo.MaxLod;
+    samplerCreateInfo.maxAnisotropy = GetAnisotropyLevel();
+    samplerCreateInfo.anisotropyEnable = (u32)createInfo.WithAnisotropy;
+    samplerCreateInfo.mipLodBias = createInfo.LodBias;
+    samplerCreateInfo.compareEnable =
+        isVulkanSamplerCompareOpEnabledFromSamplerDepthCompareMode(createInfo.DepthCompareMode);
+    samplerCreateInfo.compareOp = vulkanSamplerCompareOpFromSamplerDepthCompareMode(createInfo.DepthCompareMode);
+    samplerCreateInfo.borderColor = vulkanBorderColorFromBorderColor(createInfo.BorderColor);
+
+    VkSamplerReductionModeCreateInfo reductionModeCreateInfo = {};
+    if (createInfo.ReductionMode.has_value())
+    {
+        reductionModeCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO;
+        reductionModeCreateInfo.reductionMode = vulkanSamplerReductionModeFromSamplerReductionMode(
+            *createInfo.ReductionMode);
+        samplerCreateInfo.pNext = &reductionModeCreateInfo;
+    }
+
+    VkSampler vkSampler;
+    deviceCheck(vkCreateSampler(g_State.Device, &samplerCreateInfo, nullptr, &vkSampler),
+        "Failed to create depth pyramid sampler");
+
+    const Sampler sampler = deviceResources().VkHandleToNative<SamplerTag>(vkSampler);
+    DeletionQueue().Enqueue(sampler);
+
+    SamplerCache::Emplace(key, sampler);
+
+    return sampler;
 }
 
 void Device::Destroy(Sampler sampler)
 {
-    auto view = deviceResources().GetLockedView<SamplerTag>();
-
-    DeviceInternal::Destroy(view, sampler);
-}
-
-RenderingAttachment Device::CreateRenderingAttachment(RenderingAttachmentCreateInfo&& createInfo,
-    ::DeletionQueue& deletionQueue)
-{
-    auto view = deviceResources().GetLockedView<RenderingAttachmentTag, ImageTag>();
-
-    return DeviceInternal::CreateRenderingAttachment(view, std::move(createInfo), deletionQueue);
-}
-
-void Device::Destroy(RenderingAttachment renderingAttachment)
-{
-    auto view = deviceResources().GetLockedView<RenderingAttachmentTag>();
-    DeviceInternal::Destroy(view, renderingAttachment);
-}
-
-RenderingInfo Device::CreateRenderingInfo(RenderingInfoCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
-{
-    auto view = deviceResources().GetLockedView<RenderingInfoTag, RenderingAttachmentTag>();
-
-    return DeviceInternal::CreateRenderingInfo(view, std::move(createInfo), deletionQueue);
-}
-
-void Device::Destroy(RenderingInfo renderingInfo)
-{
-    auto view = deviceResources().GetLockedView<RenderingInfoTag>();
-    DeviceInternal::Destroy(view, renderingInfo);
+    vkDestroySampler(g_State.Device, deviceResources().NativeHandleToVk(sampler), nullptr);
 }
 
 PipelineLayout Device::CreatePipelineLayout(PipelineLayoutCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<PipelineLayoutTag, DescriptorsLayoutTag>();
+    std::vector<VkPushConstantRange> pushConstantRanges;
+    pushConstantRanges.reserve(createInfo.PushConstants.size());
+    std::vector<VkDescriptorSetLayout> descriptorsLayouts;
+    descriptorsLayouts.reserve(createInfo.DescriptorsLayouts.size());
+    for (auto& pushConstant : createInfo.PushConstants)
+    {
+        VkPushConstantRange pushConstantRange = {};
+        pushConstantRange.size = pushConstant.SizeBytes;
+        pushConstantRange.offset = pushConstant.Offset;
+        pushConstantRange.stageFlags = vulkanShaderStageFromShaderStage(pushConstant.StageFlags);
 
-    return DeviceInternal::CreatePipelineLayout(view, std::move(createInfo), deletionQueue);
+        pushConstantRanges.push_back(pushConstantRange);
+    }
+    for (auto& descriptorLayout : createInfo.DescriptorsLayouts)
+        descriptorsLayouts.push_back(deviceResources().NativeHandleToVk(descriptorLayout));
+
+    VkPipelineLayoutCreateInfo layoutCreateInfo = {};
+    layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layoutCreateInfo.pushConstantRangeCount = (u32)pushConstantRanges.size();
+    layoutCreateInfo.pPushConstantRanges = pushConstantRanges.data();
+    layoutCreateInfo.setLayoutCount = (u32)descriptorsLayouts.size();
+    layoutCreateInfo.pSetLayouts = descriptorsLayouts.data();
+
+    PipelineLayoutResource pipelineLayoutResource = {};
+    pipelineLayoutResource.Cold.PushConstants = pushConstantRanges;
+    deviceCheck(vkCreatePipelineLayout(g_State.Device, &layoutCreateInfo, nullptr,
+        &pipelineLayoutResource.Hot.Layout), "Failed to create pipeline layout");
+
+    PipelineLayout layout = deviceResources().Add(pipelineLayoutResource.Hot, pipelineLayoutResource.Cold);
+    deletionQueue.Enqueue(layout);
+
+    return layout;
 }
 
 void Device::Destroy(PipelineLayout pipelineLayout)
 {
-    auto view = deviceResources().GetLockedView<PipelineLayoutTag>();
-    DeviceInternal::Destroy(view, pipelineLayout);
+    vkDestroyPipelineLayout(g_State.Device, deviceResources().Hot(pipelineLayout).Layout, nullptr);
+    deviceResources().Remove(pipelineLayout);
 }
 
 Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<PipelineTag, PipelineLayoutTag, ShaderModuleTag>();
+    VkPipelineLayout layout = deviceResources().Hot(createInfo.PipelineLayout).Layout;
+    std::vector<VkPipelineShaderStageCreateInfo> shaders;
+    shaders.reserve(createInfo.Shaders.size());
+    for (auto&& [i, shader] : std::views::enumerate(createInfo.Shaders))
+    {
+        VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
+        shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shaderStageCreateInfo.stage = vulkanStageBitFromShaderStage(createInfo.ShaderStages[i]);
+        shaderStageCreateInfo.module = deviceResources().NativeHandleToVk(shader);
+        shaderStageCreateInfo.pName = createInfo.ShaderEntryPoints[i].data();
 
-    return DeviceInternal::CreatePipeline(view, std::move(createInfo), deletionQueue);
+        shaders.push_back(shaderStageCreateInfo);
+    }
+
+    std::vector<std::vector<VkSpecializationMapEntry>> shaderSpecializationEntries(createInfo.Shaders.size());
+    std::vector<VkSpecializationInfo> shaderSpecializationInfos;
+    shaderSpecializationInfos.reserve(createInfo.Shaders.size());
+    for (u32 shaderIndex = 0; shaderIndex < createInfo.Shaders.size(); shaderIndex++)
+    {
+        auto& shader = shaders[shaderIndex];
+        VkSpecializationInfo shaderSpecializationInfo = {};
+        for (const auto& specialization : createInfo.Specialization.Descriptions)
+            if (enumHasAny(
+                shader.stage, (VkShaderStageFlagBits)vulkanShaderStageFromShaderStage(specialization.ShaderStages)))
+                shaderSpecializationEntries[shaderIndex].push_back({
+                    .constantID = specialization.Id,
+                    .offset = specialization.Offset,
+                    .size = specialization.SizeBytes
+                });
+
+        shaderSpecializationInfo.dataSize = createInfo.Specialization.Data.size();
+        shaderSpecializationInfo.pData = createInfo.Specialization.Data.data();
+        shaderSpecializationInfo.mapEntryCount = (u32)shaderSpecializationEntries[shaderIndex].size();
+        shaderSpecializationInfo.pMapEntries = shaderSpecializationEntries[shaderIndex].data();
+
+        shaderSpecializationInfos.push_back(shaderSpecializationInfo);
+        shader.pSpecializationInfo = &shaderSpecializationInfos.back();
+    }
+
+    Pipeline pipeline = {};
+    if (createInfo.IsComputePipeline)
+    {
+        VkComputePipelineCreateInfo pipelineCreateInfo = {};
+        pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        pipelineCreateInfo.stage = shaders.front();
+        pipelineCreateInfo.layout = layout;
+
+#ifdef DESCRIPTOR_BUFFER
+        pipelineCreateInfo.flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+#endif
+
+        VkPipeline vkPipeline;
+        deviceCheck(vkCreateComputePipelines(g_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
+            &vkPipeline), "Failed to create compute pipeline");
+        pipeline = deviceResources().VkHandleToNative<PipelineTag>(vkPipeline);
+    }
+    else
+    {
+        ASSERT(
+            !createInfo.ColorFormats.empty() ||
+            createInfo.DepthFormat != Format::Undefined, "No rendering details provided")
+
+        std::vector<VkDynamicState> dynamicStates = vulkanDynamicStatesFromDynamicStates(createInfo.DynamicStates);
+
+        VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
+        dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicStateInfo.dynamicStateCount = (u32)dynamicStates.size();
+        dynamicStateInfo.pDynamicStates = dynamicStates.data();
+
+        VkPipelineViewportStateCreateInfo viewportState = {};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.scissorCount = 1;
+
+        VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
+        inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssemblyState.primitiveRestartEnable = VK_FALSE;
+        inputAssemblyState.topology = vulkanTopologyFromPrimitiveKind(createInfo.PrimitiveKind);
+
+        VkPipelineVertexInputStateCreateInfo vertexInputState = {};
+        vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        std::vector<VkVertexInputBindingDescription> bindings;
+        std::vector<VkVertexInputAttributeDescription> attributes;
+        bindings.reserve(createInfo.VertexDescription.Bindings.size());
+        attributes.reserve(createInfo.VertexDescription.Attributes.size());
+        for (auto& binding : createInfo.VertexDescription.Bindings)
+            bindings.push_back({
+                .binding = binding.Index,
+                .stride = binding.StrideBytes,
+                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+            });
+
+        for (auto& attribute : createInfo.VertexDescription.Attributes)
+            attributes.push_back({
+                .location = attribute.Index,
+                .binding = attribute.BindingIndex,
+                .format = vulkanFormatFromFormat(attribute.Format),
+                .offset = attribute.OffsetBytes
+            });
+        vertexInputState.vertexBindingDescriptionCount = (u32)bindings.size();
+        vertexInputState.pVertexBindingDescriptions = bindings.data();
+        vertexInputState.vertexAttributeDescriptionCount = (u32)attributes.size();
+        vertexInputState.pVertexAttributeDescriptions = attributes.data();
+
+        VkPipelineRasterizationStateCreateInfo rasterizationState = {};
+        rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizationState.depthClampEnable = createInfo.ClampDepth ? VK_TRUE : VK_FALSE;
+        rasterizationState.depthBiasEnable = enumHasAny(createInfo.DynamicStates, DynamicStates::DepthBias);
+        rasterizationState.rasterizerDiscardEnable = VK_FALSE; // if we do not want an output
+        rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizationState.lineWidth = 1.0f;
+        rasterizationState.cullMode = vulkanCullModeFromFaceCullMode(createInfo.CullMode);
+        rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+        VkPipelineMultisampleStateCreateInfo multisampleState = {};
+        multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampleState.sampleShadingEnable = VK_FALSE;
+        multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
+        depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencilState.depthTestEnable = createInfo.DepthMode == DepthMode::None ? VK_FALSE : VK_TRUE;
+        depthStencilState.depthWriteEnable =
+            (createInfo.DepthMode == DepthMode::None || createInfo.DepthMode == DepthMode::Read) ?
+            VK_FALSE :
+            VK_TRUE;
+        depthStencilState.depthCompareOp = createInfo.DepthTest == DepthTest::GreaterOrEqual ?
+            VK_COMPARE_OP_GREATER_OR_EQUAL :
+            VK_COMPARE_OP_EQUAL;
+        depthStencilState.depthBoundsTestEnable = VK_FALSE;
+        depthStencilState.stencilTestEnable = VK_FALSE;
+
+        std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachmentStates(std::max(1u,
+            (u32)createInfo.ColorFormats.size()));
+        for (auto& attachment : colorBlendAttachmentStates)
+        {
+            attachment = {};
+            attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
+                VK_COLOR_COMPONENT_G_BIT |
+                VK_COLOR_COMPONENT_B_BIT |
+                VK_COLOR_COMPONENT_A_BIT;
+            switch (createInfo.AlphaBlending)
+            {
+            case AlphaBlending::None:
+                attachment.blendEnable = VK_FALSE;
+                break;
+            case AlphaBlending::Over:
+                attachment.blendEnable = VK_TRUE;
+                attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+                attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                attachment.colorBlendOp = VK_BLEND_OP_ADD;
+                attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+                attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+                attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+                break;
+            case AlphaBlending::Additive:
+                attachment.blendEnable = VK_TRUE;
+                attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+                attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+                attachment.colorBlendOp = VK_BLEND_OP_ADD;
+                attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+                attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+                attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+                break;
+            default:
+                ASSERT(false, "Unsupported blending mode")
+            }
+        }
+        
+        VkPipelineColorBlendStateCreateInfo colorBlendState = {};
+        colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlendState.logicOpEnable = VK_FALSE;
+        colorBlendState.attachmentCount = (u32)colorBlendAttachmentStates.size();
+        colorBlendState.pAttachments = colorBlendAttachmentStates.data();
+
+        std::vector<VkFormat> colorFormats;
+        colorFormats.resize(createInfo.ColorFormats.size());
+
+        for (u32 colorIndex = 0; colorIndex < createInfo.ColorFormats.size(); colorIndex++)
+            colorFormats[colorIndex] = vulkanFormatFromFormat(createInfo.ColorFormats[colorIndex]);
+
+        VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
+        pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+        pipelineRenderingCreateInfo.colorAttachmentCount = (u32)colorFormats.size();
+        pipelineRenderingCreateInfo.pColorAttachmentFormats = colorFormats.data();
+        pipelineRenderingCreateInfo.depthAttachmentFormat = vulkanFormatFromFormat(
+            createInfo.DepthFormat);
+
+        VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
+        pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineCreateInfo.stageCount = (u32)shaders.size();
+        pipelineCreateInfo.pStages = shaders.data();
+        pipelineCreateInfo.pDynamicState = &dynamicStateInfo;
+        pipelineCreateInfo.pViewportState = &viewportState;
+        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
+        pipelineCreateInfo.pVertexInputState = &vertexInputState;
+        pipelineCreateInfo.pRasterizationState = &rasterizationState;
+        pipelineCreateInfo.pMultisampleState = &multisampleState;
+        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
+        pipelineCreateInfo.pColorBlendState = &colorBlendState;
+        pipelineCreateInfo.layout = layout;
+        pipelineCreateInfo.renderPass = VK_NULL_HANDLE;
+        pipelineCreateInfo.subpass = 0;
+        pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
+
+#ifdef DESCRIPTOR_BUFFER
+        pipelineCreateInfo.flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+#endif
+
+        VkPipeline vkPipeline;
+        deviceCheck(vkCreateGraphicsPipelines(g_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
+            &vkPipeline), "Failed to create graphics pipeline");
+        pipeline = deviceResources().VkHandleToNative<PipelineTag>(vkPipeline);
+    }
+    deletionQueue.Enqueue(pipeline);
+
+    return pipeline;
 }
 
 void Device::Destroy(Pipeline pipeline)
 {
-    auto view = deviceResources().GetLockedView<PipelineTag>();
-    DeviceInternal::Destroy(view, pipeline);
+    vkDestroyPipeline(g_State.Device, deviceResources().NativeHandleToVk(pipeline), nullptr);
 }
 
 ShaderModule Device::CreateShaderModule(ShaderModuleCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<ShaderModuleTag>();
+    VkShaderModuleCreateInfo moduleCreateInfo = {};
+    moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    moduleCreateInfo.codeSize = createInfo.Source.size();
+    moduleCreateInfo.pCode = reinterpret_cast<const u32*>(createInfo.Source.data());
 
-    return DeviceInternal::CreateShaderModule(view, std::move(createInfo), deletionQueue);
+    VkShaderModule vkShaderModule;
+    deviceCheck(vkCreateShaderModule(g_State.Device, &moduleCreateInfo, nullptr, &vkShaderModule),
+        "Failed to create shader module");
+
+    const auto module = deviceResources().VkHandleToNative<ShaderModuleTag>(vkShaderModule);
+    deletionQueue.Enqueue(module);
+
+    return module;
 }
 
 void Device::Destroy(ShaderModule shaderModule)
 {
-    auto view = deviceResources().GetLockedView<ShaderModuleTag>();
-    DeviceInternal::Destroy(view, shaderModule);
+    vkDestroyShaderModule(g_State.Device, deviceResources().NativeHandleToVk(shaderModule), nullptr);
 }
 
 DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& createInfo)
 {
-    auto view = deviceResources().GetLockedView<DescriptorsLayoutTag, SamplerTag>();
+    const DescriptorLayoutCache::CacheKey key = DescriptorLayoutCache::CreateCacheKey(createInfo);
+    DescriptorsLayout cached = DescriptorLayoutCache::Find(key);
+    if (cached.HasValue())
+        return cached;
 
-    return DeviceInternal::CreateDescriptorsLayout(view, std::move(createInfo));
+    std::vector<VkDescriptorBindingFlags> bindingFlags;
+    bindingFlags.reserve(createInfo.Bindings.size());
+
+#ifdef DESCRIPTOR_BUFFER
+    for (auto binding : createInfo.Bindings)
+        bindingFlags.push_back(vulkanDescriptorBindingFlagsFromDescriptorFlags(binding.Flags));
+#else
+    for (auto binding : createInfo.Bindings)
+    {
+        DescriptorFlags flags = binding.Flags;
+        if (enumHasAny(flags, DescriptorFlags::VariableCount))
+            flags |= DescriptorFlags::UpdateAfterBind |
+                DescriptorFlags::UpdateUnusedPending;
+        bindingFlags.push_back(vulkanDescriptorBindingFlagsFromDescriptorFlags(
+            flags | DescriptorFlags::PartiallyBound));
+    }
+#endif
+
+    std::vector<VkDescriptorSetLayoutBinding> bindings;
+    std::vector<VkSampler> immutableSamplers;
+    bindings.reserve(createInfo.Bindings.size());
+    immutableSamplers.reserve(createInfo.Bindings.size());
+    DescriptorLayoutFlags layoutFlags = createInfo.Flags;
+
+    bool layoutHasImmutableSamplers = false;
+    for (auto& binding : createInfo.Bindings)
+    {
+        bindings.push_back({
+            .binding = binding.Binding,
+            .descriptorType = vulkanDescriptorTypeFromDescriptorType(binding.Type),
+            .descriptorCount = binding.Count,
+            .stageFlags = vulkanShaderStageFromShaderStage(binding.Shaders),
+            .pImmutableSamplers = nullptr
+        });
+
+        layoutHasImmutableSamplers |= binding.ImmutableSampler.HasValue();
+        if (binding.ImmutableSampler.HasValue())
+        {
+            immutableSamplers.push_back(deviceResources().NativeHandleToVk(binding.ImmutableSampler));
+            bindings.back().pImmutableSamplers = &immutableSamplers.back();
+        }
+    }
+
+    VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo = {};
+    bindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+    bindingFlagsCreateInfo.bindingCount = (u32)bindingFlags.size();
+    bindingFlagsCreateInfo.pBindingFlags = bindingFlags.data();
+
+#ifdef DESCRIPTOR_BUFFER
+    layoutFlags |= DescriptorLayoutFlags::DescriptorBuffer;
+    if (layoutHasImmutableSamplers)
+        layoutFlags |= DescriptorLayoutFlags::EmbeddedImmutableSamplers;
+    layoutFlags &= ~DescriptorLayoutFlags::UpdateAfterBind;
+#else
+    (void)layoutHasImmutableSamplers;
+#endif
+
+    VkDescriptorSetLayoutCreateInfo layoutCreateInfo = {};
+    layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutCreateInfo.bindingCount = (u32)bindings.size();
+    layoutCreateInfo.pBindings = bindings.data();
+    layoutCreateInfo.flags = vulkanDescriptorsLayoutFlagsFromDescriptorsLayoutFlags(layoutFlags);
+    layoutCreateInfo.pNext = &bindingFlagsCreateInfo;
+
+    VkDescriptorSetLayout vkDescriptorSetLayout;
+    deviceCheck(vkCreateDescriptorSetLayout(g_State.Device, &layoutCreateInfo, nullptr,
+        &vkDescriptorSetLayout), "Failed to create descriptor set layout");
+
+    const auto layout = deviceResources().VkHandleToNative<DescriptorsLayoutTag>(vkDescriptorSetLayout);
+    DeletionQueue().Enqueue(layout);
+
+    DescriptorLayoutCache::Emplace(key, layout);
+
+    return layout;
 }
 
 DescriptorsLayout Device::GetEmptyDescriptorsLayout()
 {
-    auto view = deviceResources().GetLockedView<DescriptorsLayoutTag, SamplerTag>();
+#ifdef DESCRIPTOR_BUFFER
+    static const DescriptorsLayout EMPTY_LAYOUT =
+        CreateDescriptorsLayout({.Flags = DescriptorLayoutFlags::DescriptorBuffer});
+#else
+    static const DescriptorsLayout EMPTY_LAYOUT = CreateDescriptorsLayout({});
+#endif
 
-    return DeviceInternal::GetEmptyDescriptorsLayout(view);
+    return EMPTY_LAYOUT;
 }
 
 void Device::Destroy(DescriptorsLayout layout)
 {
-    auto view = deviceResources().GetLockedView<DescriptorsLayoutTag>();
-    DeviceInternal::Destroy(view, layout);
+    vkDestroyDescriptorSetLayout(g_State.Device, deviceResources().NativeHandleToVk(layout), nullptr);
 }
 
-DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo,
+#ifdef DESCRIPTOR_BUFFER
+DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo, 
     ::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<DescriptorArenaAllocatorTag, BufferTag>();
+    ASSERT(!createInfo.UsedTypes.empty(), "At least one descriptor type is necessary")
+    ASSERT(createInfo.Residence == DescriptorAllocatorResidence::CPU, "GPU residence is not supported")
 
-    return DeviceInternal::CreateDescriptorArenaAllocator(view, std::move(createInfo), deletionQueue);
+    VkBufferUsageFlags descriptorBufferUsage = 0;
+    for (auto type : createInfo.UsedTypes)
+    {
+        if (type == DescriptorType::Sampler)
+            descriptorBufferUsage |= VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
+        else
+            descriptorBufferUsage |= VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
+    }
+
+    u32 maxDescriptorSize = 0;
+    for (auto type : createInfo.UsedTypes)
+        maxDescriptorSize = std::max(maxDescriptorSize, DeviceInternal::GetDescriptorSizeBytes(type));
+
+    const u64 arenaSizeBytes = (u64)maxDescriptorSize * createInfo.DescriptorCount;
+
+    VkBufferUsageFlags usageFlags = descriptorBufferUsage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    VmaAllocationCreateFlags allocationFlags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    if (createInfo.Residence == DescriptorAllocatorResidence::GPU)
+        usageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    else
+        allocationFlags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+    DescriptorArenaAllocatorResource allocatorResource = {};
+    allocatorResource.Hot.DescriptorSet = createInfo.DescriptorSet;
+    allocatorResource.Hot.DescriptorBufferUsage = descriptorBufferUsage;
+    allocatorResource.Hot.Residence = createInfo.Residence;
+    allocatorResource.Hot.SizeBytes = arenaSizeBytes;
+    allocatorResource.Cold.Descriptors.reserve(createInfo.DescriptorCount);
+    const BufferCreateInfo arenaCreateInfo = {.Description = {.SizeBytes = arenaSizeBytes}, .PersistentMapping = true};
+    allocatorResource.Hot.Arena = DeviceInternal::AllocateBuffer(arenaCreateInfo, usageFlags, allocationFlags);
+    allocatorResource.Hot.DeviceAddress = GetBufferDeviceAddress(allocatorResource.Hot.Arena);
+    allocatorResource.Hot.MappedAddress = GetBufferMappedAddress(allocatorResource.Hot.Arena);
+
+    DescriptorArenaAllocator allocator = {deviceResources().Add(allocatorResource.Hot, allocatorResource.Cold)};
+    deletionQueue.Enqueue(allocator);
+
+    return allocator;
 }
 
 void Device::Destroy(DescriptorArenaAllocator allocator)
 {
-    auto view = deviceResources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsTag, BufferTag>();
-    DeviceInternal::Destroy(view, allocator);
+    ResetDescriptorArenaAllocator( allocator);
+    Destroy(deviceResources().Hot(allocator).Arena);
+    deviceResources().Remove(allocator);
+}
+
+std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator allocator, DescriptorsLayout layout, 
+    DescriptorAllocatorAllocationBindings&& bindings)
+{
+    auto&& [hot, cold] = deviceResources().Get(allocator);
+    
+    auto& descriptorBufferProps = g_State.GPUDescriptorBufferProperties;
+
+    /* if we have bindless binding, we have to calculate layout size as a sum of bindings sizes */
+    u64 layoutSizeBytes = 0;
+    if (bindings.BindlessCount == 0)
+    {
+        vkGetDescriptorSetLayoutSizeEXT(g_State.Device,
+            deviceResources().NativeHandleToVk(layout), &layoutSizeBytes);
+    }
+    else
+    {
+        for (u32 bindingIndex = 0; bindingIndex < bindings.Bindings.size(); bindingIndex++)
+        {
+            auto& binding = bindings.Bindings[bindingIndex];
+            bool isBindless = enumHasAny(binding.Flags, DescriptorFlags::VariableCount);
+            ASSERT(
+                (bindingIndex == (u32)bindings.Bindings.size() - 1 && isBindless) ||
+                (bindingIndex != (u32)bindings.Bindings.size() - 1 && !isBindless),
+                "Only one binding can be declared as 'bindless' for any particular set, and it has to be the last one")
+
+            layoutSizeBytes += isBindless ?
+                bindings.BindlessCount * DeviceInternal::GetDescriptorSizeBytes(binding.Type) :
+                DeviceInternal::GetDescriptorSizeBytes(binding.Type);
+        }
+    }
+
+    layoutSizeBytes =
+        lux::mem::alignAddressPow2(layoutSizeBytes, (u16)descriptorBufferProps.descriptorBufferOffsetAlignment);
+    if (layoutSizeBytes + hot->CurrentOffset > hot->SizeBytes)
+        return {};
+    hot->CurrentOffset += layoutSizeBytes;
+
+    std::vector<u64> bindingOffsets(bindings.Bindings.size());
+    for (u32 offsetIndex = 0; offsetIndex < bindingOffsets.size(); offsetIndex++)
+    {
+        auto& binding = bindings.Bindings[offsetIndex];
+        vkGetDescriptorSetLayoutBindingOffsetEXT(g_State.Device, deviceResources().NativeHandleToVk(layout), 
+            binding.Binding, &bindingOffsets[offsetIndex]);
+        bindingOffsets[offsetIndex] += hot->CurrentOffset;
+    }
+
+    DescriptorsResource descriptorsResource = {};
+    descriptorsResource.Cold.Offsets = bindingOffsets;
+    descriptorsResource.Cold.SizeBytes = layoutSizeBytes;
+    descriptorsResource.Cold.Allocator = allocator;
+
+    Descriptors descriptors = {deviceResources().Add(descriptorsResource.Hot, descriptorsResource.Cold)};
+    cold->Descriptors.push_back(descriptors);
+
+    return descriptors;
+}
+
+void Device::ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator)
+{
+    auto&& [hot, cold] = deviceResources().Get(allocator);
+    hot->CurrentOffset = 0;
+    for (Descriptors descriptors : cold->Descriptors)
+        deviceResources().Remove(descriptors);
+    cold->Descriptors.clear();
+}
+
+void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo, const BufferSubresource& buffer, 
+    u32 index)
+{
+    auto&& [slot, type] = slotInfo;
+    ASSERT(type != DescriptorType::TexelStorage && type != DescriptorType::TexelUniform,
+        "Texel buffers require format information")
+    ASSERT(type != DescriptorType::StorageBufferDynamic && type != DescriptorType::UniformBufferDynamic,
+        "Dynamic buffers are not supported when using descriptor buffer")
+
+    const BufferDescription bufferDescription = deviceResources().Get(buffer.Buffer).Description;
+    VkBufferDeviceAddressInfo deviceAddressInfo = {};
+    deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+    deviceAddressInfo.buffer =  deviceResources().Get(buffer.Buffer).Buffer;
+    u64 deviceAddress = vkGetBufferDeviceAddress(g_State.Device, &deviceAddressInfo);
+
+    VkDescriptorAddressInfoEXT descriptorAddressInfo = {};
+    descriptorAddressInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
+    descriptorAddressInfo.address = deviceAddress + buffer.Description.Offset;
+    descriptorAddressInfo.format = VK_FORMAT_UNDEFINED;
+    ASSERT(
+        buffer.Description.SizeBytes <= bufferDescription.SizeBytes ||
+        buffer.Description.SizeBytes == BufferSubresourceDescription::WHOLE_SIZE,
+        "Buffer subresource size is too large")
+    descriptorAddressInfo.range = std::min(buffer.Description.SizeBytes, bufferDescription.SizeBytes);
+
+    VkDescriptorGetInfoEXT descriptorGetInfo = {};
+    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
+    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
+    // using the fact that 'descriptorGetInfo.data' is union
+    descriptorGetInfo.data.pUniformBuffer = &descriptorAddressInfo;
+
+    DeviceInternal::WriteDescriptor( descriptors, slotInfo, index, descriptorGetInfo);
+}
+
+void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo, Sampler sampler)
+{
+    auto&& [slot, type] = slotInfo;
+    ASSERT(type == DescriptorType::Sampler)
+
+    VkSampler vkSampler = deviceResources().NativeHandleToVk(sampler);
+    VkDescriptorGetInfoEXT descriptorGetInfo = {};
+    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
+    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
+    descriptorGetInfo.data.pSampler = &vkSampler;
+    DeviceInternal::WriteDescriptor(descriptors, slotInfo, 0, descriptorGetInfo);
+}
+
+void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo, const ImageSubresource& image,
+    ImageLayout layout, u32 index)
+{
+    auto&& [slot, type] = slotInfo;
+    VkDescriptorGetInfoEXT descriptorGetInfo = {};
+    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
+    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
+    VkDescriptorImageInfo descriptorImageInfo = {};
+    descriptorImageInfo.imageView =
+        deviceResources().Hot(image.Image).Views.ViewList[GetImageViewHandle(image.Image, image.Description).m_Index];
+    descriptorImageInfo.imageLayout = vulkanImageLayoutFromImageLayout(layout);
+    descriptorGetInfo.data.pSampledImage = &descriptorImageInfo;
+
+    DeviceInternal::WriteDescriptor(descriptors, slotInfo, index, descriptorGetInfo);
+}
+#else // DESCRIPTOR_BUFFER
+DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo,
+    ::DeletionQueue& deletionQueue)
+{
+    DescriptorArenaAllocatorResource descriptorAllocatorResource = {};
+    descriptorAllocatorResource.Cold.MaxSetsPerPool = createInfo.DescriptorCount;
+
+    const DescriptorArenaAllocator allocator = {
+        deviceResources().Add(descriptorAllocatorResource.Hot, descriptorAllocatorResource.Cold)
+    };
+    deletionQueue.Enqueue(allocator);
+
+    return allocator;
+}
+
+void Device::Destroy(DescriptorArenaAllocator allocator)
+{
+    ResetDescriptorArenaAllocator(allocator);
+
+    const DescriptorArenaAllocatorResource::ColdData& coldData = deviceResources().Cold(allocator);
+    for (auto& pool : coldData.FreePools)
+        vkDestroyDescriptorPool(g_State.Device, pool.Pool, nullptr);
+    for (auto& pool : coldData.UsedPools)
+        vkDestroyDescriptorPool(g_State.Device, pool.Pool, nullptr);
+    deviceResources().Remove(allocator);
 }
 
 std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator allocator, DescriptorsLayout layout,
     DescriptorAllocatorAllocationBindings&& bindings)
 {
-    auto view = deviceResources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsLayoutTag, DescriptorsTag>();
+    DescriptorArenaAllocatorResource::ColdData& cold = deviceResources().Cold(allocator);
+    const bool hasBindless = bindings.BindlessCount > 0;
+    const DescriptorPoolFlags poolFlags = hasBindless ?
+        DescriptorPoolFlags::UpdateAfterBind :
+        DescriptorPoolFlags::None;
 
-    return DeviceInternal::AllocateDescriptors(view, allocator, layout, std::move(bindings));
+    u32 poolIndex = DeviceInternal::GetFreePoolIndexFromAllocator(allocator, poolFlags);
+    VkDescriptorPool pool = cold.FreePools[poolIndex].Pool;
+
+    VkDescriptorSetVariableDescriptorCountAllocateInfo vulkanVariableBindingCounts = {};
+    vulkanVariableBindingCounts.sType =
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+    vulkanVariableBindingCounts.descriptorSetCount = (u32)hasBindless;
+    vulkanVariableBindingCounts.pDescriptorCounts = &bindings.BindlessCount;
+
+    VkDescriptorSetLayout descriptorSetLayout = deviceResources().NativeHandleToVk(layout);
+    VkDescriptorSetAllocateInfo allocateInfo = {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocateInfo.descriptorPool = pool;
+    allocateInfo.descriptorSetCount = 1;
+    allocateInfo.pSetLayouts = &descriptorSetLayout;
+    allocateInfo.pNext = &vulkanVariableBindingCounts;
+
+    VkDescriptorSet vkDescriptorSet;
+    vkAllocateDescriptorSets(g_State.Device, &allocateInfo, &vkDescriptorSet);
+
+    if (vkDescriptorSet == VK_NULL_HANDLE)
+    {
+        cold.UsedPools.push_back(cold.FreePools[poolIndex]);
+        cold.FreePools.erase(cold.FreePools.begin() + poolIndex);
+
+        poolIndex = DeviceInternal::GetFreePoolIndexFromAllocator(allocator, poolFlags);
+        pool = cold.FreePools[poolIndex].Pool;
+        allocateInfo.descriptorPool = pool;
+
+        allocateInfo.pSetLayouts = &descriptorSetLayout;
+        vkAllocateDescriptorSets(g_State.Device, &allocateInfo, &vkDescriptorSet);
+        if (vkDescriptorSet == VK_NULL_HANDLE)
+            return std::nullopt;
+    }
+
+    const Descriptors set = {deviceResources().VkHandleToNative<DescriptorsTag>(vkDescriptorSet)};
+
+    return set;
 }
 
 void Device::ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator)
 {
-    auto view = deviceResources().GetLockedView<DescriptorArenaAllocatorTag, DescriptorsTag>();
-    DeviceInternal::ResetDescriptorArenaAllocator(view, allocator);
+    DescriptorArenaAllocatorResource::ColdData& cold = deviceResources().Cold(allocator);
+    for (auto& pool : cold.FreePools)
+        vkResetDescriptorPool(g_State.Device, pool.Pool, 0);
+    for (auto pool : cold.UsedPools)
+    {
+        vkResetDescriptorPool(g_State.Device, pool.Pool, 0);
+        cold.FreePools.push_back(pool);
+    }
+    cold.UsedPools.clear();
 }
 
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
     const BufferSubresource& buffer, u32 index)
 {
-    auto view = deviceResources().GetLockedView<DescriptorsTag, DescriptorArenaAllocatorTag, BufferTag>();
-    DeviceInternal::UpdateDescriptors(view, descriptors, slotInfo, buffer, index);
+    auto&& [slot, type] = slotInfo;
+    VkDescriptorBufferInfo descriptorBufferInfo = {};
+    descriptorBufferInfo.buffer = deviceResources().Get(buffer.Buffer).Buffer;
+    descriptorBufferInfo.offset = buffer.Description.Offset;
+    descriptorBufferInfo.range = buffer.Description.SizeBytes;
+
+    VkWriteDescriptorSet write = {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.descriptorCount = 1;
+    write.dstSet = deviceResources().NativeHandleToVk(descriptors);
+    write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
+    write.dstBinding = slot;
+    write.pBufferInfo = &descriptorBufferInfo;
+    write.dstArrayElement = index;
+
+    vkUpdateDescriptorSets(g_State.Device, 1, &write, 0, nullptr);
 }
 
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo, Sampler sampler)
 {
-    auto view = deviceResources().GetLockedView<DescriptorsTag, DescriptorArenaAllocatorTag, SamplerTag>();
-    DeviceInternal::UpdateDescriptors(view, descriptors, slotInfo, sampler);
+    auto&& [slot, type] = slotInfo;
+    VkDescriptorImageInfo descriptorTextureInfo = {};
+    descriptorTextureInfo.sampler = deviceResources().NativeHandleToVk(sampler);
+
+    VkWriteDescriptorSet write = {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.descriptorCount = 1;
+    write.dstSet = deviceResources().NativeHandleToVk(descriptors);
+    write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
+    write.dstBinding = slot;
+    write.pImageInfo = &descriptorTextureInfo;
+
+    vkUpdateDescriptorSets(g_State.Device, 1, &write, 0, nullptr);
 }
 
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
     const ImageSubresource& image, ImageLayout layout, u32 index)
 {
-    auto view = deviceResources().GetLockedView<DescriptorsTag, DescriptorArenaAllocatorTag, ImageTag>();
-    DeviceInternal::UpdateDescriptors(view, descriptors, slotInfo, image, layout, index);
+    auto&& [slot, type] = slotInfo;
+    VkDescriptorImageInfo descriptorTextureInfo = {};
+    descriptorTextureInfo.imageView = deviceResources().Hot(image.Image).Views.ViewList[GetImageViewHandle(
+        image.Image, image.Description).m_Index];
+    descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(layout);
+
+    VkWriteDescriptorSet write = {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.descriptorCount = 1;
+    write.dstSet = deviceResources().NativeHandleToVk(descriptors);
+    write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
+    write.dstBinding = slot;
+    write.pImageInfo = &descriptorTextureInfo;
+    write.dstArrayElement = index;
+
+    vkUpdateDescriptorSets(g_State.Device, 1, &write, 0, nullptr);
 }
+#endif // DESCRIPTOR_BUFFER
+
 
 Fence Device::CreateFence(FenceCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<FenceTag>();
+    VkFenceCreateInfo fenceCreateInfo = {};
+    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    if (createInfo.IsSignaled)
+        fenceCreateInfo.flags |= VK_FENCE_CREATE_SIGNALED_BIT;
+    else
+        fenceCreateInfo.flags &= ~VK_FENCE_CREATE_SIGNALED_BIT;
 
-    return DeviceInternal::CreateFence(view, std::move(createInfo), deletionQueue);
+    VkFence vkFence;
+    deviceCheck(vkCreateFence(g_State.Device, &fenceCreateInfo, nullptr, &vkFence),
+        "Failed to create fence");
+
+    const Fence fence = {deviceResources().VkHandleToNative<FenceTag>(vkFence)};
+    deletionQueue.Enqueue(fence);
+
+    return fence;
 }
 
 void Device::Destroy(Fence fence)
 {
-    auto view = deviceResources().GetLockedView<FenceTag>();
-    DeviceInternal::Destroy(view, fence);
+    vkDestroyFence(g_State.Device, deviceResources().NativeHandleToVk(fence), nullptr);
 }
 
 void Device::WaitForFence(Fence fence)
 {
-    auto view = deviceResources().GetLockedView<FenceTag>();
-    DeviceInternal::WaitForFence(view, fence);
+    const VkFence vkFence = deviceResources().NativeHandleToVk(fence);
+    deviceCheck(vkWaitForFences(g_State.Device, 1, &vkFence, true, 10'000'000'000),
+        "Error while waiting for fences");
 }
 
 bool Device::CheckFence(Fence fence)
 {
-    auto view = deviceResources().GetLockedView<FenceTag>();
-
-    return DeviceInternal::CheckFence(view, fence);
+    const VkResult result = vkGetFenceStatus(g_State.Device, deviceResources().NativeHandleToVk(fence));
+    return result == VK_SUCCESS;
 }
 
 void Device::ResetFence(Fence fence)
 {
-    auto view = deviceResources().GetLockedView<FenceTag>();
-    DeviceInternal::ResetFence(view, fence);
+    const VkFence vkFence = deviceResources().NativeHandleToVk(fence);
+    deviceCheck(vkResetFences(g_State.Device, 1, &vkFence), "Error while resetting fences");
 }
 
 Semaphore Device::CreateSemaphore(::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<SemaphoreTag>();
+    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-    return DeviceInternal::CreateSemaphore(view, deletionQueue);
+    VkSemaphore vkSemaphore;
+    deviceCheck(vkCreateSemaphore(g_State.Device, &semaphoreCreateInfo, nullptr, &vkSemaphore),
+        "Failed to create semaphore");
+
+    const auto semaphore = deviceResources().VkHandleToNative<SemaphoreTag>(vkSemaphore);
+    deletionQueue.Enqueue(semaphore);
+
+    return semaphore;
 }
 
 void Device::Destroy(Semaphore semaphore)
 {
-    auto view = deviceResources().GetLockedView<SemaphoreTag>();
-    DeviceInternal::Destroy(view, semaphore);
+    vkDestroySemaphore(g_State.Device, deviceResources().NativeHandleToVk(semaphore), nullptr);
 }
 
 TimelineSemaphore Device::CreateTimelineSemaphore(TimelineSemaphoreCreateInfo&& createInfo,
     ::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<TimelineSemaphoreTag>();
+    VkSemaphoreTypeCreateInfo timelineCreateInfo = {};
+    timelineCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+    timelineCreateInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+    timelineCreateInfo.initialValue = createInfo.InitialValue;
 
-    return DeviceInternal::CreateTimelineSemaphore(view, std::move(createInfo), deletionQueue);
+    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semaphoreCreateInfo.pNext = &timelineCreateInfo;
+
+    VkSemaphore vkSemaphore;
+    vkCreateSemaphore(g_State.Device, &semaphoreCreateInfo, nullptr, &vkSemaphore);
+
+    const TimelineSemaphore semaphore = {deviceResources().VkHandleToNative<TimelineSemaphoreTag>(vkSemaphore)};
+    deletionQueue.Enqueue(semaphore);
+
+    return semaphore;
 }
 
 void Device::Destroy(TimelineSemaphore semaphore)
 {
-    auto view = deviceResources().GetLockedView<TimelineSemaphoreTag>();
-    DeviceInternal::Destroy(view, semaphore);
+    vkDestroySemaphore(g_State.Device, deviceResources().NativeHandleToVk(semaphore), nullptr);
 }
 
 void Device::TimelineSemaphoreWaitCPU(TimelineSemaphore semaphore, u64 value)
 {
-    auto view = deviceResources().GetLockedView<TimelineSemaphoreTag>();
-    DeviceInternal::TimelineSemaphoreWaitCPU(view, semaphore, value);
+    VkSemaphore vkSemaphore = deviceResources().NativeHandleToVk(semaphore);
+    VkSemaphoreWaitInfo waitInfo = {};
+    waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+    waitInfo.semaphoreCount = 1;
+    waitInfo.pSemaphores = &vkSemaphore;
+    waitInfo.pValues = &value;
+
+    deviceCheck(vkWaitSemaphores(g_State.Device, &waitInfo, UINT64_MAX),
+        "Failed to wait for timeline semaphore");
 }
 
 void Device::TimelineSemaphoreSignalCPU(TimelineSemaphore semaphore, u64 value)
 {
-    auto view = deviceResources().GetLockedView<TimelineSemaphoreTag>();
-    DeviceInternal::TimelineSemaphoreSignalCPU(view, semaphore, value);
+    VkSemaphoreSignalInfo signalInfo = {};
+    signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
+    signalInfo.semaphore = deviceResources().NativeHandleToVk(semaphore);
+    signalInfo.value = value;
+
+    deviceCheck(vkSignalSemaphore(g_State.Device, &signalInfo), "Failed to signal semaphore");
 }
 
 SplitBarrier Device::CreateSplitBarrier(::DeletionQueue& deletionQueue)
 {
-    auto view = deviceResources().GetLockedView<SplitBarrierTag>();
+    VkEventCreateInfo eventCreateInfo = {};
+    eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
 
-    return DeviceInternal::CreateSplitBarrier(view, deletionQueue);
+    VkEvent vkEvent;
+    deviceCheck(vkCreateEvent(g_State.Device, &eventCreateInfo, nullptr, &vkEvent),
+        "Failed to create split barrier");
+
+    const SplitBarrier splitBarrier = deviceResources().VkHandleToNative<SplitBarrierTag>(vkEvent);
+    deletionQueue.Enqueue(splitBarrier);
+
+    return splitBarrier;
 }
 
 void Device::Destroy(SplitBarrier splitBarrier)
 {
-    auto view = deviceResources().GetLockedView<SplitBarrierTag>();
-    DeviceInternal::Destroy(view, splitBarrier);
+    vkDestroyEvent(g_State.Device, deviceResources().NativeHandleToVk(splitBarrier), nullptr);
 }
 
 void Device::CreateInstance(const DeviceCreateInfo& createInfo)
@@ -3053,16 +4046,43 @@ u32 Device::GetSubgroupSize()
 
 ImmediateSubmitContext Device::StartSubmitContext()
 {
-    auto view = deviceResources().GetLockedView<FenceTag, CommandBufferTag, CommandPoolTag>();
-    auto ctx = DeviceInternal::StartSubmitContext(view);
+    {
+        std::scoped_lock lock(g_State.SubmitContextMutex);
+
+        if (!g_State.SubmitContexts.empty())
+        {
+            ImmediateSubmitContext ctx = g_State.SubmitContexts.back();
+            g_State.SubmitContexts.pop_back();
+            BeginCommandBuffer(ctx.CommandBuffer);
+
+            return ctx;
+        }
+    }
+
+    ImmediateSubmitContext ctx = {};
+    ctx.CommandPool = CreateCommandPool({.QueueKind = QueueKind::Graphics}, DummyDeletionQueue());
+    ctx.CommandBuffer = CreateCommandBuffer({
+        .Pool = ctx.CommandPool,
+        .Kind = CommandBufferKind::Primary
+    });
+    ctx.Fence = CreateFence({}, DummyDeletionQueue());
+    ctx.QueueKind = QueueKind::Graphics;
+    BeginCommandBuffer(ctx.CommandBuffer);
 
     return ctx;
 }
 
 void Device::EndSubmitContext(const ImmediateSubmitContext& ctx)
 {
-    auto view = deviceResources().GetLockedView<FenceTag, CommandBufferTag, CommandPoolTag>();
-    DeviceInternal::EndSubmitContext(view, ctx);
+    EndCommandBuffer(ctx.CommandBuffer);
+    SubmitCommandBuffer(ctx.CommandBuffer, ctx.QueueKind, ctx.Fence);
+    WaitForFence(ctx.Fence);
+    ResetFence(ctx.Fence);
+    ResetPool(ctx.CommandPool);
+
+    std::scoped_lock lock(g_State.SubmitContextMutex);
+
+    g_State.SubmitContexts.push_back(ctx);
 }
 
 void Device::InitImGuiUI()
@@ -3133,9 +4153,10 @@ void Device::ShutdownImGuiUI()
 
 ProfilerContext::Ctx Device::CreateTracyGraphicsContext(CommandBuffer cmd)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
+    const TracyVkCtx context = TracyVkContext(g_State.GPU, g_State.Device,
+        g_State.Queues.Graphics.Queue, deviceResources().NativeHandleToVk(cmd))
 
-    return DeviceInternal::CreateTracyGraphicsContext(view, cmd);
+    return context;
 }
 
 void Device::DestroyTracyGraphicsContext(ProfilerContext::Ctx context)
@@ -3147,12 +4168,10 @@ void Device::CreateGpuProfileFrame(ProfilerScopedZoneGpu& zoneGpu, const SourceL
 {
     static_assert(sizeof(zoneGpu.Impl) >= sizeof(tracy::VkCtxScope));
 
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-
     new(&zoneGpu.Impl) tracy::VkCtxScope(
         (TracyVkCtx)ProfilerContext::Get()->GraphicsContext(),
         (const tracy::SourceLocationData*)&sourceLocationData,
-        DeviceInternal::GetProfilerCommandBuffer(view, ProfilerContext::Get()), true);
+        DeviceInternal::GetProfilerCommandBuffer(ProfilerContext::Get()), true);
 }
 
 void Device::DestroyGpuProfileFrame(ProfilerScopedZoneGpu& zoneGpu)
@@ -3162,23 +4181,24 @@ void Device::DestroyGpuProfileFrame(ProfilerScopedZoneGpu& zoneGpu)
 
 void Device::CollectGpuProfileFrames()
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-
     TracyVkCollect(
         ((TracyVkCtx)ProfilerContext::Get()->GraphicsContext()),
-        DeviceInternal::GetProfilerCommandBuffer(view, ProfilerContext::Get()))
+        DeviceInternal::GetProfilerCommandBuffer(ProfilerContext::Get()))
 }
 
 ImTextureID Device::CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout)
 {
-    auto view = deviceResources().GetLockedView<ImageTag, SamplerTag>();
+    const ImageViewHandle viewHandle = GetImageViewHandle(texture.Image, texture.Description);
+    const VkDescriptorSet imageDescriptorSet = ImGui_ImplVulkan_AddTexture(deviceResources().NativeHandleToVk(sampler),
+        deviceResources().Hot(texture.Image).Views.ViewList[viewHandle.m_Index],
+        vulkanImageLayoutFromImageLayout(layout));
 
-    return DeviceInternal::CreateImGuiImage(view, texture, sampler, layout);
+    return ImTextureID{imageDescriptorSet};
 }
 
 void Device::DestroyImGuiImage(ImTextureID image)
 {
-    DeviceInternal::DestroyImGuiImage(image);
+    ImGui_ImplVulkan_RemoveTexture((VkDescriptorSet)image);
 }
 
 void Device::DumpMemoryStats(const std::filesystem::path& path)
@@ -3195,14 +4215,19 @@ void Device::DumpMemoryStats(const std::filesystem::path& path)
 
 void Device::BeginCommandBufferLabel(CommandBuffer cmd, std::string_view label)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::BeginCommandBufferLabel(view, cmd, label);
+#ifdef VULKAN_VAL_LAYERS
+    VkDebugUtilsLabelEXT debugLabel = {};
+    debugLabel.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+    debugLabel.pLabelName = label.data();
+    vkCmdBeginDebugUtilsLabelEXT(deviceResources().NativeHandleToVk(cmd), &debugLabel);
+#endif // VULKAN_VAL_LAYERS
 }
 
 void Device::EndCommandBufferLabel(CommandBuffer cmd)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::EndCommandBufferLabel(view, cmd);
+#ifdef VULKAN_VAL_LAYERS
+    vkCmdEndDebugUtilsLabelEXT(deviceResources().NativeHandleToVk(cmd));
+#endif // VULKAN_VAL_LAYERS
 }
 
 namespace
@@ -3222,2543 +4247,37 @@ void nameVulkanHandle(VkDevice device, u64 handle, VkObjectType type, std::strin
 
 void Device::NameBuffer(Buffer buffer, std::string_view name)
 {
-    auto view = deviceResources().GetLockedView<BufferTag>();
-    nameVulkanHandle(g_State.Device, (u64)view[buffer].Buffer, VK_OBJECT_TYPE_BUFFER, name);
+    nameVulkanHandle(g_State.Device, (u64)deviceResources().Get(buffer).Buffer, VK_OBJECT_TYPE_BUFFER, name);
 }
 
 void Device::NameImage(Image image, std::string_view name)
 {
-    auto view = deviceResources().GetLockedView<ImageTag>();
-    nameVulkanHandle(g_State.Device, (u64)view[image].Image, VK_OBJECT_TYPE_IMAGE, name);
+    nameVulkanHandle(g_State.Device, (u64)deviceResources().Hot(image).Image, VK_OBJECT_TYPE_IMAGE, name);
 }
 
 void Device::NamePipeline(Pipeline pipeline, std::string_view name)
 {
-    auto view = deviceResources().GetLockedView<PipelineTag>();
-    nameVulkanHandle(g_State.Device, (u64)view[pipeline].Pipeline, VK_OBJECT_TYPE_PIPELINE, name);
+    nameVulkanHandle(g_State.Device, (u64)deviceResources().NativeHandleToVk(pipeline), VK_OBJECT_TYPE_PIPELINE, name);
 }
 
-void Device::CompileCommand(CommandBuffer cmd, const ExecuteSecondaryBufferCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, ExecuteSecondaryBufferCommand&& command)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
+    VkCommandBuffer secondary = deviceResources().NativeHandleToVk(command.Cmd);
+    vkCmdExecuteCommands(deviceResources().NativeHandleToVk(cmd), 1, &secondary);
 }
 
-void Device::CompileCommand(CommandBuffer cmd, const PrepareSwapchainPresentCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, PrepareSwapchainPresentCommand&& command)
 {
-    auto view = deviceResources().GetLockedView<CommandBufferTag, SwapchainTag, ImageTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BeginRenderingCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, RenderingInfoTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const EndRenderingCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const ImGuiBeginCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const ImGuiEndCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, RenderingInfoTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BeginConditionalRenderingCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const EndConditionalRenderingCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const SetViewportCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const SetScissorsCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const SetDepthBiasCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const CopyBufferCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const CopyBufferToImageCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag, ImageTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const CopyImageCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BlitImageCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const MipmapImageCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const ClearColorImageCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const ClearDepthStencilImageCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const WaitOnFullPipelineBarrierCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const WaitOnBarrierCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, ImageTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const SignalSplitBarrierCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, SplitBarrierTag, ImageTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const WaitOnSplitBarrierCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, SplitBarrierTag, ImageTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const ResetSplitBarrierCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, SplitBarrierTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BindVertexBuffersCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BindIndexU32BufferCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BindIndexU16BufferCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BindIndexU8BufferCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BindPipelineGraphicsCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BindPipelineComputeCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag,
-                                                DescriptorsTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag,
-                                                DescriptorsTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag,
-                                                DescriptorsTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsComputeCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineLayoutTag, DescriptorArenaAllocatorTag,
-                                                DescriptorsTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, DescriptorArenaAllocatorTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const PushConstantsCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, PipelineLayoutTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const DrawCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const DrawIndexedCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const DrawIndexedIndirectCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const DrawIndexedIndirectCountCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const DispatchCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-void Device::CompileCommand(CommandBuffer cmd, const DispatchIndirectCommand& command)
-{
-    auto view = deviceResources().GetLockedView<CommandBufferTag, BufferTag>();
-    DeviceInternal::CompileCommand(view, cmd, command);
-}
-
-
-VmaAllocator& DeviceInternal::Allocator()
-{
-    return g_State.Allocator;
-}
-
-Swapchain DeviceInternal::CreateSwapchain(const auto& resources, SwapchainCreateInfo&& createInfo,
-    DeletionQueue& deletionQueue)
-{
-    if (g_State.Surface == VK_NULL_HANDLE)
-        return {};
-
-    static std::vector<VkSurfaceFormatKHR> desiredFormats = {
-        {
-            {
-                .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
-            }
-        }
-    };
-    static std::vector<VkPresentModeKHR> desiredPresentModes = {
-        {
-            //VK_PRESENT_MODE_IMMEDIATE_KHR,
-            VK_PRESENT_MODE_FIFO_RELAXED_KHR
-        }
-    };
-
-    SurfaceDetails surfaceDetails = getSurfaceDetails(g_State.GPU, g_State.Surface);
-    VkSurfaceCapabilitiesKHR capabilities = surfaceDetails.Capabilities;
-    VkSurfaceFormatKHR colorFormat = utils::getIntersectionOrDefault(
-        desiredFormats, surfaceDetails.Formats,
-        [](VkSurfaceFormatKHR des, VkSurfaceFormatKHR avail)
-        {
-            return des.format == avail.format && des.colorSpace == avail.colorSpace;
-        });
-    VkPresentModeKHR presentMode = utils::getIntersectionOrDefault(
-        desiredPresentModes, surfaceDetails.PresentModes,
-        [](VkPresentModeKHR des, VkPresentModeKHR avail)
-        {
-            return des == avail;
-        });
-
-    auto chooseImageCount = [](const VkSurfaceCapabilitiesKHR& capabilities)
-    {
-        if (capabilities.maxImageCount == 0)
-            return capabilities.minImageCount + 1;
-        return std::min(capabilities.minImageCount + 1, capabilities.maxImageCount);
-    };
-
-    auto chooseExtent = [](const lux::Window& window, const VkSurfaceCapabilitiesKHR& capabilities)
-    {
-        VkExtent2D extent = capabilities.currentExtent;
-
-        if (extent.width != std::numeric_limits<u32>::max())
-            return extent;
-
-        // indication that extent might not be same as window size
-        lux::WindowSize size = window.GetWindowSize();
-
-        extent.width = std::clamp(
-            (i32)size.Width, (i32)capabilities.minImageExtent.width, (i32)capabilities.maxImageExtent.width);
-        extent.height = std::clamp(
-            (i32)size.Height, (i32)capabilities.minImageExtent.height, (i32)capabilities.maxImageExtent.height);
-
-        return extent;
-    };
-
-    u32 imageCount = chooseImageCount(capabilities);
-
-    VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
-    swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    swapchainCreateInfo.surface = g_State.Surface;
-    swapchainCreateInfo.imageColorSpace = colorFormat.colorSpace;
-    swapchainCreateInfo.imageFormat = colorFormat.format;
-    VkExtent2D extent = chooseExtent(*g_State.Window, capabilities);
-    swapchainCreateInfo.imageExtent = extent;
-    swapchainCreateInfo.imageArrayLayers = 1;
-    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    swapchainCreateInfo.minImageCount = imageCount;
-    swapchainCreateInfo.presentMode = presentMode;
-
-    if (g_State.Queues.Graphics.Family == g_State.Queues.Presentation.Family)
-    {
-        swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    }
-    else
-    {
-        std::vector<u32> queueFamilies = g_State.Queues.AsFamilySet();
-        swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-        swapchainCreateInfo.queueFamilyIndexCount = (u32)queueFamilies.size();
-        swapchainCreateInfo.pQueueFamilyIndices = queueFamilies.data();
-    }
-    swapchainCreateInfo.preTransform = capabilities.currentTransform;
-    swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    swapchainCreateInfo.clipped = VK_TRUE;
-    swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
-
-    SwapchainResource swapchainResource = {};
-    swapchainResource.ColorFormat = colorFormat.format;
-    deviceCheck(vkCreateSwapchainKHR(g_State.Device, &swapchainCreateInfo, nullptr,
-        &swapchainResource.Swapchain), "Failed to create swapchain");
-
-    const glm::uvec2 swapchainResolution = glm::uvec2{extent.width, extent.height};
-    const glm::uvec2 drawResolution = createInfo.DrawResolution.x != 0 ?
-        createInfo.DrawResolution :
-        swapchainResolution;
-
-    swapchainResource.Description = {
-        .SwapchainResolution = swapchainResolution,
-        .DrawResolution = drawResolution,
-        .DrawFormat = createInfo.DrawFormat,
-        .DepthFormat = createInfo.DepthStencilFormat,
-        .DrawImage = CreateEmptyImage(resources, {
-                .Description = ImageDescription{
-                    .Width = drawResolution.x,
-                    .Height = drawResolution.y,
-                    .Format = createInfo.DrawFormat,
-                    .Usage = ImageUsage::Source | ImageUsage::Destination | ImageUsage::Storage | ImageUsage::Color
-                }
-            },
-            Device::DummyDeletionQueue()),
-        .DepthImage = CreateEmptyImage(resources, {
-                .Description = ImageDescription{
-                    .Width = drawResolution.x,
-                    .Height = drawResolution.y,
-                    .Format = createInfo.DepthStencilFormat,
-                    .Usage = ImageUsage::Depth | ImageUsage::Stencil | ImageUsage::Sampled
-                }
-            },
-            Device::DummyDeletionQueue())
-    };
-
-    swapchainResource.RenderSemaphores.reserve(imageCount);
-    for (u32 i = 0; i < imageCount; i++)
-        swapchainResource.RenderSemaphores.push_back({CreateSemaphore(resources, Device::DummyDeletionQueue())});
-    Swapchain swapchain = {resources.Add(swapchainResource)};
-    CreateSwapchainImages(resources, swapchain);
-    deletionQueue.Enqueue(swapchain);
-
-    return swapchain;
-}
-
-void DeviceInternal::Destroy(const auto& resources, Swapchain swapchain)
-{
-    DestroySwapchainImages(resources, swapchain);
-    vkDestroySwapchainKHR(g_State.Device, resources[swapchain].Swapchain, nullptr);
-    for (Semaphore semaphore : resources[swapchain].RenderSemaphores)
-        Destroy(resources, semaphore);
-    resources.Remove(swapchain);
-}
-
-void DeviceInternal::CreateSwapchainImages(const auto& resources, Swapchain swapchain)
-{
-    SwapchainResource& swapchainResource = resources[swapchain];
-    u32 imageCount = 0;
-    vkGetSwapchainImagesKHR(g_State.Device, swapchainResource.Swapchain, &imageCount, nullptr);
-    std::vector<VkImage> images(imageCount);
-    vkGetSwapchainImagesKHR(g_State.Device, swapchainResource.Swapchain, &imageCount, images.data());
-
-    ImageDescription description = {
-        .Width = swapchainResource.Description.SwapchainResolution.x,
-        .Height = swapchainResource.Description.SwapchainResolution.y,
-        .LayersDepth = 1,
-        .Mipmaps = 1,
-        .Kind = ImageKind::Image2d,
-        .Usage = ImageUsage::Destination
-    };
-    std::vector<Image> colorImages(imageCount);
-
-    std::vector<VkImageView> imageViews(imageCount);
-    for (u32 i = 0; i < imageCount; i++)
-    {
-        ImageResource imageResource = {.Image = images[i], .Description = description};
-        colorImages[i] = {resources.Add(imageResource)};
-        resources[colorImages[i]].Views.ViewType.View = DeviceInternal::CreateVulkanImageView(resources,
-            ImageSubresource{.Image = colorImages[i], .Description = {.Mipmaps = 1, .Layers = 1}},
-            swapchainResource.ColorFormat);
-        resources[colorImages[i]].Views.ViewList = &resources[colorImages[i]].Views.ViewType.View;
-    }
-
-    swapchainResource.Description.ColorImages = colorImages;
-}
-
-void DeviceInternal::DestroySwapchainImages(const auto& resources, Swapchain swapchain)
-{
-    SwapchainResource& swapchainResource = resources[swapchain];
-    for (const auto& colorImage : swapchainResource.Description.ColorImages)
-    {
-        vkDestroyImageView(g_State.Device, *resources[colorImage].Views.ViewList, nullptr);
-        resources.Remove(colorImage);
-    }
-    Destroy(resources, swapchainResource.Description.DrawImage);
-    Destroy(resources, swapchainResource.Description.DepthImage);
-}
-
-u32 DeviceInternal::AcquireNextImage(const auto& resources, Swapchain swapchain, Fence renderFence,
-    Semaphore presentSemaphore)
-{
-    WaitForFence(resources, renderFence);
-
-    u32 imageIndex;
-    const VkResult res = vkAcquireNextImageKHR(g_State.Device, resources[swapchain].Swapchain,
-        10'000'000'000, resources[presentSemaphore].Semaphore, VK_NULL_HANDLE,
-        &imageIndex);
-    if (res == VK_ERROR_OUT_OF_DATE_KHR)
-        return INVALID_SWAPCHAIN_IMAGE;
-
-    ASSERT(res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR, "Failed to acquire swapchain image")
-
-    ResetFence(resources, renderFence);
-
-    return imageIndex;
-}
-
-bool DeviceInternal::Present(const auto& resources, Swapchain swapchain, QueueKind queueKind, u32 imageIndex)
-{
-    SwapchainResource& swapchainResource = resources[swapchain];
-
-    VkPresentInfoKHR presentInfo = {};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = &resources[swapchain].Swapchain;
-    presentInfo.pImageIndices = &imageIndex;
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &resources[swapchainResource.RenderSemaphores[imageIndex]].Semaphore;
-
-    VkResult result = vkQueuePresentKHR(g_State.Queues.GetQueueByKind(queueKind).Queue, &presentInfo);
-
-    ASSERT(result == VK_SUCCESS || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR,
-        "Failed to present image")
-
-    return result == VK_SUCCESS;
-}
-
-SwapchainDescription& DeviceInternal::GetSwapchainDescription(const auto& resources, Swapchain swapchain)
-{
-    return resources[swapchain].Description;
-}
-
-Semaphore DeviceInternal::GetSwapchainRenderSemaphore(const auto& resources, Swapchain swapchain, u32 imageIndex)
-{
-    return resources[swapchain].RenderSemaphores[imageIndex];
-}
-
-CommandPool DeviceInternal::CreateCommandPool(const auto& resources, CommandPoolCreateInfo&& createInfo,
-    DeletionQueue& deletionQueue)
-{
-    VkCommandPoolCreateFlags flags = 0;
-    if (createInfo.PerBufferReset)
-        flags |= VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-
-    VkCommandPoolCreateInfo poolCreateInfo = {};
-    poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolCreateInfo.flags = flags;
-    poolCreateInfo.queueFamilyIndex = g_State.Queues.GetFamilyByKind(createInfo.QueueKind);
-
-    CommandPoolResource commandPoolResource = {};
-    deviceCheck(vkCreateCommandPool(g_State.Device, &poolCreateInfo, nullptr, &commandPoolResource.CommandPool),
-        "Failed to create command pool");
-
-    const CommandPool commandPool = {resources.Add(commandPoolResource)};
-    if (commandPool.m_Id >= deviceResources().m_CommandPoolToBuffersMap.size())
-        deviceResources().m_CommandPoolToBuffersMap.resize(commandPool.m_Id + 1);
-    deletionQueue.Enqueue(commandPool);
-
-    return commandPool;
-}
-
-void DeviceInternal::Destroy(const auto& resources, CommandPool commandPool)
-{
-    vkDestroyCommandPool(g_State.Device, resources[commandPool].CommandPool, nullptr);
-    deviceResources().DestroyCmdsOfPool(commandPool);
-    resources.Remove(commandPool);
-}
-
-void DeviceInternal::ResetPool(const auto& resources, CommandPool pool)
-{
-    deviceCheck(vkResetCommandPool(g_State.Device, resources[pool].CommandPool, 0),
-        "Error while resetting command pool");
-}
-
-CommandBuffer DeviceInternal::CreateCommandBuffer(const auto& resources, CommandBufferCreateInfo&& createInfo)
-{
-    VkCommandBufferAllocateInfo allocateInfo = {};
-    allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocateInfo.commandPool = resources[createInfo.Pool].CommandPool;
-    allocateInfo.level = vulkanBufferLevelFromBufferKind(createInfo.Kind);
-    allocateInfo.commandBufferCount = 1;
-
-    CommandBufferResource commandBufferResource = {};
-    commandBufferResource.Kind = createInfo.Kind;
-    deviceCheck(vkAllocateCommandBuffers(g_State.Device, &allocateInfo, &commandBufferResource.CommandBuffer),
-        "Failed to allocate command buffer");
-
-    const CommandBuffer cmd = {resources.Add(commandBufferResource)};
-    deviceResources().MapCmdToPool(cmd, createInfo.Pool);
-
-    return cmd;
-}
-
-void DeviceInternal::ResetCommandBuffer(const auto& resources, CommandBuffer cmd)
-{
-    deviceCheck(vkResetCommandBuffer(resources[cmd].CommandBuffer, 0), "Error while resetting command buffer");
-}
-
-void DeviceInternal::BeginCommandBuffer(const auto& resources, CommandBuffer cmd)
-{
-    BeginCommandBuffer(resources, cmd, CommandBufferUsage::SingleSubmit);
-}
-
-void DeviceInternal::BeginCommandBuffer(const auto& resources, CommandBuffer cmd, CommandBufferUsage usage)
-{
-    VkCommandBufferInheritanceInfo inheritanceInfo = {};
-    inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
-    VkCommandBufferBeginInfo beginInfo = {};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = vulkanCommandBufferFlagsFromUsage(usage);
-    CommandBufferResource& commandBufferResource = resources[cmd];
-    if (commandBufferResource.Kind == CommandBufferKind::Secondary)
-        beginInfo.pInheritanceInfo = &inheritanceInfo;
-
-    deviceCheck(vkBeginCommandBuffer(resources[cmd].CommandBuffer, &beginInfo),
-        "Error while beginning command buffer");
-}
-
-void DeviceInternal::EndCommandBuffer(const auto& resources, CommandBuffer cmd)
-{
-    deviceCheck(vkEndCommandBuffer(resources[cmd].CommandBuffer), "Error while ending command buffer");
-}
-
-void DeviceInternal::SubmitCommandBuffer(const auto& resources, CommandBuffer cmd, QueueKind queueKind,
-    const BufferSubmitSyncInfo& submitSync)
-{
-    SubmitCommandBuffers(resources, {cmd}, queueKind, submitSync);
-}
-
-void DeviceInternal::SubmitCommandBuffer(const auto& resources, CommandBuffer cmd, QueueKind queueKind,
-    const BufferSubmitTimelineSyncInfo& submitSync)
-{
-    SubmitCommandBuffers(resources, {cmd}, queueKind, submitSync);
-}
-
-void DeviceInternal::SubmitCommandBuffer(const auto& resources, CommandBuffer cmd, QueueKind queueKind, Fence fence)
-{
-    VkCommandBufferSubmitInfo commandBufferSubmitInfo = {};
-    commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
-    commandBufferSubmitInfo.commandBuffer = resources[cmd].CommandBuffer;
-
-    VkSubmitInfo2 submitInfo = {};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-    submitInfo.commandBufferInfoCount = 1;
-    submitInfo.pCommandBufferInfos = &commandBufferSubmitInfo;
-
-    deviceCheck(vkQueueSubmit2(g_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
-            fence.HasValue() ? resources[fence].Fence : VK_NULL_HANDLE),
-        "Error while submitting command buffer");
-}
-
-void DeviceInternal::SubmitCommandBuffers(const auto& resources, Span<const CommandBuffer> cmds, QueueKind queueKind,
-    const BufferSubmitSyncInfo& submitSync)
-{
-    std::vector commandBufferSubmitInfos(cmds.size(), VkCommandBufferSubmitInfo{});
-    for (auto&& [i, cmd] : std::views::enumerate(cmds))
-    {
-        commandBufferSubmitInfos[i].sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
-        commandBufferSubmitInfos[i].commandBuffer = resources[cmd].CommandBuffer;
-    }
-
-    std::vector signalSemaphoreSubmitInfos(submitSync.SignalSemaphores.size(), VkSemaphoreSubmitInfo{});
-    for (auto&& [i, semaphore] : std::views::enumerate(submitSync.SignalSemaphores))
-    {
-        signalSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        signalSemaphoreSubmitInfos[i].semaphore = resources[semaphore].Semaphore;
-    }
-
-    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = CreateVulkanSemaphoreSubmit(
-        resources, submitSync.WaitSemaphores, submitSync.WaitStages);
-
-    VkSubmitInfo2 submitInfo = {};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-    submitInfo.commandBufferInfoCount = (u32)commandBufferSubmitInfos.size();
-    submitInfo.pCommandBufferInfos = commandBufferSubmitInfos.data();
-    submitInfo.signalSemaphoreInfoCount = (u32)signalSemaphoreSubmitInfos.size();
-    submitInfo.pSignalSemaphoreInfos = signalSemaphoreSubmitInfos.data();
-    submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
-    submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
-
-    deviceCheck(vkQueueSubmit2(g_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
-            submitSync.Fence.HasValue() ? resources[submitSync.Fence].Fence : VK_NULL_HANDLE),
-        "Error while submitting command buffers");
-}
-
-void DeviceInternal::SubmitCommandBuffers(const auto& resources,
-    Span<const CommandBuffer> cmds, QueueKind queueKind, const BufferSubmitTimelineSyncInfo& submitSync)
-{
-    for (u32 i = 0; i < submitSync.SignalSemaphores.size(); i++)
-        resources[submitSync.SignalSemaphores[i]].Timeline = submitSync.SignalValues[i];
-
-    std::vector commandBufferSubmitInfos(cmds.size(), VkCommandBufferSubmitInfo{});
-    for (auto&& [i, cmd] : std::views::enumerate(cmds))
-    {
-        commandBufferSubmitInfos[i].sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
-        commandBufferSubmitInfos[i].commandBuffer = resources[cmd].CommandBuffer;
-    }
-
-    std::vector signalSemaphoreSubmitInfos(submitSync.SignalSemaphores.size(), VkSemaphoreSubmitInfo{});
-    for (auto&& [i, semaphore] : std::views::enumerate(submitSync.SignalSemaphores))
-    {
-        signalSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        signalSemaphoreSubmitInfos[i].semaphore = resources[semaphore].Semaphore;
-        signalSemaphoreSubmitInfos[i].value = submitSync.SignalValues[i];
-    }
-
-    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = CreateVulkanSemaphoreSubmit(
-        resources, submitSync.WaitSemaphores, submitSync.WaitValues, submitSync.WaitStages);
-
-    VkSubmitInfo2 submitInfo = {};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-    submitInfo.commandBufferInfoCount = (u32)commandBufferSubmitInfos.size();
-    submitInfo.pCommandBufferInfos = commandBufferSubmitInfos.data();
-    submitInfo.signalSemaphoreInfoCount = (u32)signalSemaphoreSubmitInfos.size();
-    submitInfo.pSignalSemaphoreInfos = signalSemaphoreSubmitInfos.data();
-    submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
-    submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
-
-    deviceCheck(vkQueueSubmit2(g_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
-            submitSync.Fence.HasValue() ? resources[submitSync.Fence].Fence : VK_NULL_HANDLE),
-        "Error while submitting command buffers");
-}
-
-void DeviceInternal::BeginCommandBufferLabel(const auto& resources, CommandBuffer cmd, std::string_view label)
-{
-#ifdef VULKAN_VAL_LAYERS
-    VkDebugUtilsLabelEXT debugLabel = {};
-    debugLabel.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
-    debugLabel.pLabelName = label.data();
-    vkCmdBeginDebugUtilsLabelEXT(resources[cmd].CommandBuffer, &debugLabel);
-#endif // VULKAN_VAL_LAYERS
-}
-
-void DeviceInternal::EndCommandBufferLabel(const auto& resources, CommandBuffer cmd)
-{
-#ifdef VULKAN_VAL_LAYERS
-    vkCmdEndDebugUtilsLabelEXT(resources[cmd].CommandBuffer);
-#endif // VULKAN_VAL_LAYERS
-}
-
-ProfilerContext::Ctx DeviceInternal::CreateTracyGraphicsContext(const auto& resources, CommandBuffer cmd)
-{
-    const TracyVkCtx context = TracyVkContext(g_State.GPU, g_State.Device,
-        g_State.Queues.Graphics.Queue, resources[cmd].CommandBuffer)
-
-    return context;
-}
-
-VkCommandBuffer DeviceInternal::GetProfilerCommandBuffer(const auto& resources,
-    ProfilerContext* context)
-{
-    return resources[context->m_GraphicsCommandBuffers[context->m_CurrentFrame]].CommandBuffer;
-}
-
-Buffer DeviceInternal::CreateBuffer(const auto& resources, BufferCreateInfo&& createInfo, DeletionQueue& deletionQueue)
-{
-    VmaAllocationCreateFlags flags = 0;
-    if (enumHasAny(createInfo.Description.Usage, BufferUsage::Mappable))
-        flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-    if (enumHasAny(createInfo.Description.Usage, BufferUsage::MappableRandomAccess))
-        flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-
-    if (createInfo.PersistentMapping)
-        flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-    const Buffer buffer = AllocateBuffer(resources, createInfo,
-        vulkanBufferUsageFromUsage(createInfo.Description.Usage), flags);
-
-    if (!createInfo.InitialData.empty())
-    {
-        if (enumHasAny(createInfo.Description.Usage, BufferUsage::Mappable | BufferUsage::MappableRandomAccess))
-        {
-            SetBufferData(resources, buffer, createInfo.InitialData, 0);
-        }
-        else
-        {
-            const Buffer stagingBuffer = CreateStagingBuffer(resources, createInfo.InitialData.size());
-            SetBufferData(resources, stagingBuffer, createInfo.InitialData, 0);
-            Device::ImmediateSubmit([&](CommandBuffer cmd)
-            {
-                CompileCommand(resources, cmd, CopyBufferCommand{
-                    .Source = stagingBuffer,
-                    .Destination = buffer,
-                    .SizeBytes = createInfo.InitialData.size()
-                });
-            });
-            Destroy(resources, stagingBuffer);
-        }
-    }
-
-    deletionQueue.Enqueue(buffer);
-
-    return buffer;
-}
-
-void DeviceInternal::Destroy(const auto& resources, Buffer buffer)
-{
-    const BufferResource& resource = resources[buffer];
-    vmaDestroyBuffer(Allocator(), resource.Buffer, resource.Allocation);
-    resources.Remove(buffer);
-}
-
-Buffer DeviceInternal::CreateStagingBuffer(const auto& resources, u64 sizeBytes)
-{
-    return CreateBuffer(resources, {
-            .Description = {
-                .SizeBytes = sizeBytes,
-                .Usage = BufferUsage::Staging | BufferUsage::Mappable,
-            },
-            .PersistentMapping = true
-        },
-        Device::DummyDeletionQueue());
-}
-
-void DeviceInternal::ResizeBuffer(const auto& resources, Buffer buffer, u64 newSize, CommandBuffer cmd, bool copyData)
-{
-    const BufferResource& resource = resources[buffer];
-    const BufferDescription& description = resource.Description;
-    const u64 oldSize = description.SizeBytes;
-    if (description.SizeBytes == newSize)
-        return;
-
-    const Buffer newBuffer = CreateBuffer(resources, {
-            .Description = {
-                .SizeBytes = newSize,
-                .Usage = description.Usage,
-            },
-            .PersistentMapping = resource.HostAddress != nullptr
-        },
-        *g_State.FrameDeletionQueue);
-
-    /* seems very questionable
-     * after this line new Buffer will inherit lifetime of old buffer,
-     * and old buffer will be deleted in frame queue
-     */
-    std::swap(resources[buffer], resources[newBuffer]);
-
-    /* the source and destination are intentionally swapped */
-    if (copyData)
-        CompileCommand(resources, cmd, {
-            .Source = newBuffer,
-            .Destination = buffer,
-            .SizeBytes = std::min(oldSize, newSize)
-        });
-}
-
-void* DeviceInternal::MapBuffer(const auto& resources, Buffer buffer)
-{
-    const BufferResource& resource = resources[buffer];
-    void* mappedData;
-    vmaMapMemory(Allocator(), resource.Allocation, &mappedData);
-    return mappedData;
-}
-
-void DeviceInternal::UnmapBuffer(const auto& resources, Buffer buffer)
-{
-    const BufferResource& resource = resources[buffer];
-    vmaUnmapMemory(Allocator(), resource.Allocation);
-}
-
-void DeviceInternal::SetBufferData(const auto& resources, Buffer buffer, Span<const std::byte> data, u64 offsetBytes)
-{
-    const BufferResource& resource = resources[buffer];
-    vmaCopyMemoryToAllocation(Allocator(), data.data(), resource.Allocation, offsetBytes, data.size());
-}
-
-void DeviceInternal::SetBufferData(const auto&, void* mappedAddress, Span<const std::byte> data, u64 offsetBytes)
-{
-    mappedAddress = (void*)((u8*)mappedAddress + offsetBytes);
-    std::memcpy(mappedAddress, data.data(), data.size());
-}
-
-void* DeviceInternal::GetBufferMappedAddress(const auto& resources, Buffer buffer)
-{
-    return resources[buffer].HostAddress;
-}
-
-usize DeviceInternal::GetBufferSizeBytes(const auto& resources, Buffer buffer)
-{
-    return resources[buffer].Description.SizeBytes;
-}
-
-const BufferDescription& DeviceInternal::GetBufferDescription(const auto& resources, Buffer buffer)
-{
-    return resources[buffer].Description;
-}
-
-// todo: just store it like host address
-u64 DeviceInternal::GetDeviceAddress(const auto& resources, Buffer buffer)
-{
-    VkBufferDeviceAddressInfo deviceAddressInfo = {};
-    deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-    deviceAddressInfo.buffer = resources[buffer].Buffer;
-
-    return vkGetBufferDeviceAddress(g_State.Device, &deviceAddressInfo);
-}
-
-Buffer DeviceInternal::AllocateBuffer(const auto& resources, const BufferCreateInfo& createInfo,
-    VkBufferUsageFlags usage, VmaAllocationCreateFlags allocationFlags)
-{
-    VkBufferCreateInfo bufferCreateInfo = {};
-    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferCreateInfo.size = createInfo.Description.SizeBytes;
-    bufferCreateInfo.usage = usage;
-
-    VmaAllocationCreateInfo allocationCreateInfo = {};
-    allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    allocationCreateInfo.flags = allocationFlags;
-
-    BufferResource bufferResource = {};
-    deviceCheck(vmaCreateBuffer(Allocator(), &bufferCreateInfo, &allocationCreateInfo,
-            &bufferResource.Buffer, &bufferResource.Allocation, nullptr),
-        "Failed to create a buffer");
-
-    bufferResource.Description.SizeBytes = createInfo.Description.SizeBytes;
-    bufferResource.Description.Usage = createInfo.Description.Usage;
-    if (createInfo.PersistentMapping)
-        bufferResource.HostAddress = bufferResource.Allocation->GetMappedData();
-
-    return {resources.Add(bufferResource)};
-}
-
-BufferArena DeviceInternal::CreateBufferArena(const auto& resources, BufferArenaCreateInfo&& createInfo,
-    DeletionQueue& deletionQueue)
-{
-    VmaVirtualBlockCreateInfo virtualBlockCreateInfo = {};
-    virtualBlockCreateInfo.size = createInfo.VirtualSizeBytes;
-
-    BufferArenaResource bufferArenaResource = {};
-    deviceCheck(vmaCreateVirtualBlock(&virtualBlockCreateInfo, &bufferArenaResource.VirtualBlock),
-        "Failed to create buffer arena");
-    bufferArenaResource.Buffer = createInfo.Buffer;
-    bufferArenaResource.VirtualSizeBytes = createInfo.VirtualSizeBytes;
-
-    const BufferArena arena = {resources.Add(bufferArenaResource)};
-    deletionQueue.Enqueue(arena);
-
-    return arena;
-}
-
-void DeviceInternal::Destroy(const auto& resources, BufferArena arena)
-{
-    BufferArenaResource& bufferArenaResource = resources[arena];
-
-    vmaClearVirtualBlock(bufferArenaResource.VirtualBlock);
-    vmaDestroyVirtualBlock(bufferArenaResource.VirtualBlock);
-
-    resources.Remove(arena);
-}
-
-void DeviceInternal::ResizeBufferArenaPhysical(const auto& resources, BufferArena arena, u64 newSize, CommandBuffer cmd,
-    bool copyData)
-{
-    const BufferArenaResource& arenaResource = resources[arena];
-    const BufferResource& bufferResource = resources[arenaResource.Buffer];
-    const u64 oldSize = bufferResource.Description.SizeBytes;
-    if (oldSize == newSize)
-        return;
-
-    ResizeBuffer(resources, arenaResource.Buffer, newSize, cmd, copyData);
-}
-
-Buffer DeviceInternal::GetBufferArenaUnderlyingBuffer(const auto& resources, BufferArena arena)
-{
-    return resources[arena].Buffer;
-}
-
-u64 DeviceInternal::GetBufferArenaSizeBytesPhysical(const auto& resources, BufferArena arena)
-{
-    return GetBufferSizeBytes(resources, GetBufferArenaUnderlyingBuffer(resources, arena));
-}
-
-BufferSuballocationResult DeviceInternal::BufferArenaSuballocate(const auto& resources, BufferArena arena,
-    u64 sizeBytes, u32 alignment)
-{
-    VmaVirtualAllocationCreateInfo allocationCreateInfo = {};
-    allocationCreateInfo.size = sizeBytes + alignment;
-    allocationCreateInfo.alignment = 0;
-    // todo: is this ok flag to use?
-    allocationCreateInfo.flags = VMA_VIRTUAL_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT;
-
-    BufferArenaResource& bufferArenaResource = resources[arena];
-    VmaVirtualAllocation allocation;
-    const VkResult allocateResult = vmaVirtualAllocate(bufferArenaResource.VirtualBlock,
-        &allocationCreateInfo, &allocation, nullptr);
-    if (allocateResult != VK_SUCCESS)
-        return std::unexpected(BufferSuballocationError::OutOfVirtualMemory);
-
-    VmaVirtualAllocationInfo allocationInfo = {};
-    vmaGetVirtualAllocationInfo(bufferArenaResource.VirtualBlock, allocation, &allocationInfo);
-
-    if (allocationInfo.offset + allocationInfo.size > GetBufferSizeBytes(resources, bufferArenaResource.Buffer))
-    {
-        vmaVirtualFree(bufferArenaResource.VirtualBlock, allocation);
-        return std::unexpected(BufferSuballocationError::OutOfPhysicalMemory);
-    }
-
-    if (alignment != 0)
-        allocationInfo.offset = lux::mem::alignAddress(allocationInfo.offset, (u16)alignment);
-
-    return BufferSuballocation{
-        .Buffer = bufferArenaResource.Buffer,
-        .Description = {
-            .SizeBytes = allocationInfo.size,
-            .Offset = allocationInfo.offset
-        },
-        .Handle = (u64)allocation
-    };
-}
-
-void DeviceInternal::BufferArenaFree(const auto& resources, BufferArena arena, BufferSuballocationHandle suballocation)
-{
-    vmaVirtualFree(resources[arena].VirtualBlock, (VmaVirtualAllocation)suballocation);
-}
-
-Image DeviceInternal::CreateImage(const auto& resources, ImageCreateInfo&& createInfo, DeletionQueue& deletionQueue)
-{
-    Image image = {};
-
-    if (std::holds_alternative<const lux::assetlib::ImageAsset*>(createInfo.DataSource))
-        image = CreateImageFromAssetFile(resources, createInfo,
-            std::get<const lux::assetlib::ImageAsset*>(createInfo.DataSource));
-    else if (std::holds_alternative<Span<const std::byte>>(createInfo.DataSource))
-        image = CreateImageFromPixels(resources, createInfo, std::get<Span<const std::byte>>(createInfo.DataSource));
-
-    deletionQueue.Enqueue(image);
-
-    return image;
-}
-
-Image DeviceInternal::CreateImageFromAssetFile(const auto& resources, ImageCreateInfo& createInfo,
-    const lux::assetlib::ImageAsset* asset)
-{
-    Image image = {};
-    Buffer imageBuffer = {};
-
-    ImmediateSubmit(resources, [&](CommandBuffer cmd)
-    {
-        u64 totalSizeBytes = 0;
-        for (auto& mip : asset->Header.MipmapSizes)
-            for (const u64 layerSize : mip)
-                totalSizeBytes += layerSize;
-
-        imageBuffer = CreateBuffer(resources, {
-            .Description = {
-                .SizeBytes = totalSizeBytes,
-                .Usage = BufferUsage::Source | BufferUsage::StagingRandomAccess,
-            },
-            .PersistentMapping = true
-        }, Device::DummyDeletionQueue());
-        const BufferResource& imageBufferResource = resources[imageBuffer];
-
-        image = AllocateImage(resources, createInfo);
-        CreateViews(resources, ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
-
-        ImageSubresource imageSubresource = {
-            .Image = image,
-            .Description = {.Mipmaps = (i8)asset->Header.Mipmaps, .Layers = (i8)asset->Header.Layers}
-        };
-
-        ::DeletionQueue& deletionQueue = *g_State.FrameDeletionQueue;
-
-        CompileCommand(resources, cmd, WaitOnBarrierCommand{
-            .DependencyInfo = LayoutTransitionInfo{
-                .ImageSubresource = imageSubresource,
-                .SourceStage = PipelineStage::AllTransfer,
-                .DestinationStage = PipelineStage::AllTransfer,
-                .SourceAccess = PipelineAccess::None,
-                .DestinationAccess = PipelineAccess::WriteTransfer,
-                .OldLayout = ImageLayout::Undefined,
-                .NewLayout = ImageLayout::Destination
-            }
-        });
-
-        i8 mipsToCopy = createInfo.CalculateMipmaps ? (i8)1 : (i8)asset->Header.Mipmaps;
-        u64 mipOffset = 0;
-        u64 offset = 0;
-        for (i8 mip = 0; mip < mipsToCopy; mip++)
-        {
-            u64 mipSize = 0;
-            mipOffset = offset;
-            for (i8 layer = 0; layer < (i8)asset->Header.Layers; layer++)
-            {
-                const u64 size = asset->Header.MipmapSizes[mip][layer];
-                std::memcpy(
-                    (std::byte*)imageBufferResource.HostAddress + offset,
-                    asset->MipmapsImageData[mip][layer].data(),
-                    size
-                );
-                offset += size;
-                mipSize += size;
-            }
-
-            CompileCommand(resources, cmd, {
-                .Buffer = imageBuffer,
-                .Image = image,
-                .SizeBytes = mipSize,
-                .BufferOffset = mipOffset,
-                .ImageSubresource = {
-                    .MipmapBase = mip,
-                    .Mipmaps = 1,
-                    .Layers = createInfo.Description.GetLayers()
-                }
-            });
-        }
-
-        ImageLayout currentLayout = ImageLayout::Destination;
-        if (createInfo.CalculateMipmaps)
-        {
-            CompileCommand(resources, cmd, MipmapImageCommand{
-                .Image = image,
-                .Layout = currentLayout
-            });
-            currentLayout = ImageLayout::Source;
-            imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
-        }
-
-        CompileCommand(resources, cmd, WaitOnBarrierCommand{
-            .DependencyInfo = LayoutTransitionInfo{
-                .ImageSubresource = imageSubresource,
-                .SourceStage = PipelineStage::AllTransfer,
-                .DestinationStage = PipelineStage::AllTransfer,
-                .SourceAccess = PipelineAccess::None,
-                .DestinationAccess = PipelineAccess::WriteTransfer,
-                .OldLayout = currentLayout,
-                .NewLayout = ImageLayout::Readonly
-            }
-        });
-    });
-
-    Destroy(resources, imageBuffer);
-
-    return image;
-}
-
-Image DeviceInternal::CreateImageFromPixels(const auto& resources, ImageCreateInfo& createInfo,
-    Span<const std::byte> pixels)
-{
-    if (pixels.empty())
-    {
-        Image image = AllocateImage(resources, createInfo);
-        CreateViews(resources, ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
-
-        return image;
-    }
-
-    const Buffer imageBuffer = CreateBuffer(resources, {
-            .Description = {
-                .SizeBytes = pixels.size(),
-                .Usage = BufferUsage::Source | BufferUsage::Staging,
-            },
-            .InitialData = pixels
-        },
-        Device::DummyDeletionQueue());
-
-    const Image image = CreateImageFromBuffer(resources, createInfo, imageBuffer);
-    Destroy(resources, imageBuffer);
-
-    return image;
-}
-
-Image DeviceInternal::CreateImageFromBuffer(const auto& resources, ImageCreateInfo& createInfo, Buffer buffer)
-{
-    Image image = {};
-
-    ImmediateSubmit(resources, [&](CommandBuffer cmd)
-    {
-        image = AllocateImage(resources, createInfo);
-        CreateViews(resources, ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
-
-        ImageSubresource imageSubresource = {.Image = image, .Description = {.Mipmaps = 1, .Layers = 1}};
-
-        ::DeletionQueue& deletionQueue = *g_State.FrameDeletionQueue;
-
-        CompileCommand(resources, cmd, WaitOnBarrierCommand{
-            .DependencyInfo = LayoutTransitionInfo{
-                .ImageSubresource = imageSubresource,
-                .SourceStage = PipelineStage::AllTransfer,
-                .DestinationStage = PipelineStage::AllTransfer,
-                .SourceAccess = PipelineAccess::None,
-                .DestinationAccess = PipelineAccess::WriteTransfer,
-                .OldLayout = ImageLayout::Undefined,
-                .NewLayout = ImageLayout::Destination
-            }
-        });
-
-        CompileCommand(resources, cmd, CopyBufferToImageCommand{
-            .Buffer = buffer,
-            .Image = image,
-            .ImageSubresource = {
-                .Mipmaps = 1,
-                .Layers = createInfo.Description.GetLayers()
-            }
-        });
-
-        ImageLayout currentLayout = ImageLayout::Destination;
-        if (createInfo.CalculateMipmaps)
-        {
-            CompileCommand(resources, cmd, MipmapImageCommand{
-                .Image = image,
-                .Layout = currentLayout
-            });
-            currentLayout = ImageLayout::Source;
-            imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
-        }
-
-        CompileCommand(resources, cmd, WaitOnBarrierCommand{
-            .DependencyInfo = LayoutTransitionInfo{
-                .ImageSubresource = imageSubresource,
-                .SourceStage = PipelineStage::AllTransfer,
-                .DestinationStage = PipelineStage::AllTransfer,
-                .SourceAccess = PipelineAccess::None,
-                .DestinationAccess = PipelineAccess::WriteTransfer,
-                .OldLayout = currentLayout,
-                .NewLayout = ImageLayout::Readonly
-            }
-        });
-    });
-
-    return image;
-}
-
-Image DeviceInternal::CreateEmptyImage(const auto& resources, ImageCreateInfo&& createInfo,
-    DeletionQueue& deletionQueue)
-{
-    const Image image = AllocateImage(resources, createInfo);
-    CreateViews(resources, ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
-
-    deletionQueue.Enqueue(image);
-
-    return image;
-}
-
-void DeviceInternal::PreprocessCreateInfo(ImageCreateInfo& createInfo)
-{
-    if (std::holds_alternative<const lux::assetlib::ImageAsset*>(createInfo.DataSource))
-        createInfo.Description.Usage |= ImageUsage::Destination;
-
-    if (createInfo.Description.Mipmaps > 1)
-        createInfo.Description.Usage |= ImageUsage::Destination | ImageUsage::Source;
-
-    if (createInfo.Description.Kind == ImageKind::ImageCubemap)
-        createInfo.Description.LayersDepth = 6;
-
-    if (enumHasAny(createInfo.Description.Usage, ImageUsage::Readback))
-        createInfo.Description.Usage |= ImageUsage::Source;
-}
-
-Image DeviceInternal::AllocateImage(const auto& resources, ImageCreateInfo& createInfo)
-{
-    PreprocessCreateInfo(createInfo);
-
-    u32 depth = createInfo.Description.GetDepth();
-    u32 layers = (u32)(u8)createInfo.Description.GetLayers();
-
-    VkImageCreateInfo imageCreateInfo = {};
-    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageCreateInfo.format = vulkanFormatFromFormat(createInfo.Description.Format);
-    imageCreateInfo.usage = vulkanImageUsageFromImageUsage(createInfo.Description.Usage);
-    imageCreateInfo.extent = {
-        .width = createInfo.Description.Width,
-        .height = createInfo.Description.Height,
-        .depth = depth
-    };
-    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imageCreateInfo.imageType = vulkanImageTypeFromImageKind(createInfo.Description.Kind);
-    imageCreateInfo.mipLevels = (u32)(u8)createInfo.Description.Mipmaps;
-    imageCreateInfo.arrayLayers = layers;
-    imageCreateInfo.flags = vulkanImageFlagsFromImageKind(createInfo.Description.Kind);
-
-    VmaAllocationCreateInfo allocationInfo = {};
-    allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    allocationInfo.flags = enumHasAny(createInfo.Description.Usage,
-            ImageUsage::Color | ImageUsage::Depth | ImageUsage::Stencil) ?
-        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT :
-        0;
-
-    ImageResource imageResource = {};
-    deviceCheck(vmaCreateImage(Allocator(), &imageCreateInfo, &allocationInfo,
-            &imageResource.Image, &imageResource.Allocation, nullptr),
-        "Failed to create image");
-    imageResource.Description = createInfo.Description;
-
-    return {resources.Add(imageResource)};
-}
-
-void DeviceInternal::Destroy(const auto& resources, Image image)
-{
-    const ImageResource& imageResource = resources[image];
-    if (imageResource.Views.ViewList == &imageResource.Views.ViewType.View)
-    {
-        vkDestroyImageView(g_State.Device, imageResource.Views.ViewType.View, nullptr);
-    }
-    else
-    {
-        for (u32 viewIndex = 0; viewIndex < imageResource.Views.ViewType.ViewCount; viewIndex++)
-            vkDestroyImageView(g_State.Device, imageResource.Views.ViewList[viewIndex], nullptr);
-        delete[] imageResource.Views.ViewList;
-    }
-    vmaDestroyImage(Allocator(), imageResource.Image, imageResource.Allocation);
-    resources.Remove(image);
-}
-
-void DeviceInternal::CreateViews(const auto& resources, const ImageSubresource& image,
-    const std::vector<ImageSubresourceDescription>& additionalViews)
-{
-    ImageResource& resource = resources[image.Image];
-    VkFormat viewFormat = vulkanFormatFromFormat(resource.Description.Format);
-    if (additionalViews.empty())
-    {
-        resource.Views.ViewType.View = CreateVulkanImageView(resources, image, viewFormat);
-        resource.Views.ViewList = &resource.Views.ViewType.View;
-        return;
-    }
-
-    resource.Views.ViewType.ViewCount = 1 + (u32)resource.Description.AdditionalViews.size();
-    resource.Views.ViewList = new VkImageView[resource.Views.ViewType.ViewCount];
-    resource.Views.ViewList[0] = CreateVulkanImageView(resources, image, viewFormat);
-    for (u32 viewIndex = 0; viewIndex < additionalViews.size(); viewIndex++)
-        resource.Views.ViewList[viewIndex + 1] = CreateVulkanImageView(
-            resources, ImageSubresource{.Image = image.Image, .Description = additionalViews[viewIndex]}, viewFormat);
-}
-
-VkImageView DeviceInternal::CreateVulkanImageView(const auto& resources, const ImageSubresource& image, VkFormat format)
-{
-    const ImageResource& imageResource = resources[image.Image];
-    VkImageViewCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    createInfo.image = resources[image.Image].Image;
-    createInfo.format = format;
-    createInfo.viewType = vulkanImageViewTypeFromImageAndViewKind(imageResource.Description.Kind,
-        image.Description.ImageViewKind);
-    createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-    createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-    createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-    createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-    createInfo.subresourceRange.aspectMask = vulkanImageAspectFromImageUsage(imageResource.Description.Usage);
-    createInfo.subresourceRange.baseMipLevel = (u32)(i32)image.Description.MipmapBase;
-    createInfo.subresourceRange.levelCount = (u32)(i32)image.Description.Mipmaps;
-    createInfo.subresourceRange.baseArrayLayer = (u32)(i32)image.Description.LayerBase;
-    createInfo.subresourceRange.layerCount = (u32)(i32)image.Description.Layers;
-
-    VkImageView imageView;
-
-    deviceCheck(vkCreateImageView(g_State.Device, &createInfo, nullptr, &imageView),
-        "Failed to create image view");
-
-    return imageView;
-}
-
-Span<const ImageSubresourceDescription> DeviceInternal::GetAdditionalImageViews(const auto& resources, Image image)
-{
-    return resources[image].Description.AdditionalViews;
-}
-
-ImageViewHandle DeviceInternal::GetImageViewHandle(const auto& resources, Image image,
-    ImageSubresourceDescription subresourceDescription)
-{
-    if (subresourceDescription == ImageSubresourceDescription{})
-        return 0;
-
-    const ImageDescription& description = resources[image].Description;
-    auto it = std::ranges::find(description.AdditionalViews, subresourceDescription);
-
-    if (it != description.AdditionalViews.end())
-        return ImageViewHandle{u32(it - description.AdditionalViews.begin()) + 1};
-
-    LUX_LOG_ERROR("Image does not have such view subresource, returning default view");
-    return ImageViewHandle{};
-}
-
-const ImageDescription& DeviceInternal::GetImageDescription(const auto& resources, Image image)
-{
-    return resources[image].Description;
-}
-
-ImTextureID DeviceInternal::CreateImGuiImage(const auto& resources, const ImageSubresource& texture, Sampler sampler,
-    ImageLayout layout)
-{
-    const ImageViewHandle viewHandle = GetImageViewHandle(resources, texture.Image, texture.Description);
-    const VkDescriptorSet imageDescriptorSet = ImGui_ImplVulkan_AddTexture(resources[sampler].Sampler,
-        resources[texture.Image].Views.ViewList[viewHandle.m_Index],
-        vulkanImageLayoutFromImageLayout(layout));
-
-    return ImTextureID{imageDescriptorSet};
-}
-
-void DeviceInternal::DestroyImGuiImage(ImTextureID image)
-{
-    ImGui_ImplVulkan_RemoveTexture((VkDescriptorSet)image);
-}
-
-Sampler DeviceInternal::CreateSampler(const auto& resources, SamplerCreateInfo&& createInfo)
-{
-    const SamplerCache::CacheKey key = SamplerCache::CreateCacheKey(createInfo);
-    Sampler cached = SamplerCache::Find(key);
-    if (cached.HasValue())
-        return cached;
-
-    VkSamplerCreateInfo samplerCreateInfo = {};
-    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerCreateInfo.magFilter = vulkanFilterFromImageFilter(createInfo.MagnificationFilter);
-    samplerCreateInfo.minFilter = vulkanFilterFromImageFilter(createInfo.MinificationFilter);
-    samplerCreateInfo.mipmapMode = vulkanMipmapModeFromSamplerFilter(samplerCreateInfo.minFilter);
-    samplerCreateInfo.addressModeU = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
-    samplerCreateInfo.addressModeV = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
-    samplerCreateInfo.addressModeW = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
-    samplerCreateInfo.minLod = 0.0f;
-    samplerCreateInfo.maxLod = createInfo.MaxLod;
-    samplerCreateInfo.maxAnisotropy = Device::GetAnisotropyLevel();
-    samplerCreateInfo.anisotropyEnable = (u32)createInfo.WithAnisotropy;
-    samplerCreateInfo.mipLodBias = createInfo.LodBias;
-    samplerCreateInfo.compareEnable =
-        isVulkanSamplerCompareOpEnabledFromSamplerDepthCompareMode(createInfo.DepthCompareMode);
-    samplerCreateInfo.compareOp = vulkanSamplerCompareOpFromSamplerDepthCompareMode(createInfo.DepthCompareMode);
-    samplerCreateInfo.borderColor = vulkanBorderColorFromBorderColor(createInfo.BorderColor);
-
-    VkSamplerReductionModeCreateInfo reductionModeCreateInfo = {};
-    if (createInfo.ReductionMode.has_value())
-    {
-        reductionModeCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO;
-        reductionModeCreateInfo.reductionMode = vulkanSamplerReductionModeFromSamplerReductionMode(
-            *createInfo.ReductionMode);
-        samplerCreateInfo.pNext = &reductionModeCreateInfo;
-    }
-
-    SamplerResource samplerResource = {};
-    deviceCheck(vkCreateSampler(g_State.Device, &samplerCreateInfo, nullptr, &samplerResource.Sampler),
-        "Failed to create depth pyramid sampler");
-
-    const Sampler sampler = resources.Add(samplerResource);
-    Device::DeletionQueue().Enqueue(sampler);
-
-    SamplerCache::Emplace(key, sampler);
-
-    return sampler;
-}
-
-void DeviceInternal::Destroy(const auto& resources, Sampler sampler)
-{
-    vkDestroySampler(g_State.Device, resources[sampler].Sampler, nullptr);
-    resources.Remove(sampler);
-}
-
-RenderingAttachment DeviceInternal::CreateRenderingAttachment(const auto& resources,
-    RenderingAttachmentCreateInfo&& createInfo, DeletionQueue& deletionQueue)
-{
-    RenderingAttachmentResource renderingAttachmentResource = {};
-
-    renderingAttachmentResource.AttachmentInfo = {};
-    renderingAttachmentResource.AttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    renderingAttachmentResource.AttachmentInfo.clearValue = VkClearValue{
-        .color = {
-            .float32 = {
-                createInfo.Description.Clear.Color.F.r,
-                createInfo.Description.Clear.Color.F.g,
-                createInfo.Description.Clear.Color.F.b,
-                createInfo.Description.Clear.Color.F.a
-            }
-        }
-    };
-    renderingAttachmentResource.AttachmentInfo.imageLayout = vulkanImageLayoutFromImageLayout(
-        createInfo.Layout);
-    renderingAttachmentResource.AttachmentInfo.imageView = resources[createInfo.Image].Views.ViewList[
-        GetImageViewHandle(resources, createInfo.Image, createInfo.Description.Subresource).m_Index];
-    renderingAttachmentResource.AttachmentInfo.loadOp = vulkanAttachmentLoadFromAttachmentLoad(
-        createInfo.Description.OnLoad);
-    renderingAttachmentResource.AttachmentInfo.storeOp = vulkanAttachmentStoreFromAttachmentStore(
-        createInfo.Description.OnStore);
-    renderingAttachmentResource.AttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-
-    RenderingAttachment renderingAttachment = resources.Add(renderingAttachmentResource);
-    deletionQueue.Enqueue(renderingAttachment);
-
-    return renderingAttachment;
-}
-
-void DeviceInternal::Destroy(const auto& resources, RenderingAttachment renderingAttachment)
-{
-    resources.Remove(renderingAttachment);
-}
-
-RenderingInfo DeviceInternal::CreateRenderingInfo(const auto& resources, RenderingInfoCreateInfo&& createInfo,
-    DeletionQueue& deletionQueue)
-{
-    RenderingInfoResource renderingInfoResource = {};
-    renderingInfoResource.ColorAttachments.reserve(createInfo.ColorAttachments.size());
-
-    for (auto& attachment : createInfo.ColorAttachments)
-        renderingInfoResource.ColorAttachments.push_back(resources[attachment].AttachmentInfo);
-    if (createInfo.DepthAttachment.has_value())
-        renderingInfoResource.DepthAttachment = resources[*createInfo.DepthAttachment].AttachmentInfo;
-
-    renderingInfoResource.RenderArea = createInfo.RenderArea;
-    const RenderingInfo renderingInfo = resources.Add(renderingInfoResource);
-    deletionQueue.Enqueue(renderingInfo);
-
-    return renderingInfo;
-}
-
-void DeviceInternal::Destroy(const auto& resources, RenderingInfo renderingInfo)
-{
-    resources.Remove(renderingInfo);
-}
-
-PipelineLayout DeviceInternal::CreatePipelineLayout(const auto& resources, PipelineLayoutCreateInfo&& createInfo,
-    DeletionQueue& deletionQueue)
-{
-    std::vector<VkPushConstantRange> pushConstantRanges;
-    pushConstantRanges.reserve(createInfo.PushConstants.size());
-    std::vector<VkDescriptorSetLayout> descriptorsLayouts;
-    descriptorsLayouts.reserve(createInfo.DescriptorsLayouts.size());
-    for (auto& pushConstant : createInfo.PushConstants)
-    {
-        VkPushConstantRange pushConstantRange = {};
-        pushConstantRange.size = pushConstant.SizeBytes;
-        pushConstantRange.offset = pushConstant.Offset;
-        pushConstantRange.stageFlags = vulkanShaderStageFromShaderStage(pushConstant.StageFlags);
-
-        pushConstantRanges.push_back(pushConstantRange);
-    }
-    for (auto& descriptorLayout : createInfo.DescriptorsLayouts)
-        descriptorsLayouts.push_back(resources[descriptorLayout].Layout);
-
-    VkPipelineLayoutCreateInfo layoutCreateInfo = {};
-    layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layoutCreateInfo.pushConstantRangeCount = (u32)pushConstantRanges.size();
-    layoutCreateInfo.pPushConstantRanges = pushConstantRanges.data();
-    layoutCreateInfo.setLayoutCount = (u32)descriptorsLayouts.size();
-    layoutCreateInfo.pSetLayouts = descriptorsLayouts.data();
-
-    PipelineLayoutResource pipelineLayoutResource = {};
-    pipelineLayoutResource.PushConstants = pushConstantRanges;
-    deviceCheck(vkCreatePipelineLayout(g_State.Device, &layoutCreateInfo, nullptr,
-        &pipelineLayoutResource.Layout), "Failed to create pipeline layout");
-
-    PipelineLayout layout = resources.Add(pipelineLayoutResource);
-    deletionQueue.Enqueue(layout);
-
-    return layout;
-}
-
-void DeviceInternal::Destroy(const auto& resources, PipelineLayout pipelineLayout)
-{
-    vkDestroyPipelineLayout(g_State.Device, resources[pipelineLayout].Layout, nullptr);
-    resources.Remove(pipelineLayout);
-}
-
-Pipeline DeviceInternal::CreatePipeline(const auto& resources, PipelineCreateInfo&& createInfo,
-    DeletionQueue& deletionQueue)
-{
-    VkPipelineLayout layout = resources[createInfo.PipelineLayout].Layout;
-    std::vector<VkPipelineShaderStageCreateInfo> shaders;
-    shaders.reserve(createInfo.Shaders.size());
-    for (auto&& [i, shader] : std::views::enumerate(createInfo.Shaders))
-    {
-        auto& module = resources[shader];
-
-        VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
-        shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        shaderStageCreateInfo.stage = vulkanStageBitFromShaderStage(createInfo.ShaderStages[i]);
-        shaderStageCreateInfo.module = module.Module;
-        shaderStageCreateInfo.pName = createInfo.ShaderEntryPoints[i].data();
-
-        shaders.push_back(shaderStageCreateInfo);
-    }
-
-    std::vector<std::vector<VkSpecializationMapEntry>> shaderSpecializationEntries(createInfo.Shaders.size());
-    std::vector<VkSpecializationInfo> shaderSpecializationInfos;
-    shaderSpecializationInfos.reserve(createInfo.Shaders.size());
-    for (u32 shaderIndex = 0; shaderIndex < createInfo.Shaders.size(); shaderIndex++)
-    {
-        auto& shader = shaders[shaderIndex];
-        VkSpecializationInfo shaderSpecializationInfo = {};
-        for (const auto& specialization : createInfo.Specialization.Descriptions)
-            if (enumHasAny(
-                shader.stage, (VkShaderStageFlagBits)vulkanShaderStageFromShaderStage(specialization.ShaderStages)))
-                shaderSpecializationEntries[shaderIndex].push_back({
-                    .constantID = specialization.Id,
-                    .offset = specialization.Offset,
-                    .size = specialization.SizeBytes
-                });
-
-        shaderSpecializationInfo.dataSize = createInfo.Specialization.Data.size();
-        shaderSpecializationInfo.pData = createInfo.Specialization.Data.data();
-        shaderSpecializationInfo.mapEntryCount = (u32)shaderSpecializationEntries[shaderIndex].size();
-        shaderSpecializationInfo.pMapEntries = shaderSpecializationEntries[shaderIndex].data();
-
-        shaderSpecializationInfos.push_back(shaderSpecializationInfo);
-        shader.pSpecializationInfo = &shaderSpecializationInfos.back();
-    }
-
-    Pipeline pipeline = {};
-    if (createInfo.IsComputePipeline)
-    {
-        VkComputePipelineCreateInfo pipelineCreateInfo = {};
-        pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-        pipelineCreateInfo.stage = shaders.front();
-        pipelineCreateInfo.layout = layout;
-
-#ifdef DESCRIPTOR_BUFFER
-        pipelineCreateInfo.flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
-#endif
-
-        PipelineResource pipelineResource = {};
-        deviceCheck(vkCreateComputePipelines(g_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
-            &pipelineResource.Pipeline), "Failed to create compute pipeline");
-        pipeline = resources.Add(pipelineResource);
-    }
-    else
-    {
-        ASSERT(
-            !createInfo.ColorFormats.empty() ||
-            createInfo.DepthFormat != Format::Undefined, "No rendering details provided")
-
-        std::vector<VkDynamicState> dynamicStates = vulkanDynamicStatesFromDynamicStates(createInfo.DynamicStates);
-
-        VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
-        dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-        dynamicStateInfo.dynamicStateCount = (u32)dynamicStates.size();
-        dynamicStateInfo.pDynamicStates = dynamicStates.data();
-
-        VkPipelineViewportStateCreateInfo viewportState = {};
-        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-        viewportState.viewportCount = 1;
-        viewportState.scissorCount = 1;
-
-        VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
-        inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        inputAssemblyState.primitiveRestartEnable = VK_FALSE;
-        inputAssemblyState.topology = vulkanTopologyFromPrimitiveKind(createInfo.PrimitiveKind);
-
-        VkPipelineVertexInputStateCreateInfo vertexInputState = {};
-        vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        std::vector<VkVertexInputBindingDescription> bindings;
-        std::vector<VkVertexInputAttributeDescription> attributes;
-        bindings.reserve(createInfo.VertexDescription.Bindings.size());
-        attributes.reserve(createInfo.VertexDescription.Attributes.size());
-        for (auto& binding : createInfo.VertexDescription.Bindings)
-            bindings.push_back({
-                .binding = binding.Index,
-                .stride = binding.StrideBytes,
-                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-            });
-
-        for (auto& attribute : createInfo.VertexDescription.Attributes)
-            attributes.push_back({
-                .location = attribute.Index,
-                .binding = attribute.BindingIndex,
-                .format = vulkanFormatFromFormat(attribute.Format),
-                .offset = attribute.OffsetBytes
-            });
-        vertexInputState.vertexBindingDescriptionCount = (u32)bindings.size();
-        vertexInputState.pVertexBindingDescriptions = bindings.data();
-        vertexInputState.vertexAttributeDescriptionCount = (u32)attributes.size();
-        vertexInputState.pVertexAttributeDescriptions = attributes.data();
-
-        VkPipelineRasterizationStateCreateInfo rasterizationState = {};
-        rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        rasterizationState.depthClampEnable = createInfo.ClampDepth ? VK_TRUE : VK_FALSE;
-        rasterizationState.depthBiasEnable = enumHasAny(createInfo.DynamicStates, DynamicStates::DepthBias);
-        rasterizationState.rasterizerDiscardEnable = VK_FALSE; // if we do not want an output
-        rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
-        rasterizationState.lineWidth = 1.0f;
-        rasterizationState.cullMode = vulkanCullModeFromFaceCullMode(createInfo.CullMode);
-        rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-
-        VkPipelineMultisampleStateCreateInfo multisampleState = {};
-        multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        multisampleState.sampleShadingEnable = VK_FALSE;
-        multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-        VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
-        depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depthStencilState.depthTestEnable = createInfo.DepthMode == DepthMode::None ? VK_FALSE : VK_TRUE;
-        depthStencilState.depthWriteEnable =
-            (createInfo.DepthMode == DepthMode::None || createInfo.DepthMode == DepthMode::Read) ?
-            VK_FALSE :
-            VK_TRUE;
-        depthStencilState.depthCompareOp = createInfo.DepthTest == DepthTest::GreaterOrEqual ?
-            VK_COMPARE_OP_GREATER_OR_EQUAL :
-            VK_COMPARE_OP_EQUAL;
-        depthStencilState.depthBoundsTestEnable = VK_FALSE;
-        depthStencilState.stencilTestEnable = VK_FALSE;
-
-        std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachmentStates(std::max(1u,
-            (u32)createInfo.ColorFormats.size()));
-        for (auto& attachment : colorBlendAttachmentStates)
-        {
-            attachment = {};
-            attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                VK_COLOR_COMPONENT_G_BIT |
-                VK_COLOR_COMPONENT_B_BIT |
-                VK_COLOR_COMPONENT_A_BIT;
-            switch (createInfo.AlphaBlending)
-            {
-            case AlphaBlending::None:
-                attachment.blendEnable = VK_FALSE;
-                break;
-            case AlphaBlending::Over:
-                attachment.blendEnable = VK_TRUE;
-                attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-                attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-                attachment.colorBlendOp = VK_BLEND_OP_ADD;
-                attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-                attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-                attachment.alphaBlendOp = VK_BLEND_OP_ADD;
-                break;
-            case AlphaBlending::Additive:
-                attachment.blendEnable = VK_TRUE;
-                attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-                attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-                attachment.colorBlendOp = VK_BLEND_OP_ADD;
-                attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-                attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-                attachment.alphaBlendOp = VK_BLEND_OP_ADD;
-                break;
-            default:
-                ASSERT(false, "Unsupported blending mode")
-            }
-        }
-        
-        VkPipelineColorBlendStateCreateInfo colorBlendState = {};
-        colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        colorBlendState.logicOpEnable = VK_FALSE;
-        colorBlendState.attachmentCount = (u32)colorBlendAttachmentStates.size();
-        colorBlendState.pAttachments = colorBlendAttachmentStates.data();
-
-        std::vector<VkFormat> colorFormats;
-        colorFormats.resize(createInfo.ColorFormats.size());
-
-        for (u32 colorIndex = 0; colorIndex < createInfo.ColorFormats.size(); colorIndex++)
-            colorFormats[colorIndex] = vulkanFormatFromFormat(createInfo.ColorFormats[colorIndex]);
-
-        VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
-        pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-        pipelineRenderingCreateInfo.colorAttachmentCount = (u32)colorFormats.size();
-        pipelineRenderingCreateInfo.pColorAttachmentFormats = colorFormats.data();
-        pipelineRenderingCreateInfo.depthAttachmentFormat = vulkanFormatFromFormat(
-            createInfo.DepthFormat);
-
-        VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
-        pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipelineCreateInfo.stageCount = (u32)shaders.size();
-        pipelineCreateInfo.pStages = shaders.data();
-        pipelineCreateInfo.pDynamicState = &dynamicStateInfo;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pVertexInputState = &vertexInputState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.layout = layout;
-        pipelineCreateInfo.renderPass = VK_NULL_HANDLE;
-        pipelineCreateInfo.subpass = 0;
-        pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
-
-#ifdef DESCRIPTOR_BUFFER
-        pipelineCreateInfo.flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
-#endif
-
-        PipelineResource pipelineResource = {};
-        deviceCheck(vkCreateGraphicsPipelines(g_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
-            &pipelineResource.Pipeline), "Failed to create graphics pipeline");
-        pipeline = resources.Add(pipelineResource);
-    }
-    deletionQueue.Enqueue(pipeline);
-
-    return pipeline;
-}
-
-void DeviceInternal::Destroy(const auto& resources, Pipeline pipeline)
-{
-    vkDestroyPipeline(g_State.Device, resources[pipeline].Pipeline, nullptr);
-    resources.Remove(pipeline);
-}
-
-ShaderModule DeviceInternal::CreateShaderModule(const auto& resources, ShaderModuleCreateInfo&& createInfo,
-    DeletionQueue& deletionQueue)
-{
-    VkShaderModuleCreateInfo moduleCreateInfo = {};
-    moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    moduleCreateInfo.codeSize = createInfo.Source.size();
-    moduleCreateInfo.pCode = reinterpret_cast<const u32*>(createInfo.Source.data());
-
-    ShaderModuleResource shaderModuleResource = {};
-    deviceCheck(vkCreateShaderModule(g_State.Device, &moduleCreateInfo, nullptr, &shaderModuleResource.Module),
-        "Failed to create shader module");
-
-    ShaderModule module = resources.Add(shaderModuleResource);
-    deletionQueue.Enqueue(module);
-
-    return module;
-}
-
-void DeviceInternal::Destroy(const auto& resources, ShaderModule shaderModule)
-{
-    vkDestroyShaderModule(g_State.Device, resources[shaderModule].Module, nullptr);
-    resources.Remove(shaderModule);
-}
-
-DescriptorsLayout DeviceInternal::CreateDescriptorsLayout(const auto& resources,
-    DescriptorsLayoutCreateInfo&& createInfo)
-{
-    const DescriptorLayoutCache::CacheKey key = DescriptorLayoutCache::CreateCacheKey(createInfo);
-    DescriptorsLayout cached = DescriptorLayoutCache::Find(key);
-    if (cached.HasValue())
-        return cached;
-
-    std::vector<VkDescriptorBindingFlags> bindingFlags;
-    bindingFlags.reserve(createInfo.Bindings.size());
-
-#ifdef DESCRIPTOR_BUFFER
-    for (auto binding : createInfo.Bindings)
-        bindingFlags.push_back(vulkanDescriptorBindingFlagsFromDescriptorFlags(binding.Flags));
-#else
-    for (auto binding : createInfo.Bindings)
-    {
-        DescriptorFlags flags = binding.Flags;
-        if (enumHasAny(flags, DescriptorFlags::VariableCount))
-            flags |= DescriptorFlags::UpdateAfterBind |
-                DescriptorFlags::UpdateUnusedPending;
-        bindingFlags.push_back(vulkanDescriptorBindingFlagsFromDescriptorFlags(
-            flags | DescriptorFlags::PartiallyBound));
-    }
-#endif
-
-    std::vector<VkDescriptorSetLayoutBinding> bindings;
-    bindings.reserve(createInfo.Bindings.size());
-    DescriptorLayoutFlags layoutFlags = createInfo.Flags;
-
-    bool layoutHasImmutableSamplers = false;
-    for (auto& binding : createInfo.Bindings)
-    {
-        bindings.push_back({
-            .binding = binding.Binding,
-            .descriptorType = vulkanDescriptorTypeFromDescriptorType(binding.Type),
-            .descriptorCount = binding.Count,
-            .stageFlags = vulkanShaderStageFromShaderStage(binding.Shaders),
-            .pImmutableSamplers = nullptr
-        });
-
-        layoutHasImmutableSamplers |= binding.ImmutableSampler.HasValue();
-        if (binding.ImmutableSampler.HasValue())
-            bindings.back().pImmutableSamplers = &resources[binding.ImmutableSampler].Sampler;
-    }
-
-    VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo = {};
-    bindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-    bindingFlagsCreateInfo.bindingCount = (u32)bindingFlags.size();
-    bindingFlagsCreateInfo.pBindingFlags = bindingFlags.data();
-
-#ifdef DESCRIPTOR_BUFFER
-    layoutFlags |= DescriptorLayoutFlags::DescriptorBuffer;
-    if (layoutHasImmutableSamplers)
-        layoutFlags |= DescriptorLayoutFlags::EmbeddedImmutableSamplers;
-    layoutFlags &= ~DescriptorLayoutFlags::UpdateAfterBind;
-#else
-    (void)layoutHasImmutableSamplers;
-#endif
-
-    VkDescriptorSetLayoutCreateInfo layoutCreateInfo = {};
-    layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutCreateInfo.bindingCount = (u32)bindings.size();
-    layoutCreateInfo.pBindings = bindings.data();
-    layoutCreateInfo.flags = vulkanDescriptorsLayoutFlagsFromDescriptorsLayoutFlags(layoutFlags);
-    layoutCreateInfo.pNext = &bindingFlagsCreateInfo;
-
-    DescriptorsLayoutResource descriptorSetLayoutResource = {};
-    deviceCheck(vkCreateDescriptorSetLayout(g_State.Device, &layoutCreateInfo, nullptr,
-        &descriptorSetLayoutResource.Layout), "Failed to create descriptor set layout");
-
-    DescriptorsLayout layout = resources.Add(descriptorSetLayoutResource);
-    Device::DeletionQueue().Enqueue(layout);
-
-    DescriptorLayoutCache::Emplace(key, layout);
-
-    return layout;
-}
-
-DescriptorsLayout DeviceInternal::GetEmptyDescriptorsLayout(const auto& resources)
-{
-#ifdef DESCRIPTOR_BUFFER
-    static const DescriptorsLayout EMPTY_LAYOUT =
-        CreateDescriptorsLayout(resources, {.Flags = DescriptorLayoutFlags::DescriptorBuffer});
-#else
-    static const DescriptorsLayout EMPTY_LAYOUT =
-        CreateDescriptorsLayout(resources, {});
-#endif
-
-    return EMPTY_LAYOUT;
-}
-
-void DeviceInternal::Destroy(const auto& resources, DescriptorsLayout layout)
-{
-    vkDestroyDescriptorSetLayout(g_State.Device, resources[layout].Layout, nullptr);
-    resources.Remove(layout);
-}
-
-
-#ifdef DESCRIPTOR_BUFFER
-DescriptorArenaAllocator DeviceInternal::CreateDescriptorArenaAllocator(const auto& resources,
-    DescriptorArenaAllocatorCreateInfo&& createInfo, DeletionQueue& deletionQueue)
-{
-    ASSERT(!createInfo.UsedTypes.empty(), "At least one descriptor type is necessary")
-    ASSERT(createInfo.Residence == DescriptorAllocatorResidence::CPU, "GPU residence is not supported")
-
-    VkBufferUsageFlags descriptorBufferUsage = 0;
-    for (auto type : createInfo.UsedTypes)
-    {
-        if (type == DescriptorType::Sampler)
-            descriptorBufferUsage |= VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
-        else
-            descriptorBufferUsage |= VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
-    }
-
-    u32 maxDescriptorSize = 0;
-    for (auto type : createInfo.UsedTypes)
-        maxDescriptorSize = std::max(maxDescriptorSize, DeviceInternal::GetDescriptorSizeBytes(type));
-
-    const u64 arenaSizeBytes = (u64)maxDescriptorSize * createInfo.DescriptorCount;
-
-    VkBufferUsageFlags usageFlags = descriptorBufferUsage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    VmaAllocationCreateFlags allocationFlags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-    if (createInfo.Residence == DescriptorAllocatorResidence::GPU)
-        usageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    else
-        allocationFlags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
-    DescriptorArenaAllocatorResource allocatorResource = {};
-    allocatorResource.DescriptorSet = createInfo.DescriptorSet;
-    allocatorResource.DescriptorBufferUsage = descriptorBufferUsage;
-    allocatorResource.Residence = createInfo.Residence;
-    allocatorResource.SizeBytes = arenaSizeBytes;
-    allocatorResource.Descriptors.reserve(createInfo.DescriptorCount);
-    const BufferCreateInfo arenaCreateInfo = {.Description = {.SizeBytes = arenaSizeBytes}, .PersistentMapping = true};
-    allocatorResource.Arena = AllocateBuffer(resources, arenaCreateInfo, usageFlags, allocationFlags);
-    allocatorResource.DeviceAddress = GetDeviceAddress(resources, allocatorResource.Arena);
-    allocatorResource.MappedAddress = GetBufferMappedAddress(resources, allocatorResource.Arena);
-
-    DescriptorArenaAllocator allocator = resources.Add(allocatorResource);
-    deletionQueue.Enqueue(allocator);
-
-    return allocator;
-}
-
-void DeviceInternal::Destroy(const auto& resources, DescriptorArenaAllocator allocator)
-{
-    ResetDescriptorArenaAllocator(resources, allocator);
-    Destroy(resources, resources[allocator].Arena);
-    resources.Remove(allocator);
-}
-
-std::optional<Descriptors> DeviceInternal::AllocateDescriptors(const auto& resources,
-    DescriptorArenaAllocator allocator, DescriptorsLayout layout, DescriptorAllocatorAllocationBindings&& bindings)
-{
-    DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
-    auto& descriptorBufferProps = g_State.GPUDescriptorBufferProperties;
-
-    /* if we have bindless binding, we have to calculate layout size as a sum of bindings sizes */
-    u64 layoutSizeBytes = 0;
-    if (bindings.BindlessCount == 0)
-    {
-        vkGetDescriptorSetLayoutSizeEXT(g_State.Device, resources[layout].Layout, &layoutSizeBytes);
-    }
-    else
-    {
-        for (u32 bindingIndex = 0; bindingIndex < bindings.Bindings.size(); bindingIndex++)
-        {
-            auto& binding = bindings.Bindings[bindingIndex];
-            bool isBindless = enumHasAny(binding.Flags, DescriptorFlags::VariableCount);
-            ASSERT(
-                (bindingIndex == (u32)bindings.Bindings.size() - 1 && isBindless) ||
-                (bindingIndex != (u32)bindings.Bindings.size() - 1 && !isBindless),
-                "Only one binding can be declared as 'bindless' for any particular set, and it has to be the last one")
-
-            layoutSizeBytes += isBindless ?
-                bindings.BindlessCount * GetDescriptorSizeBytes(binding.Type) :
-                GetDescriptorSizeBytes(binding.Type);
-        }
-    }
-
-    layoutSizeBytes =
-        lux::mem::alignAddressPow2(layoutSizeBytes, (u16)descriptorBufferProps.descriptorBufferOffsetAlignment);
-    if (layoutSizeBytes + allocatorResource.CurrentOffset > allocatorResource.SizeBytes)
-        return {};
-
-    std::vector<u64> bindingOffsets(bindings.Bindings.size());
-    for (u32 offsetIndex = 0; offsetIndex < bindingOffsets.size(); offsetIndex++)
-    {
-        auto& binding = bindings.Bindings[offsetIndex];
-        vkGetDescriptorSetLayoutBindingOffsetEXT(g_State.Device, resources[layout].Layout, binding.Binding,
-            &bindingOffsets[offsetIndex]);
-        bindingOffsets[offsetIndex] += allocatorResource.CurrentOffset;
-    }
-
-    DescriptorsResource descriptorsResource = {};
-    descriptorsResource.Offsets = bindingOffsets;
-    descriptorsResource.SizeBytes = layoutSizeBytes;
-    descriptorsResource.Allocator = allocator;
-
-    Descriptors descriptors = resources.Add(descriptorsResource);
-    allocatorResource.Descriptors.push_back(descriptors);
-
-    allocatorResource.CurrentOffset += layoutSizeBytes;
-
-    return descriptors;
-}
-
-void DeviceInternal::ResetDescriptorArenaAllocator(const auto& resources, DescriptorArenaAllocator allocator)
-{
-    DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
-    for (Descriptors descriptors : allocatorResource.Descriptors)
-        resources.Remove(descriptors);
-    allocatorResource.Descriptors.clear();
-
-    allocatorResource.CurrentOffset = 0;
-}
-void DeviceInternal::UpdateDescriptors(const auto& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo,
-    const BufferSubresource& buffer, u32 index)
-{
-    auto&& [slot, type] = slotInfo;
-    ASSERT(type != DescriptorType::TexelStorage && type != DescriptorType::TexelUniform,
-        "Texel buffers require format information")
-    ASSERT(type != DescriptorType::StorageBufferDynamic && type != DescriptorType::UniformBufferDynamic,
-        "Dynamic buffers are not supported when using descriptor buffer")
-
-    const BufferResource& bufferResource = resources[buffer.Buffer];
-    VkBufferDeviceAddressInfo deviceAddressInfo = {};
-    deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-    deviceAddressInfo.buffer = bufferResource.Buffer;
-    u64 deviceAddress = vkGetBufferDeviceAddress(g_State.Device, &deviceAddressInfo);
-
-    VkDescriptorAddressInfoEXT descriptorAddressInfo = {};
-    descriptorAddressInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
-    descriptorAddressInfo.address = deviceAddress + buffer.Description.Offset;
-    descriptorAddressInfo.format = VK_FORMAT_UNDEFINED;
-    ASSERT(
-        buffer.Description.SizeBytes <= bufferResource.Description.SizeBytes ||
-        buffer.Description.SizeBytes == BufferSubresourceDescription::WHOLE_SIZE,
-        "Buffer subresource size is too large")
-    descriptorAddressInfo.range = std::min(buffer.Description.SizeBytes, bufferResource.Description.SizeBytes);
-
-    VkDescriptorGetInfoEXT descriptorGetInfo = {};
-    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
-    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
-    // using the fact that 'descriptorGetInfo.data' is union
-    descriptorGetInfo.data.pUniformBuffer = &descriptorAddressInfo;
-
-    WriteDescriptor(resources, descriptors, slotInfo, index, descriptorGetInfo);
-}
-
-void DeviceInternal::UpdateDescriptors(const auto& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo,
-    Sampler sampler)
-{
-    auto&& [slot, type] = slotInfo;
-    ASSERT(type == DescriptorType::Sampler)
-
-    VkDescriptorGetInfoEXT descriptorGetInfo = {};
-    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
-    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
-    descriptorGetInfo.data.pSampler = &resources[sampler].Sampler;
-    WriteDescriptor(resources, descriptors, slotInfo, 0, descriptorGetInfo);
-}
-
-void DeviceInternal::UpdateDescriptors(const auto& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo,
-    const ImageSubresource& image, ImageLayout layout, u32 index)
-{
-    auto&& [slot, type] = slotInfo;
-    VkDescriptorGetInfoEXT descriptorGetInfo = {};
-    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
-    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
-    VkDescriptorImageInfo descriptorImageInfo = {};
-    descriptorImageInfo.imageView =
-        resources[image.Image].Views.ViewList[GetImageViewHandle(resources, image.Image, image.Description).m_Index];
-    descriptorImageInfo.imageLayout = vulkanImageLayoutFromImageLayout(layout);
-    descriptorGetInfo.data.pSampledImage = &descriptorImageInfo;
-
-    WriteDescriptor(resources, descriptors, slotInfo, index, descriptorGetInfo);
-}
-#else // DESCRIPTOR_BUFFER
-DescriptorArenaAllocator DeviceInternal::CreateDescriptorArenaAllocator(const auto& resources,
-    DescriptorArenaAllocatorCreateInfo&& createInfo, DeletionQueue& deletionQueue)
-{
-    DescriptorArenaAllocatorResource descriptorAllocatorResource = {};
-    descriptorAllocatorResource.MaxSetsPerPool = createInfo.DescriptorCount;
-    descriptorAllocatorResource.Descriptors.reserve(createInfo.DescriptorCount);
-
-    const DescriptorArenaAllocator allocator = {resources.Add(descriptorAllocatorResource)};
-    deletionQueue.Enqueue(allocator);
-
-    return allocator;
-}
-
-void DeviceInternal::Destroy(const auto& resources, DescriptorArenaAllocator allocator)
-{
-    ResetDescriptorArenaAllocator(resources, allocator);
-
-    const DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
-    for (auto& pool : allocatorResource.FreePools)
-        vkDestroyDescriptorPool(g_State.Device, pool.Pool, nullptr);
-    for (auto& pool : allocatorResource.UsedPools)
-        vkDestroyDescriptorPool(g_State.Device, pool.Pool, nullptr);
-
-    resources.Remove(allocator);
-}
-
-std::optional<Descriptors> DeviceInternal::AllocateDescriptors(const auto& resources,
-    DescriptorArenaAllocator allocator, DescriptorsLayout layout, DescriptorAllocatorAllocationBindings&& bindings)
-{
-    const bool hasBindless = bindings.BindlessCount > 0;
-    const DescriptorPoolFlags poolFlags = hasBindless ?
-        DescriptorPoolFlags::UpdateAfterBind :
-        DescriptorPoolFlags::None;
-
-    DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
-    u32 poolIndex = GetFreePoolIndexFromAllocator(resources, allocator, poolFlags);
-    VkDescriptorPool pool = allocatorResource.FreePools[poolIndex].Pool;
-
-    VkDescriptorSetVariableDescriptorCountAllocateInfo vulkanVariableBindingCounts = {};
-    vulkanVariableBindingCounts.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
-    vulkanVariableBindingCounts.descriptorSetCount = (u32)hasBindless;
-    vulkanVariableBindingCounts.pDescriptorCounts = &bindings.BindlessCount;
-
-    VkDescriptorSetAllocateInfo allocateInfo = {};
-    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocateInfo.descriptorPool = pool;
-    allocateInfo.descriptorSetCount = 1;
-    allocateInfo.pSetLayouts = &resources[layout].Layout;
-    allocateInfo.pNext = &vulkanVariableBindingCounts;
-
-    DescriptorsResource descriptorSetResource = {};
-    vkAllocateDescriptorSets(g_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet);
-    descriptorSetResource.Pool = pool;
-
-    if (descriptorSetResource.DescriptorSet == VK_NULL_HANDLE)
-    {
-        allocatorResource.UsedPools.push_back(allocatorResource.FreePools[poolIndex]);
-        allocatorResource.FreePools.erase(allocatorResource.FreePools.begin() + poolIndex);
-
-        poolIndex = GetFreePoolIndexFromAllocator(resources, allocator, poolFlags);
-        pool = allocatorResource.FreePools[poolIndex].Pool;
-        allocateInfo.descriptorPool = pool;
-        allocateInfo.pSetLayouts = &resources[descriptorSetResource.Layout].Layout;
-        vkAllocateDescriptorSets(g_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet);
-        if (descriptorSetResource.DescriptorSet == VK_NULL_HANDLE)
-            return std::nullopt;
-
-        descriptorSetResource.Pool = pool;
-    }
-
-    const Descriptors set = {resources.Add(descriptorSetResource)};
-    allocatorResource.Descriptors.push_back(set);
-
-    return set;
-}
-
-void DeviceInternal::ResetDescriptorArenaAllocator(const auto& resources, DescriptorArenaAllocator allocator)
-{
-    DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
-    for (auto& pool : allocatorResource.FreePools)
-        vkResetDescriptorPool(g_State.Device, pool.Pool, 0);
-    for (auto pool : allocatorResource.UsedPools)
-    {
-        vkResetDescriptorPool(g_State.Device, pool.Pool, 0);
-        allocatorResource.FreePools.push_back(pool);
-    }
-    allocatorResource.UsedPools.clear();
-    for (Descriptors set : allocatorResource.Descriptors)
-        resources.Remove(set);
-    allocatorResource.Descriptors.clear();
-}
-
-void DeviceInternal::UpdateDescriptors(const auto& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo,
-    const BufferSubresource& buffer, u32 index)
-{
-    auto&& [slot, type] = slotInfo;
-    VkDescriptorBufferInfo descriptorBufferInfo = {};
-    descriptorBufferInfo.buffer = resources[buffer.Buffer].Buffer;
-    descriptorBufferInfo.offset = buffer.Description.Offset;
-    descriptorBufferInfo.range = buffer.Description.SizeBytes;
-
-    VkWriteDescriptorSet write = {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.descriptorCount = 1;
-    write.dstSet = resources[descriptors].DescriptorSet;
-    write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
-    write.dstBinding = slot;
-    write.pBufferInfo = &descriptorBufferInfo;
-    write.dstArrayElement = index;
-
-    vkUpdateDescriptorSets(g_State.Device, 1, &write, 0, nullptr);
-}
-
-void DeviceInternal::UpdateDescriptors(const auto& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo,
-    Sampler sampler)
-{
-    auto&& [slot, type] = slotInfo;
-    VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.sampler = resources[sampler].Sampler;
-
-    VkWriteDescriptorSet write = {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.descriptorCount = 1;
-    write.dstSet = resources[descriptors].DescriptorSet;
-    write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
-    write.dstBinding = slot;
-    write.pImageInfo = &descriptorTextureInfo;
-
-    vkUpdateDescriptorSets(g_State.Device, 1, &write, 0, nullptr);
-}
-
-void DeviceInternal::UpdateDescriptors(const auto& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo,
-    const ImageSubresource& image, ImageLayout layout, u32 index)
-{
-    auto&& [slot, type] = slotInfo;
-    VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.imageView = resources[image.Image].Views.ViewList[GetImageViewHandle(
-        resources, image.Image, image.Description).m_Index];
-    descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(layout);
-
-    VkWriteDescriptorSet write = {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.descriptorCount = 1;
-    write.dstSet = resources[descriptors].DescriptorSet;
-    write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
-    write.dstBinding = slot;
-    write.pImageInfo = &descriptorTextureInfo;
-    write.dstArrayElement = index;
-
-    vkUpdateDescriptorSets(g_State.Device, 1, &write, 0, nullptr);
-}
-#endif // DESCRIPTOR_BUFFER
-
-Fence DeviceInternal::CreateFence(const auto& resources, FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue)
-{
-    VkFenceCreateInfo fenceCreateInfo = {};
-    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    if (createInfo.IsSignaled)
-        fenceCreateInfo.flags |= VK_FENCE_CREATE_SIGNALED_BIT;
-    else
-        fenceCreateInfo.flags &= ~VK_FENCE_CREATE_SIGNALED_BIT;
-
-    FenceResource fenceResource = {};
-    deviceCheck(vkCreateFence(g_State.Device, &fenceCreateInfo, nullptr, &fenceResource.Fence),
-        "Failed to create fence");
-
-    const Fence fence = {resources.Add(fenceResource)};
-    deletionQueue.Enqueue(fence);
-
-    return fence;
-}
-
-void DeviceInternal::Destroy(const auto& resources, Fence fence)
-{
-    vkDestroyFence(g_State.Device, resources[fence].Fence, nullptr);
-    resources.Remove(fence);
-}
-
-void DeviceInternal::WaitForFence(const auto& resources, Fence fence)
-{
-    deviceCheck(vkWaitForFences(g_State.Device, 1, &resources[fence].Fence, true, 10'000'000'000),
-        "Error while waiting for fences");
-}
-
-bool DeviceInternal::CheckFence(const auto& resources, Fence fence)
-{
-    const VkResult result = vkGetFenceStatus(g_State.Device, resources[fence].Fence);
-    return result == VK_SUCCESS;
-}
-
-void DeviceInternal::ResetFence(const auto& resources, Fence fence)
-{
-    deviceCheck(vkResetFences(g_State.Device, 1, &resources[fence].Fence), "Error while resetting fences");
-}
-
-Semaphore DeviceInternal::CreateSemaphore(const auto& resources, DeletionQueue& deletionQueue)
-{
-    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
-    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-    SemaphoreResource semaphoreResource = {};
-    deviceCheck(vkCreateSemaphore(g_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore),
-        "Failed to create semaphore");
-
-    const Semaphore semaphore = resources.Add(semaphoreResource);
-    deletionQueue.Enqueue(semaphore);
-
-    return semaphore;
-}
-
-void DeviceInternal::Destroy(const auto& resources, Semaphore semaphore)
-{
-    vkDestroySemaphore(g_State.Device, resources[semaphore].Semaphore, nullptr);
-    resources.Remove(semaphore);
-}
-
-TimelineSemaphore DeviceInternal::CreateTimelineSemaphore(const auto& resources,
-    TimelineSemaphoreCreateInfo&& createInfo, DeletionQueue& deletionQueue)
-{
-    VkSemaphoreTypeCreateInfo timelineCreateInfo = {};
-    timelineCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-    timelineCreateInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-    timelineCreateInfo.initialValue = createInfo.InitialValue;
-
-    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
-    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    semaphoreCreateInfo.pNext = &timelineCreateInfo;
-
-    TimelineSemaphoreResource semaphoreResource = {};
-    vkCreateSemaphore(g_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore);
-    semaphoreResource.Timeline = createInfo.InitialValue;
-
-    TimelineSemaphore semaphore = {resources.Add(semaphoreResource)};
-    deletionQueue.Enqueue(semaphore);
-
-    return semaphore;
-}
-
-void DeviceInternal::Destroy(const auto& resources, TimelineSemaphore semaphore)
-{
-    vkDestroySemaphore(g_State.Device, resources[semaphore].Semaphore, nullptr);
-    resources.Remove(semaphore);
-}
-
-void DeviceInternal::TimelineSemaphoreWaitCPU(const auto& resources, TimelineSemaphore semaphore, u64 value)
-{
-    VkSemaphoreWaitInfo waitInfo = {};
-    waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-    waitInfo.semaphoreCount = 1;
-    waitInfo.pSemaphores = &resources[semaphore].Semaphore;
-    waitInfo.pValues = &value;
-
-    deviceCheck(vkWaitSemaphores(g_State.Device, &waitInfo, UINT64_MAX),
-        "Failed to wait for timeline semaphore");
-}
-
-void DeviceInternal::TimelineSemaphoreSignalCPU(const auto& resources, TimelineSemaphore semaphore, u64 value)
-{
-    VkSemaphoreSignalInfo signalInfo = {};
-    signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
-    signalInfo.semaphore = resources[semaphore].Semaphore;
-    signalInfo.value = value;
-
-    deviceCheck(vkSignalSemaphore(g_State.Device, &signalInfo),
-        "Failed to signal semaphore");
-
-    resources[semaphore].Timeline = value;
-}
-
-SplitBarrier DeviceInternal::CreateSplitBarrier(const auto& resources, DeletionQueue& deletionQueue)
-{
-    VkEventCreateInfo eventCreateInfo = {};
-    eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
-
-    SplitBarrierResource splitBarrierResource = {};
-    deviceCheck(vkCreateEvent(g_State.Device, &eventCreateInfo, nullptr, &splitBarrierResource.Event),
-        "Failed to create split barrier");
-
-    SplitBarrier splitBarrier = resources.Add(splitBarrierResource);
-    deletionQueue.Enqueue(splitBarrier);
-
-    return splitBarrier;
-}
-
-void DeviceInternal::Destroy(const auto& resources, SplitBarrier splitBarrier)
-{
-    vkDestroyEvent(g_State.Device, resources[splitBarrier].Event, nullptr);
-    resources.Remove(splitBarrier);
-}
-
-ImmediateSubmitContext DeviceInternal::StartSubmitContext(const auto& resources)
-{
-    {
-        std::scoped_lock lock(g_State.SubmitContextMutex);
-
-        if (!g_State.SubmitContexts.empty())
-        {
-            ImmediateSubmitContext ctx = g_State.SubmitContexts.back();
-            g_State.SubmitContexts.pop_back();
-            BeginCommandBuffer(resources, ctx.CommandBuffer);
-
-            return ctx;
-        }
-    }
-
-    ImmediateSubmitContext ctx = {};
-    ctx.CommandPool = CreateCommandPool(resources, {.QueueKind = QueueKind::Graphics},
-        Device::DummyDeletionQueue());
-    ctx.CommandBuffer = CreateCommandBuffer(resources, {
-        .Pool = ctx.CommandPool,
-        .Kind = CommandBufferKind::Primary
-    });
-    ctx.Fence = CreateFence(resources, {}, Device::DummyDeletionQueue());
-    ctx.QueueKind = QueueKind::Graphics;
-    BeginCommandBuffer(resources, ctx.CommandBuffer);
-
-    return ctx;
-}
-
-void DeviceInternal::EndSubmitContext(const auto& resources, const ImmediateSubmitContext& ctx)
-{
-    EndCommandBuffer(resources, ctx.CommandBuffer);
-    SubmitCommandBuffer(resources, ctx.CommandBuffer, ctx.QueueKind, ctx.Fence);
-    WaitForFence(resources, ctx.Fence);
-    ResetFence(resources, ctx.Fence);
-    ResetPool(resources, ctx.CommandPool);
-
-    std::scoped_lock lock(g_State.SubmitContextMutex);
-
-    g_State.SubmitContexts.push_back(ctx);
-}
-
-template <typename LockedView, typename Fn>
-void DeviceInternal::ImmediateSubmit(LockedView& resources, Fn&& uploadFunction)
-{
-    View<FenceTag, CommandBufferTag, CommandPoolTag> submitResourcesView = resources;
-    auto ctx = StartSubmitContext(submitResourcesView);
-    uploadFunction(ctx.CommandBuffer);
-    EndSubmitContext(submitResourcesView, ctx);
-}
-
-#ifdef DESCRIPTOR_BUFFER
-u32 DeviceInternal::GetDescriptorSizeBytes(DescriptorType type)
-{
-    auto& props = g_State.GPUDescriptorBufferProperties;
-    switch (type)
-    {
-    case DescriptorType::Sampler: return (u32)props.samplerDescriptorSize;
-    case DescriptorType::Image: return (u32)props.sampledImageDescriptorSize;
-    case DescriptorType::ImageStorage: return (u32)props.storageImageDescriptorSize;
-    case DescriptorType::TexelUniform: return (u32)props.uniformTexelBufferDescriptorSize;
-    case DescriptorType::TexelStorage: return (u32)props.storageTexelBufferDescriptorSize;
-    case DescriptorType::UniformBuffer: return (u32)props.uniformBufferDescriptorSize;
-    case DescriptorType::StorageBuffer: return (u32)props.storageBufferDescriptorSize;
-    case DescriptorType::Input: return (u32)props.inputAttachmentDescriptorSize;
-    default:
-        return 0;
-    }
-}
-
-void DeviceInternal::WriteDescriptor(const auto& resources, Descriptors descriptors, DescriptorSlotInfo slotInfo,
-    u32 index, VkDescriptorGetInfoEXT& descriptorGetInfo)
-{
-    auto&& [slot, type] = slotInfo;
-    const DescriptorsResource& descriptorsResource = resources[descriptors];
-    const u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
-    const u64 innerOffsetBytes = descriptorSizeBytes * index;
-    ASSERT(innerOffsetBytes + descriptorSizeBytes <= descriptorsResource.SizeBytes,
-        "Trying to write descriptor outside of the allocated region")
-
-    const u64 offsetBytes = descriptorsResource.Offsets[slot] + innerOffsetBytes;
-    const DescriptorArenaAllocatorResource& allocatorResource =
-        resources[descriptorsResource.Allocator];
-    vkGetDescriptorEXT(g_State.Device, &descriptorGetInfo, descriptorSizeBytes,
-        (u8*)allocatorResource.MappedAddress + offsetBytes);
-}
-void DeviceInternal::BindDescriptors(const auto& resources, CommandBuffer cmd, PipelineLayout pipelineLayout,
-    Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
-{
-    const DescriptorsResource& descriptorsResource = resources[descriptors];
-    const DescriptorArenaAllocatorResource& allocatorResource =
-        resources[descriptorsResource.Allocator];
-
-    u64 offset = descriptorsResource.Offsets.front();
-    vkCmdSetDescriptorBufferOffsetsEXT(resources[cmd].CommandBuffer, bindPoint,
-        resources[pipelineLayout].Layout, firstSet, 1, &allocatorResource.DescriptorSet, &offset);
-}
-#else
-
-u32 DeviceInternal::GetFreePoolIndexFromAllocator(const auto& resources, DescriptorArenaAllocator allocator,
-    DescriptorPoolFlags poolFlags)
-{
-    DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
-    for (u32 i = 0; i < allocatorResource.FreePools.size(); i++)
-        if (allocatorResource.FreePools[i].Flags == poolFlags)
-            return i;
-
-    const u32 index = (u32)allocatorResource.FreePools.size();
-    std::vector<VkDescriptorPoolSize> sizes(allocatorResource.PoolSizes.size());
-    for (u32 i = 0; i < sizes.size(); i++)
-        sizes[i] = {
-            .type = vulkanDescriptorTypeFromDescriptorType(allocatorResource.PoolSizes[i].DescriptorType),
-            .descriptorCount =
-            (u32)(allocatorResource.PoolSizes[i].SetSizeMultiplier * (f32)allocatorResource.MaxSetsPerPool)
-        };
-
-    VkDescriptorPool pool = {};
-
-    VkDescriptorPoolCreateInfo poolCreateInfo = {};
-    poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolCreateInfo.maxSets = allocatorResource.MaxSetsPerPool;
-    poolCreateInfo.poolSizeCount = (u32)sizes.size();
-    poolCreateInfo.pPoolSizes = sizes.data();
-    poolCreateInfo.flags = vulkanDescriptorPoolFlagsFromDescriptorPoolFlags(poolFlags);
-
-    deviceCheck(vkCreateDescriptorPool(g_State.Device, &poolCreateInfo, nullptr, &pool),
-        "Failed to create descriptor pool");
-
-    allocatorResource.FreePools.push_back({.Pool = pool, .Flags = poolFlags});
-
-    return index;
-}
-
-void DeviceInternal::BindDescriptors(const auto& resources, CommandBuffer cmd, PipelineLayout pipelineLayout,
-    Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
-{
-    const DescriptorsResource& descriptorsResource = resources[descriptors];
-    vkCmdBindDescriptorSets(resources[cmd].CommandBuffer, bindPoint,
-        resources[pipelineLayout].Layout, firstSet, 1, &descriptorsResource.DescriptorSet, 0, nullptr);
-}
-#endif
-
-std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(const auto& resources,
-    Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages)
-{
-    std::vector waitSemaphoreSubmitInfos(semaphores.size(), VkSemaphoreSubmitInfo{});
-    for (auto&& [i, semaphore] : std::views::enumerate(semaphores))
-    {
-        waitSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        waitSemaphoreSubmitInfos[i].semaphore = resources[semaphore].Semaphore;
-        waitSemaphoreSubmitInfos[i].stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i]);
-    }
-
-    return waitSemaphoreSubmitInfos;
-}
-
-std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(const auto& resources,
-    Span<const TimelineSemaphore> semaphores, Span<const u64> waitValues, Span<const PipelineStage> waitStages)
-{
-    std::vector waitSemaphoreSubmitInfos(semaphores.size(), VkSemaphoreSubmitInfo{});
-    for (auto&& [i, semaphore] : std::views::enumerate(semaphores))
-    {
-        waitSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-        waitSemaphoreSubmitInfos[i].semaphore = resources[semaphore].Semaphore;
-        waitSemaphoreSubmitInfos[i].value = waitValues[i];
-        waitSemaphoreSubmitInfos[i].stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i]);
-    }
-
-    return waitSemaphoreSubmitInfos;
-}
-
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const ExecuteSecondaryBufferCommand& command)
-{
-    vkCmdExecuteCommands(resources[cmd].CommandBuffer, 1, &resources[command.Cmd].CommandBuffer);
-}
-
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const PrepareSwapchainPresentCommand& command)
-{
-    SwapchainResource& swapchainResource = resources[command.Swapchain];
+    SwapchainResource::ColdData cold = deviceResources().Cold(command.Swapchain);
 
     ImageSubresource drawSubresource = {
-        .Image = swapchainResource.Description.DrawImage,
+        .Image = cold.Description.DrawImage,
         .Description = {.Mipmaps = 1, .Layers = 1}
     };
     ImageSubresource presentSubresource = {
-        .Image = swapchainResource.Description.ColorImages[command.ImageIndex],
+        .Image = cold.Description.ColorImages[command.ImageIndex],
         .Description = {.Mipmaps = 1, .Layers = 1}
     };
-    ::DeletionQueue& deletionQueue = *g_State.FrameDeletionQueue;
 
     LayoutTransitionInfo presentToDestinationTransitionInfo = {
         .ImageSubresource = presentSubresource,
@@ -5774,7 +4293,7 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
     destinationToPresentTransitionInfo.OldLayout = ImageLayout::Destination;
     destinationToPresentTransitionInfo.NewLayout = ImageLayout::Present;
 
-    CompileCommand(resources, cmd, WaitOnBarrierCommand{
+    CompileCommand(cmd, WaitOnBarrierCommand{
         .DependencyInfo = presentToDestinationTransitionInfo
     });
 
@@ -5782,89 +4301,95 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
         .Mipmap = (u32)drawSubresource.Description.MipmapBase,
         .LayerBase = (u32)drawSubresource.Description.LayerBase,
         .Layers = (u32)drawSubresource.Description.Layers,
-        .Top = GetImageDescription(resources, swapchainResource.Description.DrawImage).Dimensions()
+        .Top = GetImageDescription(cold.Description.DrawImage).Dimensions()
     };
 
     ImageSubregion destinationSubregion = {
         .Mipmap = (u32)presentSubresource.Description.MipmapBase,
         .LayerBase = (u32)presentSubresource.Description.LayerBase,
         .Layers = (u32)presentSubresource.Description.Layers,
-        .Top = GetImageDescription(resources, swapchainResource.Description.ColorImages[command.ImageIndex]).
+        .Top = GetImageDescription(cold.Description.ColorImages[command.ImageIndex]).
         Dimensions()
     };
 
-    CompileCommand(resources, cmd, BlitImageCommand{
-        .Source = swapchainResource.Description.DrawImage,
-        .Destination = swapchainResource.Description.ColorImages[command.ImageIndex],
+    CompileCommand(cmd, BlitImageCommand{
+        .Source = cold.Description.DrawImage,
+        .Destination = cold.Description.ColorImages[command.ImageIndex],
         .Filter = ImageFilter::Linear,
         .SourceSubregion = sourceSubregion,
         .DestinationSubregion = destinationSubregion
     });
 
-    CompileCommand(resources, cmd, WaitOnBarrierCommand{
+    CompileCommand(cmd, WaitOnBarrierCommand{
         .DependencyInfo = destinationToPresentTransitionInfo
     });
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const BeginRenderingCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, BeginRenderingCommand&& command)
 {
-    const RenderingInfoResource& renderingInfoResource = resources[command.RenderingInfo];
-
+    auto& renderingInfo = command.RenderingInfo;
+    
+    std::vector<VkRenderingAttachmentInfo> colorAttachments;
+    colorAttachments.reserve(renderingInfo.ColorAttachments.size());
+    for (auto& color : renderingInfo.ColorAttachments)
+        colorAttachments.emplace_back(DeviceInternal::CreateVulkanRenderingAttachmentInfo(color));
+    std::optional<VkRenderingAttachmentInfo> depthStencilAttachment = std::nullopt;
+    if (renderingInfo.DepthAttachment.has_value())
+        depthStencilAttachment = DeviceInternal::CreateVulkanRenderingAttachmentInfo(*renderingInfo.DepthAttachment);
+    
     VkRenderingInfo renderingInfoVulkan = {};
     renderingInfoVulkan.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     renderingInfoVulkan.layerCount = 1;
     renderingInfoVulkan.renderArea = VkRect2D{
         .offset = {},
-        .extent = {renderingInfoResource.RenderArea.x, renderingInfoResource.RenderArea.y}
+        .extent = {renderingInfo.RenderArea.x, renderingInfo.RenderArea.y}
     };
-    renderingInfoVulkan.colorAttachmentCount = (u32)resources[command.RenderingInfo].ColorAttachments.size();
-    renderingInfoVulkan.pColorAttachments = resources[command.RenderingInfo].ColorAttachments.data();
-    if (resources[command.RenderingInfo].DepthAttachment.has_value())
-        renderingInfoVulkan.pDepthAttachment = resources[command.RenderingInfo].DepthAttachment.operator->();
+    renderingInfoVulkan.colorAttachmentCount = (u32)colorAttachments.size();
+    renderingInfoVulkan.pColorAttachments = colorAttachments.data();
+    if (depthStencilAttachment.has_value())
+        renderingInfoVulkan.pDepthAttachment = &depthStencilAttachment.value();
 
-    vkCmdBeginRendering(resources[cmd].CommandBuffer, &renderingInfoVulkan);
+    vkCmdBeginRendering(deviceResources().NativeHandleToVk(cmd), &renderingInfoVulkan);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const EndRenderingCommand&)
+void Device::CompileCommand(CommandBuffer cmd, EndRenderingCommand&& command)
 {
-    vkCmdEndRendering(resources[cmd].CommandBuffer);
+    vkCmdEndRendering(deviceResources().NativeHandleToVk(cmd));
 }
 
-void DeviceInternal::CompileCommand(const auto&, CommandBuffer, const ImGuiBeginCommand&)
+void Device::CompileCommand(CommandBuffer, ImGuiBeginCommand&&)
 {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const ImGuiEndCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, ImGuiEndCommand&& command)
 {
     ImGui::Render();
-    CompileCommand(resources, cmd, BeginRenderingCommand{
-        .RenderingInfo = command.RenderingInfo
+    CompileCommand(cmd, BeginRenderingCommand{
+        .RenderingInfo = std::move(command.RenderingInfo)
     });
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), resources[cmd].CommandBuffer);
-    CompileCommand(resources, cmd, EndRenderingCommand{});
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), deviceResources().NativeHandleToVk(cmd));
+    CompileCommand(cmd, EndRenderingCommand{});
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const BeginConditionalRenderingCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, BeginConditionalRenderingCommand&& command)
 {
     VkConditionalRenderingBeginInfoEXT beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_CONDITIONAL_RENDERING_BEGIN_INFO_EXT;
-    beginInfo.buffer = resources[command.Buffer].Buffer;
+    beginInfo.buffer = deviceResources().Get(command.Buffer).Buffer;
     beginInfo.offset = command.Offset;
 
-    vkCmdBeginConditionalRenderingEXT(resources[cmd].CommandBuffer, &beginInfo);
+    vkCmdBeginConditionalRenderingEXT(deviceResources().NativeHandleToVk(cmd), &beginInfo);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const EndConditionalRenderingCommand&)
+void Device::CompileCommand(CommandBuffer cmd, EndConditionalRenderingCommand&&)
 {
-    vkCmdEndConditionalRenderingEXT(resources[cmd].CommandBuffer);
+    vkCmdEndConditionalRenderingEXT(deviceResources().NativeHandleToVk(cmd));
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const SetViewportCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, SetViewportCommand&& command)
 {
     const VkViewport viewport = {
         .x = 0, .y = 0,
@@ -5872,25 +4397,25 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
         .minDepth = 0.0f, .maxDepth = 1.0f
     };
 
-    vkCmdSetViewport(resources[cmd].CommandBuffer, 0, 1, &viewport);
+    vkCmdSetViewport(deviceResources().NativeHandleToVk(cmd), 0, 1, &viewport);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const SetScissorsCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, SetScissorsCommand&& command)
 {
     const VkRect2D scissor = {
         .offset = {(i32)command.Offset.x, (i32)command.Offset.y},
         .extent = {(u32)command.Size.x, (u32)command.Size.y}
     };
 
-    vkCmdSetScissor(resources[cmd].CommandBuffer, 0, 1, &scissor);
+    vkCmdSetScissor(deviceResources().NativeHandleToVk(cmd), 0, 1, &scissor);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const SetDepthBiasCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, SetDepthBiasCommand&& command)
 {
-    vkCmdSetDepthBias(resources[cmd].CommandBuffer, command.Constant, 0.0f, command.Slope);
+    vkCmdSetDepthBias(deviceResources().NativeHandleToVk(cmd), command.Constant, 0.0f, command.Slope);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const CopyBufferCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, CopyBufferCommand&& command)
 {
     VkBufferCopy2 copy = {};
     copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
@@ -5898,53 +4423,50 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
     copy.srcOffset = command.SourceOffset;
     copy.dstOffset = command.DestinationOffset;
 
-    const BufferResource& sourceResource = resources[command.Source];
-    const BufferResource& destinationResource = resources[command.Destination];
     VkCopyBufferInfo2 copyBufferInfo = {};
     copyBufferInfo.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
-    copyBufferInfo.srcBuffer = sourceResource.Buffer;
-    copyBufferInfo.dstBuffer = destinationResource.Buffer;
+    copyBufferInfo.srcBuffer = deviceResources().Get(command.Source).Buffer;
+    copyBufferInfo.dstBuffer = deviceResources().Get(command.Destination).Buffer;
     copyBufferInfo.regionCount = 1;
     copyBufferInfo.pRegions = &copy;
 
-    vkCmdCopyBuffer2(resources[cmd].CommandBuffer, &copyBufferInfo);
+    vkCmdCopyBuffer2(deviceResources().NativeHandleToVk(cmd), &copyBufferInfo);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const CopyBufferToImageCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, CopyBufferToImageCommand&& command)
 {
     ASSERT(command.ImageSubresource.Mipmaps == 1, "Buffer to image copies one mipmap at a time")
 
-    const ImageResource& imageResource = resources[command.Image];
+    const ImageResource::HotData& image = deviceResources().Hot(command.Image);
 
     VkBufferImageCopy2 bufferImageCopy = {};
     bufferImageCopy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
     bufferImageCopy.bufferOffset = command.BufferOffset;
     bufferImageCopy.imageExtent = {
-        .width = std::max(1u, imageResource.Description.Width >> command.ImageSubresource.MipmapBase),
-        .height = std::max(1u, imageResource.Description.Height >> command.ImageSubresource.MipmapBase),
-        .depth = imageResource.Description.GetDepth(command.ImageSubresource.MipmapBase)
+        .width = std::max(1u, image.Width >> command.ImageSubresource.MipmapBase),
+        .height = std::max(1u, image.Height >> command.ImageSubresource.MipmapBase),
+        .depth = image.Kind == ImageKind::Image3d ? image.LayersDepth >> command.ImageSubresource.MipmapBase : 1u
     };
-    bufferImageCopy.imageSubresource.aspectMask = vulkanImageAspectFromImageUsage(imageResource.Description.Usage);
+    bufferImageCopy.imageSubresource.aspectMask = vulkanImageAspectFromImageUsage(image.Usage);
     bufferImageCopy.imageSubresource.mipLevel = (u32)(i32)command.ImageSubresource.MipmapBase;
     bufferImageCopy.imageSubresource.baseArrayLayer = (u32)(i32)command.ImageSubresource.LayerBase;
     bufferImageCopy.imageSubresource.layerCount = (u32)(i32)command.ImageSubresource.Layers;
 
-    const BufferResource& sourceResource = resources[command.Buffer];
     VkCopyBufferToImageInfo2 copyBufferToImageInfo = {};
     copyBufferToImageInfo.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2;
-    copyBufferToImageInfo.srcBuffer = sourceResource.Buffer;
-    copyBufferToImageInfo.dstImage = resources[command.Image].Image;
+    copyBufferToImageInfo.srcBuffer = deviceResources().Get(command.Buffer).Buffer;
+    copyBufferToImageInfo.dstImage = image.Image;
     copyBufferToImageInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     copyBufferToImageInfo.regionCount = 1;
     copyBufferToImageInfo.pRegions = &bufferImageCopy;
 
-    vkCmdCopyBufferToImage2(resources[cmd].CommandBuffer, &copyBufferToImageInfo);
+    vkCmdCopyBufferToImage2(deviceResources().NativeHandleToVk(cmd), &copyBufferToImageInfo);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const CopyImageCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, CopyImageCommand&& command)
 {
-    const ImageResource& sourceResource = resources[command.Source];
-    const ImageResource& destinationResource = resources[command.Destination];
+    const ImageResource::HotData source = deviceResources().Hot(command.Source);
+    const ImageResource::HotData destination = deviceResources().Hot(command.Destination);
 
     const glm::uvec3 extentSource = command.SourceSubregion.Top - command.SourceSubregion.Bottom;
     const glm::uvec3 extentDestination = command.DestinationSubregion.Top - command.DestinationSubregion.Bottom;
@@ -5959,7 +4481,7 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
         .height = extentSource.y,
         .depth = extentSource.z
     };
-    imageCopy.srcSubresource.aspectMask = vulkanImageAspectFromImageUsage(sourceResource.Description.Usage);
+    imageCopy.srcSubresource.aspectMask = vulkanImageAspectFromImageUsage(source.Usage);
     imageCopy.srcSubresource.baseArrayLayer = command.SourceSubregion.LayerBase;
     imageCopy.srcSubresource.layerCount = command.SourceSubregion.Layers;
     imageCopy.srcSubresource.mipLevel = command.SourceSubregion.Mipmap;
@@ -5968,7 +4490,7 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
         .y = (i32)command.SourceSubregion.Bottom.y,
         .z = (i32)command.SourceSubregion.Bottom.z
     };
-    imageCopy.dstSubresource.aspectMask = vulkanImageAspectFromImageUsage(destinationResource.Description.Usage);
+    imageCopy.dstSubresource.aspectMask = vulkanImageAspectFromImageUsage(destination.Usage);
     imageCopy.dstSubresource.baseArrayLayer = command.DestinationSubregion.LayerBase;
     imageCopy.dstSubresource.layerCount = command.DestinationSubregion.Layers;
     imageCopy.dstSubresource.mipLevel = command.DestinationSubregion.Mipmap;
@@ -5979,27 +4501,27 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
     };
 
     copyImageInfo.sType = VK_STRUCTURE_TYPE_COPY_IMAGE_INFO_2;
-    copyImageInfo.srcImage = sourceResource.Image;
-    copyImageInfo.dstImage = destinationResource.Image;
+    copyImageInfo.srcImage = source.Image;
+    copyImageInfo.dstImage = destination.Image;
     copyImageInfo.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
     copyImageInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     copyImageInfo.regionCount = 1;
 
     copyImageInfo.pRegions = &imageCopy;
 
-    vkCmdCopyImage2(resources[cmd].CommandBuffer, &copyImageInfo);
+    vkCmdCopyImage2(deviceResources().NativeHandleToVk(cmd), &copyImageInfo);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const BlitImageCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, BlitImageCommand&& command)
 {
-    const ImageResource& sourceResource = resources[command.Source];
-    const ImageResource& destinationResource = resources[command.Destination];
+    const ImageResource::HotData& source = deviceResources().Hot(command.Source);
+    const ImageResource::HotData& destination = deviceResources().Hot(command.Destination);
 
     VkImageBlit2 imageBlit = {};
     VkBlitImageInfo2 blitImageInfo = {};
 
     imageBlit.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2;
-    imageBlit.srcSubresource.aspectMask = vulkanImageAspectFromImageUsage(sourceResource.Description.Usage);
+    imageBlit.srcSubresource.aspectMask = vulkanImageAspectFromImageUsage(source.Usage);
     imageBlit.srcSubresource.baseArrayLayer = command.SourceSubregion.LayerBase;
     imageBlit.srcSubresource.layerCount = command.SourceSubregion.Layers;
     imageBlit.srcSubresource.mipLevel = command.SourceSubregion.Mipmap;
@@ -6014,7 +4536,7 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
         .z = (i32)command.SourceSubregion.Top.z
     };
 
-    imageBlit.dstSubresource.aspectMask = vulkanImageAspectFromImageUsage(destinationResource.Description.Usage);
+    imageBlit.dstSubresource.aspectMask = vulkanImageAspectFromImageUsage(destination.Usage);
     imageBlit.dstSubresource.baseArrayLayer = command.DestinationSubregion.LayerBase;
     imageBlit.dstSubresource.layerCount = command.DestinationSubregion.Layers;
     imageBlit.dstSubresource.mipLevel = command.DestinationSubregion.Mipmap;
@@ -6030,8 +4552,8 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
     };
 
     blitImageInfo.sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2;
-    blitImageInfo.srcImage = sourceResource.Image;
-    blitImageInfo.dstImage = destinationResource.Image;
+    blitImageInfo.srcImage = source.Image;
+    blitImageInfo.dstImage = destination.Image;
     blitImageInfo.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
     blitImageInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     blitImageInfo.regionCount = 1;
@@ -6039,19 +4561,17 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
 
     blitImageInfo.pRegions = &imageBlit;
 
-    vkCmdBlitImage2(resources[cmd].CommandBuffer, &blitImageInfo);
+    vkCmdBlitImage2(deviceResources().NativeHandleToVk(cmd), &blitImageInfo);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const MipmapImageCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, MipmapImageCommand&& command)
 {
-    const ImageResource& imageResource = resources[command.Image];
+    const ImageResource::HotData& image = deviceResources().Hot(command.Image);
 
-    i32 width = (i32)imageResource.Description.Width;
-    i32 height = (i32)imageResource.Description.Height;
-    i32 depth = (i32)imageResource.Description.GetDepth();
-    i8 layers = imageResource.Description.GetLayers();
-
-    ::DeletionQueue& deletionQueue = *g_State.FrameDeletionQueue;
+    i32 width = (i32)image.Width;
+    i32 height = (i32)image.Height;
+    i32 depth = image.Kind == ImageKind::Image3d ? (i32)image.LayersDepth : 1;
+    i8 layers = image.Kind != ImageKind::Image3d ? (i8)image.LayersDepth : (i8)1;
 
     ImageSubresource imageSubresource = {
         .Image = command.Image,
@@ -6073,11 +4593,11 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
         .NewLayout = ImageLayout::Source
     };
 
-    CompileCommand(resources, cmd, WaitOnBarrierCommand{
+    CompileCommand(cmd, WaitOnBarrierCommand{
         .DependencyInfo = transitionInfo
     });
 
-    for (i8 mip = 1; mip < imageResource.Description.Mipmaps; mip++)
+    for (i8 mip = 1; mip < image.Mipmaps; mip++)
     {
         ImageSubregion sourceSubregion = {
             .Mipmap = (u32)mip - 1,
@@ -6113,14 +4633,14 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
             .OldLayout = ImageLayout::Undefined,
             .NewLayout = ImageLayout::Destination
         };
-        CompileCommand(resources, cmd, WaitOnBarrierCommand{
+        CompileCommand(cmd, WaitOnBarrierCommand{
             .DependencyInfo = transitionInfo
         });
 
-        CompileCommand(resources, cmd, BlitImageCommand{
+        CompileCommand(cmd, BlitImageCommand{
             .Source = command.Image,
             .Destination = command.Image,
-            .Filter = imageResource.Description.MipmapFilter,
+            .Filter = image.MipmapFilter,
             .SourceSubregion = sourceSubregion,
             .DestinationSubregion = destinationSubregion
         });
@@ -6135,13 +4655,13 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
             .NewLayout = ImageLayout::Source
         };
 
-        CompileCommand(resources, cmd, WaitOnBarrierCommand{
+        CompileCommand(cmd, WaitOnBarrierCommand{
             .DependencyInfo = transitionInfo
         });
     }
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const ClearColorImageCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, ClearColorImageCommand&& command)
 {
     const VkClearColorValue clearValue = {
         .float32 = {
@@ -6158,12 +4678,11 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
         .baseArrayLayer = (u32)command.Image.Description.LayerBase,
         .layerCount = (u32)command.Image.Description.Layers, 
     };
-    vkCmdClearColorImage(resources[cmd].CommandBuffer, resources[command.Image.Image].Image,
+    vkCmdClearColorImage(deviceResources().NativeHandleToVk(cmd), deviceResources().Hot(command.Image.Image).Image,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &imageSubresourceRange);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const ClearDepthStencilImageCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, ClearDepthStencilImageCommand&& command)
 {
     const VkClearDepthStencilValue clearValue = {
         .depth = command.ClearValue.Depth,
@@ -6176,11 +4695,12 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
         .baseArrayLayer = (u32)command.Image.Description.LayerBase,
         .layerCount = (u32)command.Image.Description.Layers,
     };
-    vkCmdClearDepthStencilImage(resources[cmd].CommandBuffer, resources[command.Image.Image].Image, 
+    vkCmdClearDepthStencilImage(deviceResources().NativeHandleToVk(cmd),
+        deviceResources().Hot(command.Image.Image).Image, 
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &imageSubresourceRange);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const WaitOnFullPipelineBarrierCommand&)
+void Device::CompileCommand(CommandBuffer cmd, WaitOnFullPipelineBarrierCommand&& command)
 {
     VkMemoryBarrier2 memoryBarrier = {};
     memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
@@ -6194,12 +4714,12 @@ void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, co
     dependencyInfo.memoryBarrierCount = 1;
     dependencyInfo.pMemoryBarriers = &memoryBarrier;
 
-    vkCmdPipelineBarrier2(resources[cmd].CommandBuffer, &dependencyInfo);
+    vkCmdPipelineBarrier2(deviceResources().NativeHandleToVk(cmd), &dependencyInfo);
 }
 
 namespace 
 {
-void barrierCommand(const auto& resources, const auto& command, const auto& vkCall)
+void barrierCommand(const auto& command, const auto& vkCall)
 {
     const DependencyInfo& dependencyInfo = command.DependencyInfo;
 
@@ -6235,7 +4755,6 @@ void barrierCommand(const auto& resources, const auto& command, const auto& vkCa
         break;
     case DependencyInfoType::Layout:
         {
-            const ImageResource& image = resources[dependencyInfo.Dependency.Layout.ImageSubresource.Image];
             imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
             imageMemoryBarrier.srcStageMask = vulkanPipelineStageFromPipelineStage(
                 dependencyInfo.Dependency.Layout.SourceStage);
@@ -6249,9 +4768,11 @@ void barrierCommand(const auto& resources, const auto& command, const auto& vkCa
             imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             imageMemoryBarrier.oldLayout = vulkanImageLayoutFromImageLayout(dependencyInfo.Dependency.Layout.OldLayout);
             imageMemoryBarrier.newLayout = vulkanImageLayoutFromImageLayout(dependencyInfo.Dependency.Layout.NewLayout);
-            imageMemoryBarrier.image = resources[dependencyInfo.Dependency.Layout.ImageSubresource.Image].Image;
+            const ImageResource::HotData& hot = deviceResources().Hot(
+                dependencyInfo.Dependency.Layout.ImageSubresource.Image);
+            imageMemoryBarrier.image = hot.Image;
             imageMemoryBarrier.subresourceRange = {
-                .aspectMask = vulkanImageAspectFromImageUsage(image.Description.Usage),
+                .aspectMask = vulkanImageAspectFromImageUsage(hot.Usage),
                 .baseMipLevel = (u32)dependencyInfo.Dependency.Layout.ImageSubresource.Description.MipmapBase,
                 .levelCount = (u32)dependencyInfo.Dependency.Layout.ImageSubresource.Description.Mipmaps,
                 .baseArrayLayer = (u32)dependencyInfo.Dependency.Layout.ImageSubresource.Description.LayerBase,
@@ -6270,190 +4791,393 @@ void barrierCommand(const auto& resources, const auto& command, const auto& vkCa
 }
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const WaitOnBarrierCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, WaitOnBarrierCommand&& command)
 {
-    barrierCommand(resources, command, [&](const VkDependencyInfo& dependencyInfo) {
-        vkCmdPipelineBarrier2(resources[cmd].CommandBuffer, &dependencyInfo);
+    barrierCommand(command, [&](const VkDependencyInfo& dependencyInfo) {
+        vkCmdPipelineBarrier2(deviceResources().NativeHandleToVk(cmd), &dependencyInfo);
     });
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const SignalSplitBarrierCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, SignalSplitBarrierCommand&& command)
 {
-    barrierCommand(resources, command, [&](const VkDependencyInfo& dependencyInfo) {
-        vkCmdSetEvent2(resources[cmd].CommandBuffer, resources[command.SplitBarrier].Event, &dependencyInfo);
+    barrierCommand(command, [&](const VkDependencyInfo& dependencyInfo) {
+        vkCmdSetEvent2(deviceResources().NativeHandleToVk(cmd), 
+            deviceResources().NativeHandleToVk(command.SplitBarrier), &dependencyInfo);
     });
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const WaitOnSplitBarrierCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, WaitOnSplitBarrierCommand&& command)
 {
-    barrierCommand(resources, command, [&](const VkDependencyInfo& dependencyInfo) {
-        vkCmdWaitEvents2(resources[cmd].CommandBuffer, 1, &resources[command.SplitBarrier].Event, &dependencyInfo);
+    barrierCommand(command, [&](const VkDependencyInfo& dependencyInfo) {
+        VkEvent event = deviceResources().NativeHandleToVk(command.SplitBarrier);
+        vkCmdWaitEvents2(deviceResources().NativeHandleToVk(cmd), 1, &event, &dependencyInfo);
     });
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const ResetSplitBarrierCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, ResetSplitBarrierCommand&& command)
 {
-    vkCmdResetEvent2(resources[cmd].CommandBuffer, resources[command.SplitBarrier].Event,
+    vkCmdResetEvent2(deviceResources().NativeHandleToVk(cmd), deviceResources().NativeHandleToVk(command.SplitBarrier),
         vulkanPipelineStageFromPipelineStage(command.DestinationStage));
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const BindVertexBuffersCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, BindVertexBuffersCommand&& command)
 {
     std::vector<VkBuffer> vkBuffers(command.Buffers.size());
     for (u32 i = 0; i < vkBuffers.size(); i++)
-        vkBuffers[i] = resources[command.Buffers[i]].Buffer;
+        vkBuffers[i] = deviceResources().Get(command.Buffers[i]).Buffer;
 
-    vkCmdBindVertexBuffers(resources[cmd].CommandBuffer, 0, (u32)vkBuffers.size(), vkBuffers.data(),
+    vkCmdBindVertexBuffers(deviceResources().NativeHandleToVk(cmd), 0, (u32)vkBuffers.size(), vkBuffers.data(),
         command.Offsets.data());
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const BindIndexU32BufferCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, BindIndexU32BufferCommand&& command)
 {
-    vkCmdBindIndexBuffer(resources[cmd].CommandBuffer, resources[command.Buffer].Buffer, command.Offset,
-        VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(deviceResources().NativeHandleToVk(cmd), deviceResources().Get(command.Buffer).Buffer, 
+        command.Offset, VK_INDEX_TYPE_UINT32);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const BindIndexU16BufferCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, BindIndexU16BufferCommand&& command)
 {
-    vkCmdBindIndexBuffer(resources[cmd].CommandBuffer, resources[command.Buffer].Buffer, command.Offset,
-        VK_INDEX_TYPE_UINT16);
+    vkCmdBindIndexBuffer(deviceResources().NativeHandleToVk(cmd), deviceResources().Get(command.Buffer).Buffer, 
+        command.Offset, VK_INDEX_TYPE_UINT16);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const BindIndexU8BufferCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, BindIndexU8BufferCommand&& command)
 {
-    vkCmdBindIndexBuffer(resources[cmd].CommandBuffer, resources[command.Buffer].Buffer, command.Offset,
-        VK_INDEX_TYPE_UINT8_EXT);
+    vkCmdBindIndexBuffer(deviceResources().NativeHandleToVk(cmd), deviceResources().Get(command.Buffer).Buffer,
+        command.Offset, VK_INDEX_TYPE_UINT8_EXT);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const BindPipelineGraphicsCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, BindPipelineGraphicsCommand&& command)
 {
-    vkCmdBindPipeline(resources[cmd].CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-        resources[command.Pipeline].Pipeline);
+    vkCmdBindPipeline(deviceResources().NativeHandleToVk(cmd), VK_PIPELINE_BIND_POINT_GRAPHICS,
+        deviceResources().NativeHandleToVk(command.Pipeline));
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const BindPipelineComputeCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, BindPipelineComputeCommand&& command)
 {
-    vkCmdBindPipeline(resources[cmd].CommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-        resources[command.Pipeline].Pipeline);
-}
-
-#ifdef DESCRIPTOR_BUFFER
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const BindImmutableSamplersGraphicsCommand& command)
-{
-    vkCmdBindDescriptorBufferEmbeddedSamplersEXT(resources[cmd].CommandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS, resources[command.PipelineLayout].Layout, command.Set);
-}
-
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const BindImmutableSamplersComputeCommand& command)
-{
-    vkCmdBindDescriptorBufferEmbeddedSamplersEXT(resources[cmd].CommandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE, resources[command.PipelineLayout].Layout, command.Set);
-}
-#else // DESCRIPTOR_BUFFER
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const BindImmutableSamplersGraphicsCommand& command)
-{
-    vkCmdBindDescriptorSets(resources[cmd].CommandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS, resources[command.PipelineLayout].Layout, command.Set, 1,
-        &resources[command.Descriptors].DescriptorSet, 0, nullptr);
-}
-
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const BindImmutableSamplersComputeCommand& command)
-{
-    vkCmdBindDescriptorSets(resources[cmd].CommandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE, resources[command.PipelineLayout].Layout, command.Set, 1,
-        &resources[command.Descriptors].DescriptorSet, 0, nullptr);
-}
-#endif // DESCRIPTOR_BUFFER
-
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const BindDescriptorsGraphicsCommand& command)
-{
-    BindDescriptors(resources, cmd, command.PipelineLayout, command.Descriptors, command.Set,
-        VK_PIPELINE_BIND_POINT_GRAPHICS);
-}
-
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const BindDescriptorsComputeCommand& command)
-{
-    BindDescriptors(resources, cmd, command.PipelineLayout, command.Descriptors, command.Set,
-        VK_PIPELINE_BIND_POINT_COMPUTE);
+    vkCmdBindPipeline(deviceResources().NativeHandleToVk(cmd), VK_PIPELINE_BIND_POINT_COMPUTE,
+        deviceResources().NativeHandleToVk(command.Pipeline));
 }
 
 #ifdef DESCRIPTOR_BUFFER
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const BindDescriptorArenaAllocatorsCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, BindDescriptorArenaAllocatorsCommand&& command)
 {
     std::vector<VkDescriptorBufferBindingInfoEXT> descriptorBufferBindings;
     descriptorBufferBindings.reserve(command.Allocators->m_TransientAllocators.size());
 
     for (auto& allocator : command.Allocators->m_TransientAllocators)
     {
-        const DescriptorArenaAllocatorResource& allocatorResource = resources[allocator];
-        const u64 deviceAddress = allocatorResource.DeviceAddress;
-
+        DescriptorArenaAllocatorResource::HotData& hot = deviceResources().Hot(allocator);
+        const u64 deviceAddress = hot.DeviceAddress;
         VkDescriptorBufferBindingInfoEXT binding = {};
         binding.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
         binding.address = deviceAddress;
-        binding.usage = allocatorResource.DescriptorBufferUsage;
+        binding.usage = hot.DescriptorBufferUsage;
 
         descriptorBufferBindings.push_back(binding);
     }
 
-    vkCmdBindDescriptorBuffersEXT(resources[cmd].CommandBuffer, (u32)descriptorBufferBindings.size(),
+    vkCmdBindDescriptorBuffersEXT(deviceResources().NativeHandleToVk(cmd), (u32)descriptorBufferBindings.size(),
         descriptorBufferBindings.data());
 }
+void Device::CompileCommand(CommandBuffer cmd, BindImmutableSamplersGraphicsCommand&& command)
+{
+    vkCmdBindDescriptorBufferEmbeddedSamplersEXT(deviceResources().NativeHandleToVk(cmd),
+        VK_PIPELINE_BIND_POINT_GRAPHICS, deviceResources().Hot(command.PipelineLayout).Layout, command.Set);
+}
+
+void Device::CompileCommand(CommandBuffer cmd, BindImmutableSamplersComputeCommand&& command)
+{
+    vkCmdBindDescriptorBufferEmbeddedSamplersEXT(deviceResources().NativeHandleToVk(cmd),
+        VK_PIPELINE_BIND_POINT_COMPUTE, deviceResources().Hot(command.PipelineLayout).Layout, command.Set);
+}
 #else // DESCRIPTOR_BUFFER
-void DeviceInternal::CompileCommand(const auto&, CommandBuffer, const BindDescriptorArenaAllocatorsCommand&)
+void Device::CompileCommand(CommandBuffer cmd, BindImmutableSamplersGraphicsCommand&& command)
+{
+    VkDescriptorSet vkDescriptors = deviceResources().NativeHandleToVk(command.Descriptors);
+    vkCmdBindDescriptorSets(deviceResources().NativeHandleToVk(cmd),
+        VK_PIPELINE_BIND_POINT_GRAPHICS, deviceResources().Hot(command.PipelineLayout).Layout, command.Set, 1,
+        &vkDescriptors, 0, nullptr);
+}
+
+void Device::CompileCommand(CommandBuffer cmd, BindImmutableSamplersComputeCommand&& command)
+{
+    VkDescriptorSet vkDescriptors = deviceResources().NativeHandleToVk(command.Descriptors);
+    vkCmdBindDescriptorSets(deviceResources().NativeHandleToVk(cmd),
+        VK_PIPELINE_BIND_POINT_COMPUTE, deviceResources().Hot(command.PipelineLayout).Layout, command.Set, 1,
+        &vkDescriptors, 0, nullptr);
+}
+
+void Device::CompileCommand(CommandBuffer, BindDescriptorArenaAllocatorsCommand&&)
 {
 }
 #endif // DESCRIPTOR_BUFFER
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const PushConstantsCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, BindDescriptorsGraphicsCommand&& command)
 {
-    const PipelineLayoutResource& layout = resources[command.PipelineLayout];
-    const VkPushConstantRange& pushConstantRange = layout.PushConstants.front();
-    vkCmdPushConstants(resources[cmd].CommandBuffer, layout.Layout,
-        pushConstantRange.stageFlags, 0, pushConstantRange.size, command.Data.data());
+    DeviceInternal::BindDescriptors(cmd, command.PipelineLayout, command.Descriptors, command.Set,
+        VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const DrawCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, BindDescriptorsComputeCommand&& command)
 {
-    vkCmdDraw(resources[cmd].CommandBuffer, command.VertexCount, 1, 0, command.BaseInstance);
+    DeviceInternal::BindDescriptors(cmd, command.PipelineLayout, command.Descriptors, command.Set,
+        VK_PIPELINE_BIND_POINT_COMPUTE);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const DrawIndexedCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, PushConstantsCommand&& command)
 {
-    vkCmdDrawIndexed(resources[cmd].CommandBuffer, command.IndexCount, 1, 0, 0, command.BaseInstance);
+    auto pushConstants = deviceResources().Cold(command.PipelineLayout).PushConstants;
+    const VkPushConstantRange& pushConstantRange = pushConstants.front();
+        vkCmdPushConstants(deviceResources().NativeHandleToVk(cmd), 
+        deviceResources().Hot(command.PipelineLayout).Layout,
+        pushConstantRange.stageFlags, pushConstantRange.offset, pushConstantRange.size, command.Data.data());
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const DrawIndexedIndirectCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, DrawCommand&& command)
 {
-    vkCmdDrawIndexedIndirect(resources[cmd].CommandBuffer, resources[command.Buffer].Buffer,
+    vkCmdDraw(deviceResources().NativeHandleToVk(cmd), command.VertexCount, 1, 0, command.BaseInstance);
+}
+
+void Device::CompileCommand(CommandBuffer cmd, DrawIndexedCommand&& command)
+{
+    vkCmdDrawIndexed(deviceResources().NativeHandleToVk(cmd), command.IndexCount, 1, 0, 0, command.BaseInstance);
+}
+
+void Device::CompileCommand(CommandBuffer cmd, DrawIndexedIndirectCommand&& command)
+{
+    vkCmdDrawIndexedIndirect(deviceResources().NativeHandleToVk(cmd), deviceResources().Get(command.Buffer).Buffer,
         command.Offset, command.Count, command.Stride);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const DrawIndexedIndirectCountCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, DrawIndexedIndirectCountCommand&& command)
 {
-    vkCmdDrawIndexedIndirectCount(resources[cmd].CommandBuffer,
-        resources[command.DrawBuffer].Buffer, command.DrawOffset,
-        resources[command.CountBuffer].Buffer, command.CountOffset,
+    vkCmdDrawIndexedIndirectCount(deviceResources().NativeHandleToVk(cmd),
+        deviceResources().Get(command.DrawBuffer).Buffer, command.DrawOffset,
+        deviceResources().Get(command.CountBuffer).Buffer, command.CountOffset,
         command.MaxCount, command.Stride);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd, const DispatchCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, DispatchCommand&& command)
 {
     const glm::uvec3 groupSize = (command.Invocations + command.GroupSize - glm::uvec3{1}) / command.GroupSize;
-    vkCmdDispatch(resources[cmd].CommandBuffer, groupSize.x, groupSize.y, groupSize.z);
+    vkCmdDispatch(deviceResources().NativeHandleToVk(cmd), groupSize.x, groupSize.y, groupSize.z);
 }
 
-void DeviceInternal::CompileCommand(const auto& resources, CommandBuffer cmd,
-    const DispatchIndirectCommand& command)
+void Device::CompileCommand(CommandBuffer cmd, DispatchIndirectCommand&& command)
 {
-    vkCmdDispatchIndirect(resources[cmd].CommandBuffer, resources[command.Buffer].Buffer, command.Offset);
+    vkCmdDispatchIndirect(deviceResources().NativeHandleToVk(cmd), deviceResources().Get(command.Buffer).Buffer, 
+        command.Offset);
+}
+
+
+VmaAllocator& DeviceInternal::Allocator()
+{
+    return g_State.Allocator;
+}
+
+VkCommandBuffer DeviceInternal::GetProfilerCommandBuffer(ProfilerContext* context)
+{
+    return deviceResources().NativeHandleToVk(context->m_GraphicsCommandBuffers[context->m_CurrentFrame]);
+}
+
+Buffer DeviceInternal::AllocateBuffer(const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
+    VmaAllocationCreateFlags allocationFlags)
+{
+    VkBufferCreateInfo bufferCreateInfo = {};
+    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.size = createInfo.Description.SizeBytes;
+    bufferCreateInfo.usage = usage;
+
+    VmaAllocationCreateInfo allocationCreateInfo = {};
+    allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    allocationCreateInfo.flags = allocationFlags;
+
+    BufferResource bufferResource = {};
+    deviceCheck(vmaCreateBuffer(Allocator(), &bufferCreateInfo, &allocationCreateInfo,
+        &bufferResource.Buffer, &bufferResource.Allocation, nullptr), "Failed to create a buffer");
+
+    bufferResource.Description.SizeBytes = createInfo.Description.SizeBytes;
+    bufferResource.Description.Usage = createInfo.Description.Usage;
+    if (createInfo.PersistentMapping)
+        bufferResource.HostAddress = bufferResource.Allocation->GetMappedData();
+    
+    VkBufferDeviceAddressInfo deviceAddressInfo = {};
+    deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+    deviceAddressInfo.buffer = bufferResource.Buffer;
+    bufferResource.DeviceAddress = vkGetBufferDeviceAddress(g_State.Device, &deviceAddressInfo);
+
+    return {deviceResources().Add(std::move(bufferResource))};
+}
+
+VkImageView DeviceInternal::CreateVulkanImageView(ImageKind kind, ImageUsage usage,
+    const ImageSubresourceDescription& subresourceDescription, VkImage image, VkFormat format)
+{
+    VkImageViewCreateInfo createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    createInfo.image = image;
+    createInfo.format = format;
+    createInfo.viewType = vulkanImageViewTypeFromImageAndViewKind(kind, subresourceDescription.ImageViewKind);
+    createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+    createInfo.subresourceRange.aspectMask = vulkanImageAspectFromImageUsage(usage);
+    createInfo.subresourceRange.baseMipLevel = (u32)(i32)subresourceDescription.MipmapBase;
+    createInfo.subresourceRange.levelCount = (u32)(i32)subresourceDescription.Mipmaps;
+    createInfo.subresourceRange.baseArrayLayer = (u32)(i32)subresourceDescription.LayerBase;
+    createInfo.subresourceRange.layerCount = (u32)(i32)subresourceDescription.Layers;
+
+    VkImageView imageView;
+
+    deviceCheck(vkCreateImageView(g_State.Device, &createInfo, nullptr, &imageView),
+        "Failed to create image view");
+
+    return imageView;
+}
+
+VkRenderingAttachmentInfo DeviceInternal::CreateVulkanRenderingAttachmentInfo(const RenderingAttachment& attachment)
+{
+    VkRenderingAttachmentInfo attachmentInfo = {};
+    attachmentInfo = {};
+    attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    attachmentInfo.clearValue = VkClearValue{
+        .color = {
+            .float32 = {
+                attachment.Description.Clear.Color.F.r,
+                attachment.Description.Clear.Color.F.g,
+                attachment.Description.Clear.Color.F.b,
+                attachment.Description.Clear.Color.F.a
+            }
+        }
+    };
+    attachmentInfo.imageLayout = vulkanImageLayoutFromImageLayout(attachment.Layout);
+    attachmentInfo.imageView = deviceResources().Hot(attachment.Image).Views.ViewList[
+        Device::GetImageViewHandle(attachment.Image, attachment.Description.Subresource).m_Index];
+    attachmentInfo.loadOp = vulkanAttachmentLoadFromAttachmentLoad(attachment.Description.OnLoad);
+    attachmentInfo.storeOp = vulkanAttachmentStoreFromAttachmentStore(attachment.Description.OnStore);
+    attachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+    
+    return attachmentInfo;
+}
+
+#ifdef DESCRIPTOR_BUFFER
+u32 DeviceInternal::GetDescriptorSizeBytes(DescriptorType type)
+{
+    auto& props = g_State.GPUDescriptorBufferProperties;
+    switch (type)
+    {
+    case DescriptorType::Sampler: return (u32)props.samplerDescriptorSize;
+    case DescriptorType::Image: return (u32)props.sampledImageDescriptorSize;
+    case DescriptorType::ImageStorage: return (u32)props.storageImageDescriptorSize;
+    case DescriptorType::TexelUniform: return (u32)props.uniformTexelBufferDescriptorSize;
+    case DescriptorType::TexelStorage: return (u32)props.storageTexelBufferDescriptorSize;
+    case DescriptorType::UniformBuffer: return (u32)props.uniformBufferDescriptorSize;
+    case DescriptorType::StorageBuffer: return (u32)props.storageBufferDescriptorSize;
+    case DescriptorType::Input: return (u32)props.inputAttachmentDescriptorSize;
+    default:
+        return 0;
+    }
+}
+
+void DeviceInternal::WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo slotInfo,
+    u32 index, VkDescriptorGetInfoEXT& descriptorGetInfo)
+{
+    auto&& [slot, type] = slotInfo;
+    
+    DescriptorsResource::ColdData& cold = deviceResources().Cold(descriptors);
+    const u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
+    const u64 innerOffsetBytes = descriptorSizeBytes * index;
+    ASSERT(innerOffsetBytes + descriptorSizeBytes <= cold.SizeBytes,
+        "Trying to write descriptor outside of the allocated region")
+
+    const u64 offsetBytes = cold.Offsets[slot] + innerOffsetBytes;
+    vkGetDescriptorEXT(g_State.Device, &descriptorGetInfo, descriptorSizeBytes,
+        (u8*)deviceResources().Hot(cold.Allocator).MappedAddress + offsetBytes);
+}
+
+void DeviceInternal::BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineLayout,
+    Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
+{
+    DescriptorsResource::ColdData& cold = deviceResources().Cold(descriptors);
+    const u64 offset = cold.Offsets.front();
+    u32 set = deviceResources().Hot(cold.Allocator).DescriptorSet;
+    vkCmdSetDescriptorBufferOffsetsEXT(deviceResources().NativeHandleToVk(cmd), bindPoint,
+        deviceResources().Hot(pipelineLayout).Layout, firstSet, 1, &set, &offset);
+}
+#else
+
+u32 DeviceInternal::GetFreePoolIndexFromAllocator(DescriptorArenaAllocator allocator, DescriptorPoolFlags poolFlags)
+{
+    DescriptorArenaAllocatorResource::ColdData& coldData = deviceResources().Cold(allocator);
+    for (u32 i = 0; i < coldData.FreePools.size(); i++)
+        if (coldData.FreePools[i].Flags == poolFlags)
+            return i;
+
+    const u32 index = (u32)coldData.FreePools.size();
+    std::vector<VkDescriptorPoolSize> sizes(DescriptorArenaAllocatorResource::ColdData::POOL_SIZES.size());
+    for (u32 i = 0; i < sizes.size(); i++)
+        sizes[i] = {
+            .type = vulkanDescriptorTypeFromDescriptorType(
+                DescriptorArenaAllocatorResource::ColdData::POOL_SIZES[i].DescriptorType),
+            .descriptorCount =
+                (u32)(DescriptorArenaAllocatorResource::ColdData::POOL_SIZES[i].SetSizeMultiplier * 
+                    (f32)coldData.MaxSetsPerPool)
+        };
+
+    VkDescriptorPool pool = {};
+
+    VkDescriptorPoolCreateInfo poolCreateInfo = {};
+    poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolCreateInfo.maxSets = coldData.MaxSetsPerPool;
+    poolCreateInfo.poolSizeCount = (u32)sizes.size();
+    poolCreateInfo.pPoolSizes = sizes.data();
+    poolCreateInfo.flags = vulkanDescriptorPoolFlagsFromDescriptorPoolFlags(poolFlags);
+
+    deviceCheck(vkCreateDescriptorPool(g_State.Device, &poolCreateInfo, nullptr, &pool),
+        "Failed to create descriptor pool");
+
+    coldData.FreePools.push_back({.Pool = pool, .Flags = poolFlags});
+
+    return index;
+}
+
+void DeviceInternal::BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineLayout,
+    Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
+{
+    VkDescriptorSet vkDescriptors = deviceResources().NativeHandleToVk(descriptors);
+    vkCmdBindDescriptorSets(deviceResources().NativeHandleToVk(cmd), bindPoint,
+        deviceResources().Hot(pipelineLayout).Layout, firstSet, 1, &vkDescriptors, 0, nullptr);
+}
+#endif
+
+std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(Span<const Semaphore> semaphores, 
+    Span<const PipelineStage> waitStages)
+{
+    std::vector waitSemaphoreSubmitInfos(semaphores.size(), VkSemaphoreSubmitInfo{});
+    for (auto&& [i, semaphore] : std::views::enumerate(semaphores))
+    {
+        waitSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        waitSemaphoreSubmitInfos[i].semaphore = deviceResources().NativeHandleToVk(semaphore);
+        waitSemaphoreSubmitInfos[i].stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i]);
+    }
+
+    return waitSemaphoreSubmitInfos;
+}
+
+std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(Span<const TimelineSemaphore> semaphores, 
+    Span<const u64> waitValues, Span<const PipelineStage> waitStages)
+{
+    std::vector waitSemaphoreSubmitInfos(semaphores.size(), VkSemaphoreSubmitInfo{});
+    for (auto&& [i, semaphore] : std::views::enumerate(semaphores))
+    {
+        waitSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        waitSemaphoreSubmitInfos[i].semaphore = deviceResources().NativeHandleToVk(semaphore);
+        waitSemaphoreSubmitInfos[i].value = waitValues[i];
+        waitSemaphoreSubmitInfos[i].stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i]);
+    }
+
+    return waitSemaphoreSubmitInfos;
 }

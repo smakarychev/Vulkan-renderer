@@ -492,7 +492,7 @@ void Graph::Execute(FrameContext& frameContext)
             colorAttachments.reserve(pass.m_RenderTargets.size());
             for (auto& target : pass.m_RenderTargets)
             {
-                colorAttachments.push_back(Device::CreateRenderingAttachment({
+                colorAttachments.push_back({
                         .Description = ColorAttachmentDescription{
                             .Subresource = GetImageSubresourceDescription(target.Resource),
                             .OnLoad = target.Description.OnLoad,
@@ -501,14 +501,13 @@ void Graph::Execute(FrameContext& frameContext)
                         },
                         .Image = m_Images[target.Resource.m_Index].Resource,
                         .Layout = m_Images[target.Resource.m_Index].Layout
-                    },
-                    *m_FrameDeletionQueue));
+                    });
             }
             if (pass.m_DepthStencilTargetAccess.Resource.IsValid())
             {
                 auto& target = pass.m_DepthStencilTargetAccess;
 
-                depthAttachment = Device::CreateRenderingAttachment({
+                depthAttachment = {
                         .Description = DepthStencilAttachmentDescription{
                             .Subresource = GetImageSubresourceDescription(target.Resource),
                             .OnLoad = target.Description.OnLoad,
@@ -517,20 +516,18 @@ void Graph::Execute(FrameContext& frameContext)
                         },
                         .Image = m_Images[target.Resource.m_Index].Resource,
                         .Layout = m_Images[target.Resource.m_Index].Layout
-                    },
-                    *m_FrameDeletionQueue);
+                    };
 
                 if (target.DepthBias.has_value())
                     depthBias = *target.DepthBias;
             }
 
             frameContext.CommandList.BeginRendering({
-                .RenderingInfo = Device::CreateRenderingInfo({
-                        .RenderArea = resolution,
-                        .ColorAttachments = colorAttachments,
-                        .DepthAttachment = depthAttachment
-                    },
-                    *m_FrameDeletionQueue)
+                .RenderingInfo = {
+                    .RenderArea = resolution,
+                    .ColorAttachments = colorAttachments,
+                    .DepthAttachment = depthAttachment
+                }
             });
 
             /* set dynamic states */
@@ -902,12 +899,12 @@ void Graph::ValidateImportedResources()
      * compatible with the description of virtual resource */
     for (auto& buffer : m_Buffers)
         if (buffer.IsImported)
-            if (!enumHasAll(buffer.Resource.GetDescription().Usage, buffer.Description.Usage))
+            if (!enumHasAll(buffer.Resource.GetUsage(), buffer.Description.Usage))
                 LUX_LOG_WARN("Imported buffer was created with flags"
                 " that are incompatible with the in-frame usage of this resource: {}", buffer.Name);
     for (auto& image : m_Images)
         if (image.IsImported)
-            if (!enumHasAll(image.Resource.GetDescription().Usage, image.Description.Usage))
+            if (!enumHasAll(image.Resource.GetUsage(), image.Description.Usage))
                 LUX_LOG_WARN("Imported image was created with flags"
                 " that are incompatible with the in-frame usage of this resource: {}", image.Name);
 }
@@ -1500,7 +1497,7 @@ BufferResource Graph::Import(StringId name, Buffer buffer)
     const BufferResource resource(ResourceFlags::Imported, (u16)m_Buffers.size(), 0);
     RGBuffer bufferResource = {};
     bufferResource.Name = name;
-    bufferResource.Description = buffer.GetDescription();
+    bufferResource.Description = buffer.GetDescriptionCopy();
     bufferResource.Resource = buffer;
     m_Buffers.push_back(bufferResource);
 
@@ -1512,7 +1509,7 @@ ImageResource Graph::Import(StringId name, Image image, ImageLayout layout)
     const ImageResource resource(ResourceFlags::Imported, (u16)m_Images.size(), 0);
     RGImage imageResource = {};
     imageResource.Name = name;
-    imageResource.Description = image.GetDescription();
+    imageResource.Description = image.GetDescriptionCopy();
     imageResource.Resource = image;
     imageResource.Layout = layout;
     imageResource.Extras.resize(imageResource.Description.AdditionalViews.size(), RGImageExtraInfo{

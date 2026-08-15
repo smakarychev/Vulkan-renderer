@@ -1,6 +1,5 @@
 ﻿#pragma once
 
-#include "DeviceFreelist.h"
 #include "Core/ProfilerContext.h"
 
 #include "Rendering/CommandBuffer.h"
@@ -11,7 +10,6 @@
 #include "Rendering/Synchronization.h"
 
 #include <functional>
-#include "DeviceSparseSet.h"
 #include "Rendering/Buffer/BufferArena.h"
 #include "Rendering/Commands/RenderCommands.h"
 
@@ -59,7 +57,7 @@ public:
     static void Destroy(Swapchain swapchain);
     static u32 AcquireNextImage(Swapchain swapchain, Fence renderFence, Semaphore presentSemaphore);
     static bool Present(Swapchain swapchain, QueueKind queueKind, u32 imageIndex);
-    static SwapchainDescription& GetSwapchainDescription(Swapchain swapchain);
+    static SwapchainDescription GetSwapchainDescription(Swapchain swapchain);
     static Semaphore GetSwapchainRenderSemaphore(Swapchain swapchain, u32 imageIndex);
     
     static CommandPool CreateCommandPool(CommandPoolCreateInfo&& createInfo,
@@ -71,6 +69,8 @@ public:
     static void ResetCommandBuffer(CommandBuffer cmd);
     static void BeginCommandBuffer(CommandBuffer cmd);
     static void BeginCommandBuffer(CommandBuffer cmd, CommandBufferUsage usage);
+    static void BeginSecondaryCommandBuffer(CommandBuffer cmd);
+    static void BeginSecondaryCommandBuffer(CommandBuffer cmd, CommandBufferUsage usage);
     static void EndCommandBuffer(CommandBuffer cmd);
     static void SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind,
         const BufferSubmitSyncInfo& submitSync);
@@ -94,8 +94,9 @@ public:
     static usize GetBufferSizeBytes(Buffer buffer);
     template <typename T>
     static Span<const T> GetMappedBufferView(const BufferSubresource& buffer);
-    static const BufferDescription& GetBufferDescription(Buffer buffer);
-    static u64 GetDeviceAddress(Buffer buffer);
+    static BufferDescription GetBufferDescription(Buffer buffer);
+    static u64 GetBufferDeviceAddress(Buffer buffer);
+    static BufferUsage GetBufferUsage(Buffer buffer);
 
     static BufferArena CreateBufferArena(BufferArenaCreateInfo&& createInfo, 
         DeletionQueue& deletionQueue = DeletionQueue());
@@ -112,20 +113,16 @@ public:
     static void Destroy(Image image);
     static void CreateViews(const ImageSubresource& image,
         const std::vector<ImageSubresourceDescription>& additionalViews);
-    static Span<const ImageSubresourceDescription> GetAdditionalImageViews(Image image);
+    static ImageSubresourceDescription GetAdditionalImageView(Image image, u32 viewIndex);
     static ImageViewHandle GetImageViewHandle(Image image, ImageSubresourceDescription subresourceDescription);
-    static const ImageDescription& GetImageDescription(Image image);
+    static ImageDescription GetImageDescription(Image image);
+    static i8 GetImageMipmaps(Image image);
+    static glm::uvec2 GetImageSize2d(Image image);
+    static glm::uvec3 GetImageSize3d(Image image);
+    static ImageUsage GetImageUsage(Image image);
     
     static Sampler CreateSampler(SamplerCreateInfo&& createInfo);
     static void Destroy(Sampler sampler);
-
-    static RenderingAttachment CreateRenderingAttachment(RenderingAttachmentCreateInfo&& createInfo,
-        DeletionQueue& deletionQueue = DeletionQueue());
-    static void Destroy(RenderingAttachment renderingAttachment);
-
-    static RenderingInfo CreateRenderingInfo(RenderingInfoCreateInfo&& createInfo,
-        DeletionQueue& deletionQueue = DeletionQueue());
-    static void Destroy(RenderingInfo renderingInfo);
 
     static PipelineLayout CreatePipelineLayout(PipelineLayoutCreateInfo&& createInfo,
         DeletionQueue& deletionQueue = DeletionQueue());
@@ -218,60 +215,60 @@ public:
     static void NameImage(Image image, std::string_view name);
     static void NamePipeline(Pipeline pipeline, std::string_view name);
     
-    static void CompileCommand(CommandBuffer cmd, const ExecuteSecondaryBufferCommand& command);
+    static void CompileCommand(CommandBuffer cmd, ExecuteSecondaryBufferCommand&& command);
     
-    static void CompileCommand(CommandBuffer cmd, const PrepareSwapchainPresentCommand& command);
+    static void CompileCommand(CommandBuffer cmd, PrepareSwapchainPresentCommand&& command);
 
-    static void CompileCommand(CommandBuffer cmd, const BeginRenderingCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const EndRenderingCommand& command);
+    static void CompileCommand(CommandBuffer cmd, BeginRenderingCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, EndRenderingCommand&& command);
     
-    static void CompileCommand(CommandBuffer cmd, const ImGuiBeginCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const ImGuiEndCommand& command);
+    static void CompileCommand(CommandBuffer cmd, ImGuiBeginCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, ImGuiEndCommand&& command);
 
-    static void CompileCommand(CommandBuffer cmd, const BeginConditionalRenderingCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const EndConditionalRenderingCommand& command);
+    static void CompileCommand(CommandBuffer cmd, BeginConditionalRenderingCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, EndConditionalRenderingCommand&& command);
     
-    static void CompileCommand(CommandBuffer cmd, const SetViewportCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const SetScissorsCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const SetDepthBiasCommand& command);
+    static void CompileCommand(CommandBuffer cmd, SetViewportCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, SetScissorsCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, SetDepthBiasCommand&& command);
     
-    static void CompileCommand(CommandBuffer cmd, const CopyBufferCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const CopyBufferToImageCommand& command);
+    static void CompileCommand(CommandBuffer cmd, CopyBufferCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, CopyBufferToImageCommand&& command);
 
-    static void CompileCommand(CommandBuffer cmd, const CopyImageCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const BlitImageCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const MipmapImageCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const ClearColorImageCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const ClearDepthStencilImageCommand& command);
+    static void CompileCommand(CommandBuffer cmd, CopyImageCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, BlitImageCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, MipmapImageCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, ClearColorImageCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, ClearDepthStencilImageCommand&& command);
 
-    static void CompileCommand(CommandBuffer cmd, const WaitOnFullPipelineBarrierCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const WaitOnBarrierCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const SignalSplitBarrierCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const WaitOnSplitBarrierCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const ResetSplitBarrierCommand& command);
+    static void CompileCommand(CommandBuffer cmd, WaitOnFullPipelineBarrierCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, WaitOnBarrierCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, SignalSplitBarrierCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, WaitOnSplitBarrierCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, ResetSplitBarrierCommand&& command);
 
-    static void CompileCommand(CommandBuffer cmd, const BindVertexBuffersCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const BindIndexU32BufferCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const BindIndexU16BufferCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const BindIndexU8BufferCommand& command);
+    static void CompileCommand(CommandBuffer cmd, BindVertexBuffersCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, BindIndexU32BufferCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, BindIndexU16BufferCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, BindIndexU8BufferCommand&& command);
 
-    static void CompileCommand(CommandBuffer cmd, const BindPipelineGraphicsCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const BindPipelineComputeCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const BindDescriptorsComputeCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command);
+    static void CompileCommand(CommandBuffer cmd, BindPipelineGraphicsCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, BindPipelineComputeCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, BindImmutableSamplersGraphicsCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, BindImmutableSamplersComputeCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, BindDescriptorsGraphicsCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, BindDescriptorsComputeCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, BindDescriptorArenaAllocatorsCommand&& command);
 
-    static void CompileCommand(CommandBuffer cmd, const PushConstantsCommand& command);
+    static void CompileCommand(CommandBuffer cmd, PushConstantsCommand&& command);
     
-    static void CompileCommand(CommandBuffer cmd, const DrawCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const DrawIndexedCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const DrawIndexedIndirectCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const DrawIndexedIndirectCountCommand& command);
+    static void CompileCommand(CommandBuffer cmd, DrawCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, DrawIndexedCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, DrawIndexedIndirectCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, DrawIndexedIndirectCountCommand&& command);
 
-    static void CompileCommand(CommandBuffer cmd, const DispatchCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const DispatchIndirectCommand& command);
+    static void CompileCommand(CommandBuffer cmd, DispatchCommand&& command);
+    static void CompileCommand(CommandBuffer cmd, DispatchIndirectCommand&& command);
 private:
     static void InitImGuiUI();
     static void ShutdownImGuiUI();
@@ -283,6 +280,18 @@ private:
     static void RetrieveDeviceQueues();
     static void CreateDebugUtilsMessenger();
     static void DestroyDebugUtilsMessenger();
+    
+    static void PreprocessImageCreateInfo(ImageCreateInfo& createInfo);
+    static Image AllocateImage(ImageCreateInfo& createInfo);
+    static Image CreateImageFromAssetFile(ImageCreateInfo& createInfo,
+        const lux::assetlib::ImageAsset* asset);
+    static Image CreateImageFromPixels(ImageCreateInfo& createInfo,
+        Span<const std::byte> pixels);
+    static Image CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer);
+    static Image CreateEmptyImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletionQueue);
+    
+    static void CreateSwapchainImages(Swapchain swapchain);
+    static void DestroySwapchainImages(Swapchain swapchain);
 };
 
 template <typename T>

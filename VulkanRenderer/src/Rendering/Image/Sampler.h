@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ImageTraits.h"
-#include "Rendering/ResourceHandle.h"
+#include "Vulkan/DeviceResourceListHandle.h"
 
 #include <CoreLib/types.h>
 
@@ -24,7 +24,7 @@ struct SamplerCreateInfo
 };
 
 struct SamplerTag{};
-using Sampler = ResourceHandleType<SamplerTag>;
+using Sampler = lux::DeviceResourceListHandle<SamplerTag>;
 
 class SamplerCache
 {

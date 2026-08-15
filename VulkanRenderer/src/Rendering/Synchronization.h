@@ -2,7 +2,7 @@
 
 #include <optional>
 
-#include "ResourceHandle.h"
+#include "Vulkan/DeviceResourceListHandle.h"
 #include "Image/Image.h"
 #include "Image/ImageTraits.h"
 #include "SynchronizationTraits.h"
@@ -17,7 +17,7 @@ struct FenceCreateInfo
 };
 
 struct FenceTag{};
-struct Fence : ResourceHandleType<FenceTag>
+struct Fence : lux::DeviceResourceListHandle<FenceTag>
 {
     void Wait() const;
     bool Check() const;
@@ -25,7 +25,7 @@ struct Fence : ResourceHandleType<FenceTag>
 };
 
 struct SemaphoreTag{};
-using Semaphore = ResourceHandleType<SemaphoreTag>;
+using Semaphore = lux::DeviceResourceListHandle<SemaphoreTag>;
 
 struct TimelineSemaphoreCreateInfo
 {
@@ -33,7 +33,7 @@ struct TimelineSemaphoreCreateInfo
 };
 
 struct TimelineSemaphoreTag{};
-struct TimelineSemaphore : ResourceHandleType<TimelineSemaphoreTag>
+struct TimelineSemaphore : lux::DeviceResourceListHandle<TimelineSemaphoreTag>
 {
     void WaitCPU(u64 value) const;
     void SignalCPU(u64 value) const;
@@ -96,4 +96,4 @@ struct DependencyInfo
 };
 
 struct SplitBarrierTag{};
-using SplitBarrier = ResourceHandleType<SplitBarrierTag>;
+using SplitBarrier = lux::DeviceResourceListHandle<SplitBarrierTag>;

@@ -1,8 +1,9 @@
 #include "rendererpch.h"
 
 #include "ImageUtility.h"
-
 #include "Vulkan/Device.h"
+
+#include <CoreLib/Math/CoreMath.h>
 
 namespace images
 {
@@ -43,12 +44,7 @@ glm::uvec3 getPixelCoordinates(Image image, const glm::vec3& coordinate, ImageSi
     if (sizeType == ImageSizeType::Absolute)
         return glm::uvec3{coordinate};
 
-    const TextureDescription& description = image.GetDescription();
-    glm::uvec3 size = {
-        description.Width,
-        description.Height,
-        description.GetDepth()
-    };
+    const glm::uvec3 size = image.GetSize3d();
 
     return glm::uvec3{
         (u32)((f32)size.x * coordinate.x), (u32)((f32)size.y * coordinate.y), (u32)((f32)size.z * coordinate.z)
@@ -171,7 +167,7 @@ Texture Default::GetCopy(DefaultKind kind, DeletionQueue& deletionQueue)
 
     Texture copy = Device::CreateImage({
             .DataSource = Span<const std::byte>({color}),
-            .Description = textureOriginal.GetDescription()
+            .Description = textureOriginal.GetDescriptionCopy()
         },
         deletionQueue);
 

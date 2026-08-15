@@ -3,6 +3,7 @@
 #include "ImageTraits.h"
 #include "Sampler.h"
 #include "Rendering/FormatTraits.h"
+#include "Rendering/RenderingCommon.h"
 
 #include <CoreLib/Containers/Span.h>
 
@@ -42,11 +43,15 @@ struct ImageSubresourceDescription
 };
 
 struct ImageTag{};
-struct Image : ResourceHandleType<ImageTag>
+struct Image : lux::DeviceResourceListHandle<ImageTag>
 {
-    Span<const ImageSubresourceDescription> GetAdditionalViews() const;
+    ImageSubresourceDescription GetAdditionalView(u32 viewIndex) const;
     ImageViewHandle GetViewHandle(ImageSubresourceDescription subresourceDescription) const;
-    const ImageDescription& GetDescription() const;
+    ImageDescription GetDescriptionCopy() const;
+    i8 GetMipmaps() const;
+    glm::uvec2 GetSize2d() const;
+    glm::uvec3 GetSize3d() const;
+    ImageUsage GetUsage() const;
 };
 
 struct ImageSubresource

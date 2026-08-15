@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "ResourceHandle.h"
+#include "Vulkan/DeviceResourceListHandle.h"
 
 #include "Descriptors.h"
 #include "DescriptorsTraits.h"
@@ -28,7 +28,7 @@ struct PipelineLayoutCreateInfo
 };
 
 struct PipelineLayoutTag{};
-using PipelineLayout = ResourceHandleType<PipelineLayoutTag>;
+using PipelineLayout = lux::DeviceResourceListHandle<PipelineLayoutTag>;
 
 struct PipelineSpecializationDescription
 {
@@ -123,4 +123,4 @@ struct PipelineCreateInfo
 };
 
 struct PipelineTag{};
-using Pipeline = ResourceHandleType<PipelineTag>;
+using Pipeline =  lux::DeviceResourceListHandle<PipelineTag>;

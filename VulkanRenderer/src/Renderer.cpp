@@ -159,8 +159,8 @@ void Renderer::Init()
     Device::BeginFrame(GetFrameContext());
 
     Input::OnWindowResized(
-        m_Swapchain.GetDescription().SwapchainResolution.x,
-        m_Swapchain.GetDescription().SwapchainResolution.y
+        m_Swapchain.GetDescriptionCopy().SwapchainResolution.x,
+        m_Swapchain.GetDescriptionCopy().SwapchainResolution.y
     );
     m_Camera = std::make_shared<Camera>(CameraType::Perspective);
     m_CameraController = std::make_unique<CameraController>(m_Camera);
@@ -431,14 +431,14 @@ void Renderer::ExecuteSkyboxPasses()
     static constexpr std::string_view SKYBOX_PATH = "../assets/textures/forest.hdr";
     m_Equirectangular = m_ImageAssetManager->LoadResource({.Path = SKYBOX_PATH});
 
-    const TextureDescription& equirectangularDescription = m_ImageAssetManager->Get(m_Equirectangular).GetDescription();
+    const glm::uvec2 equirectangularSize = m_ImageAssetManager->Get(m_Equirectangular).GetSize2d();
     
     if (!m_SkyboxTexture.HasValue())
         m_SkyboxTexture = m_Graph->AddPersistent(Device::CreateImage({
             .Description = ImageDescription{
-                .Width = equirectangularDescription.Width / 2,
-                .Height = equirectangularDescription.Width / 2,
-                .Mipmaps = images::mipmapCount(glm::uvec2{equirectangularDescription.Width / 2}),
+                .Width = equirectangularSize.x / 2,
+                .Height = equirectangularSize.x / 2,
+                .Mipmaps = images::mipmapCount(glm::uvec2{equirectangularSize.x / 2}),
                 .Format = Format::RGBA16_FLOAT,
                 .Kind = ImageKind::ImageCubemap,
                 .Usage = ImageUsage::Sampled | ImageUsage::Storage
@@ -504,7 +504,7 @@ void Renderer::SetupRenderGraph()
     using namespace RG;
     
     m_Graph->Reset();
-    m_Graph->SetBackbufferImage(m_Swapchain.GetDescription().DrawImage);
+    m_Graph->SetBackbufferImage(m_Swapchain.GetDescriptionCopy().DrawImage);
     
     for (auto& task : m_RenderGraphNextFrameTasks)
         task();
@@ -752,7 +752,7 @@ void Renderer::UpdateGlobalRenderGraphResources()
     
     auto& blackboard = m_Graph->GetBlackboard();
 
-    SwapchainDescription& swapchain = m_Swapchain.GetDescription();
+    SwapchainDescription swapchain = m_Swapchain.GetDescriptionCopy();
 
     if (!blackboard.TryGet<GlobalResources>())
     {
@@ -2116,19 +2116,19 @@ void Renderer::BeginFrame()
 
 RenderingInfo Renderer::GetImGuiUIRenderingInfo()
 {
-    const SwapchainDescription& swapchain = m_Swapchain.GetDescription();
+    const SwapchainDescription& swapchain = m_Swapchain.GetDescriptionCopy();
 
-    return Device::CreateRenderingInfo({
+    return {
         .RenderArea = swapchain.SwapchainResolution,
-        .ColorAttachments = {Device::CreateRenderingAttachment({
+        .ColorAttachments = {{
             .Description = ColorAttachmentDescription{
                 .OnLoad = AttachmentLoad::Load,
                 .OnStore = AttachmentStore::Store
             },
             .Image = swapchain.DrawImage,
             .Layout = ImageLayout::ColorAttachment
-        }, *GetFrameContext().DeletionQueue)}
-    }, *GetFrameContext().DeletionQueue);
+        }}
+    };
 }
 
 void Renderer::EndFrame()
@@ -2138,7 +2138,7 @@ void Renderer::EndFrame()
     GetFrameContext().CommandList.WaitOnBarrier({
         .DependencyInfo = LayoutTransitionInfo{
             .ImageSubresource = {
-                .Image = m_Swapchain.GetDescription().DrawImage,
+                .Image = m_Swapchain.GetDescriptionCopy().DrawImage,
                 .Description = {.Mipmaps = 1, .Layers = 1}
             },
             .SourceStage = PipelineStage::ColorOutput,
@@ -2198,7 +2198,7 @@ void Renderer::InitRenderingStructures()
     m_ResourceUploader.Init();
     
     m_Swapchain = Device::CreateSwapchain({}, Device::DummyDeletionQueue());
-    const SwapchainDescription& swapchain = m_Swapchain.GetDescription();
+    const SwapchainDescription swapchain = m_Swapchain.GetDescriptionCopy();
 
     m_FrameContexts.resize(BUFFERED_FRAMES);
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
@@ -2216,7 +2216,8 @@ void Renderer::InitRenderingStructures()
 
         m_FrameContexts[i].Cmd =  Device::CreateCommandBuffer({
             .Pool = pool,
-            .Kind = CommandBufferKind::Primary});
+            .Kind = CommandBufferKind::Primary
+        });
         m_FrameContexts[i].CommandList.SetCommandBuffer(m_FrameContexts[i].Cmd);
         
         m_FrameContexts[i].ResourceUploader = &m_ResourceUploader;
@@ -2278,7 +2279,7 @@ void Renderer::RecreateSwapchain()
     Device::Destroy(m_Swapchain);
     m_Swapchain = Device::CreateSwapchain({}, Device::DummyDeletionQueue());
 
-    const SwapchainDescription& swapchain = m_Swapchain.GetDescription();
+    const SwapchainDescription swapchain = m_Swapchain.GetDescriptionCopy();
     m_Graph->SetBackbufferImage(swapchain.DrawImage);
 
     Input::OnWindowResized(swapchain.SwapchainResolution.x, swapchain.SwapchainResolution.y);

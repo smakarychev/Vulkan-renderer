@@ -43,7 +43,7 @@ struct DescriptorsLayoutCreateInfo
 };
 
 struct DescriptorsLayoutTag{};
-using DescriptorsLayout = ResourceHandleType<DescriptorsLayoutTag>;
+using DescriptorsLayout = lux::DeviceResourceListHandle<DescriptorsLayoutTag>;
 
 struct DescriptorSlotInfo
 {
@@ -52,7 +52,7 @@ struct DescriptorSlotInfo
 };
 
 struct DescriptorsTag{};
-struct Descriptors : ResourceHandleType<DescriptorsTag>
+struct Descriptors : lux::DeviceResourceListHandle<DescriptorsTag>
 {
     void Update(DescriptorSlotInfo slotInfo, const BufferSubresource& buffer, u32 index) const;  
     void Update(DescriptorSlotInfo slotInfo, Sampler sampler) const;  
@@ -60,7 +60,7 @@ struct Descriptors : ResourceHandleType<DescriptorsTag>
 };
 
 struct DescriptorArenaAllocatorTag{};
-struct DescriptorArenaAllocator : ResourceHandleType<DescriptorArenaAllocatorTag>
+struct DescriptorArenaAllocator : lux::DeviceResourceListHandle<DescriptorArenaAllocatorTag>
 {
     std::optional<Descriptors> Allocate(DescriptorsLayout layout,
         DescriptorAllocatorAllocationBindings&& bindings) const;

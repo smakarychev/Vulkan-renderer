@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ResourceHandle.h"
 #include "Image/ImageTraits.h"
 #include "Image/Image.h"
 
@@ -71,22 +70,16 @@ struct RenderingAttachmentDescription
         Clear{.DepthStencil = description.ClearDepthStencil} {}
 };
 
-struct RenderingAttachmentCreateInfo
+struct RenderingAttachment
 {
     RenderingAttachmentDescription Description{};
     Image Image{};
     ImageLayout Layout{ImageLayout::Undefined};
 };
 
-struct RenderingAttachmentTag{};
-using RenderingAttachment = ResourceHandleType<RenderingAttachmentTag>;
-
-struct RenderingInfoCreateInfo
+struct RenderingInfo
 {
     glm::uvec2 RenderArea{0};
-    Span<const RenderingAttachment> ColorAttachments{};
+    std::vector<RenderingAttachment> ColorAttachments{};
     std::optional<RenderingAttachment> DepthAttachment{};
 };
-
-struct RenderingInfoTag{};
-using RenderingInfo = ResourceHandleType<RenderingInfoTag>;

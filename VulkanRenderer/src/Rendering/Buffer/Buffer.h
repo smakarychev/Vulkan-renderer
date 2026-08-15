@@ -1,8 +1,8 @@
 ﻿#pragma once
 
-#include "Rendering/ResourceHandle.h"
 #include "BufferTraits.h"
 #include "Rendering/CommandBuffer.h"
+#include "Vulkan/DeviceResourceListHandle.h"
 
 #include <CoreLib/Containers/Span.h>
 
@@ -10,7 +10,7 @@ struct BufferSubresourceDescription;
 struct BufferDescription;
 
 struct BufferTag{};
-struct Buffer : ResourceHandleType<BufferTag>
+struct Buffer : lux::DeviceResourceListHandle<BufferTag>
 {
     void Resize(u64 newSize, CommandBuffer cmd, bool copyData = true) const;
     void* Map() const;
@@ -21,8 +21,9 @@ struct Buffer : ResourceHandleType<BufferTag>
     usize GetSizeBytes() const;
     template <typename T>
     Span<const T> GetView(const BufferSubresourceDescription& subresource) const;
-    const BufferDescription& GetDescription() const;
+    BufferDescription GetDescriptionCopy() const;
     u64 GetDeviceAddress() const;
+    BufferUsage GetUsage() const;
 };
 
 struct BufferSubresourceDescription

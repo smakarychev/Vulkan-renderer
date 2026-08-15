@@ -1,7 +1,6 @@
 #pragma once
 #include "RenderCommands.h"
 #include "Rendering/CommandBuffer.h"
-#include "Rendering/ResourceHandle.h"
 
 /* with command list it is possible to store commands for later compilation,
  * e.g. for testing purposes

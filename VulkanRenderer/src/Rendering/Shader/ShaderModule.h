@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Rendering/ResourceHandle.h"
+#include "Vulkan/DeviceResourceListHandle.h"
 
 #include <CoreLib/Containers/Span.h>
 
@@ -10,4 +10,4 @@ struct ShaderModuleCreateInfo
 };
 
 struct ShaderModuleTag{};
-using ShaderModule = ResourceHandleType<ShaderModuleTag>;
+using ShaderModule = lux::DeviceResourceListHandle<ShaderModuleTag>;

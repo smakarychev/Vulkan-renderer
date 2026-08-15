@@ -29,10 +29,10 @@ struct SwapchainDescription
 };
 
 struct SwapchainTag{};
-struct Swapchain : ResourceHandleType<SwapchainTag>
+struct Swapchain : lux::DeviceResourceListHandle<SwapchainTag>
 {
     u32 AcquireNextImage(Fence renderFence, Semaphore presentSemaphore) const;
     bool Present(QueueKind queueKind, u32 imageIndex) const;
-    SwapchainDescription& GetDescription() const;
+    SwapchainDescription GetDescriptionCopy() const;
     Semaphore GetRenderSemaphore(u32 imageIndex) const;
 };

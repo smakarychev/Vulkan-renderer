@@ -16,12 +16,12 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
     using PassDataBind = PassDataWithBind<PassData, EnvironmentPrefilterBindGroupRG>;
 
 
-    i8 mipmapCount = renderGraph.GetImage(prefiltered).GetDescription().Mipmaps;
+    i8 mipmapCount = renderGraph.GetImage(prefiltered).GetMipmaps();
     ASSERT(MAX_MIPMAP_COUNT > mipmapCount)
     std::array<ImageResource, MAX_MIPMAP_COUNT> mips = {};
     for (i8 i = 0; i < mipmapCount; i++)
         mips[i] = renderGraph.SplitImage(prefiltered, 
-            renderGraph.GetImage(prefiltered).GetAdditionalViews()[i]);
+            renderGraph.GetImage(prefiltered).GetAdditionalView(i));
     
     for (i8 mipmap = 0; mipmap < mipmapCount; mipmap++)
     {

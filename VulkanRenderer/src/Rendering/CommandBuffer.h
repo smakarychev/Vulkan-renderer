@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "ResourceHandle.h"
+#include "Vulkan/DeviceResourceListHandle.h"
 #include "Synchronization.h"
 #include "SynchronizationTraits.h"
 
@@ -42,7 +42,7 @@ struct CommandPoolCreateInfo
 
 struct CommandPoolTag{};
 
-struct CommandPool : ResourceHandleType<CommandPoolTag>
+struct CommandPool : lux::DeviceResourceListHandle<CommandPoolTag>
 {
     void Reset() const;
 };
@@ -54,7 +54,7 @@ struct CommandBufferCreateInfo
 };
 
 struct CommandBufferTag{};
-struct CommandBuffer : ResourceHandleType<CommandBufferTag>
+struct CommandBuffer : lux::DeviceResourceListHandle<CommandBufferTag>
 {
     void Reset() const;
     void Begin() const;

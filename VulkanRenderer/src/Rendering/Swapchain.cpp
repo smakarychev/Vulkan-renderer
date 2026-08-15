@@ -14,7 +14,7 @@ bool Swapchain::Present(QueueKind queueKind, u32 imageIndex) const
     return Device::Present(*this, queueKind, imageIndex);
 }
 
-SwapchainDescription& Swapchain::GetDescription() const
+SwapchainDescription Swapchain::GetDescriptionCopy() const
 {
     return Device::GetSwapchainDescription(*this);
 }

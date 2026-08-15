@@ -39,12 +39,17 @@ usize Buffer::GetSizeBytes() const
     return Device::GetBufferSizeBytes(*this);
 }
 
-const BufferDescription& Buffer::GetDescription() const
+BufferDescription Buffer::GetDescriptionCopy() const
 {
     return Device::GetBufferDescription(*this);
 }
 
 u64 Buffer::GetDeviceAddress() const
 {
-    return Device::GetDeviceAddress(*this);
+    return Device::GetBufferDeviceAddress(*this);
+}
+
+BufferUsage Buffer::GetUsage() const
+{
+    return Device::GetBufferUsage(*this);
 }
