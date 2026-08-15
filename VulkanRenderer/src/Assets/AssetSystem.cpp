@@ -123,7 +123,7 @@ AssetPath AssetSystem::ResolveAssetPath(std::string_view filename) const
         if (filePath.filename() != assetPath.filename())
             continue;
         
-        return {filePath};
+        return {std::filesystem::path(weakly_canonical(filePath).generic_string())};
     }
     
     return {};
