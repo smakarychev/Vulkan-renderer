@@ -141,5 +141,12 @@ TEST_CASE("StringId AddVersion", "[String][StringId]")
         REQUIRE(versioned.AsString() == "Hello.1");
     }
 }
+TEST_CASE("StringId created can be created statically and cached via SID macro", "[String][StringId]")
+{
+    // this is more of a demonstration than a test
+    for (u32 i = 0; i < 100; i++)
+        StringId s = SID("Hello"_hsv);
+    SUCCEED();
+}
 
 // NOLINTEND

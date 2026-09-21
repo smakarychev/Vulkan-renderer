@@ -77,3 +77,6 @@ struct formatter<StringId> {
     }
 };
 }
+
+#define SID(x) \
+    ([](){ static StringId sid = x; return sid; })()
