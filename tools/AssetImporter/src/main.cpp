@@ -77,8 +77,6 @@ i32 main(i32 argc, char** argv)
     if (!config)
         return 1;
 
-    StringIdRegistry::Init();
-
     AssetIoRegistry<AssetIoInterface> ioInterfaceRegistry;
     AssetIoRegistry<AssetCompressor> ioCompressorRegistry;
 

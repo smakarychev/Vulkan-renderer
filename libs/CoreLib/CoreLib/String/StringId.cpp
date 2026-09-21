@@ -5,8 +5,23 @@
 #include <string>
 #include <unordered_map>
 
-std::unordered_map<u64, std::string> StringIdRegistry::s_Strings;
-std::shared_mutex StringIdRegistry::s_Mutex;
+namespace 
+{
+struct StringIdRegistryStorage
+{
+    std::unordered_map<u64, std::string> Strings;
+    std::shared_mutex Mutex;
+    
+    StringIdRegistryStorage()
+    {
+        
+        /* default constructable StringId has 0 hash value */
+        Strings[0] = "NOT_A_STRING";
+    }
+};
+
+StringIdRegistryStorage g_Storage = {};
+}
 
 static_assert(std::is_trivially_move_constructible_v<StringId>);
 static_assert(std::is_trivially_move_assignable_v<StringId>);
@@ -20,18 +35,18 @@ StringId::StringId(const HashedStringView& string)
     : m_Hash(string.Hash())
 {
     {
-        std::shared_lock lock(StringIdRegistry::s_Mutex);
-        if (StringIdRegistry::s_Strings.contains(m_Hash))
+        std::shared_lock lock(g_Storage.Mutex);
+        if (g_Storage.Strings.contains(m_Hash))
         {
-            ASSERT(StringIdRegistry::s_Strings.at(m_Hash) == string.String(), "Hash collision for StringId {} and {}",
-                StringIdRegistry::s_Strings.at(m_Hash), string.String())
+            ASSERT(g_Storage.Strings.at(m_Hash) == string.String(), "Hash collision for StringId {} and {}",
+                g_Storage.Strings.at(m_Hash), string.String())
             return;
         }
     }
     
     {
-        std::scoped_lock lock(StringIdRegistry::s_Mutex);
-        StringIdRegistry::s_Strings[m_Hash] = string.String();
+        std::scoped_lock lock(g_Storage.Mutex);
+        g_Storage.Strings[m_Hash] = string.String();
     }
 }
 
@@ -57,20 +72,14 @@ StringId StringId::Concatenate(std::string_view other) const
 
 const std::string& StringId::AsString() const
 {
-    std::shared_lock lock(StringIdRegistry::s_Mutex);
+    std::shared_lock lock(g_Storage.Mutex);
     
-    return StringIdRegistry::s_Strings.at(m_Hash);
+    return g_Storage.Strings.at(m_Hash);
 }
 
 std::string_view StringId::AsStringView() const
 {
-    std::shared_lock lock(StringIdRegistry::s_Mutex);
+    std::shared_lock lock(g_Storage.Mutex);
     
-    return StringIdRegistry::s_Strings.at(m_Hash);
-}
-
-void StringIdRegistry::Init()
-{
-    /* default constructable StringId has 0 hash value */
-    s_Strings[0] = "NOT_A_STRING";
+    return g_Storage.Strings.at(m_Hash);
 }

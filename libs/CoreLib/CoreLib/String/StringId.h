@@ -53,17 +53,6 @@ StringId StringId::AddVersion(std::integral auto version) const
     return Concatenate("." + std::to_string(version));
 }
 
-class StringIdRegistry
-{
-    friend class StringId;
-public:
-    static void Init();
-private:
-    static std::unordered_map<u64, std::string> s_Strings;
-    static std::shared_mutex s_Mutex;
-};
-
-
 namespace std
 {
 template <>

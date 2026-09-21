@@ -14,7 +14,6 @@ TEST_CASE("StringId constructor", "[String][StringId]")
     }
     SECTION("Empty StringId has valid string value if StringIdRegistry is initialized")
     {
-        StringIdRegistry::Init();
         StringId id = {};
         REQUIRE(!id.AsString().empty());
     }

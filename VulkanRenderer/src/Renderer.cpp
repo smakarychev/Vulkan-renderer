@@ -108,8 +108,6 @@ void Renderer::OnInputEvent(const lux::InputEvent& event)
 
 void Renderer::Init()
 {
-    StringIdRegistry::Init();
-
     if (*CVars::Get().GetI32CVar("Assets.IoType"_hsv) == 0)
         m_AssetIoInterface = std::make_shared<lux::assetlib::io::SeparateAssetIoInterface>();
     else
