@@ -7,6 +7,7 @@
 
 namespace 
 {
+// todo: there will be problems if I link CoreLib (a static lib) into multiple .dll
 struct StringIdRegistryStorage
 {
     std::unordered_map<u64, std::string> Strings;

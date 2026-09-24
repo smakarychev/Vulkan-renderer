@@ -99,6 +99,7 @@ private:
         return !std::ranges::all_of(m_Guid, [](auto c) { return c == ~0; });
     }
 private:
+    // todo: is this a bad way to store it? does it provoke 16 char comparisons instead of 2 u64 comparisons?
     std::array<char, GUID_SIZE_BYTES> m_Guid{};
 };
 

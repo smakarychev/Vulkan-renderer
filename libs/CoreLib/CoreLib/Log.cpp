@@ -7,6 +7,7 @@
 
 namespace 
 {
+// todo: there will be problems if I link CoreLib (a static lib) into multiple .dll
 std::unique_ptr<spdlog::logger> g_Logger;
 }
 
