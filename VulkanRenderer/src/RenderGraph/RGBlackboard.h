@@ -13,13 +13,15 @@ public:
     template <typename DataType>
     static constexpr u64 Type()
     {
-        return Hash::string(GENERATOR_PRETTY_FUNCTION);
+        constexpr static u64 hash = Hash::string(GENERATOR_PRETTY_FUNCTION);
+        
+        return hash;
     }
 
     template <typename DataType>
     static constexpr u64 Type(u64 extraHash)
     {
-        u64 hash = Hash::string(GENERATOR_PRETTY_FUNCTION);
+        u64 hash = Type<DataType>();
         Hash::combine(hash, extraHash);
 
         return hash;
