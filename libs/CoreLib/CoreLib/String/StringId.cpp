@@ -21,7 +21,12 @@ struct StringIdRegistryStorage
     }
 };
 
-StringIdRegistryStorage g_Storage = {};
+StringIdRegistryStorage& getStorage()
+{
+    static StringIdRegistryStorage storage = {};
+    
+    return storage;
+}
 }
 
 static_assert(std::is_trivially_move_constructible_v<StringId>);
@@ -36,18 +41,18 @@ StringId::StringId(const HashedStringView& string)
     : m_Hash(string.Hash())
 {
     {
-        std::shared_lock lock(g_Storage.Mutex);
-        if (g_Storage.Strings.contains(m_Hash))
+        std::shared_lock lock(getStorage().Mutex);
+        if (getStorage().Strings.contains(m_Hash))
         {
-            ASSERT(g_Storage.Strings.at(m_Hash) == string.String(), "Hash collision for StringId {} and {}",
-                g_Storage.Strings.at(m_Hash), string.String())
+            ASSERT(getStorage().Strings.at(m_Hash) == string.String(), "Hash collision for StringId {} and {}",
+                getStorage().Strings.at(m_Hash), string.String())
             return;
         }
     }
     
     {
-        std::scoped_lock lock(g_Storage.Mutex);
-        g_Storage.Strings[m_Hash] = string.String();
+        std::scoped_lock lock(getStorage().Mutex);
+        getStorage().Strings[m_Hash] = string.String();
     }
 }
 
@@ -73,14 +78,14 @@ StringId StringId::Concatenate(std::string_view other) const
 
 const std::string& StringId::AsString() const
 {
-    std::shared_lock lock(g_Storage.Mutex);
+    std::shared_lock lock(getStorage().Mutex);
     
-    return g_Storage.Strings.at(m_Hash);
+    return getStorage().Strings.at(m_Hash);
 }
 
 std::string_view StringId::AsStringView() const
 {
-    std::shared_lock lock(g_Storage.Mutex);
+    std::shared_lock lock(getStorage().Mutex);
     
-    return g_Storage.Strings.at(m_Hash);
+    return getStorage().Strings.at(m_Hash);
 }
