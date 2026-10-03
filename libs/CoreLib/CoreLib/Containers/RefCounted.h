@@ -149,7 +149,7 @@ public:
         return m_Ptr != nullptr;
     }
     
-    constexpr const T* operator->() const noexcept
+    constexpr T* operator->() const noexcept
     {
         return m_Ptr;
     }
