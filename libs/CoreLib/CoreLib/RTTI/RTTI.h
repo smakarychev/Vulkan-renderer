@@ -34,8 +34,7 @@ const TypeInfo& rttiType(const T* type) { return type->GetTypeInfo(); }
     using IntrusiveRTTI = void; \
     static const ::lux::TypeInfo& GetStaticTypeInfo() \
     { \
-        static ::lux::TypeInfo typeInfo = ::lux::RTTIHelper::GenerateTypeInfo< \
-            type, __VA_ARGS__>(SID(StringId::FromString(GENERATOR_PRETTY_FUNCTION))); \
+        static ::lux::TypeInfo typeInfo = ::lux::RTTIHelper::GenerateTypeInfo<type, __VA_ARGS__>(SID(StringId::FromString(GENERATOR_PRETTY_FUNCTION))); \
         return typeInfo; \
     } \
     virtual const ::lux::TypeInfo& GetTypeInfo() const \
