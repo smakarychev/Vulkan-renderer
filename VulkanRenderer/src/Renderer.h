@@ -30,16 +30,13 @@
 
 namespace lux
 {
+class ShaderPipelineLibrary;
+class ShaderAssetManager;
 class InputEvent;
 class Window;
 class SceneAssetManager;
 class MaterialAssetManager;
 class ImageAssetManager;
-}
-
-namespace lux
-{
-class ShaderAssetManager;
 }
 
 namespace Passes::SceneMetaDraw
@@ -199,10 +196,11 @@ private:
     std::shared_ptr<lux::import::Context> m_ImportCtx{};
     lux::import::ShaderImportSettings m_ShaderImportSettings{};
     
-    std::unique_ptr<lux::ShaderAssetManager> m_ShaderAssetManager;
     std::unique_ptr<lux::ImageAssetManager> m_ImageAssetManager;
     std::unique_ptr<lux::MaterialAssetManager> m_MaterialAssetManager;
     std::unique_ptr<lux::SceneAssetManager> m_SceneAssetManager;
+    std::unique_ptr<lux::ShaderAssetManager> m_ShaderAssetManager;
+    std::unique_ptr<lux::ShaderPipelineLibrary> m_ShaderPipelineLibrary;
     
     std::unique_ptr<RG::Graph> m_Graph;
     std::unique_ptr<RG::RGMermaidExporter> m_MermaidExporter;

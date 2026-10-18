@@ -47,7 +47,7 @@ Passes::HiZVisualize::PassData& Passes::HiZVisualize::addToGraph(StringId name, 
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindGraphics(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout,
                 .Data = {pushConstants}
             });
             cmd.Draw({.VertexCount = 3});

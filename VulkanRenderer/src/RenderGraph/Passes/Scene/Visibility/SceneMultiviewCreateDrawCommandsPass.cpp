@@ -108,7 +108,7 @@ PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo&
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
                 .Data = {PushConstants{
                     .ViewCount = passData.Resources->VisibilityCount,
                     .BucketCount = bucketCount,

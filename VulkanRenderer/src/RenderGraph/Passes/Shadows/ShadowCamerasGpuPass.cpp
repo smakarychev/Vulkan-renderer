@@ -55,7 +55,7 @@ Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringI
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-            	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+            	.PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
             	.Data = {pushConstant}});
             cmd.Dispatch({
                 .Invocations = {SHADOW_CASCADES, 1, 1},

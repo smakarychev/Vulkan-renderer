@@ -201,7 +201,7 @@ UpdateSlimeMapPassData& addUpdateSlimeMapStage(StringId name, RG::Graph& renderG
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout,
                 .Data = {pushConstants}
             });
             cmd.Dispatch({
@@ -243,7 +243,7 @@ DiffuseSlimeMapPassData& addDiffuseSlimeMapStage(StringId name, RG::Graph& rende
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout,
                 .Data = {pushConstants}
             });
             cmd.Dispatch({
@@ -311,7 +311,7 @@ GradientPassData& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeM
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout,
                 .Data = {pushConstants}
             });
             cmd.Dispatch({

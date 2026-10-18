@@ -47,7 +47,7 @@ Passes::PbrCameraExposure::PassData& exposureFromParameters(StringId name, RG::G
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout,
                 .Data = {
                     PushConstants{
                         .Aperture = aperture,
@@ -106,7 +106,7 @@ LuminanceHistogramPassData& calculateLuminanceHistogram(StringId name, RG::Graph
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
                 .Data = {PushConstants{
                     .MinLogLuminance = *CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMinLog"_hsv),
                     .LogLuminanceRangeInverse = 1.0f / 
@@ -164,7 +164,7 @@ ExposureFromLuminanceHistogramPassData& exposureFromLuminanceHistogram(StringId 
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout,
                 .Data = {PushConstants{
                     .MinLogLuminance = *CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMinLog"_hsv),
                     .LogLuminanceRange = (*CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMaxLog"_hsv) -
@@ -225,7 +225,7 @@ VisualizeLuminanceHistogramPassData& visualizeLuminanceHistogram(StringId name, 
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout,
                 .Data = {PushConstants{
                     .MinLogLuminance = *CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMinLog"_hsv),
                     .LogLuminanceRange = (*CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMaxLog"_hsv) -
@@ -272,7 +272,7 @@ VisualizeLuminanceHistogramPassData& visualizeLuminanceHistogramOverlay(StringId
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout,
                 .Data = {PushConstants{
                     .MinLogLuminance = *CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMinLog"_hsv),
                     .LogLuminanceRange = (*CVars::Get().GetF32CVar("Renderer.LuminanceHistogramMaxLog"_hsv) -

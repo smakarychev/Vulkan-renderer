@@ -294,6 +294,8 @@ assetlib::io::IoResult<ShaderReflection> ShaderReflection::Reflect(const assetli
     const auto& header = asset.Header;
 
     ShaderReflection shaderReflection = {};
+    shaderReflection.m_Name = StringId::FromString(header.Name);
+    
     shaderReflection.m_Modules.push_back(Device::CreateShaderModule({
         .Source = asset.Spirv
     }, Device::DummyDeletionQueue()));
@@ -360,6 +362,7 @@ assetlib::io::IoResult<ShaderReflection> ShaderReflection::Reflect(const assetli
 
 ShaderReflection::ShaderReflection(ShaderReflection&& other) noexcept
 {
+    m_Name = other.m_Name;
     m_ShaderStages = other.m_ShaderStages;
     m_SpecializationConstants = std::move(other.m_SpecializationConstants);
     m_VertexInputDescription = std::move(other.m_VertexInputDescription);
@@ -380,6 +383,7 @@ ShaderReflection& ShaderReflection::operator=(ShaderReflection&& other) noexcept
     for (auto module : m_Modules)
         Device::DeletionQueue().Enqueue(module);
     
+    m_Name = other.m_Name;
     m_ShaderStages = other.m_ShaderStages;
     m_SpecializationConstants = std::move(other.m_SpecializationConstants);
     m_VertexInputDescription = std::move(other.m_VertexInputDescription);

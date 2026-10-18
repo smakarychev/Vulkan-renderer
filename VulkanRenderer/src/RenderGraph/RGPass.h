@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "RGAccess.h"
-#include "Assets/Shaders/ShaderAssetManager.h"
+#include "Assets/Shaders/ShaderPipelineLibrary.h"
 #include "Rendering/Synchronization.h"
 
 #include <CoreLib/String/StringId.h>
@@ -118,7 +118,7 @@ private:
     DepthStencilTargetAccess m_DepthStencilTargetAccess{};
 
     PassFlags m_Flags{PassFlags::Cullable};
-    lux::ShaderAsset m_Shader{};
+    lux::ShaderPipeline m_Shader{};
 
     StringId m_Name;
 };

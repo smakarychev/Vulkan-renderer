@@ -62,7 +62,7 @@ Passes::SceneMultiviewMeshletVisibility::PassData& Passes::SceneMultiviewMeshlet
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
                 .Data = {PushConstants{
                     .ViewCount = passData.Resources->VisibilityCount}
                 }

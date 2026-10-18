@@ -63,7 +63,7 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
                 auto& cmd = frameContext.CommandList;
                 passData.BindGroup.BindCompute(cmd);
                 cmd.PushConstants({
-                	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+                	.PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
                 	.Data = {pushConstants}});
                 cmd.Dispatch({
                     .Invocations = {resolution, resolution, 6},

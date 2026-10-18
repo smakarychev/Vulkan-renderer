@@ -8,6 +8,7 @@
 
 namespace lux
 {
+class ShaderPipelineLibrary;
 class ShaderAssetManager;
 }
 
@@ -22,7 +23,7 @@ class Graph
 public:
     Graph() = default;
     Graph(const std::array<DescriptorArenaAllocators, BUFFERED_FRAMES>& descriptorAllocators,
-        lux::ShaderAssetManager& shaderAssetManager);
+        lux::ShaderAssetManager& shaderAssetManager, lux::ShaderPipelineLibrary& shaderPipelineLibrary);
     Graph(Graph&) = delete;
     Graph& operator=(Graph&) = delete;
     Graph(Graph&&) = delete;
@@ -115,13 +116,13 @@ public:
     template <typename Value>
     Value& GetOrCreateBlackboardValue(u64 hash) const;
 
-    const lux::ShaderAsset& SetShader(StringId name) const;
-    const lux::ShaderAsset& SetShader(StringId name, StringId variant) const;
-    const lux::ShaderAsset& SetShader(StringId name, ShaderOverridesView&& overrides) const;
-    const lux::ShaderAsset& SetShader(StringId name, std::optional<StringId> variant,
+    const lux::ShaderPipeline& SetShader(StringId name) const;
+    const lux::ShaderPipeline& SetShader(StringId name, StringId variant) const;
+    const lux::ShaderPipeline& SetShader(StringId name, ShaderOverridesView&& overrides) const;
+    const lux::ShaderPipeline& SetShader(StringId name, std::optional<StringId> variant,
         ShaderOverridesView&& overrides) const;
-    const lux::ShaderAsset& HandleShaderError(StringId name) const;
-    const lux::ShaderAsset& GetShader() const;
+    const lux::ShaderPipeline& HandleShaderError(StringId name) const;
+    const lux::ShaderPipeline& GetShader() const;
 
 private:
     ::BufferDescription CreateBufferDescription(const RGBufferDescription& description) const;
@@ -201,6 +202,7 @@ private:
     std::array<DescriptorArenaAllocators, BUFFERED_FRAMES> m_ArenaAllocators;
     DescriptorArenaAllocators* m_FrameAllocators{&m_ArenaAllocators[0]};
     lux::ShaderAssetManager* m_ShaderAssetManager{nullptr};
+    lux::ShaderPipelineLibrary* m_ShaderPipelineLibrary{nullptr};
     mutable Blackboard m_Blackboard;
     
     const StringId m_SplitPassName{"Split"_hsv};

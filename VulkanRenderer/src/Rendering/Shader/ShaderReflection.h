@@ -5,6 +5,7 @@
 #include "Rendering/Pipeline.h"
 
 #include <AssetLib/Io/AssetIo.h>
+#include <CoreLib/String/StringId.h>
 
 namespace lux
 {
@@ -70,12 +71,14 @@ public:
         return m_DescriptorSets;
     }
 
+    StringId Name() const { return m_Name; }
     const EntryPointsInfo& GetEntryPointsInfo() const { return m_EntryPointsInfo; }
     const std::vector<ShaderModule>& Shaders() const { return m_Modules; }
     const PipelineStateSettings& PipelineSettings() const { return m_PipelineStateSettings; }
     const std::vector<Format>& ColorFormats() const { return m_ColorFormats; }
     const std::optional<Format>& DepthFormat() const { return m_DepthFormat; }
 private:
+    StringId m_Name{};
     // todo: remove it and just store the asset?
     ShaderStage m_ShaderStages{ShaderStage::None};
     std::vector<SpecializationConstant> m_SpecializationConstants;

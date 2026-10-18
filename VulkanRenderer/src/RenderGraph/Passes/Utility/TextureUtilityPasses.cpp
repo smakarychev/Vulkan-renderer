@@ -95,7 +95,7 @@ RG::ImageResource Passes::Texture3dToSlice::addToGraph(StringId name, RG::Graph&
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindGraphics(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
                 .Data = {sliceNormalized}});
             cmd.Draw({.VertexCount = 3});
         }).Slice;
@@ -145,7 +145,7 @@ RG::ImageResource Passes::TextureArrayToSlice::addToGraph(StringId name, RG::Gra
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindGraphics(cmd);
             cmd.PushConstants({
-            	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+            	.PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
             	.Data = {slice}});
             cmd.Draw({.VertexCount = 3});
         }).Slice;
@@ -202,7 +202,7 @@ RG::ImageResource Passes::TextureArrayToAtlas::addToGraph(StringId name, RG::Gra
                 width += 1;
             
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
                 .Data = {width, height}});
             cmd.Draw({.VertexCount = 3});
         }).Atlas;

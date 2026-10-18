@@ -7,6 +7,7 @@
 
 #include "RGGraphWatcher.h"
 #include "Assets/Shaders/ShaderAssetManager.h"
+#include "Assets/Shaders/ShaderPipelineLibrary.h"
 
 #define RG_CHECK_RETURN(x, ...) if (!(x)) { LUX_LOG_ERROR(__VA_ARGS__); return {}; }
 #define RG_CHECK_RETURN_VOID(x, ...) if (!(x)) { LUX_LOG_ERROR(__VA_ARGS__); return; }
@@ -395,8 +396,9 @@ constexpr StageWithAccess inferImageReadWriteAccess(ImageDescription& descriptio
 }
 
 Graph::Graph(const std::array<DescriptorArenaAllocators, BUFFERED_FRAMES>& descriptorAllocators,
-    lux::ShaderAssetManager& shaderAssetManager)
-    : m_ArenaAllocators(descriptorAllocators), m_ShaderAssetManager(&shaderAssetManager)
+    lux::ShaderAssetManager& shaderAssetManager, lux::ShaderPipelineLibrary& shaderPipelineLibrary)
+    : m_ArenaAllocators(descriptorAllocators), m_ShaderAssetManager(&shaderAssetManager),
+      m_ShaderPipelineLibrary(&shaderPipelineLibrary)
 {
 }
 
@@ -1875,27 +1877,27 @@ const GlobalResources& Graph::GetGlobalResources() const
     return m_Blackboard.Get<GlobalResources>();
 }
 
-const lux::ShaderAsset& Graph::SetShader(StringId name) const
+const lux::ShaderPipeline& Graph::SetShader(StringId name) const
 {
     return SetShader(name, std::nullopt, {});
 }
 
-const lux::ShaderAsset& Graph::SetShader(StringId name, StringId variant) const
+const lux::ShaderPipeline& Graph::SetShader(StringId name, StringId variant) const
 {
     return SetShader(name, variant, {});
 }
 
-const lux::ShaderAsset& Graph::SetShader(StringId name, ShaderOverridesView&& overrides) const
+const lux::ShaderPipeline& Graph::SetShader(StringId name, ShaderOverridesView&& overrides) const
 {
     return SetShader(name, std::nullopt, std::move(overrides));
 }
 
-const lux::ShaderAsset& Graph::SetShader(StringId name, std::optional<StringId> variant,
+const lux::ShaderPipeline& Graph::SetShader(StringId name, std::optional<StringId> variant,
     ShaderOverridesView&& overrides) const
 {
     lux::ShaderLoadParameters shaderLoadParameters = {
         .Name = name,
-        .Overrides = overrides        
+        .Defines = overrides.Defines,
     };
     if (variant.has_value())
         shaderLoadParameters.Variant = *variant;
@@ -1904,24 +1906,27 @@ const lux::ShaderAsset& Graph::SetShader(StringId name, std::optional<StringId> 
     if (!shaderHandle.IsValid())
         return HandleShaderError(name);
 
-    const auto res = m_ShaderAssetManager->Allocate(shaderHandle, GetFrameAllocators());
+    auto res = m_ShaderPipelineLibrary->Allocate(shaderHandle, {
+        .Specializations = overrides.Specializations, .PipelineStateOverride = overrides.PipelineOverrides
+    }, GetFrameAllocators());
+
     if (!res.has_value())
         return HandleShaderError(name);
 
-    CurrentPass().m_Shader = m_ShaderAssetManager->Get(shaderHandle).value_or({});
+    CurrentPass().m_Shader = std::move(*res);
 
     return GetShader();
 }
 
-const lux::ShaderAsset& Graph::HandleShaderError(StringId name) const
+const lux::ShaderPipeline& Graph::HandleShaderError(StringId name) const
 {
-    static constexpr lux::ShaderAsset DUMMY = {};
+    static constexpr lux::ShaderPipeline DUMMY = {};
     LUX_LOG_ERROR("Error while setting shader {}. Pass will be disabled", name);
     CurrentPass().m_Flags |= PassFlags::Disabled;
     return DUMMY;
 }
 
-const lux::ShaderAsset& Graph::GetShader() const
+const lux::ShaderPipeline& Graph::GetShader() const
 {
     return CurrentPass().m_Shader;
 }

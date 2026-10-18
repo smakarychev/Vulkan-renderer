@@ -159,7 +159,7 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout,
                 .Data = {pushConstants}
             });
             cmd.Dispatch({

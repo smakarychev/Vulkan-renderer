@@ -39,7 +39,7 @@ Passes::Skybox::PassData& Passes::Skybox::addToGraph(StringId name, RG::Graph& r
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindGraphics(cmd);
             cmd.PushConstants({
-            	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+            	.PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
             	.Data = {info.LodBias}
             });
             cmd.Draw({.VertexCount = 6});

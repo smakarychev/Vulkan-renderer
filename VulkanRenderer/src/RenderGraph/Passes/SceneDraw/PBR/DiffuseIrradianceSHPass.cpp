@@ -32,7 +32,7 @@ Passes::DiffuseIrradianceSH::PassData& addOffline(StringId name, RG::Graph& rend
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
                 .Data = {0.0f}});
             cmd.Dispatch({
                 .Invocations = {1, 1, 1}});
@@ -69,7 +69,7 @@ Passes::DiffuseIrradianceSH::PassData& addRealtime(StringId name, RG::Graph& ren
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
                 .Data = {targetMipmap}});
             cmd.Dispatch({
                 .Invocations = {1, 1, 1}});

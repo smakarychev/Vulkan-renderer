@@ -11,6 +11,7 @@
 #include "Assets/Materials/MaterialAssetManager.h"
 #include "Assets/Scenes/SceneAssetManager.h"
 #include "Assets/Shaders/ShaderAssetManager.h"
+#include "Assets/Shaders/ShaderPipelineLibrary.h"
 #include "Core/Input.h"
 #include "Core/InputEvents/InputEventDispatcher.h"
 #include "Core/InputEvents/KeyboardInputEvent.h"
@@ -108,6 +109,8 @@ void Renderer::OnInputEvent(const lux::InputEvent& event)
 
 void Renderer::Init()
 {
+    InitRenderingStructures();
+    
     if (*CVars::Get().GetI32CVar("Assets.IoType"_hsv) == 0)
         m_AssetIoInterface = std::make_shared<lux::assetlib::io::SeparateAssetIoInterface>();
     else
@@ -128,7 +131,7 @@ void Renderer::Init()
         .UniformReflectionDirectoryName = "uniform_types",
         .EnableHotReloading = true,
     };
-
+    
     auto& assetSystem = lux::AssetSystem::Get();
     assetSystem.Init(m_ImportCtx);
     assetSystem.SetAssetsDirectory(*CVars::Get().GetStringCVar("Path.Assets"_hsv));
@@ -136,7 +139,8 @@ void Renderer::Init()
     m_ShaderAssetManager = std::make_unique<lux::ShaderAssetManager>();
     assetSystem.RegisterAssetManager(lux::assetlib::shader::ASSET_TYPE, *m_ShaderAssetManager);
     m_ShaderAssetManager->Init(m_ShaderImportSettings);
-
+    m_ShaderPipelineLibrary = std::make_unique<lux::ShaderPipelineLibrary>(*m_ShaderAssetManager);
+    
     m_ImageAssetManager = std::make_unique<lux::ImageAssetManager>();
     assetSystem.RegisterAssetManager(lux::assetlib::image::ASSET_TYPE, *m_ImageAssetManager);
 
@@ -153,7 +157,6 @@ void Renderer::Init()
     });
     assetSystem.SubscribeOnAssetUpdate(lux::assetlib::image::ASSET_TYPE, m_ImageAssetReloadedHandler);
     
-    InitRenderingStructures();
     Device::BeginFrame(GetFrameContext());
 
     Input::OnWindowResized(
@@ -189,7 +192,7 @@ void Renderer::Init()
         allocators[i] = DescriptorArenaAllocators({samplerAllocator, resourceAllocator}, m_PersistentMaterialAllocator);
     }
     
-    m_Graph = std::make_unique<RG::Graph>(allocators, *m_ShaderAssetManager);
+    m_Graph = std::make_unique<RG::Graph>(allocators, *m_ShaderAssetManager, *m_ShaderPipelineLibrary);
     m_MermaidExporter = std::make_unique<RG::RGMermaidExporter>();
     InitRenderGraph();
 }
@@ -197,7 +200,7 @@ void Renderer::Init()
 void Renderer::InitRenderGraph()
 {
     static constexpr u32 TEXTURE_HEAP_SIZE = 1024;
-    auto textureHeap = m_ShaderAssetManager->AllocateTextureHeap(
+    auto textureHeap = m_ShaderPipelineLibrary->CreateTextureHeap(
         m_Graph->GetFrameAllocators().GetPersistent(),
         TEXTURE_HEAP_SIZE);
     ASSERT(textureHeap.has_value())
@@ -2106,7 +2109,7 @@ void Renderer::BeginFrame()
     
     m_ResourceUploader.BeginFrame(GetFrameContext());
     m_Graph->OnFrameBegin(GetFrameContext());
-    m_ShaderAssetManager->OnFrameBegin(GetFrameContext());
+    m_ShaderPipelineLibrary->OnFrameBegin(GetFrameContext());
     m_ImageAssetManager->OnFrameBegin(GetFrameContext());
     m_SceneAssetManager->OnFrameBegin(GetFrameContext());
     ImGuiUI::BeginFrame(GetFrameContext().CommandList, GetFrameContext().FrameNumber);
@@ -2244,6 +2247,7 @@ void Renderer::Shutdown()
     m_Graph.reset();
     
     m_ResourceUploader.Shutdown();
+    m_ShaderPipelineLibrary->Shutdown();
     m_ShaderAssetManager->Shutdown();
     m_ImageAssetManager->Shutdown();
 

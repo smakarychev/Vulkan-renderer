@@ -34,7 +34,7 @@ Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph&
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-            	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+            	.PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
             	.Data = {pushConstants}
             });
             cmd.Dispatch({

@@ -130,7 +130,7 @@ Passes::HiZ::PassData& Passes::HiZ::addToGraph(StringId name, RG::Graph& renderG
                 auto& cmd = frameContext.CommandList;
                 passData.BindGroup.BindCompute(cmd);
                 cmd.PushConstants({
-                    .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
+                    .PipelineLayout = passData.BindGroup.Shader->PipelineLayout,
                     .Data = {pushConstant}
                 });
                 const u32 shift = toBeProcessed > 5 ? 12 : 10;

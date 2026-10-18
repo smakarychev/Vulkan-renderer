@@ -1050,7 +1050,7 @@ struct Writer
         {
             BeginForLoop("m_SamplerCount");
             WriteLine("const auto& binding = m_SamplerBindings[i];");
-            WriteLine("Shader->Descriptors(binding.Set).Update("
+            WriteLine("Shader->Descriptors[binding.Set].Update("
                 "DescriptorSlotInfo{.Slot = binding.Slot, .Type = DescriptorType::Sampler}, binding.Sampler);");
             EndForLoop();
         }
@@ -1058,7 +1058,7 @@ struct Writer
         {
             BeginForLoop("m_BufferCount");
             WriteLine("const auto& binding = m_BufferBindings[i];");
-            WriteLine("Shader->Descriptors(binding.Set).Update("
+            WriteLine("Shader->Descriptors[binding.Set].Update("
                 "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
                 "Graph->GetBufferBinding(binding.Resource), binding.ArrayOffset);");
             EndForLoop();
@@ -1068,7 +1068,7 @@ struct Writer
             BeginForLoop("m_ImageCount");
             WriteLine("const auto& binding = m_ImageBindings[i];");
             WriteLine("const auto& image = Graph->GetImageBinding(binding.Resource);");
-            WriteLine("Shader->Descriptors(binding.Set).Update("
+            WriteLine("Shader->Descriptors[binding.Set].Update("
                 "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
                 "image.Subresource, image.Layout, binding.ArrayOffset);");
             EndForLoop();
@@ -1083,13 +1083,13 @@ struct Writer
                 if (signature.HasImmutableSamplers)
                     WriteLine(std::format(
                         "cmdList.BindImmutableSamplers{}({{"
-                        ".Descriptors = Shader->Descriptors({}), .PipelineLayout = Shader->GetLayout(), .Set = {}}});",
+                        ".Descriptors = Shader->Descriptors[{}], .PipelineLayout = Shader->PipelineLayout, .Set = {}}});",
                         type, signature.Set, signature.Set));
                 else
                     WriteLine(std::format(
                         "cmdList.BindDescriptors{}({{"
-                        ".Descriptors = Shader->Descriptors({}), "
-                        ".PipelineLayout = Shader->GetLayout(), .Set = {}}});",
+                        ".Descriptors = Shader->Descriptors[{}], "
+                        ".PipelineLayout = Shader->PipelineLayout, .Set = {}}});",
                         type, signature.Set, signature.Set));
                 EndDivergenceCase(isDivergent);
             }
@@ -1106,7 +1106,7 @@ struct Writer
             type));
         WriteLine("{");
         Push();
-        WriteLine(std::format("cmdList.BindPipeline{}({{.Pipeline = Shader->Pipeline()}});", type));
+        WriteLine(std::format("cmdList.BindPipeline{}({{.Pipeline = Shader->Pipeline}});", type));
         WriteLine(std::format("Bind{}Descriptors(cmdList);", type));
         Pop();
         WriteLine("}");
@@ -1143,7 +1143,7 @@ std::string SlangGenerator::GenerateCommonFile() const
 {
     std::string commonFile = std::string(utils::getPreamble()).append("\n");
     commonFile += R"(
-#include "Assets/Shaders/ShaderAssetManager.h"
+#include "Assets/Shaders/ShaderPipelineLibrary.h"
 #include "RenderGraph/RGGraph.h"
 #include "Rendering/Commands/RenderCommandList.h"
 #include "FrameContext.h"
@@ -1174,13 +1174,13 @@ struct BindGroupBaseRG
     };
 
     BindGroupBaseRG() = default;
-    BindGroupBaseRG(RG::Graph& graph, const ::lux::ShaderAsset& shader)
+    BindGroupBaseRG(RG::Graph& graph, const ::lux::ShaderPipeline& shader)
         : Graph(&graph), Shader(&shader) {}
     BindGroupBaseRG(RG::Graph& graph)
         : Graph(&graph) {}
 
     RG::Graph* Graph{nullptr};
-    const ::lux::ShaderAsset* Shader{nullptr};
+    const ::lux::ShaderPipeline* Shader{nullptr};
 };
 )";
 

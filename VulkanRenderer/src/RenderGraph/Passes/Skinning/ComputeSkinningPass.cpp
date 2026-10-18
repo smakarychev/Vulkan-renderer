@@ -58,7 +58,7 @@ PrepareSkinningPassData& prepare(StringId name, RG::Graph& renderGraph,
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
                 .Data = {info.SkinnedRenderObjectCount}
             });
             cmd.Dispatch({
@@ -139,7 +139,7 @@ Passes::ComputeSkinning::PassData& updateBounds(StringId name, RG::Graph& render
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
-                .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
+                .PipelineLayout = passData.BindGroup.Shader->PipelineLayout, 
                 .Data = {info.SkinnedRenderObjectCount}
             });
             cmd.Dispatch({
