@@ -293,25 +293,21 @@ Pipeline ShaderAssetManager::CreatePipeline(const assetlib::ShaderLoadInfo& shad
 {
     std::vector<Format> colorFormats;
     std::optional<Format> depthFormat;
-    DynamicStates dynamicStates = DynamicStates::Default;
-    AlphaBlending alphaBlending = AlphaBlending::Over;
-    DepthMode depthMode = DepthMode::ReadWrite;
-    DepthTest depthTest = DepthTest::GreaterOrEqual;
-    FaceCullMode cullMode = FaceCullMode::Back;
-    PrimitiveKind primitiveKind = PrimitiveKind::Triangle;
-    bool clampDepth = false;
+    PipelineStateSettings stateSettings = {};
 
     if (shaderLoadInfo.RasterizationInfo.has_value())
     {
+        // todo : store in template!
         const auto& rasterization = *shaderLoadInfo.RasterizationInfo;
-        dynamicStates = dynamicStatesFromAssetDynamicStates(rasterization.DynamicStates);
-        alphaBlending = alphaBlendingFromAssetAlphaBlending(rasterization.AlphaBlending);
-        depthMode = depthModeFromAssetDepthMode(rasterization.DepthMode);
-        depthTest = depthTestFromAssetDepthTest(rasterization.DepthTest);
-        cullMode = faceCullModeFromAssetFaceCullMode(rasterization.FaceCullMode);
-        primitiveKind = primitiveKindModeFromAssetPrimitiveKind(rasterization.PrimitiveKind);
-        clampDepth = rasterization.ClampDepth;
+        stateSettings.DynamicStates = dynamicStatesFromAssetDynamicStates(rasterization.DynamicStates);
+        stateSettings.AlphaBlending = alphaBlendingFromAssetAlphaBlending(rasterization.AlphaBlending);
+        stateSettings.DepthMode = depthModeFromAssetDepthMode(rasterization.DepthMode);
+        stateSettings.DepthTest = depthTestFromAssetDepthTest(rasterization.DepthTest);
+        stateSettings.CullMode = faceCullModeFromAssetFaceCullMode(rasterization.FaceCullMode);
+        stateSettings.PrimitiveKind = primitiveKindModeFromAssetPrimitiveKind(rasterization.PrimitiveKind);
+        stateSettings.ClampDepth = rasterization.ClampDepth;
 
+        // todo : store in template!
         colorFormats.reserve(rasterization.Colors.size());
         for (auto& color : rasterization.Colors)
             colorFormats.push_back(formatFromAssetImageFormat(color.Format));
@@ -324,6 +320,22 @@ Pipeline ShaderAssetManager::CreatePipeline(const assetlib::ShaderLoadInfo& shad
     std::ranges::fill(shaderModules, pipelineTemplate.GetReflection().Shaders().front());
 
     const auto& overrides = parameters.Overrides;
+    const auto& pipelineOverrides = overrides.PipelineOverrides;
+    if (pipelineOverrides.DynamicStates)
+        stateSettings.DynamicStates = *pipelineOverrides.DynamicStates;
+    if (pipelineOverrides.DepthMode)
+        stateSettings.DepthMode = *pipelineOverrides.DepthMode;
+    if (pipelineOverrides.DepthTest)
+        stateSettings.DepthTest = *pipelineOverrides.DepthTest;
+    if (pipelineOverrides.CullMode)
+        stateSettings.CullMode = *pipelineOverrides.CullMode;
+    if (pipelineOverrides.AlphaBlending)
+        stateSettings.AlphaBlending = *pipelineOverrides.AlphaBlending;
+    if (pipelineOverrides.PrimitiveKind)
+        stateSettings.PrimitiveKind = *pipelineOverrides.PrimitiveKind;
+    if (pipelineOverrides.ClampDepth)
+        stateSettings.ClampDepth = *pipelineOverrides.ClampDepth;
+    
     ShaderDynamicSpecializations specializations = overrides.Specializations;
     const Pipeline pipeline = Device::CreatePipeline({
         .PipelineLayout = pipelineTemplate.GetPipelineLayout(),
@@ -332,15 +344,9 @@ Pipeline ShaderAssetManager::CreatePipeline(const assetlib::ShaderLoadInfo& shad
         .ShaderEntryPoints = pipelineTemplate.GetEntryPoints(),
         .ColorFormats = colorFormats,
         .DepthFormat = depthFormat ? *depthFormat : Format::Undefined,
-        .DynamicStates = overrides.PipelineOverrides.DynamicStates.value_or(dynamicStates),
-        .DepthMode = overrides.PipelineOverrides.DepthMode.value_or(depthMode),
-        .DepthTest = overrides.PipelineOverrides.DepthTest.value_or(depthTest),
-        .CullMode = overrides.PipelineOverrides.CullMode.value_or(cullMode),
-        .AlphaBlending = overrides.PipelineOverrides.AlphaBlending.value_or(alphaBlending),
-        .PrimitiveKind = overrides.PipelineOverrides.PrimitiveKind.value_or(primitiveKind),
+        .StateSettings = stateSettings,
         .Specialization = specializations.ToPipelineSpecializationsView(pipelineTemplate),
         .IsComputePipeline = pipelineTemplate.IsComputeTemplate(),
-        .ClampDepth = overrides.PipelineOverrides.ClampDepth.value_or(clampDepth)
     }, Device::DummyDeletionQueue());
     Device::NamePipeline(pipeline, parameters.Name.AsStringView());
 

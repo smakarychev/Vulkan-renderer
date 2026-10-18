@@ -102,6 +102,17 @@ struct VertexInputDescriptionView
         : Bindings(description.Bindings), Attributes(description.Attributes) {}
 };
 
+struct PipelineStateSettings
+{
+    DynamicStates DynamicStates{DynamicStates::Default};
+    DepthMode DepthMode{DepthMode::ReadWrite};
+    DepthTest DepthTest{DepthTest::GreaterOrEqual};
+    FaceCullMode CullMode{FaceCullMode::Back};
+    AlphaBlending AlphaBlending{AlphaBlending::Over};
+    PrimitiveKind PrimitiveKind{PrimitiveKind::Triangle};
+    bool ClampDepth{false};
+};
+
 struct PipelineCreateInfo
 {
     PipelineLayout PipelineLayout{};
@@ -111,15 +122,9 @@ struct PipelineCreateInfo
     Span<const Format> ColorFormats{};
     Format DepthFormat{Format::Undefined};
     VertexInputDescriptionView VertexDescription{};
-    DynamicStates DynamicStates{DynamicStates::Default};
-    DepthMode DepthMode{DepthMode::ReadWrite};
-    DepthTest DepthTest{DepthTest::GreaterOrEqual};
-    FaceCullMode CullMode{FaceCullMode::None};
-    AlphaBlending AlphaBlending{AlphaBlending::Over};
-    PrimitiveKind PrimitiveKind{PrimitiveKind::Triangle};
+    PipelineStateSettings StateSettings{};
     PipelineSpecializationsView Specialization{};
     bool IsComputePipeline{false};
-    bool ClampDepth{false};
 };
 
 struct PipelineTag{};

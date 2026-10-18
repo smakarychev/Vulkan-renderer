@@ -2750,7 +2750,8 @@ Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue
             !createInfo.ColorFormats.empty() ||
             createInfo.DepthFormat != Format::Undefined, "No rendering details provided")
 
-        std::vector<VkDynamicState> dynamicStates = vulkanDynamicStatesFromDynamicStates(createInfo.DynamicStates);
+        auto& stateSettings = createInfo.StateSettings;
+        std::vector<VkDynamicState> dynamicStates = vulkanDynamicStatesFromDynamicStates(stateSettings.DynamicStates);
 
         VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
         dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -2765,7 +2766,7 @@ Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue
         VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
         inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         inputAssemblyState.primitiveRestartEnable = VK_FALSE;
-        inputAssemblyState.topology = vulkanTopologyFromPrimitiveKind(createInfo.PrimitiveKind);
+        inputAssemblyState.topology = vulkanTopologyFromPrimitiveKind(stateSettings.PrimitiveKind);
 
         VkPipelineVertexInputStateCreateInfo vertexInputState = {};
         vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -2794,12 +2795,12 @@ Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue
 
         VkPipelineRasterizationStateCreateInfo rasterizationState = {};
         rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        rasterizationState.depthClampEnable = createInfo.ClampDepth ? VK_TRUE : VK_FALSE;
-        rasterizationState.depthBiasEnable = enumHasAny(createInfo.DynamicStates, DynamicStates::DepthBias);
+        rasterizationState.depthClampEnable = stateSettings.ClampDepth ? VK_TRUE : VK_FALSE;
+        rasterizationState.depthBiasEnable = enumHasAny(stateSettings.DynamicStates, DynamicStates::DepthBias);
         rasterizationState.rasterizerDiscardEnable = VK_FALSE; // if we do not want an output
         rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizationState.lineWidth = 1.0f;
-        rasterizationState.cullMode = vulkanCullModeFromFaceCullMode(createInfo.CullMode);
+        rasterizationState.cullMode = vulkanCullModeFromFaceCullMode(stateSettings.CullMode);
         rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
         VkPipelineMultisampleStateCreateInfo multisampleState = {};
@@ -2809,12 +2810,12 @@ Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue
 
         VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
         depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depthStencilState.depthTestEnable = createInfo.DepthMode == DepthMode::None ? VK_FALSE : VK_TRUE;
+        depthStencilState.depthTestEnable = stateSettings.DepthMode == DepthMode::None ? VK_FALSE : VK_TRUE;
         depthStencilState.depthWriteEnable =
-            (createInfo.DepthMode == DepthMode::None || createInfo.DepthMode == DepthMode::Read) ?
+            (stateSettings.DepthMode == DepthMode::None || stateSettings.DepthMode == DepthMode::Read) ?
             VK_FALSE :
             VK_TRUE;
-        depthStencilState.depthCompareOp = createInfo.DepthTest == DepthTest::GreaterOrEqual ?
+        depthStencilState.depthCompareOp = stateSettings.DepthTest == DepthTest::GreaterOrEqual ?
             VK_COMPARE_OP_GREATER_OR_EQUAL :
             VK_COMPARE_OP_EQUAL;
         depthStencilState.depthBoundsTestEnable = VK_FALSE;
@@ -2829,7 +2830,7 @@ Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue
                 VK_COLOR_COMPONENT_G_BIT |
                 VK_COLOR_COMPONENT_B_BIT |
                 VK_COLOR_COMPONENT_A_BIT;
-            switch (createInfo.AlphaBlending)
+            switch (stateSettings.AlphaBlending)
             {
             case AlphaBlending::None:
                 attachment.blendEnable = VK_FALSE;
