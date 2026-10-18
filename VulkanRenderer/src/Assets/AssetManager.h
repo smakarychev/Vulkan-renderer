@@ -16,10 +16,6 @@ struct Context;
 }
 
 class AssetIdResolver;
-}
-
-namespace lux
-{
 class AssetSystem;
 
 struct AssetLoadParameters

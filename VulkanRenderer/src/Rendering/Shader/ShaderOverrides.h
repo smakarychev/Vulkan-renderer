@@ -6,6 +6,11 @@
 
 #include <ranges>
 
+namespace lux
+{
+class ShaderPipelineTemplate;
+}
+
 struct ShaderSpecializationsView;
 struct ShaderDefinesView;
 struct ShaderOverridesView;
@@ -67,7 +72,7 @@ struct ShaderDynamicSpecializations
     template <typename T>
     constexpr ShaderDynamicSpecializations& Add(const ShaderSpecialization<T>& specialization);
     
-    PipelineSpecializationsView ToPipelineSpecializationsView(const ShaderPipelineTemplate& shaderTemplate);
+    PipelineSpecializationsView ToPipelineSpecializationsView(const lux::ShaderPipelineTemplate& shaderTemplate);
     
     auto operator<=>(const ShaderDynamicSpecializations&) const = default;
 private:
@@ -89,7 +94,7 @@ struct ShaderSpecializationsView
 
     constexpr ShaderSpecializationsView(ShaderDynamicSpecializations& specializations);
 
-    PipelineSpecializationsView ToPipelineSpecializationsView(const ShaderPipelineTemplate& shaderTemplate);
+    PipelineSpecializationsView ToPipelineSpecializationsView(const lux::ShaderPipelineTemplate& shaderTemplate);
 };
 
 struct ShaderDefine

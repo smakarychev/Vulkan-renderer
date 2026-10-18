@@ -15,7 +15,6 @@ struct FrameContext;
 
 namespace lux
 {
-
 namespace import
 {
 class ShaderImporter;
@@ -101,10 +100,8 @@ private:
         StringId Name{};
     };
     std::optional<LoadedPipelineInfo> DoLoad(import::ShaderImporter& importer, const AssetPath& path);
-    Pipeline CreatePipeline(const assetlib::ShaderLoadInfo& shaderLoadInfo, 
-        const ShaderPipelineTemplate& pipelineTemplate, const ShaderLoadParameters& parameters);
-    void ReloadPipeline(PipelineInfo& pipelineInfo, import::ShaderImporter& importer, 
-        const ShaderLoadParameters& parameters);
+    Pipeline CreatePipeline(const ShaderPipelineTemplate& pipelineTemplate, const ShaderLoadParameters& parameters);
+    void ReloadPipeline(PipelineInfo& pipelineInfo, const ShaderLoadParameters& parameters);
     std::vector<std::pair<std::string, std::string>> GetDefinesFromParameters(
         const ShaderLoadParameters& parameters) const;
     import::ShaderImportSettings CreateBakeSettings(const ShaderLoadParameters& parameters, 

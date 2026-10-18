@@ -9,6 +9,8 @@ class RenderCommandList;
 struct PushConstantDescription;
 class DescriptorLayoutCache;
 
+namespace lux
+{
 struct ShaderPipelineTemplateCreateInfo
 {
     ShaderReflection ShaderReflection;
@@ -20,7 +22,7 @@ class ShaderPipelineTemplate
 public:
     ShaderPipelineTemplate() = default;
     ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&& createInfo);
-    
+
     PipelineLayout GetPipelineLayout() const { return m_PipelineLayout; }
     DescriptorsLayout GetDescriptorsLayout(u32 index) const { return m_DescriptorsLayouts[index]; }
 
@@ -36,14 +38,17 @@ public:
 
         return {entryPoints.Stages.data(), entryPoints.Count};
     }
+
     Span<const std::string> GetEntryPoints() const
     {
         const auto& entryPoints = m_ShaderReflection.GetEntryPointsInfo();
 
         return {entryPoints.Names.data(), entryPoints.Count};
     }
+
 private:
     ShaderReflection m_ShaderReflection{};
     PipelineLayout m_PipelineLayout;
     std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> m_DescriptorsLayouts;
 };
+}

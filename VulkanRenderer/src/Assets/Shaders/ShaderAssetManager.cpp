@@ -190,7 +190,7 @@ ShaderHandle ShaderAssetManager::LoadAsset(const ShaderLoadParameters& parameter
 
     const PipelineInfo newPipeline = {
         .PipelineTemplate = loadedPipeline->PipelineTemplate,
-        .Pipeline = CreatePipeline(importer.GetImportedShaderLoadInfo(), *loadedPipeline->PipelineTemplate, parameters),
+        .Pipeline = CreatePipeline(*loadedPipeline->PipelineTemplate, parameters),
         .Layout = loadedPipeline->Layout,
         .HasTextureHeap = loadedPipeline->HasTextureHeap,
     };
@@ -228,7 +228,7 @@ void ShaderAssetManager::ReloadAsset(ShaderHandle handle)
         existingPipeline.PipelineTemplate = pipelineInfo->PipelineTemplate;
         existingPipeline.HasTextureHeap = pipelineInfo->HasTextureHeap;
         existingPipeline.Layout = pipelineInfo->Layout;
-        ReloadPipeline(existingPipeline, importer, *parameters);
+        ReloadPipeline(existingPipeline, *parameters);
     }
 }
 
@@ -264,8 +264,9 @@ std::optional<ShaderAssetManager::LoadedPipelineInfo> ShaderAssetManager::DoLoad
     
     auto& shaderAsset = importer.GetImportedShader().Asset;
     auto& shaderMetadata = importer.GetImportedAssetMetadata();
+    auto& loadInfo = importer.GetImportedShaderLoadInfo();
     
-    auto shaderReflectionResult = ShaderReflection::Reflect(shaderAsset);
+    auto shaderReflectionResult = ShaderReflection::Reflect(shaderAsset, loadInfo);
     if (!shaderReflectionResult.has_value())
         return std::nullopt;
 
@@ -288,32 +289,11 @@ std::optional<ShaderAssetManager::LoadedPipelineInfo> ShaderAssetManager::DoLoad
     return pipelineInfo;
 }
 
-Pipeline ShaderAssetManager::CreatePipeline(const assetlib::ShaderLoadInfo& shaderLoadInfo,
-    const ShaderPipelineTemplate& pipelineTemplate, const ShaderLoadParameters& parameters)
+Pipeline ShaderAssetManager::CreatePipeline(const ShaderPipelineTemplate& pipelineTemplate,
+    const ShaderLoadParameters& parameters)
 {
-    std::vector<Format> colorFormats;
-    std::optional<Format> depthFormat;
-    PipelineStateSettings stateSettings = {};
-
-    if (shaderLoadInfo.RasterizationInfo.has_value())
-    {
-        // todo : store in template!
-        const auto& rasterization = *shaderLoadInfo.RasterizationInfo;
-        stateSettings.DynamicStates = dynamicStatesFromAssetDynamicStates(rasterization.DynamicStates);
-        stateSettings.AlphaBlending = alphaBlendingFromAssetAlphaBlending(rasterization.AlphaBlending);
-        stateSettings.DepthMode = depthModeFromAssetDepthMode(rasterization.DepthMode);
-        stateSettings.DepthTest = depthTestFromAssetDepthTest(rasterization.DepthTest);
-        stateSettings.CullMode = faceCullModeFromAssetFaceCullMode(rasterization.FaceCullMode);
-        stateSettings.PrimitiveKind = primitiveKindModeFromAssetPrimitiveKind(rasterization.PrimitiveKind);
-        stateSettings.ClampDepth = rasterization.ClampDepth;
-
-        // todo : store in template!
-        colorFormats.reserve(rasterization.Colors.size());
-        for (auto& color : rasterization.Colors)
-            colorFormats.push_back(formatFromAssetImageFormat(color.Format));
-        if (rasterization.Depth.has_value())
-            depthFormat = formatFromAssetImageFormat(*rasterization.Depth);
-    }
+    auto& reflection = pipelineTemplate.GetReflection();
+    PipelineStateSettings stateSettings = reflection.PipelineSettings();
 
     ASSERT(pipelineTemplate.GetReflection().Shaders().size() == 1)
     std::array<ShaderModule, MAX_PIPELINE_SHADER_COUNT> shaderModules{};
@@ -342,8 +322,8 @@ Pipeline ShaderAssetManager::CreatePipeline(const assetlib::ShaderLoadInfo& shad
         .Shaders = Span((const ShaderModule*)shaderModules.data(), pipelineTemplate.GetShaderStages().size()),
         .ShaderStages = pipelineTemplate.GetShaderStages(),
         .ShaderEntryPoints = pipelineTemplate.GetEntryPoints(),
-        .ColorFormats = colorFormats,
-        .DepthFormat = depthFormat ? *depthFormat : Format::Undefined,
+        .ColorFormats = reflection.ColorFormats(),
+        .DepthFormat = reflection.DepthFormat() ? *reflection.DepthFormat() : Format::Undefined,
         .StateSettings = stateSettings,
         .Specialization = specializations.ToPipelineSpecializationsView(pipelineTemplate),
         .IsComputePipeline = pipelineTemplate.IsComputeTemplate(),
@@ -353,12 +333,10 @@ Pipeline ShaderAssetManager::CreatePipeline(const assetlib::ShaderLoadInfo& shad
     return pipeline;
 }
 
-void ShaderAssetManager::ReloadPipeline(PipelineInfo& pipelineInfo, import::ShaderImporter& importer,
-    const ShaderLoadParameters& parameters)
+void ShaderAssetManager::ReloadPipeline(PipelineInfo& pipelineInfo, const ShaderLoadParameters& parameters)
 {
     m_FrameDeletionQueue->Enqueue(pipelineInfo.Pipeline);
-    pipelineInfo.Pipeline = CreatePipeline(importer.GetImportedShaderLoadInfo(), *pipelineInfo.PipelineTemplate, 
-        parameters);
+    pipelineInfo.Pipeline = CreatePipeline(*pipelineInfo.PipelineTemplate, parameters);
 }
 
 std::vector<std::pair<std::string, std::string>> ShaderAssetManager::GetDefinesFromParameters(

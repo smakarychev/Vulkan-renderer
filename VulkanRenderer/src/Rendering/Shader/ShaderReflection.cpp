@@ -3,17 +3,18 @@
 #include "ShaderReflection.h"
 
 #include "ShaderPipelineTemplate.h"
+#include "Assets/Enums/ConvertAssetEnums.h"
 #include "Vulkan/Device.h"
 #include "Rendering/DeletionQueue.h"
 
 #include <AssetLib/Shaders/ShaderAsset.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
-#include <CoreLib/Utils/ContainterUtils.h>
+#include <AssetLib/Shaders/ShaderLoadInfo.h>
 
-
-static_assert(BINDLESS_DESCRIPTORS_INDEX == lux::assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX);
-static_assert(
-    BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX == lux::assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_BINDING_INDEX);
+namespace lux
+{
+static_assert(BINDLESS_DESCRIPTORS_INDEX == assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX);
+static_assert(BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX == assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_BINDING_INDEX);
 
 namespace
 {
@@ -49,38 +50,38 @@ Sampler getImmutableReductionSampler(SamplerReductionMode reductionMode)
     });
 }
 
-constexpr ShaderStage shaderStageFromAssetShaderStage(lux::assetlib::ShaderStage stage)
+constexpr ShaderStage shaderStageFromAssetShaderStage(assetlib::ShaderStage stage)
 {
     switch (stage)
     {
-    case lux::assetlib::ShaderStage::Vertex: return ShaderStage::Vertex;
-    case lux::assetlib::ShaderStage::Pixel: return ShaderStage::Pixel;
-    case lux::assetlib::ShaderStage::Compute: return ShaderStage::Compute;
-    case lux::assetlib::ShaderStage::None:
+    case assetlib::ShaderStage::Vertex: return ShaderStage::Vertex;
+    case assetlib::ShaderStage::Pixel: return ShaderStage::Pixel;
+    case assetlib::ShaderStage::Compute: return ShaderStage::Compute;
+    case assetlib::ShaderStage::None:
     default:
         ASSERT(false)
         return ShaderStage::None;
     }
 }
 
-constexpr ShaderStage shaderMultiStageFromAssetShaderMultiStage(lux::assetlib::ShaderStage stages)
+constexpr ShaderStage shaderMultiStageFromAssetShaderMultiStage(assetlib::ShaderStage stages)
 {
     ShaderStage stage = ShaderStage::None;
-    if (enumHasAny(stages, lux::assetlib::ShaderStage::Vertex))
+    if (enumHasAny(stages, assetlib::ShaderStage::Vertex))
         stage |= ShaderStage::Vertex;
-    if (enumHasAny(stages, lux::assetlib::ShaderStage::Pixel))
+    if (enumHasAny(stages, assetlib::ShaderStage::Pixel))
         stage |= ShaderStage::Pixel;
-    if (enumHasAny(stages, lux::assetlib::ShaderStage::Compute))
+    if (enumHasAny(stages, assetlib::ShaderStage::Compute))
         stage |= ShaderStage::Compute;
 
     return stage;
 }
 
-constexpr Format formatFromAssetInputAttributeFormat(u32 elementCount, lux::assetlib::ShaderScalarType scalar)
+constexpr Format formatFromAssetInputAttributeFormat(u32 elementCount, assetlib::ShaderScalarType scalar)
 {
     switch (scalar)
     {
-    case lux::assetlib::ShaderScalarType::I32:
+    case assetlib::ShaderScalarType::I32:
         switch (elementCount)
         {
         case 1: return Format::R32_SINT;
@@ -91,7 +92,7 @@ constexpr Format formatFromAssetInputAttributeFormat(u32 elementCount, lux::asse
             ASSERT(false)
             return Format::Undefined;
         }
-    case lux::assetlib::ShaderScalarType::U32:
+    case assetlib::ShaderScalarType::U32:
         switch (elementCount)
         {
         case 1: return Format::R32_UINT;
@@ -102,7 +103,7 @@ constexpr Format formatFromAssetInputAttributeFormat(u32 elementCount, lux::asse
             ASSERT(false)
             return Format::Undefined;
         }
-    case lux::assetlib::ShaderScalarType::F32:
+    case assetlib::ShaderScalarType::F32:
         switch (elementCount)
         {
         case 1: return Format::R32_FLOAT;
@@ -119,13 +120,13 @@ constexpr Format formatFromAssetInputAttributeFormat(u32 elementCount, lux::asse
     }
 }
 
-constexpr u32 formatSizeBytesFromAssetInputAttributeFormat(u32 elementCount, lux::assetlib::ShaderScalarType scalar)
+constexpr u32 formatSizeBytesFromAssetInputAttributeFormat(u32 elementCount, assetlib::ShaderScalarType scalar)
 {
     switch (scalar)
     {
-    case lux::assetlib::ShaderScalarType::I32:
-    case lux::assetlib::ShaderScalarType::U32:
-    case lux::assetlib::ShaderScalarType::F32:
+    case assetlib::ShaderScalarType::I32:
+    case assetlib::ShaderScalarType::U32:
+    case assetlib::ShaderScalarType::F32:
         return sizeof(u32) * elementCount;
     default:
         ASSERT(false)
@@ -133,8 +134,8 @@ constexpr u32 formatSizeBytesFromAssetInputAttributeFormat(u32 elementCount, lux
     }
 }
 
-::VertexInputDescription vertexInputDescriptionFromAssetInputAttribute(
-    const std::vector<lux::assetlib::ShaderInputAttribute>& attributes)
+VertexInputDescription vertexInputDescriptionFromAssetInputAttribute(
+    const std::vector<assetlib::ShaderInputAttribute>& attributes)
 {
     VertexInputDescription inputs = {};
 
@@ -170,31 +171,31 @@ constexpr u32 formatSizeBytesFromAssetInputAttributeFormat(u32 elementCount, lux
     return inputs;
 }
 
-constexpr DescriptorType descriptorTypeFromAssetBindingType(lux::assetlib::ShaderBindingType type)
+constexpr DescriptorType descriptorTypeFromAssetBindingType(assetlib::ShaderBindingType type)
 {
     switch (type)
     {
-    case lux::assetlib::ShaderBindingType::Sampler: return DescriptorType::Sampler;
-    case lux::assetlib::ShaderBindingType::Image: return DescriptorType::Image;
-    case lux::assetlib::ShaderBindingType::ImageStorage: return DescriptorType::ImageStorage;
-    case lux::assetlib::ShaderBindingType::TexelUniform: return DescriptorType::TexelUniform;
-    case lux::assetlib::ShaderBindingType::TexelStorage: return DescriptorType::TexelStorage;
-    case lux::assetlib::ShaderBindingType::UniformBuffer: return DescriptorType::UniformBuffer;
-    case lux::assetlib::ShaderBindingType::StorageBuffer: return DescriptorType::StorageBuffer;
-    case lux::assetlib::ShaderBindingType::UniformTexelBuffer:
-    case lux::assetlib::ShaderBindingType::StorageTexelBuffer:
+    case assetlib::ShaderBindingType::Sampler: return DescriptorType::Sampler;
+    case assetlib::ShaderBindingType::Image: return DescriptorType::Image;
+    case assetlib::ShaderBindingType::ImageStorage: return DescriptorType::ImageStorage;
+    case assetlib::ShaderBindingType::TexelUniform: return DescriptorType::TexelUniform;
+    case assetlib::ShaderBindingType::TexelStorage: return DescriptorType::TexelStorage;
+    case assetlib::ShaderBindingType::UniformBuffer: return DescriptorType::UniformBuffer;
+    case assetlib::ShaderBindingType::StorageBuffer: return DescriptorType::StorageBuffer;
+    case assetlib::ShaderBindingType::UniformTexelBuffer:
+    case assetlib::ShaderBindingType::StorageTexelBuffer:
         ASSERT(false, "Texel buffers are not supported")
         return {};
-    case lux::assetlib::ShaderBindingType::UniformBufferDynamic: return DescriptorType::UniformBufferDynamic;
-    case lux::assetlib::ShaderBindingType::StorageBufferDynamic: return DescriptorType::StorageBufferDynamic;
-    case lux::assetlib::ShaderBindingType::Input: return DescriptorType::Input;
+    case assetlib::ShaderBindingType::UniformBufferDynamic: return DescriptorType::UniformBufferDynamic;
+    case assetlib::ShaderBindingType::StorageBufferDynamic: return DescriptorType::StorageBufferDynamic;
+    case assetlib::ShaderBindingType::Input: return DescriptorType::Input;
     default:
         ASSERT(false)
         return {};
     }
 }
 
-Sampler immutableSamplerFromAssetBindingAttributes(lux::assetlib::ShaderBindingAttributes attributes)
+Sampler immutableSamplerFromAssetBindingAttributes(assetlib::ShaderBindingAttributes attributes)
 {
     static SamplerBorderColor black = SamplerBorderColor::Black;
     static SamplerBorderColor white = SamplerBorderColor::White;
@@ -221,7 +222,7 @@ Sampler immutableSamplerFromAssetBindingAttributes(lux::assetlib::ShaderBindingA
     static Sampler immutableReductionMinSampler = getImmutableReductionSampler(SamplerReductionMode::Min);
     static Sampler immutableReductionMaxSampler = getImmutableReductionSampler(SamplerReductionMode::Max);
 
-    using enum lux::assetlib::ShaderBindingAttributes;
+    using enum assetlib::ShaderBindingAttributes;
     if (!enumHasAny(attributes, ImmutableSampler))
         return {};
 
@@ -256,7 +257,7 @@ Sampler immutableSamplerFromAssetBindingAttributes(lux::assetlib::ShaderBindingA
 }
 
 ShaderReflection::DescriptorSets descriptorSetsFromAssetBindingSets(
-    const std::vector<lux::assetlib::ShaderBindingSet>& sets)
+    const std::vector<assetlib::ShaderBindingSet>& sets)
 {
     ShaderReflection::DescriptorSets descriptorSets = {};
 
@@ -268,7 +269,7 @@ ShaderReflection::DescriptorSets descriptorSetsFromAssetBindingSets(
         {
             const DescriptorType type = descriptorTypeFromAssetBindingType(binding.Type);
             const bool bindingIsBindless = enumHasAny(binding.Attributes,
-                lux::assetlib::ShaderBindingAttributes::Bindless);
+                assetlib::ShaderBindingAttributes::Bindless);
             hasBindless |= bindingIsBindless;
             descriptorSets[set.Set].Descriptors.push_back({
                 .Binding = binding.Binding,
@@ -287,7 +288,8 @@ ShaderReflection::DescriptorSets descriptorSetsFromAssetBindingSets(
 }
 }
 
-lux::assetlib::io::IoResult<ShaderReflection> ShaderReflection::Reflect(const lux::assetlib::ShaderAsset& asset)
+assetlib::io::IoResult<ShaderReflection> ShaderReflection::Reflect(const assetlib::ShaderAsset& asset,
+    const assetlib::ShaderLoadInfo& loadInfo)
 {
     const auto& header = asset.Header;
 
@@ -318,8 +320,8 @@ lux::assetlib::io::IoResult<ShaderReflection> ShaderReflection::Reflect(const lu
     shaderReflection.m_VertexInputDescription = vertexInputDescriptionFromAssetInputAttribute(header.InputAttributes);
 
     if (header.BindingSets.size() > MAX_DESCRIPTOR_SETS)
-        return std::unexpected(lux::assetlib::io::IoError{
-            .Code = lux::assetlib::io::IoError::ErrorCode::WrongFormat,
+        return std::unexpected(assetlib::io::IoError{
+            .Code = assetlib::io::IoError::ErrorCode::WrongFormat,
             .Message = std::format("Shader has too many descriptor sets. Expected no more than {}, but got {}",
                 MAX_DESCRIPTOR_SETS, header.BindingSets.size())
         });
@@ -334,20 +336,40 @@ lux::assetlib::io::IoResult<ShaderReflection> ShaderReflection::Reflect(const lu
         shaderReflection.m_EntryPointsInfo.Names[i] = header.EntryPoints[i].Name;
     }
 
+    if (loadInfo.RasterizationInfo.has_value())
+    {
+        const auto& rasterization = *loadInfo.RasterizationInfo;
+        auto& stateSettings = shaderReflection.m_PipelineStateSettings;
+        stateSettings.DynamicStates = dynamicStatesFromAssetDynamicStates(rasterization.DynamicStates);
+        stateSettings.AlphaBlending = alphaBlendingFromAssetAlphaBlending(rasterization.AlphaBlending);
+        stateSettings.DepthMode = depthModeFromAssetDepthMode(rasterization.DepthMode);
+        stateSettings.DepthTest = depthTestFromAssetDepthTest(rasterization.DepthTest);
+        stateSettings.CullMode = faceCullModeFromAssetFaceCullMode(rasterization.FaceCullMode);
+        stateSettings.PrimitiveKind = primitiveKindModeFromAssetPrimitiveKind(rasterization.PrimitiveKind);
+        stateSettings.ClampDepth = rasterization.ClampDepth;
+        
+        shaderReflection.m_ColorFormats.reserve(rasterization.Colors.size());
+        for (auto& color : rasterization.Colors)
+            shaderReflection.m_ColorFormats.push_back(formatFromAssetImageFormat(color.Format));
+        if (rasterization.Depth.has_value())
+            shaderReflection.m_DepthFormat = formatFromAssetImageFormat(*rasterization.Depth);
+    }
+
     return shaderReflection;
 }
 
 ShaderReflection::ShaderReflection(ShaderReflection&& other) noexcept
 {
-    for (auto module : m_Modules)
-        Device::DeletionQueue().Enqueue(module);
     m_ShaderStages = other.m_ShaderStages;
     m_SpecializationConstants = std::move(other.m_SpecializationConstants);
     m_VertexInputDescription = std::move(other.m_VertexInputDescription);
     m_PushConstants = std::move(other.m_PushConstants);
     m_DescriptorSets = std::move(other.m_DescriptorSets);
-    m_Modules = std::move(other.m_Modules);
     m_EntryPointsInfo = std::move(other.m_EntryPointsInfo);
+    m_PipelineStateSettings = std::move(other.m_PipelineStateSettings);
+    m_ColorFormats = std::move(other.m_ColorFormats);
+    m_DepthFormat = std::move(other.m_DepthFormat);
+    m_Modules = std::move(other.m_Modules);
 }
 
 ShaderReflection& ShaderReflection::operator=(ShaderReflection&& other) noexcept
@@ -357,14 +379,18 @@ ShaderReflection& ShaderReflection::operator=(ShaderReflection&& other) noexcept
 
     for (auto module : m_Modules)
         Device::DeletionQueue().Enqueue(module);
+    
     m_ShaderStages = other.m_ShaderStages;
     m_SpecializationConstants = std::move(other.m_SpecializationConstants);
     m_VertexInputDescription = std::move(other.m_VertexInputDescription);
     m_PushConstants = std::move(other.m_PushConstants);
     m_DescriptorSets = std::move(other.m_DescriptorSets);
-    m_Modules = std::move(other.m_Modules);
     m_EntryPointsInfo = std::move(other.m_EntryPointsInfo);
-
+    m_PipelineStateSettings = std::move(other.m_PipelineStateSettings);
+    m_ColorFormats = std::move(other.m_ColorFormats);
+    m_DepthFormat = std::move(other.m_DepthFormat);
+    m_Modules = std::move(other.m_Modules);
+    
     return *this;
 }
 
@@ -372,4 +398,5 @@ ShaderReflection::~ShaderReflection()
 {
     for (auto module : m_Modules)
         Device::DeletionQueue().Enqueue(module);
+}
 }

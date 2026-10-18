@@ -5,7 +5,7 @@
 #include "ShaderPipelineTemplate.h"
 
 PipelineSpecializationsView ShaderDynamicSpecializations::ToPipelineSpecializationsView(
-    const ShaderPipelineTemplate& shaderTemplate)
+    const lux::ShaderPipelineTemplate& shaderTemplate)
 {
     for (u32 i = 0; i < Descriptions.size(); i++)
     {
@@ -21,7 +21,7 @@ PipelineSpecializationsView ShaderDynamicSpecializations::ToPipelineSpecializati
 }
 
 PipelineSpecializationsView ShaderSpecializationsView::ToPipelineSpecializationsView(
-    const ShaderPipelineTemplate& shaderTemplate)
+    const lux::ShaderPipelineTemplate& shaderTemplate)
 {
     for (u32 i = 0; i < Descriptions.size(); i++)
     {
